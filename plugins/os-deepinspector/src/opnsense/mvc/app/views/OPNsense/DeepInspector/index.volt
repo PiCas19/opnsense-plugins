@@ -249,81 +249,47 @@ $(document).ready(function() {
         console.error("Failed to load DeepInspector forms", error);
     });
 
-    // Save button handler
+    // Save button handler - METODO SEMPLIFICATO
     $('#btnSaveSettings').click(function() {
-        // Collect form data
-        var formData = {
-            deepinspector: {}
+        // Usa il metodo standard OPNsense per salvare tutti i form
+        var allForms = {
+            'frm_DeepInspectorGeneral': "/api/deepinspector/settings/set",
+            'frm_DeepInspectorProtocols': "/api/deepinspector/settings/set", 
+            'frm_DeepInspectorDetection': "/api/deepinspector/settings/set",
+            'frm_DeepInspectorAdvanced': "/api/deepinspector/settings/set"
         };
 
-        // Get data from all forms - usando un selettore più specifico
-        $('#frm_DeepInspectorGeneral input, #frm_DeepInspectorGeneral select, #frm_DeepInspectorGeneral textarea, ' +
-          '#frm_DeepInspectorProtocols input, #frm_DeepInspectorProtocols select, #frm_DeepInspectorProtocols textarea, ' +
-          '#frm_DeepInspectorDetection input, #frm_DeepInspectorDetection select, #frm_DeepInspectorDetection textarea, ' +
-          '#frm_DeepInspectorAdvanced input, #frm_DeepInspectorAdvanced select, #frm_DeepInspectorAdvanced textarea').each(function() {
-            var $field = $(this);
-            var name = $field.attr('name');
-            
-            if (name && name.indexOf('deepinspector.') === 0) {
-                var value;
-                
-                if ($field.is(':checkbox')) {
-                    value = $field.is(':checked') ? '1' : '0';
-                } else if ($field.is('select[multiple]')) {
-                    value = $field.val() ? $field.val().join(',') : '';
-                } else {
-                    value = $field.val() || '';
-                }
-                
-                formData.deepinspector[name] = value;
-            }
-        });
-
-        console.log("Saving form data:", formData);
-
-        // Save using standard OPNsense method
-        saveFormToEndpoint("/api/deepinspector/settings/set", formData, function(response) {
-            console.log("Save response:", response);
-            
-            if (response.result === "saved") {
-                BootstrapDialog.show({
-                    type: BootstrapDialog.TYPE_SUCCESS,
-                    title: "{{ lang._('Success') }}",
-                    message: "{{ lang._('Settings saved successfully') }}",
-                    buttons: [{
-                        label: 'OK',
-                        action: function(dialog) {
-                            dialog.close();
-                            isSubsystemDirty();
-                        }
-                    }]
-                });
-            } else {
-                var errorMsg = "{{ lang._('Failed to save settings') }}";
-                if (response.validations) {
-                    errorMsg += ":\n\n";
-                    Object.keys(response.validations).forEach(function(field) {
-                        errorMsg += response.validations[field] + "\n";
-                    });
-                }
-                
-                BootstrapDialog.show({
-                    type: BootstrapDialog.TYPE_DANGER,
-                    title: "{{ lang._('Error') }}",
-                    message: errorMsg.replace(/\n/g, '<br>')
-                });
-            }
+        // Salva usando il metodo standard
+        saveFormToEndpoint("/api/deepinspector/settings/set", 'frm_DeepInspectorGeneral,frm_DeepInspectorProtocols,frm_DeepInspectorDetection,frm_DeepInspectorAdvanced', function() {
+            BootstrapDialog.show({
+                type: BootstrapDialog.TYPE_SUCCESS,
+                title: "{{ lang._('Success') }}",
+                message: "{{ lang._('Settings saved successfully') }}",
+                buttons: [{
+                    label: 'OK',
+                    action: function(dialog) {
+                        dialog.close();
+                        isSubsystemDirty();
+                    }
+                }]
+            });
+        }, true, function() {
+            BootstrapDialog.show({
+                type: BootstrapDialog.TYPE_DANGER,
+                title: "{{ lang._('Error') }}",
+                message: "{{ lang._('Failed to save settings') }}"
+            });
         });
     });
 
-    // Handle performance profile changes
-    $(document).on('change', '[name="deepinspector.general.performance_profile"]', function() {
+    // Handle performance profile changes - SEMPLIFICATO
+    $(document).on('change', 'select[name*="performance_profile"]', function() {
         var profile = $(this).val();
         handlePerformanceProfileChange(profile);
     });
 
-    // Handle industrial mode toggle
-    $(document).on('change', '[name="deepinspector.general.industrial_mode"]', function() {
+    // Handle industrial mode toggle - SEMPLIFICATO  
+    $(document).on('change', 'input[name*="industrial_mode"]', function() {
         var enabled = $(this).is(':checked');
         handleIndustrialModeToggle(enabled);
     });
@@ -413,10 +379,11 @@ $(document).ready(function() {
     }
 
     function handleIndustrialModeToggle(enabled) {
-        var $industrialTab = $('a[href="#industrial"]').parent();
+        var $industrialTab = $('#maintabs li').eq(4); // Il 5° tab (index 4)
         
         if (enabled === undefined) {
-            enabled = $('[name="deepinspector.general.industrial_mode"]').is(':checked');
+            // Cerca qualsiasi checkbox che contiene "industrial_mode" nel nome
+            enabled = $('input[name*="industrial_mode"]').is(':checked');
         }
         
         if (enabled) {
