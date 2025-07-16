@@ -2,15 +2,15 @@
  # Copyright (C) 2025 OPNsense Project
  # All rights reserved.
  #
- # Redistribution and use in source and binary forms, with or without modification,
- # are permitted provided that the following conditions are met:
+ # Redistribution and use in source and binary forms, with or without
+ # modification, are permitted provided that the following conditions are met:
  #
  # 1. Redistributions of source code must retain the above copyright notice,
  #    this list of conditions and the following disclaimer.
  #
- # 2. Redistributions in binary form must reproduce the above copyright notice,
- #    this list of conditions and the following disclaimer in the documentation
- #    and/or other materials provided with the distribution.
+ # 2. Redistributions in binary form must reproduce the above copyright
+ #    notice, this list of conditions and the following disclaimer in the
+ #    documentation and/or other materials provided with the distribution.
  #
  # THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
  # INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
@@ -51,7 +51,9 @@
             </button>
         </div>
         <div class="panel panel-default">
-            <div class="panel-heading"><h3 class="panel-title">{{ lang._('General Settings') }}</h3></div>
+            <div class="panel-heading">
+                <h3 class="panel-title">{{ lang._('General Settings') }}</h3>
+            </div>
             <div class="panel-body">
                 {{ partial("layout_partials/base_form", {
                     'fields': formGeneral,
@@ -69,7 +71,9 @@
             </button>
         </div>
         <div class="panel panel-default">
-            <div class="panel-heading"><h3 class="panel-title">{{ lang._('Protocol Inspection') }}</h3></div>
+            <div class="panel-heading">
+                <h3 class="panel-title">{{ lang._('Protocol Inspection') }}</h3>
+            </div>
             <div class="panel-body">
                 {{ partial("layout_partials/base_form", {
                     'fields': formProtocols,
@@ -87,7 +91,9 @@
             </button>
         </div>
         <div class="panel panel-default">
-            <div class="panel-heading"><h3 class="panel-title">{{ lang._('Detection Engines') }}</h3></div>
+            <div class="panel-heading">
+                <h3 class="panel-title">{{ lang._('Detection Engines') }}</h3>
+            </div>
             <div class="panel-body">
                 {{ partial("layout_partials/base_form", {
                     'fields': formDetection,
@@ -105,7 +111,9 @@
             </button>
         </div>
         <div class="panel panel-default">
-            <div class="panel-heading"><h3 class="panel-title">{{ lang._('Advanced Settings') }}</h3></div>
+            <div class="panel-heading">
+                <h3 class="panel-title">{{ lang._('Advanced Settings') }}</h3>
+            </div>
             <div class="panel-body">
                 {{ partial("layout_partials/base_form", {
                     'fields': formAdvanced,
@@ -122,14 +130,14 @@
 
 <script>
 $(function() {
-    // Mostra banner se config dirty
+    // Controlla se bisogna mostrare il banner "config changed"
     function isSubsystemDirty() {
         ajaxGet("/api/deepinspector/settings/dirty", {}, function(data) {
             $("#configChangedMsg").toggleClass("hidden", !(data.deepinspector && data.deepinspector.dirty));
         });
     }
 
-    // Apply global config
+    // Pulsante globale "Apply"
     $('#btnApplyConfig').SimpleActionButton({
         onAction: function() {
             isSubsystemDirty();
@@ -142,11 +150,11 @@ $(function() {
         }
     });
 
-    // Apri dialog per edit
-    function bindDialog(btnId, dialogId) {
+    // Funzione che apre un dialog a partire dal template base_dialog
+    function bindDialog(btnId, dialogId, title) {
         $(btnId).click(function() {
             BootstrapDialog.show({
-                title: $(this).text(),
+                title: title,
                 message: $('#' + dialogId).html(),
                 buttons: [
                     {
@@ -171,8 +179,6 @@ $(function() {
                                         for (var f in resp.validations) {
                                             msg += '<strong>'+f+'</strong>: '+resp.validations[f]+'<br/>';
                                         }
-                                        dlg.enableButtons(false);
-                                        dlg.setClosable(true);
                                         dlg.getModalBody().prepend('<div class="alert alert-danger">'+msg+'</div>');
                                     }
                                 }
@@ -181,23 +187,27 @@ $(function() {
                     },
                     {
                         label: "{{ lang._('Cancel') }}",
-                        action: function(dlg) { dlg.close(); }
+                        action: function(dlg){ dlg.close(); }
                     }
                 ]
             });
         });
     }
 
-    bindDialog('#btnEditGeneral',   'DialogGeneral');
-    bindDialog('#btnEditProtocols', 'DialogProtocols');
-    bindDialog('#btnEditDetection', 'DialogDetection');
-    bindDialog('#btnEditAdvanced',  'DialogAdvanced');
+    // Bind di tutti i bottoni Edit
+    bindDialog('#btnEditGeneral',   'DialogGeneral',   '{{ lang._("Edit General Settings") }}');
+    bindDialog('#btnEditProtocols', 'DialogProtocols', '{{ lang._("Edit Protocol Inspection") }}');
+    bindDialog('#btnEditDetection', 'DialogDetection', '{{ lang._("Edit Detection Engines") }}');
+    bindDialog('#btnEditAdvanced',  'DialogAdvanced',  '{{ lang._("Edit Advanced Settings") }}');
 
     isSubsystemDirty();
 });
 </script>
 
-{# -- DIALOG PARTIALS -- #}
+{# —————————————————————————————— #}
+{#    Include di tutti i dialog templates #}
+{# —————————————————————————————— #}
+
 {{ partial("layout_partials/base_dialog", {
     'fields': formGeneral,
     'id':     'DialogGeneral',
