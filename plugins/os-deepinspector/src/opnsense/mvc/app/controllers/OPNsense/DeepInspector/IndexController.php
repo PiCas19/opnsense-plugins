@@ -42,11 +42,38 @@ class IndexController extends BaseIndexController
      */
     public function indexAction()
     {
-        $this->view->title = gettext('Deep Packet Inspector');
-        $this->view->generalForm = $this->getForm("general");
-        $this->view->protocolsForm = $this->getForm("protocols");
-        $this->view->detectionForm = $this->getForm("detection");
-        $this->view->advancedForm = $this->getForm("advanced");
-        $this->view->pick('OPNsense/DeepInspector/index');
+        try {
+            $this->view->title = gettext('Deep Packet Inspector');
+            
+            // Debug: verifica se i file form esistono
+            $formPath = '/usr/local/opnsense/mvc/app/forms/OPNsense/DeepInspector/';
+            $forms = ['general', 'protocols', 'detection', 'advanced'];
+            
+            foreach ($forms as $form) {
+                $formFile = $formPath . $form . '.xml';
+                if (!file_exists($formFile)) {
+                    error_log("DeepInspector: Form file missing: " . $formFile);
+                } else {
+                    error_log("DeepInspector: Form file found: " . $formFile);
+                }
+            }
+            
+            $this->view->generalForm = $this->getForm("general");
+            $this->view->protocolsForm = $this->getForm("protocols");
+            $this->view->detectionForm = $this->getForm("detection");
+            $this->view->advancedForm = $this->getForm("advanced");
+            
+            // Debug: verifica se i form sono stati caricati
+            error_log("DeepInspector: generalForm loaded: " . (empty($this->view->generalForm) ? 'NO' : 'YES'));
+            error_log("DeepInspector: protocolsForm loaded: " . (empty($this->view->protocolsForm) ? 'NO' : 'YES'));
+            error_log("DeepInspector: detectionForm loaded: " . (empty($this->view->detectionForm) ? 'NO' : 'YES'));
+            error_log("DeepInspector: advancedForm loaded: " . (empty($this->view->advancedForm) ? 'NO' : 'YES'));
+            
+            $this->view->pick('OPNsense/DeepInspector/index');
+            
+        } catch (\Exception $e) {
+            error_log("DeepInspector IndexController error: " . $e->getMessage());
+            throw $e;
+        }
     }
 }
