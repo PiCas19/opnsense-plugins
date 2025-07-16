@@ -45,25 +45,65 @@ class SettingsController extends ApiMutableModelControllerBase
         $result = ["result" => "failed"];
         if ($this->request->isPost()) {
             $mdl = $this->getModel();
-            $mdl->setNodes($this->request->getPost("deepinspector"));
-            $valMsgs = $mdl->performValidation();
-            if ($valMsgs->count() > 0) {
-                $result["validations"] = [];
-                foreach ($valMsgs as $msg) {
-                    $field = $msg->getField();
-                    $result["validations"]["deepinspector." . $field] = $msg->getMessage();
+            
+            // Debug: log raw POST data
+            error_log("DeepInspector setAction - Raw POST: " . print_r($this->request->getPost(), true));
+            
+            // Get the posted data
+            $postData = $this->request->getPost();
+            
+            // Extract deepinspector data
+            $deepinspectorData = [];
+            
+            // Process all posted data that starts with deepinspector.
+            foreach ($postData as $key => $value) {
+                if (strpos($key, 'deepinspector.') === 0) {
+                    // Remove the deepinspector. prefix
+                    $cleanKey = substr($key, strlen('deepinspector.'));
+                    $deepinspectorData[$cleanKey] = $value;
+                }
+            }
+            
+            // If we have the data nested under 'deepinspector' key, use that instead
+            if (isset($postData['deepinspector'])) {
+                $deepinspectorData = $postData['deepinspector'];
+            }
+            
+            error_log("DeepInspector setAction - Processed data: " . print_r($deepinspectorData, true));
+            
+            if (!empty($deepinspectorData)) {
+                try {
+                    $mdl->setNodes($deepinspectorData);
+                    $valMsgs = $mdl->performValidation();
+                    
+                    if ($valMsgs->count() > 0) {
+                        $result["validations"] = [];
+                        foreach ($valMsgs as $msg) {
+                            $field = $msg->getField();
+                            $result["validations"]["deepinspector." . $field] = $msg->getMessage();
+                        }
+                        error_log("DeepInspector validation errors: " . print_r($result["validations"], true));
+                    } else {
+                        $mdl->serializeToConfig();
+                        Config::getInstance()->save();
+                        
+                        // Export configuration for the DPI engine
+                        try {
+                            (new Backend())->configdRun("deepinspector export_config");
+                        } catch (\Exception $e) {
+                            // Log error but don't fail
+                            error_log("DeepInspector export_config failed: " . $e->getMessage());
+                        }
+                        
+                        $result["result"] = "saved";
+                    }
+                } catch (\Exception $e) {
+                    error_log("DeepInspector setAction exception: " . $e->getMessage());
+                    $result["validations"] = ["general" => "Error processing settings: " . $e->getMessage()];
                 }
             } else {
-                $mdl->serializeToConfig();
-                Config::getInstance()->save();
-                // Export configuration for the DPI engine
-                try {
-                    (new Backend())->configdRun("deepinspector export_config");
-                } catch (\Exception $e) {
-                    // Log error but don't fail
-                    error_log("DeepInspector export_config failed: " . $e->getMessage());
-                }
-                $result["result"] = "saved";
+                error_log("DeepInspector setAction - No valid data found in POST");
+                $result["validations"] = ["general" => "No configuration data received"];
             }
         }
         return $result;
