@@ -227,6 +227,109 @@
          loadIndustrialMetrics();
       }, 30000);
    });
+
+   function handlePerformanceProfileChange(profile) {
+      const $customFields = $('.custom-profile-field');
+      const $industrialFields = $('.industrial-profile-field');
+      
+      if (profile === 'custom') {
+         $customFields.show();
+         $industrialFields.hide();
+      } else if (profile === 'industrial' || profile === 'high_performance') {
+         $customFields.hide();
+         $industrialFields.show();
+      } else {
+         $customFields.hide();
+         $industrialFields.hide();
+      }
+   }
+
+   function handleIndustrialModeToggle(enabled) {
+      const $industrialTab = $('a[href="#industrial"]').parent();
+      
+      if (enabled === undefined) {
+         enabled = $('[name="deepinspector.general.industrial_mode"]').is(':checked');
+      }
+      
+      if (enabled) {
+         $industrialTab.removeClass('hidden');
+      } else {
+         $industrialTab.addClass('hidden');
+      }
+   }
+
+   function loadIndustrialMetrics() {
+      ajaxGet("/api/deepinspector/settings/industrialStats", {}, function(data, status) {
+         if (status === "success" && data.status === 'ok') {
+            const stats = data.data;
+            $('#avgLatency').text(stats.avg_latency + ' μs');
+            $('#industrialPackets').text(formatNumber(stats.modbus_packets + stats.dnp3_packets + stats.opcua_packets));
+            $('#scadaAlerts').text(formatNumber(stats.scada_alerts));
+         }
+      });
+   }
+
+   function showZeroTrustReport(compliance) {
+      const scoreColor = compliance.overall_score >= 80 ? 'success' : 
+                        compliance.overall_score >= 60 ? 'warning' : 'danger';
+      
+      let html = '<div class="zero-trust-report">';
+      html += '<div class="compliance-score">';
+      html += '<h4>{{ lang._("Overall Compliance Score") }}</h4>';
+      html += '<div class="score-circle text-' + scoreColor + '">';
+      html += '<span class="score-value">' + compliance.overall_score + '%</span>';
+      html += '</div></div>';
+      
+      html += '<div class="compliance-checks">';
+      html += '<h5>{{ lang._("Compliance Checks") }}</h5>';
+      html += '<ul class="list-group">';
+      
+      Object.entries(compliance.checks).forEach(([check, passed]) => {
+         const icon = passed ? 'check text-success' : 'times text-danger';
+         const status = passed ? '{{ lang._("Passed") }}' : '{{ lang._("Failed") }}';
+         const checkName = check.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+         
+         html += '<li class="list-group-item">';
+         html += '<span class="pull-left">' + checkName + '</span>';
+         html += '<span class="pull-right"><i class="fa fa-' + icon + '"></i> ' + status + '</span>';
+         html += '<div class="clearfix"></div>';
+         html += '</li>';
+      });
+      
+      html += '</ul></div>';
+      
+      if (compliance.recommendations && compliance.recommendations.length > 0) {
+         html += '<div class="recommendations">';
+         html += '<h5>{{ lang._("Recommendations") }}</h5>';
+         html += '<ul class="list-group">';
+         
+         compliance.recommendations.forEach(rec => {
+            html += '<li class="list-group-item">' + rec + '</li>';
+         });
+         
+         html += '</ul></div>';
+      }
+      
+      html += '</div>';
+      
+      BootstrapDialog.show({
+         type: BootstrapDialog.TYPE_INFO,
+         title: "{{ lang._('Zero Trust Compliance Report') }}",
+         message: html,
+         size: BootstrapDialog.SIZE_LARGE,
+         buttons: [{
+            label: 'OK',
+            action: function(dialog) {
+               dialog.close();
+            }
+         }]
+      });
+   }
+
+   function formatNumber(num) {
+      return new Intl.NumberFormat().format(num || 0);
+   }
+</script>
    });
 
    function handlePerformanceProfileChange(profile) {
