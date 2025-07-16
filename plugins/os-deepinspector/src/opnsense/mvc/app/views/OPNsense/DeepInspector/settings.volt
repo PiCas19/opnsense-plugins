@@ -161,12 +161,14 @@
 
 <script>
 $(document).ready(function() {
+    // Fix: Ensure formIds is an array
     const formIds = [
         'frm_DeepInspectorGeneral',
         'frm_DeepInspectorProtocols', 
         'frm_DeepInspectorDetection',
         'frm_DeepInspectorAdvanced'
     ];
+    
     const getEndpoint = "/api/deepinspector/settings/get";
     const setEndpoint = "/api/deepinspector/settings/set";
     const reconfigureEndpoint = "/api/deepinspector/service/reconfigure";
@@ -175,55 +177,108 @@ $(document).ready(function() {
     const $spinner = $("#applySpinner");
     const $label = $("#applyLabel");
 
-    // Load settings data
-    const data_get_map = {};
-    formIds.forEach(function(formId) {
-        data_get_map[formId] = getEndpoint;
-    });
+    // Function to initialize forms
+    function initializeForms() {
+        const data_get_map = {};
+        formIds.forEach(function(formId) {
+            data_get_map[formId] = getEndpoint;
+        });
 
-    mapDataToFormUI(data_get_map).done(function() {
-        formatTokenizersUI();
-        $('.selectpicker').selectpicker('refresh');
-        loadIndustrialMetrics();
-    });
+        mapDataToFormUI(data_get_map).done(function(data) {
+            console.log("Forms loaded successfully", data);
+            formatTokenizersUI();
+            $('.selectpicker').selectpicker('refresh');
+            loadIndustrialMetrics();
+            handleIndustrialModeToggle();
+        }).fail(function(error) {
+            console.error("Error loading forms:", error);
+        });
+    }
+
+    // Initialize forms immediately
+    initializeForms();
 
     // Show Apply button when form changes
     formIds.forEach(function(formId) {
-        $(`#${formId}`).on("input change", "input, select, textarea", function() {
+        $(document).on("input change", `#${formId} input, #${formId} select, #${formId} textarea`, function() {
             $applyButton.removeClass("d-none");
         });
     });
 
     // Handle performance profile changes
-    $('#deepinspector\\.general\\.performance_profile').change(function() {
+    $(document).on('change', '#deepinspector\\.general\\.performance_profile', function() {
         const profile = $(this).val();
         handlePerformanceProfileChange(profile);
     });
 
     // Handle industrial mode toggle
-    $('#deepinspector\\.general\\.industrial_mode').change(function() {
+    $(document).on('change', '#deepinspector\\.general\\.industrial_mode', function() {
         const enabled = $(this).is(':checked');
         handleIndustrialModeToggle(enabled);
     });
 
-    // Apply button click
+    // Apply button click - Fixed to handle formIds as array
     $applyButton.click(function() {
         $spinner.removeClass("d-none");
         $label.text("{{ lang._('Applying...') }}");
         $applyButton.prop("disabled", true);
 
-        const formData = {};
-        formData['deepinspector'] = getFormData(formIds);
+        const formData = { deepinspector: {} };
+        
+        // Fix: Properly iterate through formIds array
+        formIds.forEach(function(formId) {
+            const $form = $('#' + formId);
+            if ($form.length) {
+                const serializedData = $form.serializeArray();
+                serializedData.forEach(function(item) {
+                    formData.deepinspector[item.name] = item.value;
+                });
+            }
+        });
 
-        saveFormToEndpoint(setEndpoint, formData, function() {
-            ajaxCall(reconfigureEndpoint, {}, function(response) {
+        // Send to server
+        $.ajax({
+            url: setEndpoint,
+            type: 'POST',
+            data: formData,
+            success: function(response) {
+                if (response.result === 'saved') {
+                    // Reconfigure service
+                    $.ajax({
+                        url: reconfigureEndpoint,
+                        type: 'POST',
+                        success: function() {
+                            $spinner.addClass("d-none");
+                            $label.text("{{ lang._('Apply') }}");
+                            $applyButton.prop("disabled", false).addClass("d-none");
+                            showApplyNotification();
+                            loadIndustrialMetrics();
+                        },
+                        error: function() {
+                            $spinner.addClass("d-none");
+                            $label.text("{{ lang._('Apply') }}");
+                            $applyButton.prop("disabled", false);
+                            showNotification('{{ lang._("Failed to reconfigure service") }}', 'error');
+                        }
+                    });
+                } else {
+                    $spinner.addClass("d-none");
+                    $label.text("{{ lang._('Apply') }}");
+                    $applyButton.prop("disabled", false);
+                    
+                    if (response.validations) {
+                        Object.keys(response.validations).forEach(function(field) {
+                            showNotification(response.validations[field], 'error');
+                        });
+                    }
+                }
+            },
+            error: function() {
                 $spinner.addClass("d-none");
                 $label.text("{{ lang._('Apply') }}");
-                $applyButton.prop("disabled", false).addClass("d-none");
-                
-                showApplyNotification();
-                loadIndustrialMetrics();
-            });
+                $applyButton.prop("disabled", false);
+                showNotification('{{ lang._("Failed to save settings") }}', 'error');
+            }
         });
     });
 
@@ -240,11 +295,7 @@ $(document).ready(function() {
             if (data.status === 'ok') {
                 showNotification('{{ lang._("Industrial optimization applied successfully") }}', 'success');
                 // Reload the form data
-                mapDataToFormUI(data_get_map).done(function() {
-                    formatTokenizersUI();
-                    $('.selectpicker').selectpicker('refresh');
-                    loadIndustrialMetrics();
-                });
+                initializeForms();
             } else {
                 showNotification('{{ lang._("Failed to apply industrial optimization") }}', 'error');
             }
@@ -275,17 +326,6 @@ $(document).ready(function() {
     updateServiceControlUI('deepinspector');
 });
 
-function getFormData(formIds) {
-    const data = {};
-    formIds.forEach(function(formId) {
-        const formData = new FormData(document.getElementById(formId));
-        for (let [key, value] of formData.entries()) {
-            data[key] = value;
-        }
-    });
-    return data;
-}
-
 function handlePerformanceProfileChange(profile) {
     const $customFields = $('.custom-profile-field');
     const $industrialFields = $('.industrial-profile-field');
@@ -305,6 +345,11 @@ function handlePerformanceProfileChange(profile) {
 function handleIndustrialModeToggle(enabled) {
     const $industrialTab = $('.nav-link[href="#industrial"]');
     const $industrialSettings = $('.industrial-settings');
+    
+    if (enabled === undefined) {
+        // Get current state
+        enabled = $('#deepinspector\\.general\\.industrial_mode').is(':checked');
+    }
     
     if (enabled) {
         $industrialTab.removeClass('d-none');
