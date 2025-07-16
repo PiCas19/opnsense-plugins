@@ -30,9 +30,9 @@
        * get the isSubsystemDirty value and print a notice
        */
       function isSubsystemDirty() {
-         ajaxGet("/api/deepinspector/service/dirty", {}, function(data,status) {
+         ajaxGet("/api/deepinspector/settings/dirty", {}, function(data,status) {
             if (status == "success") {
-               if (data.deepinspector.dirty === true) {
+               if (data.deepinspector && data.deepinspector.dirty === true) {
                   $("#configChangedMsg").removeClass("hidden");
                } else {
                   $("#configChangedMsg").addClass("hidden");
@@ -66,88 +66,50 @@
       /**
        * Load and save form data
        */
-      const formIds = ['general', 'protocols', 'detection', 'advanced'];
+      const formIds = [
+         'frm_DeepInspectorGeneral',
+         'frm_DeepInspectorProtocols', 
+         'frm_DeepInspectorDetection',
+         'frm_DeepInspectorAdvanced'
+      ];
       const getEndpoint = "/api/deepinspector/settings/get";
       const setEndpoint = "/api/deepinspector/settings/set";
 
-      // Load form data
+      // Load form data using OPNsense standard method
       function loadFormData() {
-         ajaxGet(getEndpoint, {}, function(data, status) {
-            if (status === "success" && data.deepinspector) {
-               populateFormsWithData(data.deepinspector);
-               console.log("DeepInspector settings loaded successfully");
-            } else {
-               console.error("Failed to load DeepInspector settings");
-            }
+         const data_get_map = {};
+         formIds.forEach(function(formId) {
+            data_get_map[formId] = getEndpoint;
+         });
+
+         mapDataToFormUI(data_get_map).done(function(data) {
+            console.log("DeepInspector settings loaded successfully", data);
+            formatTokenizersUI();
+            $('.selectpicker').selectpicker('refresh');
+            handleIndustrialModeToggle();
+         }).fail(function(error) {
+            console.error("Failed to load DeepInspector settings", error);
          });
       }
 
-      // Populate forms with data
-      function populateFormsWithData(data) {
-         formIds.forEach(function(formSection) {
-            if (data[formSection]) {
-               populateFormSection(formSection, data[formSection]);
-            }
-         });
-         
-         // Refresh UI components
-         formatTokenizersUI();
-         $('.selectpicker').selectpicker('refresh');
-         
-         // Handle industrial mode toggle
-         handleIndustrialModeToggle();
-      }
-
-      // Populate a specific form section
-      function populateFormSection(section, sectionData) {
-         Object.keys(sectionData).forEach(function(key) {
-            const fieldName = 'deepinspector.' + section + '.' + key;
-            const $field = $('[name="' + fieldName + '"]');
-            
-            if ($field.length) {
-               const value = sectionData[key];
-               
-               if ($field.is(':checkbox')) {
-                  $field.prop('checked', value === '1' || value === true);
-               } else if ($field.is('select')) {
-                  $field.val(value);
-                  if ($field.hasClass('selectpicker')) {
-                     $field.selectpicker('refresh');
-                  }
-               } else {
-                  $field.val(value);
-               }
-            }
-         });
-      }
-
-      // Save form data
+      // Save form data using OPNsense standard method
       function saveFormData() {
-         const formData = { deepinspector: {} };
-         
-         // Collect data from all forms
-         $('form input, form select, form textarea').each(function() {
-            const $field = $(this);
-            const name = $field.attr('name');
-            
-            if (name && name.startsWith('deepinspector.')) {
-               let value;
-               
-               if ($field.is(':checkbox')) {
-                  value = $field.is(':checked') ? '1' : '0';
-               } else if ($field.is('select[multiple]')) {
-                  value = $field.val() ? $field.val().join(',') : '';
-               } else {
-                  value = $field.val() || '';
-               }
-               
-               formData.deepinspector[name] = value;
+         const formData = {};
+         formIds.forEach(function(formId) {
+            const $form = $('#' + formId);
+            if ($form.length) {
+               const serializedData = $form.serializeArray();
+               serializedData.forEach(function(item) {
+                  if (!formData.deepinspector) {
+                     formData.deepinspector = {};
+                  }
+                  formData.deepinspector[item.name] = item.value;
+               });
             }
          });
 
-         // Save to server
-         ajaxCall(setEndpoint, formData, function(data, status) {
-            if (status === "success" && data.result === "saved") {
+         saveFormToEndpoint(setEndpoint, formData, function(response) {
+            if (response.result === "saved") {
                BootstrapDialog.show({
                   type: BootstrapDialog.TYPE_SUCCESS,
                   title: "{{ lang._('Success') }}",
@@ -162,10 +124,10 @@
                });
             } else {
                let errorMsg = "{{ lang._('Failed to save settings') }}";
-               if (data.validations) {
+               if (response.validations) {
                   errorMsg += ":\n\n";
-                  Object.keys(data.validations).forEach(function(field) {
-                     errorMsg += data.validations[field] + "\n";
+                  Object.keys(response.validations).forEach(function(field) {
+                     errorMsg += response.validations[field] + "\n";
                   });
                }
                
@@ -253,6 +215,13 @@
       // Initialize forms
       loadFormData();
       isSubsystemDirty();
+
+      // Show Apply button when form changes
+      formIds.forEach(function(formId) {
+         $(document).on("input change", `#${formId} input, #${formId} select, #${formId} textarea`, function() {
+            // Form changed, no need to show apply button here as we have save button
+         });
+      });
 
       // Auto-refresh industrial metrics
       setInterval(function() {
