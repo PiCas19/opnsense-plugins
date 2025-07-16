@@ -152,47 +152,64 @@ $(function() {
 
     // Funzione che apre un dialog a partire dal template base_dialog
     function bindDialog(btnId, dialogId, title) {
-        $(btnId).click(function() {
-            BootstrapDialog.show({
-                title: title,
-                message: $('#' + dialogId).html(),
-                buttons: [
-                    {
-                        label: "{{ lang._('Save') }}",
-                        cssClass: 'btn-primary',
-                        action: function(dlg) {
-                            var form = dlg.getModalBody().find('form');
-                            ajaxCall("/api/deepinspector/settings/set",
-                                mapDataToFormObject(form.attr('id')),
-                                function(resp) {
-                                    if (resp.result === 'saved') {
-                                        isSubsystemDirty();
-                                        dlg.close();
-                                        BootstrapDialog.show({
-                                            type: BootstrapDialog.TYPE_SUCCESS,
-                                            title: "{{ lang._('Success') }}",
-                                            message: "{{ lang._('Settings saved successfully') }}",
-                                            buttons:[{label:'OK', action:function(d){d.close();}}]
-                                        });
-                                    } else {
-                                        var msg = "{{ lang._('Failed to save settings') }}:<br/>";
-                                        for (var f in resp.validations) {
-                                            msg += '<strong>'+f+'</strong>: '+resp.validations[f]+'<br/>';
-                                        }
-                                        dlg.getModalBody().prepend('<div class="alert alert-danger">'+msg+'</div>');
-                                    }
-                                }
-                            );
-                        }
-                    },
-                    {
-                        label: "{{ lang._('Cancel') }}",
-                        action: function(dlg){ dlg.close(); }
-                    }
-                ]
-            });
-        });
-    }
+      $(btnId).click(function() {
+         var dialogRef = BootstrapDialog.show({
+               title: title,
+               message: $('#' + dialogId).html(),
+               buttons: [
+                  {
+                     label: "{{ lang._('Save') }}",
+                     cssClass: 'btn-primary',
+                     action: function(dlg) {
+                           var form = dlg.getModalBody().find('form');
+                           ajaxCall("/api/deepinspector/settings/set",
+                              mapDataToFormObject(form.attr('id')),
+                              function(resp) {
+                                 if (resp.result === 'saved') {
+                                       isSubsystemDirty();
+                                       dlg.close();
+                                       BootstrapDialog.show({
+                                          type: BootstrapDialog.TYPE_SUCCESS,
+                                          title: "{{ lang._('Success') }}",
+                                          message: "{{ lang._('Settings saved successfully') }}",
+                                          buttons: [{ label:'OK', action:function(d){d.close(); }}]
+                                       });
+                                 } else {
+                                       var msg = "{{ lang._('Failed to save settings') }}:<br/>";
+                                       for (var f in resp.validations) {
+                                          msg += '<strong>'+f+'</strong>: '+resp.validations[f]+'<br/>';
+                                       }
+                                       dlg.getModalBody().prepend('<div class="alert alert-danger">'+msg+'</div>');
+                                 }
+                              }
+                           );
+                     }
+                  },
+                  {
+                     label: "{{ lang._('Cancel') }}",
+                     action: function(dlg){ dlg.close(); }
+                  }
+               ],
+               onshown: function(dlg) {
+                  // Popola il form via AJAX e poi inizializza UI
+                  mapDataToFormUI({
+                     'frm_DeepInspectorGeneral':   "/api/deepinspector/settings/get",
+                     'frm_DeepInspectorProtocols': "/api/deepinspector/settings/get",
+                     'frm_DeepInspectorDetection': "/api/deepinspector/settings/get",
+                     'frm_DeepInspectorAdvanced':  "/api/deepinspector/settings/get"
+                  }).done(function() {
+                     dlg.getModalBody()
+                        .find('select.selectpicker').selectpicker(); // init dropdowns
+                     formatTokenizersUI(dlg.getModalBody());       // init tokenize fields
+                  });
+
+                  // Mostra subito lo stato dirty se necessario
+                  isSubsystemDirty();
+               }
+         });
+      });
+   }
+
 
     // Bind di tutti i bottoni Edit
     bindDialog('#btnEditGeneral',   'DialogGeneral',   '{{ lang._("Edit General Settings") }}');

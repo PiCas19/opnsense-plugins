@@ -18,12 +18,14 @@
                     <active>Active Blocking</active>
                     <learning>Learning Mode</learning>
                 </OptionValues>
+                <style>selectpicker</style>   
                 <ValidationMessage>Select the DPI operation mode.</ValidationMessage>
             </mode>
             
             <interfaces type="InterfaceField">
                 <Required>Y</Required>
                 <Multiple>Y</Multiple>
+                <style>selectpicker</style>    
                 <asList>N</asList>
                 <AddParentDevices>Y</AddParentDevices>
                 <ValidationMessage>Please choose at least one interface to monitor.</ValidationMessage>
@@ -86,6 +88,7 @@
                     <industrial>Industrial Optimized</industrial>
                     <custom>Custom</custom>
                 </OptionValues>
+                <style>selectpicker</style>
                 <ValidationMessage>Select performance vs security balance.</ValidationMessage>
             </performance_profile>
             
@@ -112,6 +115,7 @@
                     <debug>Debug</debug>
                     <trace>Trace</trace>
                 </OptionValues>
+                <style>selectpicker</style>
                 <ValidationMessage>Set logging verbosity level.</ValidationMessage>
             </log_level>
         </general>
