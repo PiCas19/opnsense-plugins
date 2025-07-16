@@ -249,16 +249,30 @@ $(document).ready(function() {
         console.error("Failed to load DeepInspector forms", error);
     });
 
-    // Save button handler - METODO STANDARD OPNSENSE
+    // Save button handler - CON DEBUG COMPLETO
     $('#btnSaveSettings').click(function() {
-        // Salva usando il metodo standard OPNsense per form multipli
+        console.log("=== INIZIO DEBUG SALVATAGGIO ===");
+        
+        // Debug: verifica se i form esistono
+        console.log("Form General exists:", $("#frm_DeepInspectorGeneral").length);
+        console.log("Form Protocols exists:", $("#frm_DeepInspectorProtocols").length);
+        console.log("Form Detection exists:", $("#frm_DeepInspectorDetection").length);
+        console.log("Form Advanced exists:", $("#frm_DeepInspectorAdvanced").length);
+        
         var saveData = {};
+        var totalFields = 0;
         
-        // Raccoglie i dati da tutti i form e li serializza
-        $("#frm_DeepInspectorGeneral").find("input, select, textarea").each(function() {
+        // Debug: mostra tutti i campi trovati
+        $("input, select, textarea").each(function() {
             var field = $(this);
             var name = field.attr('name');
+            var id = field.attr('id');
+            var type = field.attr('type') || field.prop('tagName');
+            
             if (name) {
+                console.log("Campo trovato - Nome:", name, "ID:", id, "Tipo:", type, "Valore:", field.val());
+                totalFields++;
+                
                 if (field.is(':checkbox')) {
                     saveData[name] = field.is(':checked') ? '1' : '0';
                 } else if (field.is('select[multiple]')) {
@@ -269,52 +283,53 @@ $(document).ready(function() {
             }
         });
         
-        $("#frm_DeepInspectorProtocols").find("input, select, textarea").each(function() {
-            var field = $(this);
-            var name = field.attr('name');
-            if (name) {
-                if (field.is(':checkbox')) {
-                    saveData[name] = field.is(':checked') ? '1' : '0';
-                } else if (field.is('select[multiple]')) {
-                    saveData[name] = field.val() ? field.val().join(',') : '';
-                } else {
-                    saveData[name] = field.val() || '';
-                }
-            }
-        });
+        console.log("Totale campi trovati:", totalFields);
+        console.log("Dati da salvare:", saveData);
         
-        $("#frm_DeepInspectorDetection").find("input, select, textarea").each(function() {
-            var field = $(this);
-            var name = field.attr('name');
-            if (name) {
-                if (field.is(':checkbox')) {
-                    saveData[name] = field.is(':checked') ? '1' : '0';
-                } else if (field.is('select[multiple]')) {
-                    saveData[name] = field.val() ? field.val().join(',') : '';
-                } else {
-                    saveData[name] = field.val() || '';
+        // Se non troviamo dati, prova un approccio alternativo
+        if (Object.keys(saveData).length === 0) {
+            console.log("Nessun dato trovato, provo con serializeArray...");
+            
+            var formData = new FormData();
+            
+            // Prova con ogni form singolarmente
+            ['#frm_DeepInspectorGeneral', '#frm_DeepInspectorProtocols', '#frm_DeepInspectorDetection', '#frm_DeepInspectorAdvanced'].forEach(function(formId) {
+                var $form = $(formId);
+                if ($form.length > 0) {
+                    console.log("Processando form:", formId);
+                    var serialized = $form.serializeArray();
+                    console.log("Dati serializzati:", serialized);
+                    
+                    serialized.forEach(function(item) {
+                        saveData[item.name] = item.value;
+                    });
+                    
+                    // Aggiungi anche checkbox non checked
+                    $form.find('input[type="checkbox"]').each(function() {
+                        var name = $(this).attr('name');
+                        if (name && !saveData.hasOwnProperty(name)) {
+                            saveData[name] = '0';
+                        }
+                    });
                 }
-            }
-        });
+            });
+        }
         
-        $("#frm_DeepInspectorAdvanced").find("input, select, textarea").each(function() {
-            var field = $(this);
-            var name = field.attr('name');
-            if (name) {
-                if (field.is(':checkbox')) {
-                    saveData[name] = field.is(':checked') ? '1' : '0';
-                } else if (field.is('select[multiple]')) {
-                    saveData[name] = field.val() ? field.val().join(',') : '';
-                } else {
-                    saveData[name] = field.val() || '';
-                }
-            }
-        });
-
-        console.log("Saving data:", saveData);
+        console.log("Dati finali da inviare:", saveData);
+        
+        if (Object.keys(saveData).length === 0) {
+            BootstrapDialog.show({
+                type: BootstrapDialog.TYPE_WARNING,
+                title: "{{ lang._('Warning') }}",
+                message: "{{ lang._('No form data found. Please check if forms are loaded correctly.') }}"
+            });
+            return;
+        }
 
         // POST direttamente i dati
         ajaxCall("/api/deepinspector/settings/set", saveData, function(data, status) {
+            console.log("Risposta server:", data, "Status:", status);
+            
             if (status === "success") {
                 if (data.result === "saved") {
                     BootstrapDialog.show({
@@ -332,16 +347,16 @@ $(document).ready(function() {
                 } else {
                     var errorMsg = "{{ lang._('Failed to save settings') }}";
                     if (data.validations) {
-                        errorMsg += ":\n\n";
+                        errorMsg += ":<br><br>";
                         Object.keys(data.validations).forEach(function(field) {
-                            errorMsg += data.validations[field] + "\n";
+                            errorMsg += "<strong>" + field + ":</strong> " + data.validations[field] + "<br>";
                         });
                     }
                     
                     BootstrapDialog.show({
                         type: BootstrapDialog.TYPE_DANGER,
                         title: "{{ lang._('Error') }}",
-                        message: errorMsg.replace(/\n/g, '<br>')
+                        message: errorMsg
                     });
                 }
             } else {
