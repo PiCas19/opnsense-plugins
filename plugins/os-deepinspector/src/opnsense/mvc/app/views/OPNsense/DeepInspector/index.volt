@@ -607,3 +607,159 @@
    padding: 15px;
 }
 </style>
+
+<script>
+$(document).ready(function() {
+    
+    function isSubsystemDirty() {
+        ajaxGet("/api/deepinspector/settings/dirty", {}, function(data, status) {
+            if (status == "success") {
+                if (data.deepinspector && data.deepinspector.dirty === true) {
+                    $("#configChangedMsg").removeClass("hidden");
+                } else {
+                    $("#configChangedMsg").addClass("hidden");
+                }
+            }
+        });
+    }
+
+    $('#btnApplyConfig').SimpleActionButton({
+        onAction: function(data, status) {
+            isSubsystemDirty();
+            if (status === "success") {
+                BootstrapDialog.show({
+                    type: BootstrapDialog.TYPE_SUCCESS,
+                    title: "Success",
+                    message: "Configuration applied successfully",
+                    buttons: [{
+                        label: 'OK',
+                        action: function(dialog) {
+                            dialog.close();
+                        }
+                    }]
+                });
+            }
+        }
+    });
+
+    // Form mapping
+    var formMap = {
+        'frm_DeepInspectorGeneral': "/api/deepinspector/settings/get",
+        'frm_DeepInspectorProtocols': "/api/deepinspector/settings/get", 
+        'frm_DeepInspectorDetection': "/api/deepinspector/settings/get",
+        'frm_DeepInspectorAdvanced': "/api/deepinspector/settings/get"
+    };
+
+    // Load forms
+    mapDataToFormUI(formMap).done(function(data) {
+        console.log("Forms loaded:", data);
+        formatTokenizersUI();
+        $('.selectpicker').selectpicker('refresh');
+        handleIndustrialModeToggle();
+    }).fail(function(error) {
+        console.error("Failed to load forms:", error);
+    });
+
+    // Save button
+    $('#btnSaveSettings').click(function() {
+        var formData = { deepinspector: {} };
+        
+        $('form input, form select, form textarea').each(function() {
+            var $field = $(this);
+            var name = $field.attr('name');
+            
+            if (name && name.indexOf('deepinspector.') === 0) {
+                var value;
+                
+                if ($field.is(':checkbox')) {
+                    value = $field.is(':checked') ? '1' : '0';
+                } else if ($field.is('select[multiple]')) {
+                    value = $field.val() ? $field.val().join(',') : '';
+                } else {
+                    value = $field.val() || '';
+                }
+                
+                formData.deepinspector[name] = value;
+            }
+        });
+
+        console.log("Saving data:", formData);
+
+        saveFormToEndpoint("/api/deepinspector/settings/set", formData, function(response) {
+            if (response.result === "saved") {
+                BootstrapDialog.show({
+                    type: BootstrapDialog.TYPE_SUCCESS,
+                    title: "Success",
+                    message: "Settings saved successfully",
+                    buttons: [{
+                        label: 'OK',
+                        action: function(dialog) {
+                            dialog.close();
+                            isSubsystemDirty();
+                        }
+                    }]
+                });
+            } else {
+                var errorMsg = "Failed to save settings";
+                if (response.validations) {
+                    errorMsg += ":\n\n";
+                    Object.keys(response.validations).forEach(function(field) {
+                        errorMsg += response.validations[field] + "\n";
+                    });
+                }
+                
+                BootstrapDialog.show({
+                    type: BootstrapDialog.TYPE_DANGER,
+                    title: "Error",
+                    message: errorMsg.replace(/\n/g, '<br>')
+                });
+            }
+        });
+    });
+
+    // Handle performance profile changes
+    $(document).on('change', '[name="deepinspector.general.performance_profile"]', function() {
+        var profile = $(this).val();
+        handlePerformanceProfileChange(profile);
+    });
+
+    // Handle industrial mode toggle
+    $(document).on('change', '[name="deepinspector.general.industrial_mode"]', function() {
+        var enabled = $(this).is(':checked');
+        handleIndustrialModeToggle(enabled);
+    });
+
+    // Initialize
+    isSubsystemDirty();
+
+    function handlePerformanceProfileChange(profile) {
+        var $customFields = $('.custom-profile-field');
+        var $industrialFields = $('.industrial-profile-field');
+        
+        if (profile === 'custom') {
+            $customFields.show();
+            $industrialFields.hide();
+        } else if (profile === 'industrial' || profile === 'high_performance') {
+            $customFields.hide();
+            $industrialFields.show();
+        } else {
+            $customFields.hide();
+            $industrialFields.hide();
+        }
+    }
+
+    function handleIndustrialModeToggle(enabled) {
+        var $industrialTab = $('a[href="#industrial"]').parent();
+        
+        if (enabled === undefined) {
+            enabled = $('[name="deepinspector.general.industrial_mode"]').is(':checked');
+        }
+        
+        if (enabled) {
+            $industrialTab.removeClass('hidden');
+        } else {
+            $industrialTab.addClass('hidden');
+        }
+    }
+});
+</script>
