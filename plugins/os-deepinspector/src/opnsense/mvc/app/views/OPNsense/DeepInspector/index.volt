@@ -24,417 +24,6 @@
  # POSSIBILITY OF SUCH DAMAGE.
  #}
 
-<script>
-   $( document ).ready(function() {
-      /**
-       * get the isSubsystemDirty value and print a notice
-       */
-      function isSubsystemDirty() {
-         ajaxGet("/api/deepinspector/settings/dirty", {}, function(data,status) {
-            if (status == "success") {
-               if (data.deepinspector && data.deepinspector.dirty === true) {
-                  $("#configChangedMsg").removeClass("hidden");
-               } else {
-                  $("#configChangedMsg").addClass("hidden");
-               }
-            }
-         });
-      }
-
-      /**
-       * apply changes and reload deep inspector
-       */
-      $('#btnApplyConfig').SimpleActionButton({
-         onAction: function(data, status) {
-            isSubsystemDirty();
-            if (status === "success") {
-               BootstrapDialog.show({
-                  type: BootstrapDialog.TYPE_SUCCESS,
-                  title: "{{ lang._('Success') }}",
-                  message: "{{ lang._('Configuration applied successfully') }}",
-                  buttons: [{
-                     label: 'OK',
-                     action: function(dialog) {
-                        dialog.close();
-                     }
-                  }]
-               });
-            }
-         }
-      });
-
-      /**
-       * Standard OPNsense form handling
-       */
-      const formMap = {
-         'frm_DeepInspectorGeneral': "/api/deepinspector/settings/get",
-         'frm_DeepInspectorProtocols': "/api/deepinspector/settings/get", 
-         'frm_DeepInspectorDetection': "/api/deepinspector/settings/get",
-         'frm_DeepInspectorAdvanced': "/api/deepinspector/settings/get"
-      };
-
-      // Load form data using standard OPNsense method
-      mapDataToFormUI(formMap).done(function(data) {
-         console.log("DeepInspector forms loaded successfully", data);
-         formatTokenizersUI();
-         $('.selectpicker').selectpicker('refresh');
-         handleIndustrialModeToggle();
-      }).fail(function(error) {
-         console.error("Failed to load DeepInspector forms", error);
-      });
-
-      // Save button handler
-      $('#btnSaveSettings').click(function() {
-         // Collect form data
-         const formData = {
-            deepinspector: {}
-         };
-
-         // Get data from all forms
-         $('form input, form select, form textarea').each(function() {
-            const $field = $(this);
-            const name = $field.attr('name');
-            
-            if (name && name.startsWith('deepinspector.')) {
-               let value;
-               
-               if ($field.is(':checkbox')) {
-                  value = $field.is(':checked') ? '1' : '0';
-               } else if ($field.is('select[multiple]')) {
-                  value = $field.val() ? $field.val().join(',') : '';
-               } else {
-                  value = $field.val() || '';
-               }
-               
-               formData.deepinspector[name] = value;
-            }
-         });
-
-         console.log("Saving form data:", formData);
-
-         // Save using standard OPNsense method
-         saveFormToEndpoint("/api/deepinspector/settings/set", formData, function(response) {
-            console.log("Save response:", response);
-            
-            if (response.result === "saved") {
-               BootstrapDialog.show({
-                  type: BootstrapDialog.TYPE_SUCCESS,
-                  title: "{{ lang._('Success') }}",
-                  message: "{{ lang._('Settings saved successfully') }}",
-                  buttons: [{
-                     label: 'OK',
-                     action: function(dialog) {
-                        dialog.close();
-                        isSubsystemDirty();
-                     }
-                  }]
-               });
-            } else {
-               let errorMsg = "{{ lang._('Failed to save settings') }}";
-               if (response.validations) {
-                  errorMsg += ":\n\n";
-                  Object.keys(response.validations).forEach(function(field) {
-                     errorMsg += response.validations[field] + "\n";
-                  });
-               }
-               
-               BootstrapDialog.show({
-                  type: BootstrapDialog.TYPE_DANGER,
-                  title: "{{ lang._('Error') }}",
-                  message: errorMsg.replace(/\n/g, '<br>')
-               });
-            }
-         });
-      });
-
-      // Handle performance profile changes
-      $(document).on('change', '[name="deepinspector.general.performance_profile"]', function() {
-         const profile = $(this).val();
-         handlePerformanceProfileChange(profile);
-      });
-
-      // Handle industrial mode toggle
-      $(document).on('change', '[name="deepinspector.general.industrial_mode"]', function() {
-         const enabled = $(this).is(':checked');
-         handleIndustrialModeToggle(enabled);
-      });
-
-      // Industrial optimization button
-      $('#btnApplyIndustrialOptimization').click(function() {
-         const $btn = $(this);
-         const originalText = $btn.text();
-         
-         $btn.prop('disabled', true).text('{{ lang._("Applying...") }}');
-         
-         ajaxCall("/api/deepinspector/settings/applyIndustrialOptimization", {}, function(data, status) {
-            $btn.prop('disabled', false).text(originalText);
-            
-            if (status === "success" && data.status === 'ok') {
-               BootstrapDialog.show({
-                  type: BootstrapDialog.TYPE_SUCCESS,
-                  title: "{{ lang._('Success') }}",
-                  message: "{{ lang._('Industrial optimization applied successfully') }}",
-                  buttons: [{
-                     label: 'OK',
-                     action: function(dialog) {
-                        dialog.close();
-                        // Reload forms
-                        mapDataToFormUI(formMap).done(function(data) {
-                           formatTokenizersUI();
-                           $('.selectpicker').selectpicker('refresh');
-                           handleIndustrialModeToggle();
-                        });
-                     }
-                  }]
-               });
-            } else {
-               BootstrapDialog.show({
-                  type: BootstrapDialog.TYPE_DANGER,
-                  title: "{{ lang._('Error') }}",
-                  message: "{{ lang._('Failed to apply industrial optimization') }}"
-               });
-            }
-         });
-      });
-
-      // Zero Trust compliance check
-      $('#btnCheckZeroTrust').click(function() {
-         const $btn = $(this);
-         const originalText = $btn.text();
-         
-         $btn.prop('disabled', true).text('{{ lang._("Checking...") }}');
-         
-         ajaxCall("/api/deepinspector/settings/zeroTrustStatus", {}, function(data, status) {
-            $btn.prop('disabled', false).text(originalText);
-            
-            if (status === "success" && data.status === 'ok') {
-               showZeroTrustReport(data.data);
-            } else {
-               BootstrapDialog.show({
-                  type: BootstrapDialog.TYPE_DANGER,
-                  title: "{{ lang._('Error') }}",
-                  message: "{{ lang._('Failed to check Zero Trust compliance') }}"
-               });
-            }
-         });
-      });
-
-      // Initialize
-      isSubsystemDirty();
-
-      // Auto-refresh industrial metrics
-      setInterval(function() {
-         loadIndustrialMetrics();
-      }, 30000);
-   });
-
-   function handlePerformanceProfileChange(profile) {
-      const $customFields = $('.custom-profile-field');
-      const $industrialFields = $('.industrial-profile-field');
-      
-      if (profile === 'custom') {
-         $customFields.show();
-         $industrialFields.hide();
-      } else if (profile === 'industrial' || profile === 'high_performance') {
-         $customFields.hide();
-         $industrialFields.show();
-      } else {
-         $customFields.hide();
-         $industrialFields.hide();
-      }
-   }
-
-   function handleIndustrialModeToggle(enabled) {
-      const $industrialTab = $('a[href="#industrial"]').parent();
-      
-      if (enabled === undefined) {
-         enabled = $('[name="deepinspector.general.industrial_mode"]').is(':checked');
-      }
-      
-      if (enabled) {
-         $industrialTab.removeClass('hidden');
-      } else {
-         $industrialTab.addClass('hidden');
-      }
-   }
-
-   function loadIndustrialMetrics() {
-      ajaxGet("/api/deepinspector/settings/industrialStats", {}, function(data, status) {
-         if (status === "success" && data.status === 'ok') {
-            const stats = data.data;
-            $('#avgLatency').text(stats.avg_latency + ' μs');
-            $('#industrialPackets').text(formatNumber(stats.modbus_packets + stats.dnp3_packets + stats.opcua_packets));
-            $('#scadaAlerts').text(formatNumber(stats.scada_alerts));
-         }
-      });
-   }
-
-   function showZeroTrustReport(compliance) {
-      const scoreColor = compliance.overall_score >= 80 ? 'success' : 
-                        compliance.overall_score >= 60 ? 'warning' : 'danger';
-      
-      let html = '<div class="zero-trust-report">';
-      html += '<div class="compliance-score">';
-      html += '<h4>{{ lang._("Overall Compliance Score") }}</h4>';
-      html += '<div class="score-circle text-' + scoreColor + '">';
-      html += '<span class="score-value">' + compliance.overall_score + '%</span>';
-      html += '</div></div>';
-      
-      html += '<div class="compliance-checks">';
-      html += '<h5>{{ lang._("Compliance Checks") }}</h5>';
-      html += '<ul class="list-group">';
-      
-      Object.entries(compliance.checks).forEach(([check, passed]) => {
-         const icon = passed ? 'check text-success' : 'times text-danger';
-         const status = passed ? '{{ lang._("Passed") }}' : '{{ lang._("Failed") }}';
-         const checkName = check.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-         
-         html += '<li class="list-group-item">';
-         html += '<span class="pull-left">' + checkName + '</span>';
-         html += '<span class="pull-right"><i class="fa fa-' + icon + '"></i> ' + status + '</span>';
-         html += '<div class="clearfix"></div>';
-         html += '</li>';
-      });
-      
-      html += '</ul></div>';
-      
-      if (compliance.recommendations && compliance.recommendations.length > 0) {
-         html += '<div class="recommendations">';
-         html += '<h5>{{ lang._("Recommendations") }}</h5>';
-         html += '<ul class="list-group">';
-         
-         compliance.recommendations.forEach(rec => {
-            html += '<li class="list-group-item">' + rec + '</li>';
-         });
-         
-         html += '</ul></div>';
-      }
-      
-      html += '</div>';
-      
-      BootstrapDialog.show({
-         type: BootstrapDialog.TYPE_INFO,
-         title: "{{ lang._('Zero Trust Compliance Report') }}",
-         message: html,
-         size: BootstrapDialog.SIZE_LARGE,
-         buttons: [{
-            label: 'OK',
-            action: function(dialog) {
-               dialog.close();
-            }
-         }]
-      });
-   }
-
-   function formatNumber(num) {
-      return new Intl.NumberFormat().format(num || 0);
-   }
-</script>
-   });
-
-   function handlePerformanceProfileChange(profile) {
-      const $customFields = $('.custom-profile-field');
-      const $industrialFields = $('.industrial-profile-field');
-      
-      if (profile === 'custom') {
-         $customFields.show();
-         $industrialFields.hide();
-      } else if (profile === 'industrial' || profile === 'high_performance') {
-         $customFields.hide();
-         $industrialFields.show();
-      } else {
-         $customFields.hide();
-         $industrialFields.hide();
-      }
-   }
-
-   function handleIndustrialModeToggle(enabled) {
-      const $industrialTab = $('a[href="#industrial"]').parent();
-      
-      if (enabled === undefined) {
-         enabled = $('[name="deepinspector.general.industrial_mode"]').is(':checked');
-      }
-      
-      if (enabled) {
-         $industrialTab.removeClass('hidden');
-      } else {
-         $industrialTab.addClass('hidden');
-      }
-   }
-
-   function loadIndustrialMetrics() {
-      ajaxGet("/api/deepinspector/settings/industrialStats", {}, function(data, status) {
-         if (status === "success" && data.status === 'ok') {
-            const stats = data.data;
-            $('#avgLatency').text(stats.avg_latency + ' μs');
-            $('#industrialPackets').text(formatNumber(stats.modbus_packets + stats.dnp3_packets + stats.opcua_packets));
-            $('#scadaAlerts').text(formatNumber(stats.scada_alerts));
-         }
-      });
-   }
-
-   function showZeroTrustReport(compliance) {
-      const scoreColor = compliance.overall_score >= 80 ? 'success' : 
-                        compliance.overall_score >= 60 ? 'warning' : 'danger';
-      
-      let html = '<div class="zero-trust-report">';
-      html += '<div class="compliance-score">';
-      html += '<h4>{{ lang._("Overall Compliance Score") }}</h4>';
-      html += '<div class="score-circle text-' + scoreColor + '">';
-      html += '<span class="score-value">' + compliance.overall_score + '%</span>';
-      html += '</div></div>';
-      
-      html += '<div class="compliance-checks">';
-      html += '<h5>{{ lang._("Compliance Checks") }}</h5>';
-      html += '<ul class="list-group">';
-      
-      Object.entries(compliance.checks).forEach(([check, passed]) => {
-         const icon = passed ? 'check text-success' : 'times text-danger';
-         const status = passed ? '{{ lang._("Passed") }}' : '{{ lang._("Failed") }}';
-         const checkName = check.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-         
-         html += '<li class="list-group-item">';
-         html += '<span class="pull-left">' + checkName + '</span>';
-         html += '<span class="pull-right"><i class="fa fa-' + icon + '"></i> ' + status + '</span>';
-         html += '<div class="clearfix"></div>';
-         html += '</li>';
-      });
-      
-      html += '</ul></div>';
-      
-      if (compliance.recommendations && compliance.recommendations.length > 0) {
-         html += '<div class="recommendations">';
-         html += '<h5>{{ lang._("Recommendations") }}</h5>';
-         html += '<ul class="list-group">';
-         
-         compliance.recommendations.forEach(rec => {
-            html += '<li class="list-group-item">' + rec + '</li>';
-         });
-         
-         html += '</ul></div>';
-      }
-      
-      html += '</div>';
-      
-      BootstrapDialog.show({
-         type: BootstrapDialog.TYPE_INFO,
-         title: "{{ lang._('Zero Trust Compliance Report') }}",
-         message: html,
-         size: BootstrapDialog.SIZE_LARGE,
-         buttons: [{
-            label: 'OK',
-            action: function(dialog) {
-               dialog.close();
-            }
-         }]
-      });
-   }
-
-   function formatNumber(num) {
-      return new Intl.NumberFormat().format(num || 0);
-   }
-</script>
-
 <div class="alert alert-info hidden" role="alert" id="configChangedMsg">
    <button class="btn btn-primary pull-right" id="btnApplyConfig"
            data-endpoint='/api/deepinspector/service/reconfigure'
@@ -629,8 +218,8 @@ $(document).ready(function() {
             if (status === "success") {
                 BootstrapDialog.show({
                     type: BootstrapDialog.TYPE_SUCCESS,
-                    title: "Success",
-                    message: "Configuration applied successfully",
+                    title: "{{ lang._('Success') }}",
+                    message: "{{ lang._('Configuration applied successfully') }}",
                     buttons: [{
                         label: 'OK',
                         action: function(dialog) {
@@ -652,19 +241,26 @@ $(document).ready(function() {
 
     // Load forms
     mapDataToFormUI(formMap).done(function(data) {
-        console.log("Forms loaded:", data);
+        console.log("DeepInspector forms loaded successfully", data);
         formatTokenizersUI();
         $('.selectpicker').selectpicker('refresh');
         handleIndustrialModeToggle();
     }).fail(function(error) {
-        console.error("Failed to load forms:", error);
+        console.error("Failed to load DeepInspector forms", error);
     });
 
-    // Save button
+    // Save button handler
     $('#btnSaveSettings').click(function() {
-        var formData = { deepinspector: {} };
-        
-        $('form input, form select, form textarea').each(function() {
+        // Collect form data
+        var formData = {
+            deepinspector: {}
+        };
+
+        // Get data from all forms - usando un selettore più specifico
+        $('#frm_DeepInspectorGeneral input, #frm_DeepInspectorGeneral select, #frm_DeepInspectorGeneral textarea, ' +
+          '#frm_DeepInspectorProtocols input, #frm_DeepInspectorProtocols select, #frm_DeepInspectorProtocols textarea, ' +
+          '#frm_DeepInspectorDetection input, #frm_DeepInspectorDetection select, #frm_DeepInspectorDetection textarea, ' +
+          '#frm_DeepInspectorAdvanced input, #frm_DeepInspectorAdvanced select, #frm_DeepInspectorAdvanced textarea').each(function() {
             var $field = $(this);
             var name = $field.attr('name');
             
@@ -683,14 +279,17 @@ $(document).ready(function() {
             }
         });
 
-        console.log("Saving data:", formData);
+        console.log("Saving form data:", formData);
 
+        // Save using standard OPNsense method
         saveFormToEndpoint("/api/deepinspector/settings/set", formData, function(response) {
+            console.log("Save response:", response);
+            
             if (response.result === "saved") {
                 BootstrapDialog.show({
                     type: BootstrapDialog.TYPE_SUCCESS,
-                    title: "Success",
-                    message: "Settings saved successfully",
+                    title: "{{ lang._('Success') }}",
+                    message: "{{ lang._('Settings saved successfully') }}",
                     buttons: [{
                         label: 'OK',
                         action: function(dialog) {
@@ -700,7 +299,7 @@ $(document).ready(function() {
                     }]
                 });
             } else {
-                var errorMsg = "Failed to save settings";
+                var errorMsg = "{{ lang._('Failed to save settings') }}";
                 if (response.validations) {
                     errorMsg += ":\n\n";
                     Object.keys(response.validations).forEach(function(field) {
@@ -710,7 +309,7 @@ $(document).ready(function() {
                 
                 BootstrapDialog.show({
                     type: BootstrapDialog.TYPE_DANGER,
-                    title: "Error",
+                    title: "{{ lang._('Error') }}",
                     message: errorMsg.replace(/\n/g, '<br>')
                 });
             }
@@ -729,8 +328,73 @@ $(document).ready(function() {
         handleIndustrialModeToggle(enabled);
     });
 
+    // Industrial optimization button
+    $('#btnApplyIndustrialOptimization').click(function() {
+        var $btn = $(this);
+        var originalText = $btn.text();
+        
+        $btn.prop('disabled', true).text('{{ lang._("Applying...") }}');
+        
+        ajaxCall("/api/deepinspector/settings/applyIndustrialOptimization", {}, function(data, status) {
+            $btn.prop('disabled', false).text(originalText);
+            
+            if (status === "success" && data.status === 'ok') {
+                BootstrapDialog.show({
+                    type: BootstrapDialog.TYPE_SUCCESS,
+                    title: "{{ lang._('Success') }}",
+                    message: "{{ lang._('Industrial optimization applied successfully') }}",
+                    buttons: [{
+                        label: 'OK',
+                        action: function(dialog) {
+                            dialog.close();
+                            // Reload forms
+                            mapDataToFormUI(formMap).done(function(data) {
+                                formatTokenizersUI();
+                                $('.selectpicker').selectpicker('refresh');
+                                handleIndustrialModeToggle();
+                            });
+                        }
+                    }]
+                });
+            } else {
+                BootstrapDialog.show({
+                    type: BootstrapDialog.TYPE_DANGER,
+                    title: "{{ lang._('Error') }}",
+                    message: "{{ lang._('Failed to apply industrial optimization') }}"
+                });
+            }
+        });
+    });
+
+    // Zero Trust compliance check
+    $('#btnCheckZeroTrust').click(function() {
+        var $btn = $(this);
+        var originalText = $btn.text();
+        
+        $btn.prop('disabled', true).text('{{ lang._("Checking...") }}');
+        
+        ajaxCall("/api/deepinspector/settings/zeroTrustStatus", {}, function(data, status) {
+            $btn.prop('disabled', false).text(originalText);
+            
+            if (status === "success" && data.status === 'ok') {
+                showZeroTrustReport(data.data);
+            } else {
+                BootstrapDialog.show({
+                    type: BootstrapDialog.TYPE_DANGER,
+                    title: "{{ lang._('Error') }}",
+                    message: "{{ lang._('Failed to check Zero Trust compliance') }}"
+                });
+            }
+        });
+    });
+
     // Initialize
     isSubsystemDirty();
+
+    // Auto-refresh industrial metrics
+    setInterval(function() {
+        loadIndustrialMetrics();
+    }, 30000);
 
     function handlePerformanceProfileChange(profile) {
         var $customFields = $('.custom-profile-field');
@@ -760,6 +424,79 @@ $(document).ready(function() {
         } else {
             $industrialTab.addClass('hidden');
         }
+    }
+
+    function loadIndustrialMetrics() {
+        ajaxGet("/api/deepinspector/settings/industrialStats", {}, function(data, status) {
+            if (status === "success" && data.status === 'ok') {
+                var stats = data.data;
+                $('#avgLatency').text(stats.avg_latency + ' μs');
+                $('#industrialPackets').text(formatNumber(stats.modbus_packets + stats.dnp3_packets + stats.opcua_packets));
+                $('#scadaAlerts').text(formatNumber(stats.scada_alerts));
+            }
+        });
+    }
+
+    function showZeroTrustReport(compliance) {
+        var scoreColor = compliance.overall_score >= 80 ? 'success' : 
+                         compliance.overall_score >= 60 ? 'warning' : 'danger';
+        
+        var html = '<div class="zero-trust-report">';
+        html += '<div class="compliance-score">';
+        html += '<h4>{{ lang._("Overall Compliance Score") }}</h4>';
+        html += '<div class="score-circle text-' + scoreColor + '">';
+        html += '<span class="score-value">' + compliance.overall_score + '%</span>';
+        html += '</div></div>';
+        
+        html += '<div class="compliance-checks">';
+        html += '<h5>{{ lang._("Compliance Checks") }}</h5>';
+        html += '<ul class="list-group">';
+        
+        Object.keys(compliance.checks).forEach(function(check) {
+            var passed = compliance.checks[check];
+            var icon = passed ? 'check text-success' : 'times text-danger';
+            var status = passed ? '{{ lang._("Passed") }}' : '{{ lang._("Failed") }}';
+            var checkName = check.replace(/_/g, ' ').replace(/\b\w/g, function(l) { return l.toUpperCase(); });
+            
+            html += '<li class="list-group-item">';
+            html += '<span class="pull-left">' + checkName + '</span>';
+            html += '<span class="pull-right"><i class="fa fa-' + icon + '"></i> ' + status + '</span>';
+            html += '<div class="clearfix"></div>';
+            html += '</li>';
+        });
+        
+        html += '</ul></div>';
+        
+        if (compliance.recommendations && compliance.recommendations.length > 0) {
+            html += '<div class="recommendations">';
+            html += '<h5>{{ lang._("Recommendations") }}</h5>';
+            html += '<ul class="list-group">';
+            
+            compliance.recommendations.forEach(function(rec) {
+                html += '<li class="list-group-item">' + rec + '</li>';
+            });
+            
+            html += '</ul></div>';
+        }
+        
+        html += '</div>';
+        
+        BootstrapDialog.show({
+            type: BootstrapDialog.TYPE_INFO,
+            title: "{{ lang._('Zero Trust Compliance Report') }}",
+            message: html,
+            size: BootstrapDialog.SIZE_LARGE,
+            buttons: [{
+                label: 'OK',
+                action: function(dialog) {
+                    dialog.close();
+                }
+            }]
+        });
+    }
+
+    function formatNumber(num) {
+        return new Intl.NumberFormat().format(num || 0);
     }
 });
 </script>
