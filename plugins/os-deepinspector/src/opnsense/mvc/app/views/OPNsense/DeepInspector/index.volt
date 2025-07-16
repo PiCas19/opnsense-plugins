@@ -64,51 +64,58 @@
       });
 
       /**
-       * Load and save form data
+       * Standard OPNsense form handling
        */
-      const formIds = [
-         'frm_DeepInspectorGeneral',
-         'frm_DeepInspectorProtocols', 
-         'frm_DeepInspectorDetection',
-         'frm_DeepInspectorAdvanced'
-      ];
-      const getEndpoint = "/api/deepinspector/settings/get";
-      const setEndpoint = "/api/deepinspector/settings/set";
+      const formMap = {
+         'frm_DeepInspectorGeneral': "/api/deepinspector/settings/get",
+         'frm_DeepInspectorProtocols': "/api/deepinspector/settings/get", 
+         'frm_DeepInspectorDetection': "/api/deepinspector/settings/get",
+         'frm_DeepInspectorAdvanced': "/api/deepinspector/settings/get"
+      };
 
-      // Load form data using OPNsense standard method
-      function loadFormData() {
-         const data_get_map = {};
-         formIds.forEach(function(formId) {
-            data_get_map[formId] = getEndpoint;
-         });
+      // Load form data using standard OPNsense method
+      mapDataToFormUI(formMap).done(function(data) {
+         console.log("DeepInspector forms loaded successfully", data);
+         formatTokenizersUI();
+         $('.selectpicker').selectpicker('refresh');
+         handleIndustrialModeToggle();
+      }).fail(function(error) {
+         console.error("Failed to load DeepInspector forms", error);
+      });
 
-         mapDataToFormUI(data_get_map).done(function(data) {
-            console.log("DeepInspector settings loaded successfully", data);
-            formatTokenizersUI();
-            $('.selectpicker').selectpicker('refresh');
-            handleIndustrialModeToggle();
-         }).fail(function(error) {
-            console.error("Failed to load DeepInspector settings", error);
-         });
-      }
+      // Save button handler
+      $('#btnSaveSettings').click(function() {
+         // Collect form data
+         const formData = {
+            deepinspector: {}
+         };
 
-      // Save form data using OPNsense standard method
-      function saveFormData() {
-         const formData = {};
-         formIds.forEach(function(formId) {
-            const $form = $('#' + formId);
-            if ($form.length) {
-               const serializedData = $form.serializeArray();
-               serializedData.forEach(function(item) {
-                  if (!formData.deepinspector) {
-                     formData.deepinspector = {};
-                  }
-                  formData.deepinspector[item.name] = item.value;
-               });
+         // Get data from all forms
+         $('form input, form select, form textarea').each(function() {
+            const $field = $(this);
+            const name = $field.attr('name');
+            
+            if (name && name.startsWith('deepinspector.')) {
+               let value;
+               
+               if ($field.is(':checkbox')) {
+                  value = $field.is(':checked') ? '1' : '0';
+               } else if ($field.is('select[multiple]')) {
+                  value = $field.val() ? $field.val().join(',') : '';
+               } else {
+                  value = $field.val() || '';
+               }
+               
+               formData.deepinspector[name] = value;
             }
          });
 
-         saveFormToEndpoint(setEndpoint, formData, function(response) {
+         console.log("Saving form data:", formData);
+
+         // Save using standard OPNsense method
+         saveFormToEndpoint("/api/deepinspector/settings/set", formData, function(response) {
+            console.log("Save response:", response);
+            
             if (response.result === "saved") {
                BootstrapDialog.show({
                   type: BootstrapDialog.TYPE_SUCCESS,
@@ -138,7 +145,7 @@
                });
             }
          });
-      }
+      });
 
       // Handle performance profile changes
       $(document).on('change', '[name="deepinspector.general.performance_profile"]', function() {
@@ -150,11 +157,6 @@
       $(document).on('change', '[name="deepinspector.general.industrial_mode"]', function() {
          const enabled = $(this).is(':checked');
          handleIndustrialModeToggle(enabled);
-      });
-
-      // Save button handler
-      $('#btnSaveSettings').click(function() {
-         saveFormData();
       });
 
       // Industrial optimization button
@@ -176,7 +178,12 @@
                      label: 'OK',
                      action: function(dialog) {
                         dialog.close();
-                        loadFormData(); // Reload settings
+                        // Reload forms
+                        mapDataToFormUI(formMap).done(function(data) {
+                           formatTokenizersUI();
+                           $('.selectpicker').selectpicker('refresh');
+                           handleIndustrialModeToggle();
+                        });
                      }
                   }]
                });
@@ -212,21 +219,14 @@
          });
       });
 
-      // Initialize forms
-      loadFormData();
+      // Initialize
       isSubsystemDirty();
-
-      // Show Apply button when form changes
-      formIds.forEach(function(formId) {
-         $(document).on("input change", `#${formId} input, #${formId} select, #${formId} textarea`, function() {
-            // Form changed, no need to show apply button here as we have save button
-         });
-      });
 
       // Auto-refresh industrial metrics
       setInterval(function() {
          loadIndustrialMetrics();
       }, 30000);
+   });
    });
 
    function handlePerformanceProfileChange(profile) {
