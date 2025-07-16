@@ -1,0 +1,135 @@
+<model>
+    <mount>//OPNsense/AdvInspector</mount>
+    <description>Advanced Packet Inspector Settings</description>
+    <version>1.0.0</version>
+    <items>
+        <general>
+            <enabled type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Please indicate whether to enable the inspector.</ValidationMessage>
+            </enabled>
+            <ips type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Please specify whether IPS mode should be enabled.</ValidationMessage>
+            </ips>
+            <promisc type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Specify if promiscuous mode is needed for your setup.</ValidationMessage>
+            </promisc>
+            <inspection_mode type="OptionField">
+                <Required>Y</Required>
+                <Default>stateless</Default>
+                <OptionValues>
+                    <stateless>Stateless</stateless>
+                    <stateful>Stateful</stateful>
+                    <both>Both</both>
+                </OptionValues>
+                <ValidationMessage>Select either stateless, stateful, or both inspection modes, depending on your security and performance requirements.</ValidationMessage>
+            </inspection_mode>
+            <interfaces type="InterfaceField">
+                <Required>Y</Required>
+                <Multiple>Y</Multiple>
+                 <asList>N</asList>
+                <AddParentDevices>Y</AddParentDevices>
+                <ValidationMessage>Please choose at least one interface.</ValidationMessage>
+            </interfaces>
+            <homenet type="NetworkField">
+                <Required>N</Required>
+                <FieldSeparator>,</FieldSeparator>
+                <asList>N</asList>
+                <ValidationMessage>Please specify trusted networks in CIDR format.</ValidationMessage>
+                <WildcardEnabled>N</WildcardEnabled>
+                <NetMaskRequired>Y</NetMaskRequired>
+            </homenet>
+            <verbosity type="OptionField">
+                <Required>Y</Required>
+                <Default>default</Default>
+                <OptionValues>
+                    <default>Default (0)</default>
+                    <v>INFO (1)</v>
+                    <vv>PERF (2)</vv>
+                    <vvv>DEBUG (3)</vvv>
+                    <vvvv>TRACE (4)</vvvv>
+                    <vvvvv>FULL TRACE (5)</vvvvv>
+                </OptionValues>
+                <ValidationMessage>Please select a valid verbosity level.</ValidationMessage>
+            </verbosity>
+        </general>
+        <rules>
+            <rule type="ArrayField" uuid="Y">
+                <enabled type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <Description>Enable or disable this rule.</Description>
+                </enabled>
+
+                <description type="TextField">
+                <Required>Y</Required>
+                <Mask>/^.{1,255}$/u</Mask>
+                <ValidationMessage>Description must be between 1 and 255 characters</ValidationMessage>
+                <Description>Rule description.</Description>
+                </description>
+
+                <source type="TextField">
+                <Required>Y</Required>
+                <ValidationMessage>Source IP is required.</ValidationMessage>
+                <Description>Source IP or network (CIDR format).</Description>
+                </source>
+
+                <destination type="TextField">
+                <Required>Y</Required>
+                <ValidationMessage>Destination IP is required.</ValidationMessage>
+                <Description>Destination IP or network (CIDR format).</Description>
+                </destination>
+
+                <port type="TextField">
+                <Mask>/^[0-9,-]*$/</Mask>
+                <Description>Port or port range (e.g., 80, 1000-2000).</Description>
+                </port>
+
+                <protocol type="OptionField">
+                <Required>Y</Required>
+                <Default>tcp</Default>
+                <ValidationMessage>Protocol is required.</ValidationMessage>
+                <Description>Protocol to match for this rule.</Description>
+                <OptionValues>
+                    <tcp>TCP</tcp>
+                    <udp>UDP</udp>
+                    <icmp>ICMP</icmp>
+                    <modbus_tcp>Modbus TCP</modbus_tcp>
+                    <dnp3>DNP3</dnp3>
+                    <iec104>IEC 104</iec104>
+                    <iec61850>IEC 61850</iec61850>
+                    <profinet>Profinet</profinet>
+                    <ethercat>EtherCAT</ethercat>
+                    <opcua>OPC UA</opcua>
+                    <mqtt>MQTT</mqtt>
+                    <bacnet>BACnet</bacnet>
+                    <s7comm>S7comm</s7comm>
+                </OptionValues>
+                </protocol>
+
+                <action type="OptionField">
+                <Required>Y</Required>
+                <Default>allow</Default>
+                <ValidationMessage>Action must be allow, block, or alert.</ValidationMessage>
+                <Description>Action to take when this rule matches.</Description>
+                <OptionValues>
+                    <allow>Allow</allow>
+                    <block>Block</block>
+                    <alert>Alert</alert>
+                </OptionValues>
+                </action>
+
+                <log type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <Description>Enable or disable logging for this rule.</Description>
+                </log>
+            </rule>
+        </rules>
+    </items>
+</model>

@@ -1,0 +1,10 @@
+<acl>
+    <priv>
+        <name>page-services-deepinspector</name>
+        <description>Access to Deep Packet Inspector</description>
+        <patterns>
+            <pattern>ui/deepinspector/*</pattern>
+            <pattern>api/deepinspector/*</pattern>
+        </patterns>
+    </priv>
+</acl>

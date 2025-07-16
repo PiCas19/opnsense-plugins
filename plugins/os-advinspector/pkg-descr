@@ -1,0 +1,22 @@
+This plugin provides a high-performance, low-latency Advanced Packet Inspection engine for OPNsense,
+supporting Stateful and Stateless inspection under Zero Trust principles.
+
+Key Features:
+- Inspects individual packets (stateless) and full sessions (stateful).
+- Operates in resource-constrained and industrial OT environments (e.g., SCADA, PLC).
+- Rule-based evaluation with logging and alerting.
+- Zero Trust architecture: every packet is untrusted until verified.
+- Fully implemented in Python for performance and flexibility.
+
+Changelog
+=========
+
+Version 1.0:
+- Initial release
+- Stateless and Stateful inspection engine
+- Rule matching engine with logging
+- Optimized for low-latency environments (F-06 compliance)
+- Basic web interface with rule and settings control
+
+Project Page:
+WWW: https://git.consoli.ch/students/20250400_lavsem/moretto/

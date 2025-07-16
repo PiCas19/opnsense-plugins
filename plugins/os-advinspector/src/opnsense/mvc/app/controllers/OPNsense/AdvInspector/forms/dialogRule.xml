@@ -1,0 +1,109 @@
+<form>
+  <id>dialogRule</id>
+  <description>Edit Rule</description>
+
+  <field>
+    <id>advinspector.rules.rule.enabled</id>
+    <label>Enabled</label>
+    <type>checkbox</type>
+    <help>Enable or disable this rule.</help>
+    <grid_view>
+      <type>boolean</type>
+      <formatter>rowtoggle</formatter>
+    </grid_view>
+  </field>
+
+  <field>
+    <id>advinspector.rules.rule.description</id>
+    <label>Description</label>
+    <type>text</type>
+    <help>Short description of the rule.</help>
+    <grid_view>
+      <type>text</type>
+    </grid_view>
+  </field>
+
+  <field>
+    <id>advinspector.rules.rule.source</id>
+    <label>Source IP</label>
+    <type>text</type>
+    <help>Source IP or network (e.g. 192.168.1.0/24)</help>
+    <mask>/^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/</mask> 
+    <grid_view>
+      <type>text</type>
+    </grid_view>
+  </field>
+
+  <field>
+    <id>advinspector.rules.rule.destination</id>
+    <label>Destination IP</label>
+    <type>text</type>
+    <help>Destination IP or network (e.g. 10.0.0.1)</help>
+     <mask>/^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/</mask>
+    <grid_view>
+      <type>text</type>
+    </grid_view>
+  </field>
+
+  <field>
+    <id>advinspector.rules.rule.port</id>
+    <label>Port</label>
+    <type>text</type>
+    <help>Single port (e.g. 80) or range (e.g. 1000-2000), comma separated.</help>
+    <grid_view>
+      <type>text</type>
+    </grid_view>
+  </field>
+
+  <field>
+    <id>advinspector.rules.rule.protocol</id>
+    <label>Protocol</label>
+    <type>dropdown</type>
+    <style>selectpicker</style>
+    <help>Select the protocol to match (e.g. TCP, UDP, Modbus).</help>
+    <OptionValues>
+      <tcp>TCP</tcp>
+      <udp>UDP</udp>
+      <icmp>ICMP</icmp>
+      <modbus_tcp>Modbus TCP</modbus_tcp>
+      <dnp3>DNP3</dnp3>
+      <iec104>IEC 104</iec104>
+      <iec61850>IEC 61850</iec61850>
+      <profinet>Profinet</profinet>
+      <ethercat>EtherCAT</ethercat>
+      <opcua>OPC UA</opcua>
+      <mqtt>MQTT</mqtt>
+      <bacnet>BACnet</bacnet>
+      <s7comm>S7comm</s7comm>
+    </OptionValues>
+    <grid_view>
+      <type>text</type>
+    </grid_view>
+  </field>
+
+  <field>
+    <id>advinspector.rules.rule.action</id>
+    <label>Action</label>
+    <type>dropdown</type>
+    <style>selectpicker</style>
+    <help>Select what to do when the rule matches.</help>
+    <OptionValues>
+      <allow>Allow</allow>
+      <block>Block</block>
+      <alert>Alert</alert>
+    </OptionValues>
+    <grid_view>
+      <type>text</type>
+    </grid_view>
+  </field>
+
+  <field>
+    <id>advinspector.rules.rule.log</id>
+    <label>Log</label>
+    <type>checkbox</type>
+    <help>Enable to log packets matched by this rule.</help>
+    <grid_view>
+      <type>boolean</type>
+    </grid_view>
+  </field>
+</form>

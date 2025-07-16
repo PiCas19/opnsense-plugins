@@ -1,0 +1,91 @@
+#!/bin/sh
+. /etc/rc.subr
+
+name="advinspector"
+rcvar=advinspector_enable
+pidfile="/var/run/${name}.pid"
+command="/usr/local/bin/python3.11"
+command_args="/usr/local/opnsense/scripts/OPNsense/AdvInspector/packet_inspector.py"
+procname="/usr/local/bin/python3.11"
+
+load_rc_config $name
+: ${advinspector_enable:=NO}
+
+start_precmd="${name}_prestart"
+start_cmd="${name}_start"
+stop_cmd="${name}_stop"
+status_cmd="${name}_status"
+restart_cmd="${name}_restart"
+
+advinspector_prestart()
+{
+    [ -d /var/run ] || install -d -m 755 /var/run
+}
+
+advinspector_start()
+{
+    echo "[$(date)] Starting ${name}..." >> /tmp/debug_start.log
+    
+    if [ -f "${pidfile}" ] && kill -0 $(cat ${pidfile}) 2>/dev/null; then
+        echo "[$(date)] ${name} is already running." >> /tmp/debug_start.log
+        return 1
+    fi
+    
+    # Avvia il processo in background e cattura il PID
+    ${command} "${command_args}" > /tmp/advinspector_stdout.log 2> /tmp/advinspector_stderr.log &
+    echo $! > "${pidfile}"
+    
+    sleep 1
+    
+    if ! kill -0 $(cat ${pidfile}) 2>/dev/null; then
+        echo "[$(date)] Failed to start ${name} (PID not alive)" >> /tmp/debug_start.log
+        rm -f "${pidfile}"
+        return 1
+    fi
+    
+    echo "[$(date)] ${name} started with PID $(cat ${pidfile})" >> /tmp/debug_start.log
+    return 0
+}
+
+advinspector_stop()
+{
+    echo "[$(date)] Stopping ${name}..." >> /tmp/debug_start.log
+    
+    if [ -f "${pidfile}" ]; then
+        PID=$(cat "${pidfile}")
+        if kill "${PID}" 2>/dev/null; then
+            echo "[$(date)] ${name} stopped." >> /tmp/debug_start.log
+            rm -f "${pidfile}"
+        else
+            echo "[$(date)] Failed to stop ${name} (PID ${PID})" >> /tmp/debug_start.log
+            return 1
+        fi
+    else
+        echo "[$(date)] No PID file found. Is ${name} running?" >> /tmp/debug_start.log
+        return 1
+    fi
+}
+
+advinspector_status()
+{
+    if [ -f "${pidfile}" ]; then
+        PID=$(cat "${pidfile}")
+        if ps -p "${PID}" >/dev/null 2>&1; then
+            echo "${name} is running as PID ${PID}"
+        else
+            echo "${name} PID file exists but process is not running"
+        fi
+    else
+        echo "${name} is not running"
+    fi
+    return 0
+}
+
+advinspector_restart()
+{
+    advinspector_stop
+    sleep 1
+    advinspector_start
+}
+
+run_rc_command "$1"

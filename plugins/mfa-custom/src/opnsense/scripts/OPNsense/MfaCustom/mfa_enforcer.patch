@@ -1,0 +1,15 @@
+--- /usr/local/opnsense/mvc/app/controllers/OPNsense/Base/IndexController.php.orig
++++ /usr/local/opnsense/mvc/app/controllers/OPNsense/Base/IndexController.php
+@@ class IndexController extends \Phalcon\Mvc\Controller
++    public function beforeExecuteRoute($dispatcher)
++    {
++        if (!empty($_SESSION['Username']) &&
++            isset($_SESSION['mfa_pending']) && $_SESSION['mfa_pending'] === true) {
++            
++            // Evita redirect loop se già nella pagina MFA
++            if ($dispatcher->getModuleName() !== 'mfacustom') {
++                $this->response->redirect('/ui/mfacustom');
++                return false;
++            }
++        }
++    }

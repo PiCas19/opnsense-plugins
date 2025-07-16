@@ -1,0 +1,10 @@
+<menu>
+  <Services>
+    <AdvInspector VisibleName="Advanced Packet Inspector" cssClass="fa fa-search fa-fw">
+      <Settings order="10" url="/ui/advinspector/settings"/>
+      <Rules order="20" url="/ui/advinspector/rules"/>
+      <Alerts order="30" url="/ui/advinspector/alerts"/>
+      <Logs order="40" url="/ui/advinspector/logs"/>
+    </AdvInspector>
+  </Services>
+</menu>

@@ -1,0 +1,9 @@
+<acl>
+   <page-services-mfacustom>
+      <name>Services: MFA Custom</name>
+      <patterns>
+         <pattern>ui/mfacustom/*</pattern>
+         <pattern>api/mfacustom/*</pattern>
+      </patterns>
+   </page-services-mfacustom>
+</acl>

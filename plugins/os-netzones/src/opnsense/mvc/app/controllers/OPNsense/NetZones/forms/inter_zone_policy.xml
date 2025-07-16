@@ -1,0 +1,68 @@
+<form>
+    <field>
+        <id>inter_zone_policy.enabled</id>
+        <label>Enabled</label>
+        <type>checkbox</type>
+        <help><![CDATA[Enable or disable this policy.]]></help>
+    </field>
+    <field>
+        <id>inter_zone_policy.name</id>
+        <label>Name</label>
+        <type>text</type>
+        <help><![CDATA[Policy name for identification (1-255 characters).]]></help>
+    </field>
+    <field>
+        <id>inter_zone_policy.description</id>
+        <label>Description</label>
+        <type>text</type>
+        <help><![CDATA[Description of this inter-zone policy.]]></help>
+    </field>
+    <field>
+        <id>inter_zone_policy.source_zone</id>
+        <label>Source Zone</label>
+        <type>dropdown</type>
+        <help><![CDATA[Source zone for this policy.]]></help>
+    </field>
+    <field>
+        <id>inter_zone_policy.destination_zone</id>
+        <label>Destination Zone</label>
+        <type>dropdown</type>
+        <help><![CDATA[Destination zone for this policy.]]></help>
+    </field>
+    <field>
+        <id>inter_zone_policy.action</id>
+        <label>Action</label>
+        <type>dropdown</type>
+        <help><![CDATA[Action for traffic between these zones (Pass, Block, or Reject).]]></help>
+    </field>
+    <field>
+        <id>inter_zone_policy.protocol</id>
+        <label>Protocol</label>
+        <type>dropdown</type>
+        <help><![CDATA[Protocol for this policy (TCP, UDP, ICMP, or Any).]]></help>
+    </field>
+    <field>
+        <id>inter_zone_policy.source_port</id>
+        <label>Source Port</label>
+        <type>text</type>
+        <help><![CDATA[Source port or port range (e.g., 80, 443, 1000-2000). Multiple ports/ranges separated by commas.]]></help>
+    </field>
+    <field>
+        <id>inter_zone_policy.destination_port</id>
+        <label>Destination Port</label>
+        <type>text</type>
+        <help><![CDATA[Destination port or port range (e.g., 80, 443, 1000-2000). Multiple ports/ranges separated by commas.]]></help>
+    </field>
+    <field>
+        <id>inter_zone_policy.log_traffic</id>
+        <label>Log Traffic</label>
+        <type>checkbox</type>
+        <help><![CDATA[Enable or disable logging for traffic matching this policy.]]></help>
+    </field>
+    <field>
+        <id>inter_zone_policy.priority</id>
+        <label>Priority</label>
+        <type>text</type>
+        <help><![CDATA[Policy priority (lower number = higher priority, 1-999).]]></help>
+    </field>
+</form>

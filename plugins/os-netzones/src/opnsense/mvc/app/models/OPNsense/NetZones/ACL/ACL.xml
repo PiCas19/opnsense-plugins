@@ -1,0 +1,10 @@
+<acl>
+  <priv>
+    <name>page-services-netzones</name>
+    <description>Access to Network Zones Plugin</description>
+    <patterns>
+      <pattern>ui/netzones/*</pattern>
+      <pattern>api/netzones/*</pattern>
+    </patterns>
+  </priv>
+</acl>
