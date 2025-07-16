@@ -1,5 +1,5 @@
 <model>
-    <mount>//OPNsense/DeepInspector/DeepInspector</mount>
+    <mount>//OPNsense/DeepInspector</mount>
     <description>Deep Packet Inspection Engine Settings</description>
     <version>1.0.0</version>
     <items>

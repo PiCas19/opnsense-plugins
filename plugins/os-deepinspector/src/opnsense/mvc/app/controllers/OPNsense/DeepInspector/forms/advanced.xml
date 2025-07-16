@@ -68,4 +68,39 @@
         <type>text</type>
         <help>Maximum time to spend analyzing a single packet (1-30 seconds).</help>
     </field>
+    
+    <field>
+        <id>deepinspector.advanced.bypass_trusted_networks</id>
+        <label>Bypass Trusted Networks</label>
+        <type>checkbox</type>
+        <help>Bypass deep inspection for traffic from trusted networks.</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.advanced.industrial_optimization</id>
+        <label>Industrial Optimization</label>
+        <type>checkbox</type>
+        <help>Enable industrial environment optimizations for minimal latency.</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.advanced.scada_protocols</id>
+        <label>SCADA Protocol Inspection</label>
+        <type>checkbox</type>
+        <help>Enable SCADA protocol inspection for industrial control systems.</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.advanced.plc_protocols</id>
+        <label>PLC Protocol Inspection</label>
+        <type>checkbox</type>
+        <help>Enable PLC protocol inspection for programmable logic controllers.</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.advanced.latency_threshold</id>
+        <label>Latency Threshold (μs)</label>
+        <type>text</type>
+        <help>Maximum acceptable latency in microseconds for industrial environments.</help>
+    </field>
 </form>

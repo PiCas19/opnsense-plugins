@@ -9,7 +9,7 @@ use OPNsense\Core\Backend;
 class SettingsController extends ApiMutableModelControllerBase
 {
     protected static $internalModelName = 'deepinspector';
-    protected static $internalModelClass = '\OPNsense\DeepInspector\DeepInspector';
+    protected static $internalModelClass = '\OPNsense\DeepInspector';
 
     /**
      * Get DPI settings

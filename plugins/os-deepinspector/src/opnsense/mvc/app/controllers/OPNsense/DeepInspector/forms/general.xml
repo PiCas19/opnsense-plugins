@@ -98,9 +98,24 @@
             <strong>High Performance</strong>: Optimized for speed with basic detection<br/>
             <strong>Balanced</strong>: Good balance of performance and security<br/>
             <strong>High Security</strong>: Maximum detection capabilities<br/>
+            <strong>Industrial Optimized</strong>: Optimized for industrial environments<br/>
             <strong>Custom</strong>: Manual configuration of all settings
             ]]>
         </help>
+    </field>
+    
+    <field>
+        <id>deepinspector.general.low_latency_mode</id>
+        <label>Low Latency Mode</label>
+        <type>checkbox</type>
+        <help>Enable low latency mode for industrial environments requiring minimal processing delay.</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.general.industrial_mode</id>
+        <label>Industrial Mode</label>
+        <type>checkbox</type>
+        <help>Enable industrial mode for SCADA/PLC environments with specialized protocol handling.</help>
     </field>
     
     <field>
