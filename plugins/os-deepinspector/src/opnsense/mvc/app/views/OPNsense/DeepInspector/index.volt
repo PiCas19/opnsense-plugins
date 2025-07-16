@@ -25,532 +25,199 @@
  #}
 
 <div class="alert alert-info hidden" role="alert" id="configChangedMsg">
-   <button class="btn btn-primary pull-right" id="btnApplyConfig"
-           data-endpoint='/api/deepinspector/service/reconfigure'
-           data-label="{{ lang._('Apply') }}"
-           data-error-title="{{ lang._('Error reconfiguring Deep Packet Inspector') }}"
-           type="button">
-   </button>
-   {{ lang._('The Deep Packet Inspector configuration has been changed') }} <br /> {{ lang._('You must apply the changes in order for them to take effect.')}}
+    <button class="btn btn-primary pull-right" id="btnApplyConfig"
+            data-endpoint='/api/deepinspector/service/reconfigure'
+            data-label="{{ lang._('Apply') }}"
+            data-error-title="{{ lang._('Error reconfiguring Deep Packet Inspector') }}"
+            type="button">
+    </button>
+    {{ lang._('The Deep Packet Inspector configuration has been changed') }}<br/>
+    {{ lang._('You must apply the changes in order for them to take effect.') }}
 </div>
 
 <ul class="nav nav-tabs" role="tablist" id="maintabs">
-   <li class="active"><a data-toggle="tab" href="#general">{{ lang._('General') }}</a></li>
-   <li><a data-toggle="tab" href="#protocols">{{ lang._('Protocols') }}</a></li>
-   <li><a data-toggle="tab" href="#detection">{{ lang._('Detection') }}</a></li>
-   <li><a data-toggle="tab" href="#advanced">{{ lang._('Advanced') }}</a></li>
-   <li class="hidden"><a data-toggle="tab" href="#industrial">{{ lang._('Industrial') }}</a></li>
+    <li class="active"><a data-toggle="tab" href="#general">{{ lang._('General') }}</a></li>
+    <li><a data-toggle="tab" href="#protocols">{{ lang._('Protocols') }}</a></li>
+    <li><a data-toggle="tab" href="#detection">{{ lang._('Detection') }}</a></li>
+    <li><a data-toggle="tab" href="#advanced">{{ lang._('Advanced') }}</a></li>
 </ul>
 
 <div class="tab-content content-box">
-   <div id="general" class="tab-pane fade in active">
-      <div class="row">
-         <div class="col-md-12">
-            <div class="pull-right" style="margin-bottom: 10px;">
-               <button id="btnSaveSettings" type="button" class="btn btn-primary">
-                  <i class="fa fa-save"></i> {{ lang._('Save Settings') }}
-               </button>
+    <!-- GENERAL TAB -->
+    <div id="general" class="tab-pane fade in active">
+        <div class="pull-right" style="margin-bottom: 10px;">
+            <button id="btnEditGeneral" type="button" class="btn btn-default">
+                <i class="fa fa-edit"></i> {{ lang._('Edit') }}
+            </button>
+        </div>
+        <div class="panel panel-default">
+            <div class="panel-heading"><h3 class="panel-title">{{ lang._('General Settings') }}</h3></div>
+            <div class="panel-body">
+                {{ partial("layout_partials/base_form", {
+                    'fields': formGeneral,
+                    'id':     'frm_DeepInspectorGeneral'
+                }) }}
             </div>
-            <div class="clearfix"></div>
-         </div>
-      </div>
-      
-      <div class="panel panel-default">
-         <div class="panel-heading">
-            <h3 class="panel-title">{{ lang._('General Settings') }}</h3>
-         </div>
-         <div class="panel-body">
-            {{ partial("layout_partials/base_form", ['fields': generalForm, 'id': 'frm_DeepInspectorGeneral']) }}
-         </div>
-      </div>
-   </div>
+        </div>
+    </div>
 
-   <div id="protocols" class="tab-pane fade in">
-      <div class="panel panel-default">
-         <div class="panel-heading">
-            <h3 class="panel-title">{{ lang._('Protocol Inspection') }}</h3>
-         </div>
-         <div class="panel-body">
-            {{ partial("layout_partials/base_form", ['fields': protocolsForm, 'id': 'frm_DeepInspectorProtocols']) }}
-         </div>
-      </div>
-   </div>
-
-   <div id="detection" class="tab-pane fade in">
-      <div class="panel panel-default">
-         <div class="panel-heading">
-            <h3 class="panel-title">{{ lang._('Detection Engines') }}</h3>
-         </div>
-         <div class="panel-body">
-            {{ partial("layout_partials/base_form", ['fields': detectionForm, 'id': 'frm_DeepInspectorDetection']) }}
-         </div>
-      </div>
-   </div>
-
-   <div id="advanced" class="tab-pane fade in">
-      <div class="panel panel-default">
-         <div class="panel-heading">
-            <h3 class="panel-title">{{ lang._('Advanced Settings') }}</h3>
-         </div>
-         <div class="panel-body">
-            {{ partial("layout_partials/base_form", ['fields': advancedForm, 'id': 'frm_DeepInspectorAdvanced']) }}
-         </div>
-      </div>
-   </div>
-
-   <div id="industrial" class="tab-pane fade in">
-      <div class="panel panel-default">
-         <div class="panel-heading">
-            <h3 class="panel-title">{{ lang._('Industrial Environment Settings') }}</h3>
-         </div>
-         <div class="panel-body">
-            <div class="alert alert-info">
-               <i class="fa fa-info-circle"></i>
-               {{ lang._('These settings optimize the Deep Packet Inspector for industrial environments (SCADA, PLC, OT networks) with low latency requirements.') }}
+    <!-- PROTOCOLS TAB -->
+    <div id="protocols" class="tab-pane fade in">
+        <div class="pull-right" style="margin-bottom: 10px;">
+            <button id="btnEditProtocols" type="button" class="btn btn-default">
+                <i class="fa fa-edit"></i> {{ lang._('Edit') }}
+            </button>
+        </div>
+        <div class="panel panel-default">
+            <div class="panel-heading"><h3 class="panel-title">{{ lang._('Protocol Inspection') }}</h3></div>
+            <div class="panel-body">
+                {{ partial("layout_partials/base_form", {
+                    'fields': formProtocols,
+                    'id':     'frm_DeepInspectorProtocols'
+                }) }}
             </div>
-            
-            <div class="row">
-               <div class="col-md-4">
-                  <div class="panel panel-default">
-                     <div class="panel-body text-center">
-                        <i class="fa fa-tachometer-alt fa-2x text-primary"></i>
-                        <h4 id="avgLatency">-- μs</h4>
-                        <p class="text-muted">{{ lang._('Average Latency') }}</p>
-                     </div>
-                  </div>
-               </div>
-               <div class="col-md-4">
-                  <div class="panel panel-default">
-                     <div class="panel-body text-center">
-                        <i class="fa fa-industry fa-2x text-primary"></i>
-                        <h4 id="industrialPackets">--</h4>
-                        <p class="text-muted">{{ lang._('Industrial Packets') }}</p>
-                     </div>
-                  </div>
-               </div>
-               <div class="col-md-4">
-                  <div class="panel panel-default">
-                     <div class="panel-body text-center">
-                        <i class="fa fa-exclamation-triangle fa-2x text-warning"></i>
-                        <h4 id="scadaAlerts">--</h4>
-                        <p class="text-muted">{{ lang._('SCADA Alerts') }}</p>
-                     </div>
-                  </div>
-               </div>
-            </div>
+        </div>
+    </div>
 
-            <div class="row">
-               <div class="col-md-6">
-                  <button class="btn btn-success btn-block" id="btnApplyIndustrialOptimization">
-                     <i class="fa fa-magic"></i> {{ lang._('Apply Industrial Optimization') }}
-                  </button>
-               </div>
-               <div class="col-md-6">
-                  <button class="btn btn-info btn-block" id="btnCheckZeroTrust">
-                     <i class="fa fa-shield-alt"></i> {{ lang._('Check Zero Trust Compliance') }}
-                  </button>
-               </div>
+    <!-- DETECTION TAB -->
+    <div id="detection" class="tab-pane fade in">
+        <div class="pull-right" style="margin-bottom: 10px;">
+            <button id="btnEditDetection" type="button" class="btn btn-default">
+                <i class="fa fa-edit"></i> {{ lang._('Edit') }}
+            </button>
+        </div>
+        <div class="panel panel-default">
+            <div class="panel-heading"><h3 class="panel-title">{{ lang._('Detection Engines') }}</h3></div>
+            <div class="panel-body">
+                {{ partial("layout_partials/base_form", {
+                    'fields': formDetection,
+                    'id':     'frm_DeepInspectorDetection'
+                }) }}
             </div>
-         </div>
-      </div>
-   </div>
+        </div>
+    </div>
+
+    <!-- ADVANCED TAB -->
+    <div id="advanced" class="tab-pane fade in">
+        <div class="pull-right" style="margin-bottom: 10px;">
+            <button id="btnEditAdvanced" type="button" class="btn btn-default">
+                <i class="fa fa-edit"></i> {{ lang._('Edit') }}
+            </button>
+        </div>
+        <div class="panel panel-default">
+            <div class="panel-heading"><h3 class="panel-title">{{ lang._('Advanced Settings') }}</h3></div>
+            <div class="panel-body">
+                {{ partial("layout_partials/base_form", {
+                    'fields': formAdvanced,
+                    'id':     'frm_DeepInspectorAdvanced'
+                }) }}
+            </div>
+        </div>
+    </div>
 </div>
 
 <style>
-.zero-trust-report {
-   text-align: center;
-}
-
-.compliance-score {
-   margin-bottom: 30px;
-}
-
-.score-circle {
-   width: 120px;
-   height: 120px;
-   border-radius: 50%;
-   border: 6px solid #e5e7eb;
-   display: flex;
-   align-items: center;
-   justify-content: center;
-   margin: 20px auto;
-   font-size: 24px;
-   font-weight: bold;
-}
-
-.score-value {
-   font-size: 2rem;
-   font-weight: bold;
-}
-
-.compliance-checks {
-   text-align: left;
-   margin-bottom: 20px;
-}
-
-.recommendations {
-   text-align: left;
-}
-
-.panel-body {
-   padding: 15px;
-}
+.panel-body { padding: 15px; }
 </style>
 
 <script>
-$(document).ready(function() {
-    
+$(function() {
+    // Mostra banner se config dirty
     function isSubsystemDirty() {
-        ajaxGet("/api/deepinspector/settings/dirty", {}, function(data, status) {
-            if (status == "success") {
-                if (data.deepinspector && data.deepinspector.dirty === true) {
-                    $("#configChangedMsg").removeClass("hidden");
-                } else {
-                    $("#configChangedMsg").addClass("hidden");
-                }
-            }
+        ajaxGet("/api/deepinspector/settings/dirty", {}, function(data) {
+            $("#configChangedMsg").toggleClass("hidden", !(data.deepinspector && data.deepinspector.dirty));
         });
     }
 
+    // Apply global config
     $('#btnApplyConfig').SimpleActionButton({
-        onAction: function(data, status) {
+        onAction: function() {
             isSubsystemDirty();
-            if (status === "success") {
-                BootstrapDialog.show({
-                    type: BootstrapDialog.TYPE_SUCCESS,
-                    title: "{{ lang._('Success') }}",
-                    message: "{{ lang._('Configuration applied successfully') }}",
-                    buttons: [{
-                        label: 'OK',
-                        action: function(dialog) {
-                            dialog.close();
-                        }
-                    }]
-                });
-            }
-        }
-    });
-
-    // Form mapping
-    var formMap = {
-        'frm_DeepInspectorGeneral': "/api/deepinspector/settings/get",
-        'frm_DeepInspectorProtocols': "/api/deepinspector/settings/get", 
-        'frm_DeepInspectorDetection': "/api/deepinspector/settings/get",
-        'frm_DeepInspectorAdvanced': "/api/deepinspector/settings/get"
-    };
-
-    // Load forms
-    mapDataToFormUI(formMap).done(function(data) {
-        console.log("DeepInspector forms loaded successfully", data);
-        formatTokenizersUI();
-        $('.selectpicker').selectpicker('refresh');
-        handleIndustrialModeToggle();
-    }).fail(function(error) {
-        console.error("Failed to load DeepInspector forms", error);
-    });
-
-    // Save button handler - CON DEBUG COMPLETO
-    $('#btnSaveSettings').click(function() {
-        console.log("=== INIZIO DEBUG SALVATAGGIO ===");
-        
-        // Debug: verifica se i form esistono
-        console.log("Form General exists:", $("#frm_DeepInspectorGeneral").length);
-        console.log("Form Protocols exists:", $("#frm_DeepInspectorProtocols").length);
-        console.log("Form Detection exists:", $("#frm_DeepInspectorDetection").length);
-        console.log("Form Advanced exists:", $("#frm_DeepInspectorAdvanced").length);
-        
-        var saveData = {};
-        var totalFields = 0;
-        
-        // Debug: mostra tutti i campi trovati
-        $("input, select, textarea").each(function() {
-            var field = $(this);
-            var name = field.attr('name');
-            var id = field.attr('id');
-            var type = field.attr('type') || field.prop('tagName');
-            
-            if (name) {
-                console.log("Campo trovato - Nome:", name, "ID:", id, "Tipo:", type, "Valore:", field.val());
-                totalFields++;
-                
-                if (field.is(':checkbox')) {
-                    saveData[name] = field.is(':checked') ? '1' : '0';
-                } else if (field.is('select[multiple]')) {
-                    saveData[name] = field.val() ? field.val().join(',') : '';
-                } else {
-                    saveData[name] = field.val() || '';
-                }
-            }
-        });
-        
-        console.log("Totale campi trovati:", totalFields);
-        console.log("Dati da salvare:", saveData);
-        
-        // Se non troviamo dati, prova un approccio alternativo
-        if (Object.keys(saveData).length === 0) {
-            console.log("Nessun dato trovato, provo con serializeArray...");
-            
-            var formData = new FormData();
-            
-            // Prova con ogni form singolarmente
-            ['#frm_DeepInspectorGeneral', '#frm_DeepInspectorProtocols', '#frm_DeepInspectorDetection', '#frm_DeepInspectorAdvanced'].forEach(function(formId) {
-                var $form = $(formId);
-                if ($form.length > 0) {
-                    console.log("Processando form:", formId);
-                    var serialized = $form.serializeArray();
-                    console.log("Dati serializzati:", serialized);
-                    
-                    serialized.forEach(function(item) {
-                        saveData[item.name] = item.value;
-                    });
-                    
-                    // Aggiungi anche checkbox non checked
-                    $form.find('input[type="checkbox"]').each(function() {
-                        var name = $(this).attr('name');
-                        if (name && !saveData.hasOwnProperty(name)) {
-                            saveData[name] = '0';
-                        }
-                    });
-                }
-            });
-        }
-        
-        console.log("Dati finali da inviare:", saveData);
-        
-        if (Object.keys(saveData).length === 0) {
             BootstrapDialog.show({
-                type: BootstrapDialog.TYPE_WARNING,
-                title: "{{ lang._('Warning') }}",
-                message: "{{ lang._('No form data found. Please check if forms are loaded correctly.') }}"
+                type: BootstrapDialog.TYPE_SUCCESS,
+                title: "{{ lang._('Success') }}",
+                message: "{{ lang._('Configuration applied successfully') }}",
+                buttons: [{ label:'OK', action:function(d){ d.close(); }}]
             });
-            return;
         }
-
-        // POST direttamente i dati
-        ajaxCall("/api/deepinspector/settings/set", saveData, function(data, status) {
-            console.log("Risposta server:", data, "Status:", status);
-            
-            if (status === "success") {
-                if (data.result === "saved") {
-                    BootstrapDialog.show({
-                        type: BootstrapDialog.TYPE_SUCCESS,
-                        title: "{{ lang._('Success') }}",
-                        message: "{{ lang._('Settings saved successfully') }}",
-                        buttons: [{
-                            label: 'OK',
-                            action: function(dialog) {
-                                dialog.close();
-                                isSubsystemDirty();
-                            }
-                        }]
-                    });
-                } else {
-                    var errorMsg = "{{ lang._('Failed to save settings') }}";
-                    if (data.validations) {
-                        errorMsg += ":<br><br>";
-                        Object.keys(data.validations).forEach(function(field) {
-                            errorMsg += "<strong>" + field + ":</strong> " + data.validations[field] + "<br>";
-                        });
-                    }
-                    
-                    BootstrapDialog.show({
-                        type: BootstrapDialog.TYPE_DANGER,
-                        title: "{{ lang._('Error') }}",
-                        message: errorMsg
-                    });
-                }
-            } else {
-                BootstrapDialog.show({
-                    type: BootstrapDialog.TYPE_DANGER,
-                    title: "{{ lang._('Error') }}",
-                    message: "{{ lang._('Connection error') }}"
-                });
-            }
-        });
     });
 
-    // Handle performance profile changes - SEMPLIFICATO
-    $(document).on('change', 'select[name*="performance_profile"]', function() {
-        var profile = $(this).val();
-        handlePerformanceProfileChange(profile);
-    });
-
-    // Handle industrial mode toggle - SEMPLIFICATO  
-    $(document).on('change', 'input[name*="industrial_mode"]', function() {
-        var enabled = $(this).is(':checked');
-        handleIndustrialModeToggle(enabled);
-    });
-
-    // Industrial optimization button
-    $('#btnApplyIndustrialOptimization').click(function() {
-        var $btn = $(this);
-        var originalText = $btn.text();
-        
-        $btn.prop('disabled', true).text('{{ lang._("Applying...") }}');
-        
-        ajaxCall("/api/deepinspector/settings/applyIndustrialOptimization", {}, function(data, status) {
-            $btn.prop('disabled', false).text(originalText);
-            
-            if (status === "success" && data.status === 'ok') {
-                BootstrapDialog.show({
-                    type: BootstrapDialog.TYPE_SUCCESS,
-                    title: "{{ lang._('Success') }}",
-                    message: "{{ lang._('Industrial optimization applied successfully') }}",
-                    buttons: [{
-                        label: 'OK',
-                        action: function(dialog) {
-                            dialog.close();
-                            // Reload forms
-                            mapDataToFormUI(formMap).done(function(data) {
-                                formatTokenizersUI();
-                                $('.selectpicker').selectpicker('refresh');
-                                handleIndustrialModeToggle();
-                            });
+    // Apri dialog per edit
+    function bindDialog(btnId, dialogId) {
+        $(btnId).click(function() {
+            BootstrapDialog.show({
+                title: $(this).text(),
+                message: $('#' + dialogId).html(),
+                buttons: [
+                    {
+                        label: "{{ lang._('Save') }}",
+                        cssClass: 'btn-primary',
+                        action: function(dlg) {
+                            var form = dlg.getModalBody().find('form');
+                            ajaxCall("/api/deepinspector/settings/set",
+                                mapDataToFormObject(form.attr('id')),
+                                function(resp) {
+                                    if (resp.result === 'saved') {
+                                        isSubsystemDirty();
+                                        dlg.close();
+                                        BootstrapDialog.show({
+                                            type: BootstrapDialog.TYPE_SUCCESS,
+                                            title: "{{ lang._('Success') }}",
+                                            message: "{{ lang._('Settings saved successfully') }}",
+                                            buttons:[{label:'OK', action:function(d){d.close();}}]
+                                        });
+                                    } else {
+                                        var msg = "{{ lang._('Failed to save settings') }}:<br/>";
+                                        for (var f in resp.validations) {
+                                            msg += '<strong>'+f+'</strong>: '+resp.validations[f]+'<br/>';
+                                        }
+                                        dlg.enableButtons(false);
+                                        dlg.setClosable(true);
+                                        dlg.getModalBody().prepend('<div class="alert alert-danger">'+msg+'</div>');
+                                    }
+                                }
+                            );
                         }
-                    }]
-                });
-            } else {
-                BootstrapDialog.show({
-                    type: BootstrapDialog.TYPE_DANGER,
-                    title: "{{ lang._('Error') }}",
-                    message: "{{ lang._('Failed to apply industrial optimization') }}"
-                });
-            }
-        });
-    });
-
-    // Zero Trust compliance check
-    $('#btnCheckZeroTrust').click(function() {
-        var $btn = $(this);
-        var originalText = $btn.text();
-        
-        $btn.prop('disabled', true).text('{{ lang._("Checking...") }}');
-        
-        ajaxCall("/api/deepinspector/settings/zeroTrustStatus", {}, function(data, status) {
-            $btn.prop('disabled', false).text(originalText);
-            
-            if (status === "success" && data.status === 'ok') {
-                showZeroTrustReport(data.data);
-            } else {
-                BootstrapDialog.show({
-                    type: BootstrapDialog.TYPE_DANGER,
-                    title: "{{ lang._('Error') }}",
-                    message: "{{ lang._('Failed to check Zero Trust compliance') }}"
-                });
-            }
-        });
-    });
-
-    // Initialize
-    isSubsystemDirty();
-
-    // Auto-refresh industrial metrics
-    setInterval(function() {
-        loadIndustrialMetrics();
-    }, 30000);
-
-    function handlePerformanceProfileChange(profile) {
-        var $customFields = $('.custom-profile-field');
-        var $industrialFields = $('.industrial-profile-field');
-        
-        if (profile === 'custom') {
-            $customFields.show();
-            $industrialFields.hide();
-        } else if (profile === 'industrial' || profile === 'high_performance') {
-            $customFields.hide();
-            $industrialFields.show();
-        } else {
-            $customFields.hide();
-            $industrialFields.hide();
-        }
-    }
-
-    function handleIndustrialModeToggle(enabled) {
-        var $industrialTab = $('#maintabs li').eq(4); // Il 5° tab (index 4)
-        
-        if (enabled === undefined) {
-            // Cerca qualsiasi checkbox che contiene "industrial_mode" nel nome
-            enabled = $('input[name*="industrial_mode"]').is(':checked');
-        }
-        
-        if (enabled) {
-            $industrialTab.removeClass('hidden');
-        } else {
-            $industrialTab.addClass('hidden');
-        }
-    }
-
-    function loadIndustrialMetrics() {
-        ajaxGet("/api/deepinspector/settings/industrialStats", {}, function(data, status) {
-            if (status === "success" && data.status === 'ok') {
-                var stats = data.data;
-                $('#avgLatency').text(stats.avg_latency + ' μs');
-                $('#industrialPackets').text(formatNumber(stats.modbus_packets + stats.dnp3_packets + stats.opcua_packets));
-                $('#scadaAlerts').text(formatNumber(stats.scada_alerts));
-            }
-        });
-    }
-
-    function showZeroTrustReport(compliance) {
-        var scoreColor = compliance.overall_score >= 80 ? 'success' : 
-                         compliance.overall_score >= 60 ? 'warning' : 'danger';
-        
-        var html = '<div class="zero-trust-report">';
-        html += '<div class="compliance-score">';
-        html += '<h4>{{ lang._("Overall Compliance Score") }}</h4>';
-        html += '<div class="score-circle text-' + scoreColor + '">';
-        html += '<span class="score-value">' + compliance.overall_score + '%</span>';
-        html += '</div></div>';
-        
-        html += '<div class="compliance-checks">';
-        html += '<h5>{{ lang._("Compliance Checks") }}</h5>';
-        html += '<ul class="list-group">';
-        
-        Object.keys(compliance.checks).forEach(function(check) {
-            var passed = compliance.checks[check];
-            var icon = passed ? 'check text-success' : 'times text-danger';
-            var status = passed ? '{{ lang._("Passed") }}' : '{{ lang._("Failed") }}';
-            var checkName = check.replace(/_/g, ' ').replace(/\b\w/g, function(l) { return l.toUpperCase(); });
-            
-            html += '<li class="list-group-item">';
-            html += '<span class="pull-left">' + checkName + '</span>';
-            html += '<span class="pull-right"><i class="fa fa-' + icon + '"></i> ' + status + '</span>';
-            html += '<div class="clearfix"></div>';
-            html += '</li>';
-        });
-        
-        html += '</ul></div>';
-        
-        if (compliance.recommendations && compliance.recommendations.length > 0) {
-            html += '<div class="recommendations">';
-            html += '<h5>{{ lang._("Recommendations") }}</h5>';
-            html += '<ul class="list-group">';
-            
-            compliance.recommendations.forEach(function(rec) {
-                html += '<li class="list-group-item">' + rec + '</li>';
+                    },
+                    {
+                        label: "{{ lang._('Cancel') }}",
+                        action: function(dlg) { dlg.close(); }
+                    }
+                ]
             });
-            
-            html += '</ul></div>';
-        }
-        
-        html += '</div>';
-        
-        BootstrapDialog.show({
-            type: BootstrapDialog.TYPE_INFO,
-            title: "{{ lang._('Zero Trust Compliance Report') }}",
-            message: html,
-            size: BootstrapDialog.SIZE_LARGE,
-            buttons: [{
-                label: 'OK',
-                action: function(dialog) {
-                    dialog.close();
-                }
-            }]
         });
     }
 
-    function formatNumber(num) {
-        return new Intl.NumberFormat().format(num || 0);
-    }
+    bindDialog('#btnEditGeneral',   'DialogGeneral');
+    bindDialog('#btnEditProtocols', 'DialogProtocols');
+    bindDialog('#btnEditDetection', 'DialogDetection');
+    bindDialog('#btnEditAdvanced',  'DialogAdvanced');
+
+    isSubsystemDirty();
 });
 </script>
+
+{# -- DIALOG PARTIALS -- #}
+{{ partial("layout_partials/base_dialog", {
+    'fields': formGeneral,
+    'id':     'DialogGeneral',
+    'label':  lang._('General Settings')
+}) }}
+
+{{ partial("layout_partials/base_dialog", {
+    'fields': formProtocols,
+    'id':     'DialogProtocols',
+    'label':  lang._('Protocol Inspection')
+}) }}
+
+{{ partial("layout_partials/base_dialog", {
+    'fields': formDetection,
+    'id':     'DialogDetection',
+    'label':  lang._('Detection Engines')
+}) }}
+
+{{ partial("layout_partials/base_dialog", {
+    'fields': formAdvanced,
+    'id':     'DialogAdvanced',
+    'label':  lang._('Advanced Settings')
+}) }}
