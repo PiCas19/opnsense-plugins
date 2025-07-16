@@ -9,7 +9,18 @@ use OPNsense\Core\Backend;
 class SettingsController extends ApiMutableModelControllerBase
 {
     protected static $internalModelName = 'deepinspector';
-    protected static $internalModelClass = '\OPNsense\DeepInspector';
+    protected static $internalModelClass = '\OPNsense\DeepInspector\DeepInspector';
+
+    /**
+     * Check if changes to the DeepInspector settings were made
+     * @return array result
+     */
+    public function dirtyAction()
+    {
+        $result = array('status' => 'ok');
+        $result['deepinspector']['dirty'] = $this->getModel()->configChanged();
+        return $result;
+    }
 
     /**
      * Get DPI settings

@@ -30,9 +30,9 @@
        * get the isSubsystemDirty value and print a notice
        */
       function isSubsystemDirty() {
-         ajaxGet("/api/deepinspector/service/status", {}, function(data, status) {
+         ajaxGet("/api/deepinspector/service/dirty", {}, function(data,status) {
             if (status == "success") {
-               if (data.deepinspector && data.deepinspector.dirty === true) {
+               if (data.deepinspector.dirty === true) {
                   $("#configChangedMsg").removeClass("hidden");
                } else {
                   $("#configChangedMsg").addClass("hidden");

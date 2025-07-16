@@ -31,22 +31,22 @@ namespace OPNsense\DeepInspector;
 use OPNsense\Base\IndexController as BaseIndexController;
 
 /**
- * Class SettingsController
+ * Class IndexController
  * @package OPNsense\DeepInspector
  */
-class SettingsController extends BaseIndexController
+class IndexController extends BaseIndexController
 {
     /**
-     * Deep Packet Inspector settings page
+     * Deep Packet Inspector index page
      * @throws \Exception
      */
     public function indexAction()
     {
-        $this->view->title = gettext('Deep Packet Inspector - Settings');
+        $this->view->title = gettext('Deep Packet Inspector');
         $this->view->generalForm = $this->getForm("general");
         $this->view->protocolsForm = $this->getForm("protocols");
         $this->view->detectionForm = $this->getForm("detection");
         $this->view->advancedForm = $this->getForm("advanced");
-        $this->view->pick('OPNsense/DeepInspector/settings');
+        $this->view->pick('OPNsense/DeepInspector/index');
     }
 }

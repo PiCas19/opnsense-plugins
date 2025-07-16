@@ -1,63 +1,140 @@
 <?php
 
+/*
+ * Copyright (C) 2025 OPNsense Project
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
+ * OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
+
 namespace OPNsense\DeepInspector\Api;
 
 use OPNsense\Base\ApiMutableServiceControllerBase;
 use OPNsense\Core\Backend;
+use OPNsense\Core\Config;
 
+/**
+ * Class ServiceController
+ * @package OPNsense\DeepInspector\Api
+ */
 class ServiceController extends ApiMutableServiceControllerBase
 {
-    protected static $internalServiceClass = '\OPNsense\DeepInspector\Settings';
+    protected static $internalServiceClass = '\\OPNsense\\DeepInspector\\DeepInspector';
     protected static $internalServiceTemplate = 'OPNsense/DeepInspector';
     protected static $internalServiceEnabled = 'general.enabled';
     protected static $internalServiceName = 'deepinspector';
 
     /**
-     * Start DPI service
+     * Check if changes to the DeepInspector settings were made
+     * @return array result
+     */
+    public function dirtyAction()
+    {
+        $result = array('status' => 'ok');
+        $result['deepinspector']['dirty'] = $this->getModel()->configChanged();
+        return $result;
+    }
+
+    /**
+     * Start DeepInspector service
      * @return array
      */
     public function startAction()
     {
-        $backend = new Backend();
-        $response = $backend->configdRun("deepinspector start");
-        return ["response" => $response, "status" => "started"];
+        if ($this->request->isPost()) {
+            $backend = new Backend();
+            $response = $backend->configdRun("deepinspector start");
+            return [
+                "response" => $response,
+                "status" => trim($response) === "deepinspector started successfully" ? "ok" : "failed"
+            ];
+        }
+        return ["status" => "failed", "message" => "POST method required"];
     }
 
     /**
-     * Stop DPI service
+     * Stop DeepInspector service
      * @return array
      */
     public function stopAction()
     {
-        $backend = new Backend();
-        $response = $backend->configdRun("deepinspector stop");
-        return ["response" => $response, "status" => "stopped"];
+        if ($this->request->isPost()) {
+            $backend = new Backend();
+            $response = $backend->configdRun("deepinspector stop");
+            return [
+                "response" => $response,
+                "status" => trim($response) === "deepinspector stopped" ? "ok" : "failed"
+            ];
+        }
+        return ["status" => "failed", "message" => "POST method required"];
     }
 
     /**
-     * Restart DPI service
+     * Restart DeepInspector service
      * @return array
      */
     public function restartAction()
     {
-        $backend = new Backend();
-        $response = $backend->configdRun("deepinspector restart");
-        return ["response" => $response, "status" => "restarted"];
+        if ($this->request->isPost()) {
+            $backend = new Backend();
+            $response = $backend->configdRun("deepinspector restart");
+            return [
+                "response" => $response,
+                "status" => "ok"
+            ];
+        }
+        return ["status" => "failed", "message" => "POST method required"];
     }
 
     /**
-     * Reconfigure DPI service
+     * Reconfigure and restart DeepInspector service
      * @return array
      */
     public function reconfigureAction()
     {
-        $backend = new Backend();
-        $response = $backend->configdRun("deepinspector reconfigure");
-        return ["response" => $response, "status" => "reconfigured"];
+        if ($this->request->isPost()) {
+            $backend = new Backend();
+            
+            // Generate new configuration first
+            $backend->configdRun("template reload OPNsense/DeepInspector");
+            
+            // Then restart the service
+            $response = $backend->configdRun("deepinspector reconfigure");
+            
+            // Mark configuration as clean
+            $mdl = new \OPNsense\DeepInspector\DeepInspector();
+            $mdl->configClean();
+            
+            return [
+                "response" => $response,
+                "status" => "ok",
+                "message" => "Configuration applied and service restarted"
+            ];
+        }
+        return ["status" => "failed", "message" => "POST method required"];
     }
 
     /**
-     * Get detailed service status
+     * Get DeepInspector service status
      * @return array
      */
     public function statusAction()
@@ -65,150 +142,49 @@ class ServiceController extends ApiMutableServiceControllerBase
         $backend = new Backend();
         $response = $backend->configdRun("deepinspector status");
         
-        // Parse the response to provide detailed status
         $lines = explode("\n", trim($response));
-        $status = [
-            'running' => false,
-            'pid' => null,
-            'uptime' => null,
-            'memory_usage' => null,
-            'cpu_usage' => null,
-            'threads' => [],
-            'last_error' => null
-        ];
-
+        $running = false;
+        $pid = null;
+        $socket_status = "unknown";
+        
         foreach ($lines as $line) {
-            if (strpos($line, 'PID:') !== false) {
-                $status['pid'] = trim(str_replace('PID:', '', $line));
-                $status['running'] = !empty($status['pid']);
-            } elseif (strpos($line, 'Uptime:') !== false) {
-                $status['uptime'] = trim(str_replace('Uptime:', '', $line));
-            } elseif (strpos($line, 'Memory:') !== false) {
-                $status['memory_usage'] = trim(str_replace('Memory:', '', $line));
-            } elseif (strpos($line, 'CPU:') !== false) {
-                $status['cpu_usage'] = trim(str_replace('CPU:', '', $line));
+            if (strpos($line, "is running as PID") !== false) {
+                $running = true;
+                if (preg_match('/PID (\d+)/', $line, $matches)) {
+                    $pid = $matches[1];
+                }
+            } elseif (strpos($line, "Socket:") !== false) {
+                $socket_status = strpos($line, "(active)") !== false ? "active" : "inactive";
+            } elseif (strpos($line, "is not running") !== false) {
+                $running = false;
             }
         }
-
-        return ["status" => $status];
+        
+        return [
+            "status" => "ok",
+            "response" => $response,
+            "running" => $running,
+            "pid" => $pid,
+            "socket_status" => $socket_status
+        ];
     }
 
     /**
-     * Get engine performance metrics
+     * Clear DeepInspector logs
      * @return array
      */
-    public function metricsAction()
+    public function clearLogsAction()
     {
-        try {
+        if ($this->request->isPost()) {
             $backend = new Backend();
-            $response = $backend->configdRun("deepinspector get_metrics");
-            
-            $metrics = json_decode($response, true) ?: [];
+            $response = $backend->configdRun("deepinspector clear_logs");
             
             return [
                 "status" => "ok",
-                "metrics" => $metrics,
-                "timestamp" => date('c')
-            ];
-        } catch (\Exception $e) {
-            return [
-                "status" => "error",
-                "message" => $e->getMessage()
+                "response" => $response,
+                "message" => "Logs cleared successfully"
             ];
         }
-    }
-
-    /**
-     * Flush analysis caches and temporary data
-     * @return array
-     */
-    public function flushCacheAction()
-    {
-        try {
-            $backend = new Backend();
-            $response = $backend->configdRun("deepinspector flush_cache");
-            
-            return [
-                "status" => "ok",
-                "message" => "Cache flushed successfully",
-                "response" => $response
-            ];
-        } catch (\Exception $e) {
-            return [
-                "status" => "error",
-                "message" => $e->getMessage()
-            ];
-        }
-    }
-
-    /**
-     * Update threat intelligence feeds
-     * @return array
-     */
-    public function updateThreatIntelAction()
-    {
-        try {
-            $backend = new Backend();
-            $response = $backend->configdRun("deepinspector update_threat_intel");
-            
-            return [
-                "status" => "ok",
-                "message" => "Threat intelligence update initiated",
-                "response" => $response
-            ];
-        } catch (\Exception $e) {
-            return [
-                "status" => "error",
-                "message" => $e->getMessage()
-            ];
-        }
-    }
-
-    /**
-     * Generate and download diagnostic report
-     * @return array
-     */
-    public function diagnosticsAction()
-    {
-        try {
-            $backend = new Backend();
-            $response = $backend->configdRun("deepinspector generate_diagnostics");
-            
-            return [
-                "status" => "ok",
-                "report_path" => "/tmp/deepinspector_diagnostics.tar.gz",
-                "message" => "Diagnostic report generated"
-            ];
-        } catch (\Exception $e) {
-            return [
-                "status" => "error",
-                "message" => $e->getMessage()
-            ];
-        }
-    }
-
-    /**
-     * Test engine with sample malware patterns
-     * @return array
-     */
-    public function runTestsAction()
-    {
-        try {
-            $backend = new Backend();
-            $response = $backend->configdRun("deepinspector run_tests");
-            
-            $results = json_decode($response, true) ?: ['status' => 'unknown'];
-            
-            return [
-                "status" => "ok",
-                "test_results" => $results,
-                "timestamp" => date('c')
-            ];
-        } catch (\Exception $e) {
-            return [
-                "status" => "error",
-                "message" => $e->getMessage()
-            ];
-        }
+        return ["status" => "failed", "message" => "POST method required"];
     }
 }
