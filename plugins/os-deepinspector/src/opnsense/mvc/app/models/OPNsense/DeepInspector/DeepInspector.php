@@ -177,6 +177,33 @@ class DeepInspector extends BaseModel
     }
 
     /**
+     * Mark configuration as changed when data is pushed back to the config
+     */
+    public function serializeToConfig($validateFullModel = false, $disable_validation = false)
+    {
+        @touch("/tmp/deepinspector.dirty");
+        return parent::serializeToConfig($validateFullModel, $disable_validation);
+    }
+
+    /**
+     * Get configuration state
+     * @return bool
+     */
+    public function configChanged()
+    {
+        return file_exists("/tmp/deepinspector.dirty");
+    }
+
+    /**
+     * Mark configuration as consistent with the running config
+     * @return bool
+     */
+    public function configClean()
+    {
+        return @unlink("/tmp/deepinspector.dirty");
+    }
+
+    /**
      * Get summary of current configuration for dashboard
      */
     public function getConfigSummary()
