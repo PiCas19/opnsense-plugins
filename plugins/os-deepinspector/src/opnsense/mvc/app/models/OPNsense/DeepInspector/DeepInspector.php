@@ -5,7 +5,7 @@ namespace OPNsense\DeepInspector;
 use OPNsense\Base\BaseModel;
 use OPNsense\Base\Messages\Message;
 
-class Settings extends BaseModel
+class DeepInspector extends BaseModel
 {
     /**
      * Perform validation with comprehensive checks
@@ -211,29 +211,20 @@ class Settings extends BaseModel
     }
 
     /**
-     * Restituisce un array key=>value delle impostazioni da forzare
-     * in modalità industriale.
-     *
-     * Le chiavi devono corrispondere ESATTAMENTE ai nomi dei campi
-     * sotto <general> nel tuo XML (ad es. 'performance_profile', 'low_latency_mode', ecc.)
-     *
-     * @return array
+     * Get industrial recommendations for optimization
      */
     public function getIndustrialRecommendations()
     {
         return [
-            // imposta il profilo su industrial
             'performance_profile' => 'industrial',
-            // abilita il low-latency mode
-            'low_latency_mode'     => '1',
-            // abilita l’industrial mode
-            'industrial_mode'      => '1',
-            // abbassa la soglia di latenza
-            'latency_threshold'    => '50',  // microsecondi
-            // ecc.: aggiungi qui altre forzature che desideri
+            'low_latency_mode' => '1',
+            'industrial_mode' => '1',
+            'latency_threshold' => '50',
+            'mode' => 'active',
+            'ssl_inspection' => '0',  // Disable for performance
+            'archive_extraction' => '0'  // Disable for performance
         ];
     }
-
 
     /**
      * Export configuration for the DPI engine
@@ -253,6 +244,8 @@ class Settings extends BaseModel
                 'malware_detection' => (string)$this->general->malware_detection === "1",
                 'anomaly_detection' => (string)$this->general->anomaly_detection === "1",
                 'performance_profile' => (string)$this->general->performance_profile,
+                'low_latency_mode' => (string)$this->general->low_latency_mode === "1",
+                'industrial_mode' => (string)$this->general->industrial_mode === "1",
                 'log_level' => (string)$this->general->log_level
             ],
             'protocols' => [
@@ -261,7 +254,10 @@ class Settings extends BaseModel
                 'ftp_inspection' => (string)$this->protocols->ftp_inspection === "1",
                 'smtp_inspection' => (string)$this->protocols->smtp_inspection === "1",
                 'dns_inspection' => (string)$this->protocols->dns_inspection === "1",
-                'industrial_protocols' => (string)$this->protocols->industrial_protocols === "1"
+                'industrial_protocols' => (string)$this->protocols->industrial_protocols === "1",
+                'p2p_detection' => (string)$this->protocols->p2p_detection === "1",
+                'voip_inspection' => (string)$this->protocols->voip_inspection === "1",
+                'custom_protocols' => (string)$this->protocols->custom_protocols
             ],
             'detection' => [
                 'virus_signatures' => (string)$this->detection->virus_signatures === "1",
@@ -271,7 +267,28 @@ class Settings extends BaseModel
                 'command_injection' => (string)$this->detection->command_injection === "1",
                 'sql_injection' => (string)$this->detection->sql_injection === "1",
                 'script_injection' => (string)$this->detection->script_injection === "1",
-                'suspicious_downloads' => (string)$this->detection->suspicious_downloads === "1"
+                'suspicious_downloads' => (string)$this->detection->suspicious_downloads === "1",
+                'phishing_detection' => (string)$this->detection->phishing_detection === "1",
+                'botnet_detection' => (string)$this->detection->botnet_detection === "1",
+                'steganography_detection' => (string)$this->detection->steganography_detection === "1",
+                'zero_day_heuristics' => (string)$this->detection->zero_day_heuristics === "1"
+            ],
+            'advanced' => [
+                'signature_updates' => (string)$this->advanced->signature_updates === "1",
+                'update_interval' => (int)(string)$this->advanced->update_interval,
+                'threat_intelligence_feeds' => (string)$this->advanced->threat_intelligence_feeds,
+                'custom_signatures' => (string)$this->advanced->custom_signatures,
+                'quarantine_enabled' => (string)$this->advanced->quarantine_enabled === "1",
+                'quarantine_path' => (string)$this->advanced->quarantine_path,
+                'memory_limit' => (int)(string)$this->advanced->memory_limit,
+                'thread_count' => (int)(string)$this->advanced->thread_count,
+                'packet_buffer_size' => (int)(string)$this->advanced->packet_buffer_size,
+                'analysis_timeout' => (int)(string)$this->advanced->analysis_timeout,
+                'bypass_trusted_networks' => (string)$this->advanced->bypass_trusted_networks === "1",
+                'industrial_optimization' => (string)$this->advanced->industrial_optimization === "1",
+                'scada_protocols' => (string)$this->advanced->scada_protocols === "1",
+                'plc_protocols' => (string)$this->advanced->plc_protocols === "1",
+                'latency_threshold' => (int)(string)$this->advanced->latency_threshold
             ]
         ];
 

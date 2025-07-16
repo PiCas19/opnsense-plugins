@@ -8,8 +8,8 @@ use OPNsense\Core\Backend;
 
 class SettingsController extends ApiMutableModelControllerBase
 {
-    protected static $internalModelName = 'settings';
-    protected static $internalModelClass = '\OPNsense\DeepInspector\Settings';
+    protected static $internalModelName = 'deepinspector';
+    protected static $internalModelClass = '\OPNsense\DeepInspector\DeepInspector';
 
     /**
      * Get DPI settings
@@ -46,7 +46,12 @@ class SettingsController extends ApiMutableModelControllerBase
                 $mdl->serializeToConfig();
                 Config::getInstance()->save();
                 // Export configuration for the DPI engine
-                (new Backend())->configdRun("deepinspector export_config");
+                try {
+                    (new Backend())->configdRun("deepinspector export_config");
+                } catch (\Exception $e) {
+                    // Log error but don't fail
+                    error_log("DeepInspector export_config failed: " . $e->getMessage());
+                }
                 $result["result"] = "saved";
             }
         }
