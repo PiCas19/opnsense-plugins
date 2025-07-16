@@ -1,33 +1,9 @@
 <?php
-
 /*
  * Copyright (C) 2025 OPNsense Project
  * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright
- * notice, this list of conditions and the following disclaimer in the
- * documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
- * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
- * AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
- * OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
  */
-
 namespace OPNsense\DeepInspector;
-
 use OPNsense\Base\IndexController as BaseIndexController;
 
 /**
@@ -45,34 +21,77 @@ class IndexController extends BaseIndexController
         try {
             $this->view->title = gettext('Deep Packet Inspector');
             
-            // Debug: verifica se i file form esistono
-            $formPath = '/usr/local/opnsense/mvc/app/forms/OPNsense/DeepInspector/';
-            $forms = ['general', 'protocols', 'detection', 'advanced'];
+            // Debug completo: verifica file form
+            $basePath = '/usr/local/opnsense/mvc/app/models/OPNsense/DeepInspector/';
+            $formsPath = '/usr/local/opnsense/mvc/app/forms/OPNsense/DeepInspector/';
             
-            foreach ($forms as $form) {
-                $formFile = $formPath . $form . '.xml';
-                if (!file_exists($formFile)) {
-                    error_log("DeepInspector: Form file missing: " . $formFile);
-                } else {
-                    error_log("DeepInspector: Form file found: " . $formFile);
+            error_log("=== DEBUG DEEPINSPECTOR ===");
+            error_log("Base path: " . $basePath);
+            error_log("Forms path: " . $formsPath);
+            
+            // Verifica se la directory dei form esiste
+            if (!is_dir($formsPath)) {
+                error_log("ERRORE: Directory dei form non esiste: " . $formsPath);
+                mkdir($formsPath, 0755, true);
+                error_log("Directory creata: " . $formsPath);
+            }
+            
+            // Verifica file modello
+            $modelFile = $basePath . 'DeepInspector.xml';
+            error_log("Verificando modello: " . $modelFile);
+            if (file_exists($modelFile)) {
+                error_log("✓ File modello trovato");
+            } else {
+                error_log("✗ File modello NON trovato: " . $modelFile);
+            }
+            
+            // Lista tutti i file nella directory forms
+            if (is_dir($formsPath)) {
+                $files = scandir($formsPath);
+                error_log("File nella directory forms: " . implode(', ', $files));
+            }
+            
+            // Prova a caricare ogni form singolarmente
+            $forms = ['general', 'protocols', 'detection', 'advanced'];
+            $loadedForms = [];
+            
+            foreach ($forms as $formName) {
+                try {
+                    error_log("Tentando di caricare form: " . $formName);
+                    $form = $this->getForm($formName);
+                    if ($form) {
+                        $loadedForms[$formName] = $form;
+                        error_log("✓ Form caricato con successo: " . $formName);
+                        error_log("Campi nel form: " . count($form));
+                    } else {
+                        error_log("✗ Form vuoto o nullo: " . $formName);
+                        // Crea un form vuoto per evitare errori
+                        $loadedForms[$formName] = [];
+                    }
+                } catch (\Exception $e) {
+                    error_log("✗ Errore caricamento form " . $formName . ": " . $e->getMessage());
+                    $loadedForms[$formName] = [];
                 }
             }
             
-            $this->view->generalForm = $this->getForm("general");
-            $this->view->protocolsForm = $this->getForm("protocols");
-            $this->view->detectionForm = $this->getForm("detection");
-            $this->view->advancedForm = $this->getForm("advanced");
+            // Assegna i form alle view
+            $this->view->generalForm = $loadedForms['general'];
+            $this->view->protocolsForm = $loadedForms['protocols'];
+            $this->view->detectionForm = $loadedForms['detection'];
+            $this->view->advancedForm = $loadedForms['advanced'];
             
-            // Debug: verifica se i form sono stati caricati
-            error_log("DeepInspector: generalForm loaded: " . (empty($this->view->generalForm) ? 'NO' : 'YES'));
-            error_log("DeepInspector: protocolsForm loaded: " . (empty($this->view->protocolsForm) ? 'NO' : 'YES'));
-            error_log("DeepInspector: detectionForm loaded: " . (empty($this->view->detectionForm) ? 'NO' : 'YES'));
-            error_log("DeepInspector: advancedForm loaded: " . (empty($this->view->advancedForm) ? 'NO' : 'YES'));
+            // Debug finale
+            error_log("Form assegnati alla view:");
+            error_log("- generalForm: " . (empty($this->view->generalForm) ? 'VUOTO' : 'OK (' . count($this->view->generalForm) . ' campi)'));
+            error_log("- protocolsForm: " . (empty($this->view->protocolsForm) ? 'VUOTO' : 'OK (' . count($this->view->protocolsForm) . ' campi)'));
+            error_log("- detectionForm: " . (empty($this->view->detectionForm) ? 'VUOTO' : 'OK (' . count($this->view->detectionForm) . ' campi)'));
+            error_log("- advancedForm: " . (empty($this->view->advancedForm) ? 'VUOTO' : 'OK (' . count($this->view->advancedForm) . ' campi)'));
             
             $this->view->pick('OPNsense/DeepInspector/index');
             
         } catch (\Exception $e) {
-            error_log("DeepInspector IndexController error: " . $e->getMessage());
+            error_log("✗ ERRORE GRAVE IndexController: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             throw $e;
         }
     }
