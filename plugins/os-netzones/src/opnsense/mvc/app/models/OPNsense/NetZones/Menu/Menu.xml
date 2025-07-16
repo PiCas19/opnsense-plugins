@@ -1,0 +1,8 @@
+<menu>
+  <Services>
+    <Netzones VisibleName="Network Zones" cssClass="fa fa-shield-alt fa-fw">
+      <Configuration order="10" url="/ui/netzones/index"/>
+      <Dashboard order="20" url="/ui/netzones/dashboard"/>
+    </Netzones>
+  </Services>
+</menu>

@@ -1,0 +1,164 @@
+#!/bin/sh
+# deepinspector - Deep Packet Inspector daemon script
+
+. /etc/rc.subr
+
+name="deepinspector"
+rcvar=deepinspector_enable
+pidfile="/var/run/${name}.pid"
+command="/usr/local/bin/python3.11"
+command_args="/usr/local/opnsense/scripts/OPNsense/DeepInspector/deepinspector_engine.py"
+procname="/usr/local/bin/python3.11"
+
+load_rc_config $name
+
+: ${deepinspector_enable:=NO}
+
+start_precmd="${name}_prestart"
+start_cmd="${name}_start"
+stop_cmd="${name}_stop"
+status_cmd="${name}_status"
+restart_cmd="${name}_restart"
+
+deepinspector_prestart()
+{
+    [ -d /var/run ] || install -d -m 755 /var/run
+    [ -d /var/log/deepinspector ] || install -d -m 755 /var/log/deepinspector
+    [ -d /usr/local/etc/deepinspector ] || install -d -m 755 /usr/local/etc/deepinspector
+    
+    # Create default configuration if not exists
+    if [ ! -f /usr/local/etc/deepinspector/config.json ]; then
+        cat > /usr/local/etc/deepinspector/config.json << EOF
+{
+  "general": {
+    "enabled": false,
+    "mode": "passive",
+    "interfaces": [],
+    "max_packet_size": 1500,
+    "deep_scan_ports": "80,443,21,25,53,502,4840",
+    "performance_profile": "balanced",
+    "low_latency_mode": false,
+    "industrial_mode": false,
+    "log_level": "info"
+  },
+  "protocols": {
+    "http_inspection": true,
+    "https_inspection": false,
+    "ftp_inspection": true,
+    "smtp_inspection": true,
+    "dns_inspection": true,
+    "industrial_protocols": true
+  },
+  "detection": {
+    "virus_signatures": true,
+    "trojan_detection": true,
+    "crypto_mining": true,
+    "data_exfiltration": true,
+    "command_injection": true,
+    "sql_injection": true,
+    "script_injection": true,
+    "zero_day_heuristics": true
+  },
+  "advanced": {
+    "memory_limit": 1024,
+    "thread_count": 4,
+    "analysis_timeout": 5,
+    "latency_threshold": 100
+  }
+}
+EOF
+    fi
+    
+    # Create default signatures if not exists
+    if [ ! -f /usr/local/etc/deepinspector/signatures.json ]; then
+        /usr/local/opnsense/scripts/OPNsense/DeepInspector/update_signatures.py
+    fi
+}
+
+deepinspector_start()
+{
+    echo "[$(date)] Starting ${name}..." >> /tmp/deepinspector_debug.log
+    
+    # Check if already running
+    if [ -f "${pidfile}" ] && kill -0 $(cat ${pidfile}) 2>/dev/null; then
+        echo "[$(date)] ${name} is already running." >> /tmp/deepinspector_debug.log
+        return 1
+    fi
+    
+    # Export configuration from OPNsense
+    /usr/local/opnsense/scripts/OPNsense/DeepInspector/export_config.py
+    
+    # Start the process in background
+    ${command} "${command_args}" > /tmp/deepinspector_stdout.log 2> /tmp/deepinspector_stderr.log &
+    echo $! > "${pidfile}"
+    
+    sleep 2
+    
+    # Check if process is still running
+    if ! kill -0 $(cat ${pidfile}) 2>/dev/null; then
+        echo "[$(date)] Failed to start ${name} (PID not alive)" >> /tmp/deepinspector_debug.log
+        rm -f "${pidfile}"
+        return 1
+    fi
+    
+    echo "[$(date)] ${name} started with PID $(cat ${pidfile})" >> /tmp/deepinspector_debug.log
+    return 0
+}
+
+deepinspector_stop()
+{
+    echo "[$(date)] Stopping ${name}..." >> /tmp/deepinspector_debug.log
+    
+    if [ -f "${pidfile}" ]; then
+        PID=$(cat "${pidfile}")
+        if kill "${PID}" 2>/dev/null; then
+            # Wait for graceful shutdown
+            sleep 2
+            
+            # Force kill if still running
+            if kill -0 "${PID}" 2>/dev/null; then
+                kill -9 "${PID}" 2>/dev/null
+                sleep 1
+            fi
+            
+            echo "[$(date)] ${name} stopped." >> /tmp/deepinspector_debug.log
+            rm -f "${pidfile}"
+        else
+            echo "[$(date)] Failed to stop ${name} (PID ${PID})" >> /tmp/deepinspector_debug.log
+            rm -f "${pidfile}"
+            return 1
+        fi
+    else
+        echo "[$(date)] No PID file found. Is ${name} running?" >> /tmp/deepinspector_debug.log
+        return 1
+    fi
+}
+
+deepinspector_status()
+{
+    if [ -f "${pidfile}" ]; then
+        PID=$(cat "${pidfile}")
+        if ps -p "${PID}" >/dev/null 2>&1; then
+            echo "${name} is running as PID ${PID}"
+            
+            # Get additional status info
+            if [ -f /var/log/deepinspector/stats.json ]; then
+                echo "Statistics available in /var/log/deepinspector/stats.json"
+            fi
+        else
+            echo "${name} PID file exists but process is not running"
+        fi
+    else
+        echo "${name} is not running"
+    fi
+    return 0
+}
+
+deepinspector_restart()
+{
+    deepinspector_stop
+    sleep 2
+    deepinspector_start
+}
+
+run_rc_command "$1"

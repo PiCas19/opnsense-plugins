@@ -1,0 +1,56 @@
+This plugin provides a high-performance, low-latency Deep Packet Inspection (DPI) engine 
+for OPNsense, specifically designed for industrial environments and Zero Trust security architectures.
+
+Key Features:
+- Deep Packet Inspection with application-layer analysis
+- Zero Trust principles: all traffic is untrusted until verified
+- Industrial protocol support (Modbus, DNP3, OPC UA)
+- Optimized for low-latency OT environments (SCADA, PLC systems)
+- Real-time threat detection and malware analysis
+- Advanced behavioral anomaly detection
+- SQL injection, XSS, and command injection detection
+- Cryptocurrency mining detection
+- Data exfiltration monitoring
+- Industrial-specific threat patterns
+- Performance monitoring with microsecond latency tracking
+- Comprehensive logging and alerting system
+- Web-based management interface
+- Custom signature support
+- Automatic threat intelligence updates
+
+Industrial Environment Support (F-06):
+- Microsecond-level latency monitoring
+- SCADA and PLC protocol awareness
+- Emergency response capabilities
+- Production-safe operation modes
+- Real-time performance metrics
+
+Deep Packet Inspection (F-08):
+- Application payload analysis
+- Multi-protocol support (HTTP/HTTPS, FTP, SMTP, DNS)
+- Pattern matching engine
+- Behavioral analysis
+- Zero-day heuristics
+- Archive extraction and scanning
+
+The plugin is fully implemented in Python for optimal performance and flexibility,
+with a focus on maintaining sub-millisecond latency for critical industrial systems
+while providing comprehensive security coverage under Zero Trust principles.
+
+Changelog
+=========
+Version 1.0:
+- Initial release
+- Deep Packet Inspection engine with industrial protocol support
+- Zero Trust architecture implementation
+- Low-latency mode for OT environments (F-06 compliance)
+- Application-layer threat detection (F-08 compliance)
+- Real-time monitoring and alerting
+- Web-based configuration interface
+- Performance optimization for industrial systems
+- Comprehensive logging and statistics
+- Threat intelligence integration
+- Custom signature support
+
+Project Page:
+WWW: https://git.consoli.ch/students/20250400_lavsem/moretto/

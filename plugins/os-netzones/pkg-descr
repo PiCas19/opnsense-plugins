@@ -1,0 +1,23 @@
+This plugin provides Zero Trust network segmentation and inter-zone access control for OPNsense,
+enforcing strict policies between logical network zones based on explicit rules.
+
+Key Features:
+- Define custom zones (e.g., office, lab, guest) with associated subnets or IP ranges.
+- Block all inter-zone communication by default (Zero Trust enforcement).
+- Allow specific flows through granular, rule-based exceptions.
+- Supports IT and OT environments, including industrial protocols (Modbus, DNP3, OPC UA).
+- Modern web UI for creating zones and managing access rules.
+
+Changelog
+=========
+
+Version 1.0:
+- Initial release
+- Zone creation and mapping to IP/subnet
+- Rule engine for inter-zone policy enforcement
+- Zero Trust policy model (deny all by default)
+- Support for industrial protocols
+- Web interface for rule management
+
+Project Page:
+WWW: https://git.consoli.ch/students/20250400_lavsem/moretto/

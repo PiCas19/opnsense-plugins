@@ -1,0 +1,38 @@
+{
+  "product_name": "os-deepinspector",
+  "product_version": "1.0",
+  "product_id": "os-deepinspector",
+  "product_arch": "amd64",
+  "product_abi": "1402000",
+  "product_tier": "3",
+  "product_email": "pierpaolo.casati@student.supsi.ch",
+  "product_website": "https://git.consoli.ch/students/20250400_lavsem/moretto/",
+  "product_comment": "Deep Packet Inspector with Zero Trust and Industrial OT support",
+  "product_category": "security",
+  "product_license": "BSD",
+  "product_description": "Advanced Deep Packet Inspection engine for OPNsense with support for industrial environments and Zero Trust security principles",
+  "product_tags": ["security", "dpi", "zero-trust", "industrial", "ot", "scada", "plc", "modbus", "dnp3", "opcua"],
+  "product_dependencies": {
+    "python3": ">=3.8",
+    "py38-psutil": "*",
+    "py38-dpkt": "*",
+    "pcapy": "*"
+  },
+  "product_requirements": {
+    "memory": ">=1GB",
+    "cpu": ">=2 cores",
+    "disk": ">=100MB"
+  },
+  "product_features": [
+    "Deep Packet Inspection (DPI)",
+    "Zero Trust Architecture",
+    "Industrial Protocol Support",
+    "Low Latency Mode",
+    "Real-time Threat Detection",
+    "SCADA/PLC Compatibility",
+    "Malware Detection",
+    "Behavioral Analysis",
+    "Performance Monitoring",
+    "Advanced Logging"
+  ]
+}

@@ -1,0 +1,10 @@
+<acl>
+  <priv>
+    <name>page-services-advinspector</name>
+    <description>Access to Advanced Packet Inspector</description>
+    <patterns>
+      <pattern>ui/advinspector/*</pattern>
+      <pattern>api/advinspector/*</pattern>
+    </patterns>
+  </priv>
+</acl>

@@ -1,0 +1,180 @@
+<model>
+    <mount>//OPNsense/NetZones</mount>
+    <description>Zone-based network management and policy application</description>
+    <version>1.0.1</version>
+    <items>
+        <!-- ZONE CONFIGURATION -->
+        <zone type="ArrayField">
+            <enabled type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <Description>Enable or disable this zone.</Description>
+            </enabled>
+
+            <name type="TextField">
+                <Required>Y</Required>
+                <Mask>/^[a-zA-Z0-9_-]{1,32}$/</Mask>
+                <ValidationMessage>Zone name must be 1-32 characters, alphanumeric, underscore or dash only</ValidationMessage>
+                <Description>Zone name for identification.</Description>
+                <Constraints>
+                    <check001>
+                        <ValidationMessage>Zone name must be unique.</ValidationMessage>
+                        <type>UniqueConstraint</type>
+                    </check001>
+                </Constraints>
+            </name>
+
+            <description type="TextField">
+                <Description>Human-readable description of this network zone.</Description>
+            </description>
+
+            <interface type="InterfaceField">
+                <Required>Y</Required>
+                <Multiple>Y</Multiple>
+                <asList>Y</asList>
+                <FieldSeparator>,</FieldSeparator>
+                <AddParentDevices>Y</AddParentDevices>
+                <ValidationMessage>Please choose at least one interface.</ValidationMessage>
+                <Description>Physical interfaces assigned to this zone.</Description>
+            </interface>
+
+            <subnets type="NetworkField">
+                <Required>Y</Required>
+                <FieldSeparator>,</FieldSeparator>
+                <asList>Y</asList>
+                <WildcardEnabled>N</WildcardEnabled>
+                <NetMaskRequired>Y</NetMaskRequired>
+                <ValidationMessage>Please specify networks in CIDR format.</ValidationMessage>
+                <Description>CIDR networks assigned to this zone (e.g., 192.168.1.0/24, 10.0.0.0/8).</Description>
+            </subnets>
+
+            <default_action type="OptionField">
+                <Required>Y</Required>
+                <Default>pass</Default>
+                <OptionValues>
+                    <pass>Pass</pass>
+                    <block>Block</block>
+                    <reject>Reject</reject>
+                </OptionValues>
+                <ValidationMessage>Please select a default action.</ValidationMessage>
+                <Description>Default action for traffic in this zone when no specific policy applies.</Description>
+            </default_action>
+
+            <log_traffic type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+                <Description>Enable or disable traffic logging for this zone.</Description>
+            </log_traffic>
+
+            <priority type="IntegerField">
+                <Default>100</Default>
+                <Required>Y</Required>
+                <MinimumValue>1</MinimumValue>
+                <MaximumValue>999</MaximumValue>
+                <ValidationMessage>Priority must be between 1 and 999.</ValidationMessage>
+                <Description>Zone priority for overlapping subnets (lower number = higher priority).</Description>
+            </priority>
+        </zone>
+
+        <!-- INTER-ZONE POLICIES -->
+        <inter_zone_policy type="ArrayField">
+            <enabled type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <Description>Enable or disable this policy.</Description>
+            </enabled>
+
+            <name type="TextField">
+                <Required>Y</Required>
+                <Mask>/^.{1,255}$/u</Mask>
+                <ValidationMessage>Policy name must be between 1 and 255 characters.</ValidationMessage>
+                <Description>Policy name for identification.</Description>
+                <Constraints>
+                    <check001>
+                        <ValidationMessage>Policy name must be unique.</ValidationMessage>
+                        <type>UniqueConstraint</type>
+                    </check001>
+                </Constraints>
+            </name>
+
+            <description type="TextField">
+                <Description>Description of this inter-zone policy.</Description>
+            </description>
+                        
+            <source_zone type="ModelRelationField">
+                <Model>
+                    <zones>
+                        <source>OPNsense.NetZones.NetZones</source>
+                        <items>zone</items>
+                        <display>name</display>
+                    </zones>
+                </Model>
+                <Required>Y</Required>
+                <ValidationMessage>Related zone not found.</ValidationMessage>
+                <Description>Source zone</Description>
+            </source_zone>
+
+            <destination_zone type="ModelRelationField">
+                <Model>
+                    <zones>
+                        <source>OPNsense.NetZones.NetZones</source>
+                        <items>zone</items>
+                        <display>name</display>
+                    </zones>
+                </Model>
+                <Required>Y</Required>
+                <ValidationMessage>Related zone not found.</ValidationMessage>
+                <Description>Destination zone</Description>
+            </destination_zone>
+
+            <action type="OptionField">
+                <Required>Y</Required>
+                <Default>block</Default>
+                <OptionValues>
+                    <pass>Pass</pass>
+                    <block>Block</block>
+                    <reject>Reject</reject>
+                </OptionValues>
+                <ValidationMessage>Please select an action.</ValidationMessage>
+                <Description>Action for traffic between these zones.</Description>
+            </action>
+            
+            <protocol type="OptionField">
+                <OptionValues>
+                    <tcp>TCP</tcp>
+                    <udp>UDP</udp>
+                    <icmp>ICMP</icmp>
+                    <any>Any</any>
+                </OptionValues>
+                <Description>Protocol for this policy.</Description>
+            </protocol>
+            
+            <source_port type="TextField">
+                <Mask>/^(\d+(-\d+)?)(,\d+(-\d+)?)*$/</Mask>
+                <ValidationMessage>Please specify valid port ranges (e.g., 80,443,1000-2000).</ValidationMessage>
+                <Description>Source port or port range.</Description>
+            </source_port>
+            
+            <destination_port type="TextField">
+                <Mask>/^(\d+(-\d+)?)(,\d+(-\d+)?)*$/</Mask>
+                <ValidationMessage>Please specify valid port ranges (e.g., 80,443,1000-2000).</ValidationMessage>
+                <Description>Destination port or port range.</Description>
+            </destination_port>
+            
+            <log_traffic type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+                <Description>Enable or disable logging for traffic matching this policy.</Description>
+            </log_traffic>
+            
+            <priority type="IntegerField">
+                <Default>100</Default>
+                <Required>Y</Required>
+                <MinimumValue>1</MinimumValue>
+                <MaximumValue>999</MaximumValue>
+                <ValidationMessage>Priority must be between 1 and 999.</ValidationMessage>
+                <Description>Policy priority (lower number = higher priority).</Description>
+            </priority>
+        </inter_zone_policy>
+    </items>
+</model>

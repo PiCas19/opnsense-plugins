@@ -1,0 +1,51 @@
+<form>
+    <field>
+        <id>zone.enabled</id>
+        <label>Enabled</label>
+        <type>checkbox</type>
+        <help><![CDATA[Enable or disable this zone.]]></help>
+    </field>
+    <field>
+        <id>zone.name</id>
+        <label>Name</label>
+        <type>text</type>
+        <help><![CDATA[Zone name for identification (1-32 characters, alphanumeric, underscore or dash only).]]></help>
+    </field>
+    <field>
+        <id>zone.description</id>
+        <label>Description</label>
+        <type>text</type>
+        <help><![CDATA[Human-readable description of this network zone.]]></help>
+    </field>
+    <field>
+        <id>zone.interface</id>
+        <label>Interfaces</label>
+        <type>select_multiple</type>
+        <style>tokenize</style>
+        <help><![CDATA[Physical interfaces assigned to this zone.]]></help>
+    </field>
+    <field>
+        <id>zone.subnets</id>
+        <label>Subnets</label>
+        <type>text</type>
+        <help><![CDATA[CIDR networks assigned to this zone (e.g., 192.168.1.0/24, 10.0.0.0/8). Multiple subnets separated by commas.]]></help>
+    </field>
+    <field>
+        <id>zone.default_action</id>
+        <label>Default Action</label>
+        <type>dropdown</type>
+        <help><![CDATA[Default action for traffic in this zone when no specific policy applies.]]></help>
+    </field>
+    <field>
+        <id>zone.log_traffic</id>
+        <label>Log Traffic</label>
+        <type>checkbox</type>
+        <help><![CDATA[Enable or disable traffic logging for this zone.]]></help>
+    </field>
+    <field>
+        <id>zone.priority</id>
+        <label>Priority</label>
+        <type>text</type>
+        <help><![CDATA[Zone priority for overlapping subnets (lower number = higher priority, 1-999).]]></help>
+    </field>
+</form>

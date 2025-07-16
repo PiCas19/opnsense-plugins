@@ -1,0 +1,69 @@
+<form>
+    <field>
+        <id>advinspector.general.enabled</id>
+        <label>Enable Advanced Packet Inspector</label>
+        <type>checkbox</type>
+        <help>Enable or disable the Advanced Packet Inspector engine for network security monitoring and intrusion detection.</help>
+    </field>
+    <field>
+        <id>advinspector.general.ips</id>
+        <label>Enable IPS Mode</label>
+        <type>checkbox</type>
+        <help>Enables Intrusion Prevention System (IPS) mode to actively block matching malicious traffic. When disabled, only detection and logging will occur.</help>
+    </field>
+    <field>
+        <id>advinspector.general.promisc</id>
+        <label>Promiscuous Mode</label>
+        <type>checkbox</type>
+        <help>Enable promiscuous mode on interfaces to capture all passing traffic, not just traffic directed to this system. Required for comprehensive network monitoring.</help>
+    </field>
+    <field>
+        <id>advinspector.general.inspection_mode</id>
+        <label>Inspection Mode</label>
+        <type>dropdown</type>
+        <help>
+            <![CDATA[
+            Select the packet inspection mode:<br/>
+            <strong>Stateless</strong>: Each packet is inspected independently without connection tracking.<br/>
+            <strong>Stateful</strong>: Maintains connection state information for more accurate threat detection.
+            ]]>
+        </help>
+    </field>
+    <field>
+        <id>advinspector.general.interfaces</id>
+        <label>Monitored Interfaces</label>
+        <type>select_multiple</type>
+        <help>
+            Select the network interfaces to monitor for packet inspection. 
+            Traffic on these interfaces will be analyzed for potential threats and anomalies.
+        </help>
+    </field>
+    <field>
+        <id>advinspector.general.homenet</id>
+        <label>Home Networks</label>
+        <type>text</type>
+        <help>
+            <![CDATA[
+            Define internal networks considered trusted by default, separated by commas.
+            These networks will be treated as internal/trusted for threat analysis purposes.
+            <br/>Example: 192.168.0.0/16,10.0.0.0/8,172.16.0.0/12
+            ]]>
+        </help>
+    </field>
+    <field>
+        <id>advinspector.general.verbosity</id>
+        <label>Log Verbosity</label>
+        <type>dropdown</type>
+        <help>
+            <![CDATA[
+            Controls the level of detail in log output:<br/>
+            <strong>Default (0)</strong>: Standard logging level<br/>
+            <strong>INFO (1)</strong>: Informational messages<br/>
+            <strong>PERF (2)</strong>: Performance statistics<br/>
+            <strong>DEBUG (3)</strong>: Debug information<br/>
+            <strong>TRACE (4)</strong>: Detailed trace information<br/>
+            <strong>FULL TRACE (5)</strong>: Maximum verbosity (may impact performance)
+            ]]>
+        </help>
+    </field>
+</form>

@@ -1,0 +1,90 @@
+#!/bin/sh
+. /etc/rc.subr
+
+name="netzones"
+rcvar=netzones_enable
+pidfile="/var/run/${name}.pid"
+command="/usr/local/bin/python3.11"
+command_args="/usr/local/opnsense/scripts/OPNsense/NetZones/netzones_evaluator.py"
+procname="/usr/local/bin/python3.11"
+
+load_rc_config $name
+: ${netzones_enable:=NO}
+
+start_precmd="${name}_prestart"
+start_cmd="netzones_start"
+stop_cmd="netzones_stop"
+status_cmd="netzones_status"
+restart_cmd="netzones_restart"
+
+netzones_prestart()
+{
+    [ -d /var/run ] || install -d -m 755 /var/run
+}
+
+netzones_start()
+{
+    echo "[$(date)] Starting ${name}..." >> /tmp/netzones_debug.log
+
+    if [ -f "${pidfile}" ] && kill -0 $(cat ${pidfile}) 2>/dev/null; then
+        echo "[$(date)] ${name} is already running." >> /tmp/netzones_debug.log
+        return 1
+    fi
+
+    ${command} "${command_args}" > /tmp/netzones_stdout.log 2> /tmp/netzones_stderr.log &
+    echo $! > "${pidfile}"
+
+    sleep 1
+
+    if ! kill -0 $(cat ${pidfile}) 2>/dev/null; then
+        echo "[$(date)] Failed to start ${name} (PID not alive)" >> /tmp/netzones_debug.log
+        rm -f "${pidfile}"
+        return 1
+    fi
+
+    echo "[$(date)] ${name} started with PID $(cat ${pidfile})" >> /tmp/netzones_debug.log
+    return 0
+}
+
+netzones_stop()
+{
+    echo "[$(date)] Stopping ${name}..." >> /tmp/netzones_debug.log
+
+    if [ -f "${pidfile}" ]; then
+        PID=$(cat "${pidfile}")
+        if kill "${PID}" 2>/dev/null; then
+            echo "[$(date)] ${name} stopped." >> /tmp/netzones_debug.log
+            rm -f "${pidfile}"
+        else
+            echo "[$(date)] Failed to stop ${name} (PID ${PID})" >> /tmp/netzones_debug.log
+            return 1
+        fi
+    else
+        echo "[$(date)] No PID file found. Is ${name} running?" >> /tmp/netzones_debug.log
+        return 1
+    fi
+}
+
+netzones_status()
+{
+    if [ -f "${pidfile}" ]; then
+        PID=$(cat "${pidfile}")
+        if ps -p "${PID}" >/dev/null 2>&1; then
+            echo "${name} is running as PID ${PID}"
+        else
+            echo "${name} PID file exists but process is not running"
+        fi
+    else
+        echo "${name} is not running"
+    fi
+    return 0
+}
+
+netzones_restart()
+{
+    netzones_stop
+    sleep 1
+    netzones_start
+}
+
+run_rc_command "$1"
