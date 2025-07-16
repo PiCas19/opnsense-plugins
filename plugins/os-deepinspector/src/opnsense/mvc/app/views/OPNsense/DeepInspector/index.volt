@@ -249,36 +249,108 @@ $(document).ready(function() {
         console.error("Failed to load DeepInspector forms", error);
     });
 
-    // Save button handler - METODO SEMPLIFICATO
+    // Save button handler - METODO STANDARD OPNSENSE
     $('#btnSaveSettings').click(function() {
-        // Usa il metodo standard OPNsense per salvare tutti i form
-        var allForms = {
-            'frm_DeepInspectorGeneral': "/api/deepinspector/settings/set",
-            'frm_DeepInspectorProtocols': "/api/deepinspector/settings/set", 
-            'frm_DeepInspectorDetection': "/api/deepinspector/settings/set",
-            'frm_DeepInspectorAdvanced': "/api/deepinspector/settings/set"
-        };
+        // Salva usando il metodo standard OPNsense per form multipli
+        var saveData = {};
+        
+        // Raccoglie i dati da tutti i form e li serializza
+        $("#frm_DeepInspectorGeneral").find("input, select, textarea").each(function() {
+            var field = $(this);
+            var name = field.attr('name');
+            if (name) {
+                if (field.is(':checkbox')) {
+                    saveData[name] = field.is(':checked') ? '1' : '0';
+                } else if (field.is('select[multiple]')) {
+                    saveData[name] = field.val() ? field.val().join(',') : '';
+                } else {
+                    saveData[name] = field.val() || '';
+                }
+            }
+        });
+        
+        $("#frm_DeepInspectorProtocols").find("input, select, textarea").each(function() {
+            var field = $(this);
+            var name = field.attr('name');
+            if (name) {
+                if (field.is(':checkbox')) {
+                    saveData[name] = field.is(':checked') ? '1' : '0';
+                } else if (field.is('select[multiple]')) {
+                    saveData[name] = field.val() ? field.val().join(',') : '';
+                } else {
+                    saveData[name] = field.val() || '';
+                }
+            }
+        });
+        
+        $("#frm_DeepInspectorDetection").find("input, select, textarea").each(function() {
+            var field = $(this);
+            var name = field.attr('name');
+            if (name) {
+                if (field.is(':checkbox')) {
+                    saveData[name] = field.is(':checked') ? '1' : '0';
+                } else if (field.is('select[multiple]')) {
+                    saveData[name] = field.val() ? field.val().join(',') : '';
+                } else {
+                    saveData[name] = field.val() || '';
+                }
+            }
+        });
+        
+        $("#frm_DeepInspectorAdvanced").find("input, select, textarea").each(function() {
+            var field = $(this);
+            var name = field.attr('name');
+            if (name) {
+                if (field.is(':checkbox')) {
+                    saveData[name] = field.is(':checked') ? '1' : '0';
+                } else if (field.is('select[multiple]')) {
+                    saveData[name] = field.val() ? field.val().join(',') : '';
+                } else {
+                    saveData[name] = field.val() || '';
+                }
+            }
+        });
 
-        // Salva usando il metodo standard
-        saveFormToEndpoint("/api/deepinspector/settings/set", 'frm_DeepInspectorGeneral,frm_DeepInspectorProtocols,frm_DeepInspectorDetection,frm_DeepInspectorAdvanced', function() {
-            BootstrapDialog.show({
-                type: BootstrapDialog.TYPE_SUCCESS,
-                title: "{{ lang._('Success') }}",
-                message: "{{ lang._('Settings saved successfully') }}",
-                buttons: [{
-                    label: 'OK',
-                    action: function(dialog) {
-                        dialog.close();
-                        isSubsystemDirty();
+        console.log("Saving data:", saveData);
+
+        // POST direttamente i dati
+        ajaxCall("/api/deepinspector/settings/set", saveData, function(data, status) {
+            if (status === "success") {
+                if (data.result === "saved") {
+                    BootstrapDialog.show({
+                        type: BootstrapDialog.TYPE_SUCCESS,
+                        title: "{{ lang._('Success') }}",
+                        message: "{{ lang._('Settings saved successfully') }}",
+                        buttons: [{
+                            label: 'OK',
+                            action: function(dialog) {
+                                dialog.close();
+                                isSubsystemDirty();
+                            }
+                        }]
+                    });
+                } else {
+                    var errorMsg = "{{ lang._('Failed to save settings') }}";
+                    if (data.validations) {
+                        errorMsg += ":\n\n";
+                        Object.keys(data.validations).forEach(function(field) {
+                            errorMsg += data.validations[field] + "\n";
+                        });
                     }
-                }]
-            });
-        }, true, function() {
-            BootstrapDialog.show({
-                type: BootstrapDialog.TYPE_DANGER,
-                title: "{{ lang._('Error') }}",
-                message: "{{ lang._('Failed to save settings') }}"
-            });
+                    
+                    BootstrapDialog.show({
+                        type: BootstrapDialog.TYPE_DANGER,
+                        title: "{{ lang._('Error') }}",
+                        message: errorMsg.replace(/\n/g, '<br>')
+                    });
+                }
+            } else {
+                BootstrapDialog.show({
+                    type: BootstrapDialog.TYPE_DANGER,
+                    title: "{{ lang._('Error') }}",
+                    message: "{{ lang._('Connection error') }}"
+                });
+            }
         });
     });
 
