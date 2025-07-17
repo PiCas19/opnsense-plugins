@@ -124,65 +124,96 @@ $(function() {
 
     // Funzione per gestire i pulsanti Apply con spinner e snackbar
     function bindApplyButton(buttonId, formId) {
-        $(buttonId).SimpleActionButton({
-            onPreAction: function() {
-                // Salva i dati del form prima di applicare
-                var formData = {};
-                var $form = $('#' + formId);
+        $(buttonId).click(function() {
+            var $btn = $(this);
+            var originalText = $btn.html();
+            
+            // Mostra spinner
+            $btn.html('<i class="fa fa-spinner fa-spin"></i> {{ lang._("Applying...") }}');
+            $btn.prop('disabled', true);
+            
+            // Salva i dati del form prima di applicare
+            var formData = { deepinspector: {} };
+            var $form = $('#' + formId);
+            
+            // Serializza tutti i campi del form
+            $form.find('input, select, textarea').each(function() {
+                var $field = $(this);
+                var name = $field.attr('name');
                 
-                // Serializza tutti i campi del form
-                $form.find('input, select, textarea').each(function() {
-                    var $field = $(this);
-                    var name = $field.attr('name');
+                if (name && name.indexOf('deepinspector.') === 0) {
+                    // Rimuovi il prefisso deepinspector.
+                    var cleanName = name.substring(13);
                     
-                    if (name) {
-                        if ($field.is(':checkbox')) {
-                            formData[name] = $field.is(':checked') ? '1' : '0';
-                        } else if ($field.is('select[multiple]')) {
-                            formData[name] = $field.val() ? $field.val().join(',') : '';
-                        } else {
-                            formData[name] = $field.val() || '';
-                        }
+                    if ($field.is(':checkbox')) {
+                        formData.deepinspector[cleanName] = $field.is(':checked') ? '1' : '0';
+                    } else if ($field.is('select[multiple]')) {
+                        formData.deepinspector[cleanName] = $field.val() ? $field.val().join(',') : '';
+                    } else {
+                        formData.deepinspector[cleanName] = $field.val() || '';
                     }
-                });
-                
-                console.log("Saving data for " + formId + ":", formData);
-                
-                // Salva i dati prima di applicare
-                ajaxCall("/api/deepinspector/settings/set", formData,
-                    function(resp) {
-                        if (resp.result !== 'saved') {
-                            var msg = "{{ lang._('Failed to save settings') }}:<br/>";
-                            if (resp.validations) {
-                                for (var f in resp.validations) {
-                                    msg += '<strong>'+f+'</strong>: '+resp.validations[f]+'<br/>';
-                                }
+                }
+            });
+            
+            console.log("Saving data for " + formId + ":", formData);
+            
+            // Salva i dati prima di applicare
+            ajaxCall("/api/deepinspector/settings/set", formData,
+                function(resp) {
+                    if (resp.result !== 'saved') {
+                        var msg = "{{ lang._('Failed to save settings') }}:<br/>";
+                        if (resp.validations) {
+                            for (var f in resp.validations) {
+                                msg += '<strong>'+f+'</strong>: '+resp.validations[f]+'<br/>';
                             }
-                            BootstrapDialog.show({
-                                type: BootstrapDialog.TYPE_DANGER,
-                                title: "{{ lang._('Error') }}",
-                                message: msg,
-                                buttons: [{ label:'OK', action:function(d){d.close(); }}]
-                            });
-                            return false;
                         }
-                        console.log("Settings saved successfully for " + formId);
+                        
+                        // Ripristina il pulsante
+                        $btn.html(originalText);
+                        $btn.prop('disabled', false);
+                        
+                        BootstrapDialog.show({
+                            type: BootstrapDialog.TYPE_DANGER,
+                            title: "{{ lang._('Error') }}",
+                            message: msg,
+                            buttons: [{ label:'OK', action:function(d){d.close(); }}]
+                        });
+                        return;
                     }
-                );
-            },
-            onAction: function() {
-                // Dopo l'applicazione, controlla lo stato dirty e mostra il messaggio di successo
-                isSubsystemDirty();
-                
-                // Mostra snackbar di successo
-                BootstrapDialog.show({
-                    type: BootstrapDialog.TYPE_SUCCESS,
-                    title: "{{ lang._('Success') }}",
-                    message: "{{ lang._('Configuration applied successfully') }}",
-                    size: BootstrapDialog.SIZE_SMALL,
-                    buttons: [{ label:'OK', action:function(d){ d.close(); }}]
-                });
-            }
+                    
+                    console.log("Settings saved successfully for " + formId);
+                    
+                    // Applica la configurazione
+                    ajaxCall("/api/deepinspector/service/reconfigure", {},
+                        function(applyResp) {
+                            // Ripristina il pulsante
+                            $btn.html(originalText);
+                            $btn.prop('disabled', false);
+                            
+                            if (applyResp.status === 'ok') {
+                                // Controlla lo stato dirty
+                                isSubsystemDirty();
+                                
+                                // Mostra snackbar di successo
+                                BootstrapDialog.show({
+                                    type: BootstrapDialog.TYPE_SUCCESS,
+                                    title: "{{ lang._('Success') }}",
+                                    message: "{{ lang._('Configuration applied successfully') }}",
+                                    size: BootstrapDialog.SIZE_SMALL,
+                                    buttons: [{ label:'OK', action:function(d){ d.close(); }}]
+                                });
+                            } else {
+                                BootstrapDialog.show({
+                                    type: BootstrapDialog.TYPE_DANGER,
+                                    title: "{{ lang._('Error') }}",
+                                    message: "{{ lang._('Failed to apply configuration') }}",
+                                    buttons: [{ label:'OK', action:function(d){d.close(); }}]
+                                });
+                            }
+                        }
+                    );
+                }
+            );
         });
     }
 
