@@ -173,7 +173,7 @@ class ServiceController extends ApiMutableServiceControllerBase
             
             if (filter_var($ip, FILTER_VALIDATE_IP)) {
                 $backend = new Backend();
-                $response = $backend->configdRun("deepinspector block_ip", $ip);
+                $response = $backend->configdpRun("deepinspector", array("block_ip", $ip));
                 
                 return [
                     "status" => trim($response) === "OK" ? "ok" : "failed",
@@ -198,7 +198,7 @@ class ServiceController extends ApiMutableServiceControllerBase
             
             if (filter_var($ip, FILTER_VALIDATE_IP)) {
                 $backend = new Backend();
-                $response = $backend->configdRun("deepinspector unblock_ip", $ip);
+                $response = $backend->configdpRun("deepinspector", array("unblock_ip", $ip));
                 
                 return [
                     "status" => trim($response) === "OK" ? "ok" : "failed",
@@ -223,7 +223,7 @@ class ServiceController extends ApiMutableServiceControllerBase
             
             if (filter_var($ip, FILTER_VALIDATE_IP)) {
                 $backend = new Backend();
-                $response = $backend->configdRun("deepinspector whitelist_ip", $ip);
+                $response = $backend->configdpRun("deepinspector", array("whitelist_ip", $ip));
                 
                 return [
                     "status" => trim($response) === "OK" ? "ok" : "failed",
@@ -245,7 +245,7 @@ class ServiceController extends ApiMutableServiceControllerBase
     {
         if ($this->request->isPost()) {
             $backend = new Backend();
-            $response = $backend->configdRun("deepinspector clear_logs");
+            $response = $backend->configdpRun("deepinspector", array("clear_logs"));
             
             return [
                 "status" => trim($response) === "OK" ? "ok" : "failed",
@@ -263,7 +263,7 @@ class ServiceController extends ApiMutableServiceControllerBase
     public function listBlockedAction()
     {
         $backend = new Backend();
-        $response = $backend->configdRun("deepinspector list_blocked");
+        $response = $backend->configdpRun("deepinspector", array("list_blocked"));
         
         $ips = array_filter(explode("\n", trim($response)));
         
@@ -282,7 +282,7 @@ class ServiceController extends ApiMutableServiceControllerBase
     public function listWhitelistAction()
     {
         $backend = new Backend();
-        $response = $backend->configdRun("deepinspector list_whitelist");
+        $response = $backend->configdpRun("deepinspector", array("list_whitelist"));
         
         $ips = array_filter(explode("\n", trim($response)));
         
@@ -307,7 +307,7 @@ class ServiceController extends ApiMutableServiceControllerBase
         }
         
         $backend = new Backend();
-        $response = $backend->configdRun("deepinspector show_json", $type);
+        $response = $backend->configdpRun("deepinspector", array("show_json", $type));
         
         // Try to decode JSON response
         $data = json_decode($response, true);
