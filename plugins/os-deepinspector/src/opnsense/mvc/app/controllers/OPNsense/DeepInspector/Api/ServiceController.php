@@ -137,21 +137,27 @@ class ServiceController extends ApiMutableServiceControllerBase
                 }
             }
             
-            $result["status"] = [
+            $statusInfo = [
                 "running" => $isRunning,
                 "pid" => $pid
             ];
             
             if ($isRunning) {
                 // Get additional process information
-                $result["status"]["uptime"] = $this->getProcessUptime($pid);
-                $result["status"]["memory_usage"] = $this->getProcessMemoryUsage($pid);
-                $result["status"]["cpu_usage"] = $this->getProcessCpuUsage($pid);
+                $statusInfo["uptime"] = $this->getProcessUptime($pid);
+                $statusInfo["memory_usage"] = $this->getProcessMemoryUsage($pid);
+                $statusInfo["cpu_usage"] = $this->getProcessCpuUsage($pid);
             }
             
+            $result["status"] = $statusInfo;
+            
         } catch (Exception $e) {
-            $result["status"]["running"] = false;
-            $result["error"] = "Error checking service status: " . $e->getMessage();
+            $result["status"] = "error";
+            $result["message"] = "Error checking service status: " . $e->getMessage();
+            $result["data"] = [
+                "running" => false,
+                "pid" => null
+            ];
         }
         
         return $result;
@@ -214,6 +220,39 @@ class ServiceController extends ApiMutableServiceControllerBase
                     }
                 } catch (Exception $e) {
                     $result["message"] = "Error unblocking IP: " . $e->getMessage();
+                }
+            } else {
+                $result["message"] = "Invalid IP address format";
+            }
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Whitelist an IP address
+     * @return array whitelist result
+     */
+    public function whitelistIPAction()
+    {
+        $result = ["status" => "failed"];
+        
+        if ($this->request->isPost()) {
+            $ip = $this->request->getPost('ip');
+            
+            if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                try {
+                    $backend = new Backend();
+                    $response = $backend->configdRun('deepinspector whitelist_ip', $ip);
+                    
+                    if (trim($response) === 'OK') {
+                        $result["status"] = "ok";
+                        $result["message"] = "IP address $ip whitelisted successfully";
+                    } else {
+                        $result["message"] = "Failed to whitelist IP: " . $response;
+                    }
+                } catch (Exception $e) {
+                    $result["message"] = "Error whitelisting IP: " . $e->getMessage();
                 }
             } else {
                 $result["message"] = "Invalid IP address format";
