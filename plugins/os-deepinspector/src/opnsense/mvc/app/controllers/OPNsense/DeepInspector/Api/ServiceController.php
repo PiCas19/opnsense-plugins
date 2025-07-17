@@ -224,39 +224,6 @@ class ServiceController extends ApiMutableServiceControllerBase
     }
     
     /**
-     * Whitelist an IP address
-     * @return array whitelist result
-     */
-    public function whitelistIPAction()
-    {
-        $result = ["status" => "failed"];
-        
-        if ($this->request->isPost()) {
-            $ip = $this->request->getPost('ip');
-            
-            if (filter_var($ip, FILTER_VALIDATE_IP)) {
-                try {
-                    $backend = new Backend();
-                    $response = $backend->configdRun('deepinspector whitelist_ip', $ip);
-                    
-                    if (trim($response) === 'OK') {
-                        $result["status"] = "ok";
-                        $result["message"] = "IP address $ip whitelisted successfully";
-                    } else {
-                        $result["message"] = "Failed to whitelist IP: " . $response;
-                    }
-                } catch (Exception $e) {
-                    $result["message"] = "Error whitelisting IP: " . $e->getMessage();
-                }
-            } else {
-                $result["message"] = "Invalid IP address format";
-            }
-        }
-        
-        return $result;
-    }
-    
-    /**
      * Get process uptime
      * @param string $pid process ID
      * @return string uptime string
