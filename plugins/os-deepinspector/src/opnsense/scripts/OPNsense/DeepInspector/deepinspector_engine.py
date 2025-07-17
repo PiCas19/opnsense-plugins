@@ -145,6 +145,11 @@ def resolve_interfaces(logical_interfaces):
     interface_map = get_interface_mapping()
     physical_interfaces = []
     
+    # Ensure logical_interfaces is a list
+    if isinstance(logical_interfaces, str):
+        # Single interface string, make it a list
+        logical_interfaces = [logical_interfaces]
+    
     for logical_if in logical_interfaces:
         if logical_if in interface_map:
             physical_if = interface_map[logical_if]
