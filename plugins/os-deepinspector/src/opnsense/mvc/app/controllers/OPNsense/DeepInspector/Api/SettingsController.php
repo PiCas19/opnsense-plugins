@@ -1,7 +1,5 @@
 <?php
-
 namespace OPNsense\DeepInspector\Api;
-
 use OPNsense\Base\ApiMutableModelControllerBase;
 use OPNsense\Core\Config;
 use OPNsense\Core\Backend;
@@ -33,11 +31,41 @@ class SettingsController extends ApiMutableModelControllerBase
      */
     public function getGeneralAction()
     {
-         return ['deepinspector' => $this->getModel()->general->getNodes(), 'result' => 'ok'];
+        return ['deepinspector' => $this->getModel()->general->getNodes(), 'result' => 'ok'];
     }
 
     /**
-     * Set general settings (COPIA ESATTA DI MONIT)
+     * Retrieve protocol settings
+     * @return array deepinspector protocol settings content
+     * @throws \ReflectionException when not bound to model
+     */
+    public function getProtocolsAction()
+    {
+        return ['deepinspector' => $this->getModel()->protocols->getNodes(), 'result' => 'ok'];
+    }
+
+    /**
+     * Retrieve detection settings
+     * @return array deepinspector detection settings content
+     * @throws \ReflectionException when not bound to model
+     */
+    public function getDetectionAction()
+    {
+        return ['deepinspector' => $this->getModel()->detection->getNodes(), 'result' => 'ok'];
+    }
+
+    /**
+     * Retrieve advanced settings
+     * @return array deepinspector advanced settings content
+     * @throws \ReflectionException when not bound to model
+     */
+    public function getAdvancedAction()
+    {
+        return ['deepinspector' => $this->getModel()->advanced->getNodes(), 'result' => 'ok'];
+    }
+
+    /**
+     * Set settings and automatically apply changes
      * @return array save result + validation output
      */
     public function setAction()
@@ -45,8 +73,7 @@ class SettingsController extends ApiMutableModelControllerBase
         $result = ["result" => "failed"];
         if ($this->request->isPost()) {
             $mdl = $this->getModel();
-            
-            // COPIA ESATTA DI MONIT - USA TUTTO IL POST DATA
+            // Set all posted data
             $mdl->setNodes($this->request->getPost("deepinspector"));
             $valMsgs = $mdl->performValidation();
             
@@ -59,6 +86,14 @@ class SettingsController extends ApiMutableModelControllerBase
             } else {
                 $mdl->serializeToConfig();
                 Config::getInstance()->save();
+                
+                // Automatically reconfigure after save
+                $backend = new Backend();
+                $backend->configdRun('deepinspector reconfigure');
+                
+                // Clear the dirty flag
+                $mdl->configClean();
+                
                 $result["result"] = "saved";
             }
         }
