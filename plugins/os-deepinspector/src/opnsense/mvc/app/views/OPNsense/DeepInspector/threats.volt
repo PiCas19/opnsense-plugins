@@ -193,9 +193,6 @@
                 <button type="button" class="btn btn-success" id="whitelistSourceIP">
                     <i class="fa fa-check"></i> {{ lang._('Whitelist Source IP') }}
                 </button>
-                <button type="button" class="btn btn-info" id="createFirewallRule">
-                    <i class="fa fa-shield-alt"></i> {{ lang._('Create Firewall Rule') }}
-                </button>
             </div>
         </div>
     </div>
@@ -330,8 +327,12 @@ function populateAlertsTable(alerts) {
                     ${alert.zero_trust_triggered ? '<i class="fa fa-shield-alt text-primary ms-2" title="Zero Trust Triggered"></i>' : ''}
                 </td>
                 <td>
-                    <code>${alert.source_ip}</code>
-                    <br>
+                    <div class="ip-container">
+                        <code>${alert.source_ip}</code>
+                        <span class="ip-status-indicator" id="status-${alert.source_ip.replace(/\./g, '-')}">
+                            <i class="fa fa-spinner fa-spin text-muted" title="Checking status..."></i>
+                        </span>
+                    </div>
                     <small class="text-muted">${alert.source_port || '-'}</small>
                 </td>
                 <td>
@@ -358,10 +359,12 @@ function populateAlertsTable(alerts) {
                                 <i class="fa fa-industry"></i>
                             </button>` : ''
                         }
-                        <button class="btn btn-outline-danger" onclick="blockSourceIP('${alert.source_ip}')">
+                        <button class="btn btn-outline-danger" onclick="blockSourceIP('${alert.source_ip}')" 
+                                id="block-btn-${alert.source_ip.replace(/\./g, '-')}">
                             <i class="fa fa-ban"></i>
                         </button>
-                        <button class="btn btn-outline-success" onclick="whitelistSourceIP('${alert.source_ip}')">
+                        <button class="btn btn-outline-success" onclick="whitelistSourceIP('${alert.source_ip}')"
+                                id="whitelist-btn-${alert.source_ip.replace(/\./g, '-')}">
                             <i class="fa fa-check"></i>
                         </button>
                     </div>
@@ -370,6 +373,11 @@ function populateAlertsTable(alerts) {
         `);
         
         tbody.append(row);
+        
+        // Check IP status asynchronously
+        checkIPStatus(alert.source_ip, function(status, message) {
+            updateIPStatusIndicator(alert.source_ip, status, message);
+        });
     });
 }
 
@@ -403,6 +411,52 @@ function updateSummaryCards(alerts) {
     $('#lowCount').text(counts.low);
     $('#industrialCount').text(counts.industrial);
     $('#zeroTrustBlocks').text(counts.zero_trust);
+}
+
+// Function to check IP status and update UI accordingly
+function checkIPStatus(sourceIP, callback) {
+    ajaxCall("/api/deepinspector/service/checkIPStatus", {ip: sourceIP}, function(data) {
+        if (data.status === 'ok') {
+            callback(data.ip_status, data.message);
+        } else {
+            callback('unknown', data.message || 'Error checking IP status');
+        }
+    });
+}
+
+// Function to update IP status indicator
+function updateIPStatusIndicator(ip, status, message) {
+    const safeIP = ip.replace(/\./g, '-');
+    const indicator = $(`#status-${safeIP}`);
+    const blockBtn = $(`#block-btn-${safeIP}`);
+    const whitelistBtn = $(`#whitelist-btn-${safeIP}`);
+    
+    // Clear spinner
+    indicator.html('');
+    
+    // Update indicator and buttons based on status
+    switch(status) {
+        case 'blocked':
+            indicator.html('<i class="fa fa-ban text-danger ms-1" title="IP is blocked"></i>');
+            blockBtn.prop('disabled', true).removeClass('btn-outline-danger').addClass('btn-danger');
+            blockBtn.attr('title', 'IP is already blocked');
+            whitelistBtn.prop('disabled', false);
+            break;
+            
+        case 'whitelisted':
+            indicator.html('<i class="fa fa-check text-success ms-1" title="IP is whitelisted"></i>');
+            whitelistBtn.prop('disabled', true).removeClass('btn-outline-success').addClass('btn-success');
+            whitelistBtn.attr('title', 'IP is already whitelisted');
+            blockBtn.prop('disabled', false);
+            break;
+            
+        case 'unknown':
+        default:
+            indicator.html('<i class="fa fa-question-circle text-muted ms-1" title="IP status unknown"></i>');
+            blockBtn.prop('disabled', false);
+            whitelistBtn.prop('disabled', false);
+            break;
+    }
 }
 
 function showAlertDetails(alertId) {
@@ -543,11 +597,6 @@ function showAlertDetails(alertId) {
                 whitelistSourceIP(alert.source_ip);
                 $('#alertDetailsModal').modal('hide');
             });
-            
-            $('#createFirewallRule').off('click').on('click', function() {
-                createFirewallRule(alert);
-                $('#alertDetailsModal').modal('hide');
-            });
         } else {
             $('#alertDetailsBody').html(`
                 <div class="alert alert-danger">
@@ -568,7 +617,7 @@ function showIndustrialThreatDetails(alertId) {
     
     $('#industrialThreatModal').modal('show');
     
-    ajaxCall(`/api/deepinspector/alerts/industrialThreatDetails/${alertId}`, {}, function(data) {
+    ajaxCall(`/api/deepinspector/alerts/threatDetails/${alertId}`, {}, function(data) {
         if (data.status === 'ok') {
             const threat = data.data;
             
@@ -663,50 +712,6 @@ function showIndustrialThreatDetails(alertId) {
                     {{ lang._('Error loading industrial threat details') }}: ${data.message || 'Unknown error'}
                 </div>
             `);
-        }
-    });
-}
-
-function blockSourceIP(sourceIP) {
-    if (confirm(`{{ lang._('Are you sure you want to block IP') }} ${sourceIP}?`)) {
-        ajaxCall("/api/deepinspector/service/blockIP", {ip: sourceIP}, function(data) {
-            if (data.status === 'ok') {
-                showNotification(`{{ lang._('IP') }} ${sourceIP} {{ lang._('has been blocked') }}`, 'success');
-                loadAlerts();
-            } else {
-                showNotification(`{{ lang._('Failed to block IP') }} ${sourceIP}`, 'error');
-            }
-        });
-    }
-}
-
-function whitelistSourceIP(sourceIP) {
-    if (confirm(`{{ lang._('Are you sure you want to whitelist IP') }} ${sourceIP}?`)) {
-        ajaxCall("/api/deepinspector/service/whitelistIP", {ip: sourceIP}, function(data) {
-            if (data.status === 'ok') {
-                showNotification(`{{ lang._('IP') }} ${sourceIP} {{ lang._('has been whitelisted') }}`, 'success');
-                loadAlerts();
-            } else {
-                showNotification(`{{ lang._('Failed to whitelist IP') }} ${sourceIP}`, 'error');
-            }
-        });
-    }
-}
-
-function createFirewallRule(alert) {
-    const rule = {
-        source_ip: alert.source_ip,
-        destination_ip: alert.destination_ip,
-        protocol: alert.protocol,
-        action: 'block',
-        description: `Auto-generated rule for threat: ${alert.threat_type}`
-    };
-    
-    ajaxCall("/api/deepinspector/service/createFirewallRule", rule, function(data) {
-        if (data.status === 'ok') {
-            showNotification('{{ lang._("Firewall rule created successfully") }}', 'success');
-        } else {
-            showNotification('{{ lang._("Failed to create firewall rule") }}', 'error');
         }
     });
 }
@@ -861,134 +866,3 @@ function showNotification(message, type) {
 <div id="notifications" style="position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px;"></div>
 
 <style>
-.alert-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-}
-
-.alert-filters {
-    background: #f8f9fa;
-    padding: 1rem;
-    border-radius: 0.5rem;
-    margin-bottom: 1rem;
-}
-
-.alert-summary {
-    margin-bottom: 1rem;
-}
-
-.summary-card {
-    background: white;
-    border-radius: 0.5rem;
-    padding: 1rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    display: flex;
-    align-items: center;
-    margin-bottom: 1rem;
-}
-
-.summary-card.critical {
-    border-left: 4px solid #dc3545;
-}
-
-.summary-card.high {
-    border-left: 4px solid #ffc107;
-}
-
-.summary-card.medium {
-    border-left: 4px solid #17a2b8;
-}
-
-.summary-card.low {
-    border-left: 4px solid #28a745;
-}
-
-.summary-card.industrial {
-    border-left: 4px solid #fd7e14;
-}
-
-.summary-card.zero-trust {
-    border-left: 4px solid #6f42c1;
-}
-
-.summary-icon {
-    font-size: 1.5rem;
-    margin-right: 1rem;
-    color: #6c757d;
-}
-
-.summary-content {
-    flex: 1;
-}
-
-.summary-value {
-    font-size: 1.5rem;
-    font-weight: bold;
-    color: #212529;
-}
-
-.summary-label {
-    font-size: 0.75rem;
-    color: #6c757d;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.alert-table-container {
-    background: white;
-    border-radius: 0.5rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    margin-bottom: 1rem;
-}
-
-.industrial-threat {
-    background-color: #fff3cd !important;
-}
-
-.packet-data {
-    background-color: #f8f9fa;
-    border: 1px solid #dee2e6;
-    border-radius: 0.375rem;
-    padding: 1rem;
-    font-family: 'Courier New', monospace;
-    font-size: 0.875rem;
-    max-height: 300px;
-    overflow-y: auto;
-}
-
-.industrial-threat-analysis {
-    font-size: 0.9rem;
-}
-
-.loading-spinner {
-    padding: 2rem;
-    color: #6c757d;
-}
-
-.alert-pagination {
-    margin-top: 1rem;
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-    .alert-header {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    
-    .alert-controls {
-        margin-top: 1rem;
-    }
-    
-    .summary-card {
-        margin-bottom: 0.5rem;
-    }
-    
-    .btn-group-sm .btn {
-        padding: 0.25rem 0.5rem;
-        font-size: 0.75rem;
-    }
-}
-</style>
