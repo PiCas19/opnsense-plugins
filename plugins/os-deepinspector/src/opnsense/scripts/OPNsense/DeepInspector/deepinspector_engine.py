@@ -18,6 +18,7 @@ from datetime import datetime, timedelta
 import ipaddress
 import socket
 import subprocess
+import xml.etree.ElementTree as ET
 
 # Network capture and analysis
 try:
@@ -30,6 +31,7 @@ except ImportError:
 # Configuration and logging
 CONFIG_FILE = "/usr/local/etc/deepinspector/config.json"
 SIGNATURES_FILE = "/usr/local/etc/deepinspector/signatures.json"
+OPNSENSE_CONFIG = "/conf/config.xml"
 LOG_DIR = "/var/log/deepinspector"
 ALERT_LOG = f"{LOG_DIR}/alerts.log"
 THREAT_LOG = f"{LOG_DIR}/threats.log"
@@ -95,6 +97,68 @@ def setup_logging():
     )
     
     return logging.getLogger(__name__)
+
+def get_interface_mapping():
+    """Get mapping of logical interface names to physical interfaces"""
+    interface_map = {}
+    
+    try:
+        # Parse OPNsense config.xml
+        tree = ET.parse(OPNSENSE_CONFIG)
+        root = tree.getroot()
+        
+        # Get interface mappings
+        interfaces = root.find('interfaces')
+        if interfaces is not None:
+            for interface in interfaces:
+                if_name = interface.tag
+                if_element = interface.find('if')
+                if if_element is not None:
+                    physical_if = if_element.text
+                    interface_map[if_name] = physical_if
+                    logger.info(f"Mapped interface {if_name} -> {physical_if}")
+                    
+    except Exception as e:
+        logger.error(f"Error parsing OPNsense config: {e}")
+        
+        # Fallback: try to get interfaces from system
+        try:
+            result = subprocess.run(['ifconfig', '-l'], capture_output=True, text=True)
+            if result.returncode == 0:
+                system_interfaces = result.stdout.strip().split()
+                # Common mappings
+                common_mappings = {
+                    'lan': 'em0',
+                    'wan': 'em1', 
+                    'opt1': 'em2',
+                    'opt2': 'em3'
+                }
+                for logical, physical in common_mappings.items():
+                    if physical in system_interfaces:
+                        interface_map[logical] = physical
+                        logger.info(f"Fallback mapped {logical} -> {physical}")
+                        
+        except Exception as e2:
+            logger.error(f"Error getting system interfaces: {e2}")
+    
+    return interface_map
+
+def resolve_interfaces(logical_interfaces):
+    """Convert logical interface names to physical interface names"""
+    interface_map = get_interface_mapping()
+    physical_interfaces = []
+    
+    for logical_if in logical_interfaces:
+        if logical_if in interface_map:
+            physical_if = interface_map[logical_if]
+            physical_interfaces.append(physical_if)
+            logger.info(f"Resolved {logical_if} -> {physical_if}")
+        else:
+            # If already a physical interface name, use as-is
+            physical_interfaces.append(logical_if)
+            logger.warning(f"Could not resolve {logical_if}, using as-is")
+    
+    return physical_interfaces
 
 def load_config():
     """Load DPI engine configuration"""
@@ -197,6 +261,26 @@ def load_default_signatures():
         re.compile(r'\\x[0-9a-f]{2}.*?(system|exec|eval)', re.IGNORECASE),
     ]
     
+    # SQL injection patterns
+    threat_patterns['sql_injection'] = [
+        re.compile(r'(union|select|insert|update|delete|drop|create|alter).*?(from|into|table|database)', re.IGNORECASE),
+        re.compile(r'[\'\"].*?(or|and).*?[\'\"].*?=.*?[\'\"]', re.IGNORECASE),
+        re.compile(r'(\'|\").*?(--|\#|\/\*)', re.IGNORECASE),
+    ]
+    
+    # Script injection patterns
+    threat_patterns['script_injection'] = [
+        re.compile(r'<script[^>]*>.*?</script>', re.IGNORECASE | re.DOTALL),
+        re.compile(r'javascript:', re.IGNORECASE),
+        re.compile(r'on(load|error|click|mouseover)=', re.IGNORECASE),
+    ]
+    
+    # Crypto mining patterns
+    threat_patterns['crypto_mining'] = [
+        re.compile(r'(coinhive|cryptonight|monero|mining|miner)', re.IGNORECASE),
+        re.compile(r'(stratum|pool|hashrate|difficulty)', re.IGNORECASE),
+    ]
+    
     # Industrial protocol threat patterns
     threat_patterns['industrial_threats'] = [
         re.compile(r'(modbus|dnp3|opcua).*?(exploit|attack|malicious)', re.IGNORECASE),
@@ -293,6 +377,51 @@ def analyze_tcp_packet(ip, tcp):
         
     except Exception as e:
         logger.error(f"Error analyzing TCP packet: {e}")
+        
+    return threats
+
+def analyze_udp_packet(ip, udp):
+    """Analyze UDP packet for threats"""
+    threats = []
+    
+    try:
+        payload = udp.data
+        if not payload:
+            return threats
+            
+        # DNS analysis
+        if udp.dport == 53 or udp.sport == 53:
+            if config['protocols']['dns_inspection']:
+                threats.extend(analyze_dns_payload(payload))
+                
+        # Generic payload analysis
+        threats.extend(analyze_generic_payload(payload))
+        
+    except Exception as e:
+        logger.error(f"Error analyzing UDP packet: {e}")
+        
+    return threats
+
+def analyze_dns_payload(payload):
+    """Analyze DNS payload for threats"""
+    threats = []
+    
+    try:
+        # Basic DNS analysis
+        if len(payload) < 12:
+            return threats
+            
+        # Check for DNS tunneling (unusually large queries)
+        if len(payload) > 512:
+            threats.append({
+                'type': 'dns_tunneling',
+                'severity': 'medium',
+                'description': 'Potential DNS tunneling detected',
+                'details': {'payload_size': len(payload)}
+            })
+            
+    except Exception as e:
+        logger.error(f"Error analyzing DNS payload: {e}")
         
     return threats
 
@@ -479,6 +608,75 @@ def analyze_http_payload(payload):
         
     return threats
 
+def analyze_https_payload(payload):
+    """Analyze HTTPS payload for threats (limited without decryption)"""
+    threats = []
+    
+    try:
+        # Basic TLS analysis
+        if len(payload) < 5:
+            return threats
+            
+        # Check for TLS handshake anomalies
+        if payload[0] == 0x16:  # TLS handshake
+            tls_version = struct.unpack('>H', payload[1:3])[0]
+            if tls_version < 0x0301:  # TLS 1.0 or older
+                threats.append({
+                    'type': 'tls_vulnerability',
+                    'severity': 'low',
+                    'description': f'Outdated TLS version: {tls_version:04x}',
+                    'details': {'tls_version': tls_version}
+                })
+                
+    except Exception as e:
+        logger.error(f"Error analyzing HTTPS payload: {e}")
+        
+    return threats
+
+def analyze_ftp_payload(payload):
+    """Analyze FTP payload for threats"""
+    threats = []
+    
+    try:
+        payload_str = payload.decode('utf-8', errors='ignore')
+        
+        # Check for suspicious FTP commands
+        suspicious_commands = ['SITE', 'MKD', 'RMD', 'DELE', 'RNFR', 'RNTO']
+        for cmd in suspicious_commands:
+            if payload_str.upper().startswith(cmd):
+                threats.append({
+                    'type': 'ftp_suspicious_command',
+                    'severity': 'medium',
+                    'description': f'Suspicious FTP command: {cmd}',
+                    'details': {'command': cmd}
+                })
+                
+    except Exception as e:
+        logger.error(f"Error analyzing FTP payload: {e}")
+        
+    return threats
+
+def analyze_smtp_payload(payload):
+    """Analyze SMTP payload for threats"""
+    threats = []
+    
+    try:
+        payload_str = payload.decode('utf-8', errors='ignore')
+        
+        # Check for email-based threats
+        if 'attachment' in payload_str.lower() and '.exe' in payload_str.lower():
+            threats.append({
+                'type': 'email_malware',
+                'severity': 'high',
+                'description': 'Potential malware attachment detected',
+                'details': {'content': payload_str[:100]}
+            })
+            
+    except Exception as e:
+        logger.error(f"Error analyzing SMTP payload: {e}")
+        
+    return threats
+
 def analyze_generic_payload(payload):
     """Analyze generic payload for malware signatures"""
     threats = []
@@ -551,13 +749,26 @@ def process_threat(threat, ip, timestamp):
     if config['general']['mode'] == 'active':
         take_action(alert)
 
+def create_alert(alert_type, details):
+    """Create a system alert"""
+    alert = {
+        'id': hashlib.md5(f"{datetime.now()}{alert_type}{details}".encode()).hexdigest(),
+        'timestamp': datetime.now().isoformat(),
+        'type': alert_type,
+        'severity': 'warning',
+        'description': f'System alert: {alert_type}',
+        'details': details
+    }
+    
+    log_alert(alert)
+
 def log_alert(alert):
     """Log alert to file"""
     try:
         with open(ALERT_LOG, 'a') as f:
             f.write(json.dumps(alert) + '\n')
             
-        logger.info(f"Alert: {alert['threat_type']} from {alert['source_ip']} - {alert['description']}")
+        logger.info(f"Alert: {alert.get('threat_type', alert.get('type', 'unknown'))} - {alert['description']}")
         
     except Exception as e:
         logger.error(f"Error logging alert: {e}")
@@ -639,54 +850,3 @@ def main():
     # Check if enabled
     if not config['general']['enabled']:
         logger.info("DPI engine is disabled in configuration")
-        return 0
-        
-    # Start packet capture
-    interfaces = config['general']['interfaces']
-    if not interfaces:
-        logger.error("No interfaces configured for monitoring")
-        return 1
-        
-    logger.info(f"Starting packet capture on interfaces: {interfaces}")
-    
-    # Statistics thread
-    stats_thread = threading.Thread(target=lambda: [save_stats(), time.sleep(60)] and None)
-    stats_thread.daemon = True
-    stats_thread.start()
-    
-    # Main packet processing loop
-    try:
-        for interface in interfaces:
-            try:
-                cap = pcapy.open_live(interface, 
-                                    config['general']['max_packet_size'], 
-                                    1,  # promiscuous mode
-                                    100)  # timeout
-                
-                logger.info(f"Capturing on interface: {interface}")
-                
-                while running:
-                    header, packet = cap.next()
-                    if packet:
-                        analyze_packet(packet, datetime.now())
-                        
-            except Exception as e:
-                logger.error(f"Error capturing on interface {interface}: {e}")
-                continue
-                
-    except KeyboardInterrupt:
-        logger.info("Received keyboard interrupt")
-    except Exception as e:
-        logger.error(f"Fatal error: {e}")
-        return 1
-    finally:
-        # Cleanup
-        save_stats()
-        if os.path.exists(PID_FILE):
-            os.remove(PID_FILE)
-        logger.info("Deep Packet Inspector Engine stopped")
-        
-    return 0
-
-if __name__ == "__main__":
-    sys.exit(main())

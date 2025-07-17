@@ -1,190 +1,280 @@
 <?php
-
-/*
- * Copyright (C) 2025 OPNsense Project
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright
- * notice, this list of conditions and the following disclaimer in the
- * documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
- * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
- * AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
- * OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- */
-
 namespace OPNsense\DeepInspector\Api;
 
 use OPNsense\Base\ApiMutableServiceControllerBase;
 use OPNsense\Core\Backend;
 use OPNsense\Core\Config;
+use OPNsense\DeepInspector\DeepInspector;
 
 /**
  * Class ServiceController
- * @package OPNsense\DeepInspector\Api
+ * @package OPNsense\DeepInspector
  */
 class ServiceController extends ApiMutableServiceControllerBase
 {
-    protected static $internalServiceClass = '\\OPNsense\\DeepInspector\\DeepInspector';
-    protected static $internalServiceTemplate = 'OPNsense/DeepInspector';
-    protected static $internalServiceEnabled = 'general.enabled';
+    protected static $internalServiceClass = '\OPNsense\DeepInspector\DeepInspector';
     protected static $internalServiceName = 'deepinspector';
+    protected static $internalServiceEnabled = 'general.enabled';
+    protected static $internalServiceTemplate = 'OPNsense/DeepInspector';
 
     /**
-     * Check if changes to the DeepInspector settings were made
-     * @return array result
-     */
-    public function dirtyAction()
-    {
-        $result = array('status' => 'ok');
-        $result['deepinspector']['dirty'] = $this->getModel()->configChanged();
-        return $result;
-    }
-
-    /**
-     * Start DeepInspector service
-     * @return array
+     * Start the Deep Packet Inspector service
+     * @return array service start result
      */
     public function startAction()
     {
-        if ($this->request->isPost()) {
+        $result = ["status" => "failed"];
+        
+        try {
             $backend = new Backend();
-            $response = $backend->configdRun("deepinspector start");
-            return [
-                "response" => $response,
-                "status" => trim($response) === "deepinspector started successfully" ? "ok" : "failed"
-            ];
+            $response = $backend->configdRun('deepinspector start');
+            
+            if (trim($response) === 'OK') {
+                $result["status"] = "ok";
+                $result["message"] = "Deep Packet Inspector service started successfully";
+            } else {
+                $result["message"] = "Failed to start service: " . $response;
+            }
+        } catch (Exception $e) {
+            $result["message"] = "Error starting service: " . $e->getMessage();
         }
-        return ["status" => "failed", "message" => "POST method required"];
+        
+        return $result;
     }
-
+    
     /**
-     * Stop DeepInspector service
-     * @return array
+     * Stop the Deep Packet Inspector service
+     * @return array service stop result
      */
     public function stopAction()
     {
-        if ($this->request->isPost()) {
+        $result = ["status" => "failed"];
+        
+        try {
             $backend = new Backend();
-            $response = $backend->configdRun("deepinspector stop");
-            return [
-                "response" => $response,
-                "status" => trim($response) === "deepinspector stopped" ? "ok" : "failed"
-            ];
+            $response = $backend->configdRun('deepinspector stop');
+            
+            if (trim($response) === 'OK') {
+                $result["status"] = "ok";
+                $result["message"] = "Deep Packet Inspector service stopped successfully";
+            } else {
+                $result["message"] = "Failed to stop service: " . $response;
+            }
+        } catch (Exception $e) {
+            $result["message"] = "Error stopping service: " . $e->getMessage();
         }
-        return ["status" => "failed", "message" => "POST method required"];
+        
+        return $result;
     }
-
+    
     /**
-     * Restart DeepInspector service
-     * @return array
+     * Restart the Deep Packet Inspector service
+     * @return array service restart result
      */
     public function restartAction()
     {
-        if ($this->request->isPost()) {
+        $result = ["status" => "failed"];
+        
+        try {
             $backend = new Backend();
-            $response = $backend->configdRun("deepinspector restart");
-            return [
-                "response" => $response,
-                "status" => "ok"
-            ];
+            $response = $backend->configdRun('deepinspector restart');
+            
+            if (trim($response) === 'OK') {
+                $result["status"] = "ok";
+                $result["message"] = "Deep Packet Inspector service restarted successfully";
+            } else {
+                $result["message"] = "Failed to restart service: " . $response;
+            }
+        } catch (Exception $e) {
+            $result["message"] = "Error restarting service: " . $e->getMessage();
         }
-        return ["status" => "failed", "message" => "POST method required"];
+        
+        return $result;
     }
-
+    
     /**
-     * Reconfigure and restart DeepInspector service
-     * @return array
+     * Reconfigure the Deep Packet Inspector service
+     * @return array service reconfigure result
      */
     public function reconfigureAction()
     {
-        if ($this->request->isPost()) {
+        $result = ["status" => "failed"];
+        
+        try {
             $backend = new Backend();
+            $response = $backend->configdRun('deepinspector reconfigure');
             
-            // Generate new configuration first
-            $backend->configdRun("template reload OPNsense/DeepInspector");
-            
-            // Then restart the service
-            $response = $backend->configdRun("deepinspector reconfigure");
-            
-            // Mark configuration as clean
-            $mdl = new \OPNsense\DeepInspector\DeepInspector();
-            $mdl->configClean();
-            
-            return [
-                "response" => $response,
-                "status" => "ok",
-                "message" => "Configuration applied and service restarted"
-            ];
+            if (trim($response) === 'OK') {
+                $result["status"] = "ok";
+                $result["message"] = "Deep Packet Inspector service reconfigured successfully";
+            } else {
+                $result["message"] = "Failed to reconfigure service: " . $response;
+            }
+        } catch (Exception $e) {
+            $result["message"] = "Error reconfiguring service: " . $e->getMessage();
         }
-        return ["status" => "failed", "message" => "POST method required"];
+        
+        return $result;
     }
-
+    
     /**
-     * Get DeepInspector service status
-     * @return array
+     * Get the Deep Packet Inspector service status
+     * @return array service status information
      */
     public function statusAction()
     {
-        $backend = new Backend();
-        $response = $backend->configdRun("deepinspector status");
+        $result = ["status" => "ok"];
         
-        $lines = explode("\n", trim($response));
-        $running = false;
-        $pid = null;
-        $socket_status = "unknown";
-        
-        foreach ($lines as $line) {
-            if (strpos($line, "is running as PID") !== false) {
-                $running = true;
-                if (preg_match('/PID (\d+)/', $line, $matches)) {
-                    $pid = $matches[1];
+        try {
+            $pidFile = '/var/run/deepinspector.pid';
+            $isRunning = false;
+            $pid = null;
+            
+            if (file_exists($pidFile)) {
+                $pid = trim(file_get_contents($pidFile));
+                if ($pid && posix_kill($pid, 0)) {
+                    $isRunning = true;
                 }
-            } elseif (strpos($line, "Socket:") !== false) {
-                $socket_status = strpos($line, "(active)") !== false ? "active" : "inactive";
-            } elseif (strpos($line, "is not running") !== false) {
-                $running = false;
+            }
+            
+            $result["status"] = [
+                "running" => $isRunning,
+                "pid" => $pid
+            ];
+            
+            if ($isRunning) {
+                // Get additional process information
+                $result["status"]["uptime"] = $this->getProcessUptime($pid);
+                $result["status"]["memory_usage"] = $this->getProcessMemoryUsage($pid);
+                $result["status"]["cpu_usage"] = $this->getProcessCpuUsage($pid);
+            }
+            
+        } catch (Exception $e) {
+            $result["status"]["running"] = false;
+            $result["error"] = "Error checking service status: " . $e->getMessage();
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Block an IP address
+     * @return array block result
+     */
+    public function blockIPAction()
+    {
+        $result = ["status" => "failed"];
+        
+        if ($this->request->isPost()) {
+            $ip = $this->request->getPost('ip');
+            
+            if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                try {
+                    $backend = new Backend();
+                    $response = $backend->configdRun('deepinspector block_ip', $ip);
+                    
+                    if (trim($response) === 'OK') {
+                        $result["status"] = "ok";
+                        $result["message"] = "IP address $ip blocked successfully";
+                    } else {
+                        $result["message"] = "Failed to block IP: " . $response;
+                    }
+                } catch (Exception $e) {
+                    $result["message"] = "Error blocking IP: " . $e->getMessage();
+                }
+            } else {
+                $result["message"] = "Invalid IP address format";
             }
         }
         
-        return [
-            "status" => "ok",
-            "response" => $response,
-            "running" => $running,
-            "pid" => $pid,
-            "socket_status" => $socket_status
-        ];
+        return $result;
     }
-
+    
     /**
-     * Clear DeepInspector logs
-     * @return array
+     * Unblock an IP address
+     * @return array unblock result
      */
-    public function clearLogsAction()
+    public function unblockIPAction()
     {
+        $result = ["status" => "failed"];
+        
         if ($this->request->isPost()) {
-            $backend = new Backend();
-            $response = $backend->configdRun("deepinspector clear_logs");
+            $ip = $this->request->getPost('ip');
             
-            return [
-                "status" => "ok",
-                "response" => $response,
-                "message" => "Logs cleared successfully"
-            ];
+            if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                try {
+                    $backend = new Backend();
+                    $response = $backend->configdRun('deepinspector unblock_ip', $ip);
+                    
+                    if (trim($response) === 'OK') {
+                        $result["status"] = "ok";
+                        $result["message"] = "IP address $ip unblocked successfully";
+                    } else {
+                        $result["message"] = "Failed to unblock IP: " . $response;
+                    }
+                } catch (Exception $e) {
+                    $result["message"] = "Error unblocking IP: " . $e->getMessage();
+                }
+            } else {
+                $result["message"] = "Invalid IP address format";
+            }
         }
-        return ["status" => "failed", "message" => "POST method required"];
+        
+        return $result;
+    }
+    
+    /**
+     * Get process uptime
+     * @param string $pid process ID
+     * @return string uptime string
+     */
+    private function getProcessUptime($pid)
+    {
+        try {
+            $cmd = "ps -o etime= -p $pid 2>/dev/null";
+            $uptime = trim(shell_exec($cmd));
+            return $uptime ?: 'Unknown';
+        } catch (Exception $e) {
+            return 'Unknown';
+        }
+    }
+    
+    /**
+     * Get process memory usage
+     * @param string $pid process ID
+     * @return string memory usage string
+     */
+    private function getProcessMemoryUsage($pid)
+    {
+        try {
+            $cmd = "ps -o rss= -p $pid 2>/dev/null";
+            $rss = trim(shell_exec($cmd));
+            if ($rss) {
+                $mb = round($rss / 1024, 2);
+                return $mb . ' MB';
+            }
+            return 'Unknown';
+        } catch (Exception $e) {
+            return 'Unknown';
+        }
+    }
+    
+    /**
+     * Get process CPU usage
+     * @param string $pid process ID
+     * @return string CPU usage string
+     */
+    private function getProcessCpuUsage($pid)
+    {
+        try {
+            $cmd = "ps -o pcpu= -p $pid 2>/dev/null";
+            $cpu = trim(shell_exec($cmd));
+            if ($cpu) {
+                return $cpu . '%';
+            }
+            return 'Unknown';
+        } catch (Exception $e) {
+            return 'Unknown';
+        }
     }
 }
