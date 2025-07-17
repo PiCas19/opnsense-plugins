@@ -1,27 +1,6 @@
 {#
  # Copyright (C) 2025 OPNsense Project
  # All rights reserved.
- #
- # Redistribution and use in source and binary forms, with or without
- # modification, are permitted provided that the following conditions are met:
- #
- # 1. Redistributions of source code must retain the above copyright notice,
- #    this list of conditions and the following disclaimer.
- #
- # 2. Redistributions in binary form must reproduce the above copyright
- #    notice, this list of conditions and the following disclaimer in the
- #    documentation and/or other materials provided with the distribution.
- #
- # THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
- # INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
- # AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- # AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
- # OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- # SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- # INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- # CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- # POSSIBILITY OF SUCH DAMAGE.
  #}
 
 <div class="alert alert-info hidden" role="alert" id="configChangedMsg">
@@ -150,81 +129,114 @@ $(function() {
         }
     });
 
-    // Funzione che apre un dialog a partire dal template base_dialog
-    function bindDialog(btnId, dialogId, title) {
-      $(btnId).click(function() {
-         var dialogRef = BootstrapDialog.show({
-               title: title,
-               message: $('#' + dialogId).html(),
-               buttons: [
-                  {
-                     label: "{{ lang._('Save') }}",
-                     cssClass: 'btn-primary',
-                     action: function(dlg) {
-                           var form = dlg.getModalBody().find('form');
-                           ajaxCall("/api/deepinspector/settings/set",
-                              mapDataToFormObject(form.attr('id')),
-                              function(resp) {
-                                 if (resp.result === 'saved') {
-                                       isSubsystemDirty();
-                                       dlg.close();
-                                       BootstrapDialog.show({
-                                          type: BootstrapDialog.TYPE_SUCCESS,
-                                          title: "{{ lang._('Success') }}",
-                                          message: "{{ lang._('Settings saved successfully') }}",
-                                          buttons: [{ label:'OK', action:function(d){d.close(); }}]
-                                       });
-                                 } else {
-                                       var msg = "{{ lang._('Failed to save settings') }}:<br/>";
-                                       for (var f in resp.validations) {
-                                          msg += '<strong>'+f+'</strong>: '+resp.validations[f]+'<br/>';
-                                       }
-                                       dlg.getModalBody().prepend('<div class="alert alert-danger">'+msg+'</div>');
-                                 }
-                              }
-                           );
-                     }
-                  },
-                  {
-                     label: "{{ lang._('Cancel') }}",
-                     action: function(dlg){ dlg.close(); }
-                  }
-               ],
-               onshown: function(dlg) {
-                  // Popola il form via AJAX e poi inizializza UI
-                  mapDataToFormUI({
-                     'frm_DeepInspectorGeneral':   "/api/deepinspector/settings/get",
-                     'frm_DeepInspectorProtocols': "/api/deepinspector/settings/get",
-                     'frm_DeepInspectorDetection': "/api/deepinspector/settings/get",
-                     'frm_DeepInspectorAdvanced':  "/api/deepinspector/settings/get"
-                  }).done(function() {
-                     dlg.getModalBody()
-                        .find('select.selectpicker').selectpicker(); // init dropdowns
-                     formatTokenizersUI(dlg.getModalBody());       // init tokenize fields
-                  });
+    // Funzione che apre un dialog con gestione corretta dei dati
+    function bindDialog(btnId, dialogId, title, formId) {
+        $(btnId).click(function() {
+            var dialogRef = BootstrapDialog.show({
+                title: title,
+                message: $('#' + dialogId).html(),
+                size: BootstrapDialog.SIZE_LARGE,
+                buttons: [
+                    {
+                        label: "{{ lang._('Save') }}",
+                        cssClass: 'btn-primary',
+                        action: function(dlg) {
+                            // Raccoglie i dati dal form nel dialog
+                            var formData = {};
+                            var $form = dlg.getModalBody().find('#' + formId);
+                            
+                            // Serializza tutti i campi del form
+                            $form.find('input, select, textarea').each(function() {
+                                var $field = $(this);
+                                var name = $field.attr('name');
+                                
+                                if (name) {
+                                    if ($field.is(':checkbox')) {
+                                        formData[name] = $field.is(':checked') ? '1' : '0';
+                                    } else if ($field.is('select[multiple]')) {
+                                        formData[name] = $field.val() ? $field.val().join(',') : '';
+                                    } else {
+                                        formData[name] = $field.val() || '';
+                                    }
+                                }
+                            });
+                            
+                            console.log("Saving data:", formData);
+                            
+                            ajaxCall("/api/deepinspector/settings/set", formData,
+                                function(resp) {
+                                    if (resp.result === 'saved') {
+                                        isSubsystemDirty();
+                                        dlg.close();
+                                        BootstrapDialog.show({
+                                            type: BootstrapDialog.TYPE_SUCCESS,
+                                            title: "{{ lang._('Success') }}",
+                                            message: "{{ lang._('Settings saved successfully') }}",
+                                            buttons: [{ label:'OK', action:function(d){d.close(); }}]
+                                        });
+                                    } else {
+                                        var msg = "{{ lang._('Failed to save settings') }}:<br/>";
+                                        if (resp.validations) {
+                                            for (var f in resp.validations) {
+                                                msg += '<strong>'+f+'</strong>: '+resp.validations[f]+'<br/>';
+                                            }
+                                        }
+                                        dlg.getModalBody().find('.alert').remove();
+                                        dlg.getModalBody().prepend('<div class="alert alert-danger">'+msg+'</div>');
+                                    }
+                                }
+                            );
+                        }
+                    },
+                    {
+                        label: "{{ lang._('Cancel') }}",
+                        action: function(dlg){ dlg.close(); }
+                    }
+                ],
+                onshown: function(dlg) {
+                    // Carica i dati nel form
+                    var formMap = {};
+                    formMap[formId] = "/api/deepinspector/settings/get";
+                    
+                    mapDataToFormUI(formMap).done(function() {
+                        // Inizializza i componenti UI
+                        dlg.getModalBody().find('select.selectpicker').selectpicker('refresh');
+                        formatTokenizersUI(dlg.getModalBody());
+                    }).fail(function(error) {
+                        console.error("Failed to load form data:", error);
+                    });
+                }
+            });
+        });
+    }
 
-                  // Mostra subito lo stato dirty se necessario
-                  isSubsystemDirty();
-               }
-         });
-      });
-   }
+    // Bind di tutti i bottoni Edit con i form ID corretti
+    bindDialog('#btnEditGeneral',   'DialogGeneral',   '{{ lang._("Edit General Settings") }}', 'frm_DeepInspectorGeneral');
+    bindDialog('#btnEditProtocols', 'DialogProtocols', '{{ lang._("Edit Protocol Inspection") }}', 'frm_DeepInspectorProtocols');
+    bindDialog('#btnEditDetection', 'DialogDetection', '{{ lang._("Edit Detection Engines") }}', 'frm_DeepInspectorDetection');
+    bindDialog('#btnEditAdvanced',  'DialogAdvanced',  '{{ lang._("Edit Advanced Settings") }}', 'frm_DeepInspectorAdvanced');
 
-
-    // Bind di tutti i bottoni Edit
-    bindDialog('#btnEditGeneral',   'DialogGeneral',   '{{ lang._("Edit General Settings") }}');
-    bindDialog('#btnEditProtocols', 'DialogProtocols', '{{ lang._("Edit Protocol Inspection") }}');
-    bindDialog('#btnEditDetection', 'DialogDetection', '{{ lang._("Edit Detection Engines") }}');
-    bindDialog('#btnEditAdvanced',  'DialogAdvanced',  '{{ lang._("Edit Advanced Settings") }}');
+    // Carica i dati iniziali
+    var initialFormMap = {
+        'frm_DeepInspectorGeneral': "/api/deepinspector/settings/get",
+        'frm_DeepInspectorProtocols': "/api/deepinspector/settings/get",
+        'frm_DeepInspectorDetection': "/api/deepinspector/settings/get",
+        'frm_DeepInspectorAdvanced': "/api/deepinspector/settings/get"
+    };
+    
+    mapDataToFormUI(initialFormMap).done(function(data) {
+        console.log("Initial data loaded:", data);
+        $('.selectpicker').selectpicker('refresh');
+        formatTokenizersUI();
+    }).fail(function(error) {
+        console.error("Failed to load initial data:", error);
+    });
 
     isSubsystemDirty();
 });
 </script>
 
-{# —————————————————————————————— #}
-{#    Include di tutti i dialog templates #}
-{# —————————————————————————————— #}
-
+{# Include di tutti i dialog templates #}
 {{ partial("layout_partials/base_dialog", {
     'fields': formGeneral,
     'id':     'DialogGeneral',
