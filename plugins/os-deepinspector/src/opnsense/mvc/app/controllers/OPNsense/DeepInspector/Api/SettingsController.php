@@ -218,7 +218,7 @@ class SettingsController extends ApiMutableModelControllerBase
         return $recentThreats;
     }
     
-    /**
+       /**
      * Get system information
      * @return array system info
      */
@@ -228,17 +228,51 @@ class SettingsController extends ApiMutableModelControllerBase
             'engine_version' => '1.0.0',
             'signatures_version' => 'Unknown',
             'uptime' => 'Unknown',
-            'engine_status' => 'Unknown'
+            'engine_status' => 'Unknown',
+            'pid' => 'Unknown',
+            'memory_usage' => 'Unknown',
+            'cpu_usage' => 'Unknown'
         ];
         
         // Check if engine is running via backend
         $backend = new Backend();
         $response = $backend->configdRun("deepinspector status");
         
-        if (strpos($response, "running") !== false) {
+        $lines = explode("\n", trim($response));
+        $running = false;
+        $pid = null;
+        
+        foreach ($lines as $line) {
+            if (strpos($line, "is running as PID") !== false) {
+                $running = true;
+                if (preg_match('/PID (\d+)/', $line, $matches)) {
+                    $pid = $matches[1];
+                    $info['pid'] = $pid;
+                }
+            } elseif (strpos($line, "is not running") !== false) {
+                $running = false;
+            } elseif (strpos($line, "Memory usage:") !== false) {
+                if (preg_match('/Memory usage:\s*(\d+(?:\.\d+)?)\s*MB/', $line, $matches)) {
+                    $info['memory_usage'] = $matches[1] . " MB";
+                }
+            }
+        }
+        
+        if ($running) {
             $info['engine_status'] = 'Running';
+            
+            // Get additional process info if PID is available
+            if ($pid) {
+                $processInfo = $this->getProcessInfo($pid);
+                $info['cpu_usage'] = $processInfo['cpu_usage'];
+                $info['uptime'] = $processInfo['uptime'];
+            }
         } else {
             $info['engine_status'] = 'Stopped';
+            $info['pid'] = 'N/A';
+            $info['memory_usage'] = 'N/A';
+            $info['cpu_usage'] = 'N/A';
+            $info['uptime'] = 'N/A';
         }
         
         // Get signatures version
@@ -256,5 +290,39 @@ class SettingsController extends ApiMutableModelControllerBase
         }
         
         return $info;
+    }
+    
+    /**
+     * Get process information
+     * @param string $pid
+     * @return array
+     */
+    private function getProcessInfo($pid)
+    {
+        $cpu_usage = "Unknown";
+        $uptime = "Unknown";
+        
+        try {
+            // Get CPU usage
+            $cpuCmd = "ps -o pcpu= -p " . escapeshellarg($pid) . " 2>/dev/null";
+            $cpuResult = trim(@shell_exec($cpuCmd));
+            if ($cpuResult !== '' && $cpuResult !== null) {
+                $cpu_usage = $cpuResult . "%";
+            }
+            
+            // Get uptime
+            $uptimeCmd = "ps -o etime= -p " . escapeshellarg($pid) . " 2>/dev/null";
+            $uptimeResult = trim(@shell_exec($uptimeCmd));
+            if ($uptimeResult !== '' && $uptimeResult !== null) {
+                $uptime = $uptimeResult;
+            }
+        } catch (Exception $e) {
+            // Ignore errors, keep default values
+        }
+        
+        return [
+            'cpu_usage' => $cpu_usage,
+            'uptime' => $uptime
+        ];
     }
 }
