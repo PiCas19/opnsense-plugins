@@ -1,3 +1,292 @@
+{# analysis.volt - Deep Packet Inspector Analysis #}
+
+<div class="content-box">
+    <div class="analysis-header">
+        <h2>{{ lang._('Deep Packet Inspector - Traffic Analysis') }}</h2>
+        <div class="analysis-controls">
+            <button class="btn btn-primary" id="startAnalysis">
+                <i class="fa fa-play"></i> {{ lang._('Start Analysis') }}
+            </button>
+            <button class="btn btn-secondary" id="stopAnalysis">
+                <i class="fa fa-stop"></i> {{ lang._('Stop Analysis') }}
+            </button>
+            <button class="btn btn-info" id="exportReport">
+                <i class="fa fa-download"></i> {{ lang._('Export Report') }}
+            </button>
+        </div>
+    </div>
+
+    <!-- Analysis Filters -->
+    <div class="analysis-filters">
+        <div class="row">
+            <div class="col-md-3">
+                <label for="analysisTimeRange">{{ lang._('Time Range') }}</label>
+                <select class="form-control" id="analysisTimeRange">
+                    <option value="1h">{{ lang._('Last Hour') }}</option>
+                    <option value="6h">{{ lang._('Last 6 Hours') }}</option>
+                    <option value="24h" selected>{{ lang._('Last 24 Hours') }}</option>
+                    <option value="7d">{{ lang._('Last Week') }}</option>
+                    <option value="30d">{{ lang._('Last Month') }}</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="analysisProtocol">{{ lang._('Protocol') }}</label>
+                <select class="form-control" id="analysisProtocol">
+                    <option value="all">{{ lang._('All Protocols') }}</option>
+                    <option value="http">HTTP</option>
+                    <option value="https">HTTPS</option>
+                    <option value="ftp">FTP</option>
+                    <option value="smtp">SMTP</option>
+                    <option value="dns">DNS</option>
+                    <option value="modbus">Modbus</option>
+                    <option value="dnp3">DNP3</option>
+                    <option value="opcua">OPC UA</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="analysisInterface">{{ lang._('Interface') }}</label>
+                <select class="form-control" id="analysisInterface">
+                    <option value="all">{{ lang._('All Interfaces') }}</option>
+                    <!-- Options will be populated dynamically -->
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="analysisType">{{ lang._('Analysis Type') }}</label>
+                <select class="form-control" id="analysisType">
+                    <option value="comprehensive">{{ lang._('Comprehensive') }}</option>
+                    <option value="security">{{ lang._('Security Focus') }}</option>
+                    <option value="performance">{{ lang._('Performance Focus') }}</option>
+                    <option value="industrial">{{ lang._('Industrial Focus') }}</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analysis Status -->
+    <div class="analysis-status">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="status-card">
+                    <div class="status-icon">
+                        <i class="fa fa-chart-line"></i>
+                    </div>
+                    <div class="status-content">
+                        <div class="status-title">{{ lang._('Analysis Status') }}</div>
+                        <div class="status-value" id="analysisStatus">{{ lang._('Ready') }}</div>
+                        <div class="progress mt-2">
+                            <div class="progress-bar" id="analysisProgress" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analysis Results -->
+    <div class="row">
+        <div class="col-md-8">
+            <!-- Traffic Pattern Analysis -->
+            <div class="analysis-section">
+                <h3>{{ lang._('Traffic Pattern Analysis') }}</h3>
+                <div class="chart-container">
+                    <canvas id="trafficPatternsChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Protocol Distribution -->
+            <div class="analysis-section">
+                <h3>{{ lang._('Protocol Distribution') }}</h3>
+                <div class="row">
+                    <div class="col-md-6">
+                        <canvas id="protocolPieChart"></canvas>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="protocol-stats">
+                            <div class="stat-item">
+                                <span class="stat-label">{{ lang._('HTTP/HTTPS') }}:</span>
+                                <span class="stat-value" id="httpTraffic">--</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">{{ lang._('Industrial') }}:</span>
+                                <span class="stat-value" id="industrialTraffic">--</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">{{ lang._('Email') }}:</span>
+                                <span class="stat-value" id="emailTraffic">--</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">{{ lang._('DNS') }}:</span>
+                                <span class="stat-value" id="dnsTraffic">--</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">{{ lang._('Other') }}:</span>
+                                <span class="stat-value" id="otherTraffic">--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Anomaly Detection Results -->
+            <div class="analysis-section">
+                <h3>{{ lang._('Anomaly Detection Results') }}</h3>
+                <div class="anomaly-results">
+                    <div class="table-responsive">
+                        <table class="table table-striped" id="anomaliesTable">
+                            <thead>
+                                <tr>
+                                    <th>{{ lang._('Timestamp') }}</th>
+                                    <th>{{ lang._('Type') }}</th>
+                                    <th>{{ lang._('Source') }}</th>
+                                    <th>{{ lang._('Severity') }}</th>
+                                    <th>{{ lang._('Description') }}</th>
+                                    <th>{{ lang._('Actions') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Anomalies will be populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <!-- Analysis Summary -->
+            <div class="analysis-summary">
+                <h3>{{ lang._('Analysis Summary') }}</h3>
+                <div class="summary-metrics">
+                    <div class="metric-item">
+                        <div class="metric-icon">
+                            <i class="fa fa-network-wired"></i>
+                        </div>
+                        <div class="metric-content">
+                            <div class="metric-value" id="totalPackets">0</div>
+                            <div class="metric-label">{{ lang._('Total Packets') }}</div>
+                        </div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-icon">
+                            <i class="fa fa-shield-alt"></i>
+                        </div>
+                        <div class="metric-content">
+                            <div class="metric-value" id="threatsFound">0</div>
+                            <div class="metric-label">{{ lang._('Threats Found') }}</div>
+                        </div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-icon">
+                            <i class="fa fa-exclamation-triangle"></i>
+                        </div>
+                        <div class="metric-content">
+                            <div class="metric-value" id="anomaliesFound">0</div>
+                            <div class="metric-label">{{ lang._('Anomalies Found') }}</div>
+                        </div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-icon">
+                            <i class="fa fa-industry"></i>
+                        </div>
+                        <div class="metric-content">
+                            <div class="metric-value" id="industrialTrafficCount">0</div>
+                            <div class="metric-label">{{ lang._('Industrial Traffic') }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Talkers -->
+            <div class="analysis-section">
+                <h3>{{ lang._('Top Talkers') }}</h3>
+                <div class="top-talkers">
+                    <div class="table-responsive">
+                        <table class="table table-sm" id="topTalkersTable">
+                            <thead>
+                                <tr>
+                                    <th>{{ lang._('IP Address') }}</th>
+                                    <th>{{ lang._('Bytes') }}</th>
+                                    <th>{{ lang._('Packets') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Top talkers will be populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Industrial Protocols Analysis -->
+            <div class="analysis-section" id="industrialAnalysis" style="display: none;">
+                <h3>{{ lang._('Industrial Protocols Analysis') }}</h3>
+                <div class="industrial-metrics">
+                    <div class="metric-item">
+                        <span class="metric-label">{{ lang._('Modbus Communications') }}:</span>
+                        <span class="metric-value" id="modbusCount">0</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">{{ lang._('DNP3 Messages') }}:</span>
+                        <span class="metric-value" id="dnp3Count">0</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">{{ lang._('OPC UA Sessions') }}:</span>
+                        <span class="metric-value" id="opcuaCount">0</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">{{ lang._('Average Latency') }}:</span>
+                        <span class="metric-value" id="avgLatency">0 μs</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Zero Trust Analysis -->
+            <div class="analysis-section">
+                <h3>{{ lang._('Zero Trust Analysis') }}</h3>
+                <div class="zero-trust-metrics">
+                    <div class="metric-item">
+                        <span class="metric-label">{{ lang._('Untrusted Connections') }}:</span>
+                        <span class="metric-value text-warning" id="untrustedConnections">0</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">{{ lang._('Blocked Attempts') }}:</span>
+                        <span class="metric-value text-danger" id="blockedAttempts">0</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">{{ lang._('Trust Score') }}:</span>
+                        <span class="metric-value" id="trustScore">100%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Analysis Details Modal -->
+<div class="modal fade" id="analysisDetailsModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ lang._('Detailed Analysis') }}</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" id="analysisDetailsBody">
+                <!-- Analysis details will be loaded here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                    {{ lang._('Close') }}
+                </button>
+                <button type="button" class="btn btn-primary" id="saveAnalysisReport">
+                    <i class="fa fa-save"></i> {{ lang._('Save Report') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Aggiungi Chart.js CDN prima del tuo script -->
 <script src="/ui/js/chart.min.js"></script>
 
@@ -453,3 +742,177 @@ function showNotification(message, type) {
     setTimeout(() => notification.alert('close'), 5000);
 }
 </script>
+
+
+<div id="notifications" style="position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px;"></div>
+
+<style>
+.analysis-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.analysis-filters {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.analysis-status {
+    margin-bottom: 1rem;
+}
+
+.status-card {
+    background: white;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    align-items: center;
+}
+
+.status-icon {
+    font-size: 2rem;
+    color: #007bff;
+    margin-right: 1rem;
+}
+
+.status-content {
+    flex: 1;
+}
+
+.status-title {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.status-value {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #28a745;
+}
+
+.analysis-section {
+    background: white;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 1rem;
+}
+
+.analysis-summary {
+    background: white;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 1rem;
+}
+
+.metric-item {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.metric-item:last-child {
+    border-bottom: none;
+}
+
+.metric-icon {
+    font-size: 1.5rem;
+    color: #007bff;
+    margin-right: 1rem;
+    width: 2rem;
+    text-align: center;
+}
+
+.metric-content {
+    flex: 1;
+}
+
+.metric-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #212529;
+}
+
+.metric-label {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.stat-item:last-child {
+    border-bottom: none;
+}
+
+.stat-label {
+    font-weight: 600;
+    color: #374151;
+}
+
+.stat-value {
+    font-family: monospace;
+    font-weight: bold;
+}
+
+.protocol-stats {
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 0.375rem;
+}
+
+.chart-container {
+    position: relative;
+    height: 300px;
+    margin-bottom: 1rem;
+}
+
+.anomaly-details-text {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    font-size: 0.875rem;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.progress {
+    height: 0.5rem;
+}
+
+.industrial-metrics .metric-item {
+    margin-bottom: 0.5rem;
+}
+
+.zero-trust-metrics .metric-item {
+    margin-bottom: 0.5rem;
+}
+
+@media (max-width: 768px) {
+    .analysis-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .analysis-controls {
+        margin-top: 1rem;
+    }
+    
+    .chart-container {
+        height: 250px;
+    }
+}
+</style>
