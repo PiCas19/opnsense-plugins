@@ -23,87 +23,156 @@ class SettingsController extends ApiMutableModelControllerBase
     }
 
     /**
-     * Get DPI settings
-     * @return array
+     * Retrieve general settings
+     * @return array deepinspector general settings content
+     * @throws \ReflectionException when not bound to model
      */
-    public function getAction()
+    public function getGeneralAction()
     {
-        $result = [];
-        if ($this->request->isGet()) {
+        return ['deepinspector' => $this->getModel()->general->getNodes(), 'result' => 'ok'];
+    }
+
+    /**
+     * Set general settings
+     * @return array save result + validation output
+     * @throws \OPNsense\Base\ValidationException when field validations fail
+     * @throws \ReflectionException when not bound to model
+     */
+    public function setGeneralAction()
+    {
+        $result = ["result" => "failed"];
+        if ($this->request->isPost()) {
             $mdl = $this->getModel();
-            $result['deepinspector'] = $mdl->getNodes();
+            $mdl->setNodes($this->request->getPost("deepinspector"));
+            $valMsgs = $mdl->performValidation();
+            
+            if ($valMsgs->count() > 0) {
+                $result["validations"] = [];
+                foreach ($valMsgs as $msg) {
+                    $field = $msg->getField();
+                    $result["validations"]["deepinspector." . $field] = $msg->getMessage();
+                }
+            } else {
+                $mdl->serializeToConfig();
+                Config::getInstance()->save();
+                $result["result"] = "saved";
+            }
         }
         return $result;
     }
 
     /**
-     * Set DPI settings
-     * @return array
+     * Retrieve protocols settings
+     * @return array deepinspector protocols settings content
+     * @throws \ReflectionException when not bound to model
      */
-    public function setAction()
+    public function getProtocolsAction()
+    {
+        return ['deepinspector' => $this->getModel()->protocols->getNodes(), 'result' => 'ok'];
+    }
+
+    /**
+     * Set protocols settings
+     * @return array save result + validation output
+     * @throws \OPNsense\Base\ValidationException when field validations fail
+     * @throws \ReflectionException when not bound to model
+     */
+    public function setProtocolsAction()
     {
         $result = ["result" => "failed"];
         if ($this->request->isPost()) {
             $mdl = $this->getModel();
+            $mdl->setNodes($this->request->getPost("deepinspector"));
+            $valMsgs = $mdl->performValidation();
             
-            // Debug: log raw POST data
-            error_log("DeepInspector setAction - Raw POST: " . print_r($this->request->getPost(), true));
-            
-            // Get the posted data
-            $postData = $this->request->getPost();
-            
-            // Extract deepinspector data
-            $deepinspectorData = [];
-            
-            // Process all posted data that starts with deepinspector.
-            foreach ($postData as $key => $value) {
-                if (strpos($key, 'deepinspector.') === 0) {
-                    // Remove the deepinspector. prefix
-                    $cleanKey = substr($key, strlen('deepinspector.'));
-                    $deepinspectorData[$cleanKey] = $value;
-                }
-            }
-            
-            // If we have the data nested under 'deepinspector' key, use that instead
-            if (isset($postData['deepinspector'])) {
-                $deepinspectorData = $postData['deepinspector'];
-            }
-            
-            error_log("DeepInspector setAction - Processed data: " . print_r($deepinspectorData, true));
-            
-            if (!empty($deepinspectorData)) {
-                try {
-                    $mdl->setNodes($deepinspectorData);
-                    $valMsgs = $mdl->performValidation();
-                    
-                    if ($valMsgs->count() > 0) {
-                        $result["validations"] = [];
-                        foreach ($valMsgs as $msg) {
-                            $field = $msg->getField();
-                            $result["validations"]["deepinspector." . $field] = $msg->getMessage();
-                        }
-                        error_log("DeepInspector validation errors: " . print_r($result["validations"], true));
-                    } else {
-                        $mdl->serializeToConfig();
-                        Config::getInstance()->save();
-                        
-                        // Export configuration for the DPI engine
-                        try {
-                            (new Backend())->configdRun("deepinspector export_config");
-                        } catch (\Exception $e) {
-                            // Log error but don't fail
-                            error_log("DeepInspector export_config failed: " . $e->getMessage());
-                        }
-                        
-                        $result["result"] = "saved";
-                    }
-                } catch (\Exception $e) {
-                    error_log("DeepInspector setAction exception: " . $e->getMessage());
-                    $result["validations"] = ["general" => "Error processing settings: " . $e->getMessage()];
+            if ($valMsgs->count() > 0) {
+                $result["validations"] = [];
+                foreach ($valMsgs as $msg) {
+                    $field = $msg->getField();
+                    $result["validations"]["deepinspector." . $field] = $msg->getMessage();
                 }
             } else {
-                error_log("DeepInspector setAction - No valid data found in POST");
-                $result["validations"] = ["general" => "No configuration data received"];
+                $mdl->serializeToConfig();
+                Config::getInstance()->save();
+                $result["result"] = "saved";
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * Retrieve detection settings
+     * @return array deepinspector detection settings content
+     * @throws \ReflectionException when not bound to model
+     */
+    public function getDetectionAction()
+    {
+        return ['deepinspector' => $this->getModel()->detection->getNodes(), 'result' => 'ok'];
+    }
+
+    /**
+     * Set detection settings
+     * @return array save result + validation output
+     * @throws \OPNsense\Base\ValidationException when field validations fail
+     * @throws \ReflectionException when not bound to model
+     */
+    public function setDetectionAction()
+    {
+        $result = ["result" => "failed"];
+        if ($this->request->isPost()) {
+            $mdl = $this->getModel();
+            $mdl->setNodes($this->request->getPost("deepinspector"));
+            $valMsgs = $mdl->performValidation();
+            
+            if ($valMsgs->count() > 0) {
+                $result["validations"] = [];
+                foreach ($valMsgs as $msg) {
+                    $field = $msg->getField();
+                    $result["validations"]["deepinspector." . $field] = $msg->getMessage();
+                }
+            } else {
+                $mdl->serializeToConfig();
+                Config::getInstance()->save();
+                $result["result"] = "saved";
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * Retrieve advanced settings
+     * @return array deepinspector advanced settings content
+     * @throws \ReflectionException when not bound to model
+     */
+    public function getAdvancedAction()
+    {
+        return ['deepinspector' => $this->getModel()->advanced->getNodes(), 'result' => 'ok'];
+    }
+
+    /**
+     * Set advanced settings
+     * @return array save result + validation output
+     * @throws \OPNsense\Base\ValidationException when field validations fail
+     * @throws \ReflectionException when not bound to model
+     */
+    public function setAdvancedAction()
+    {
+        $result = ["result" => "failed"];
+        if ($this->request->isPost()) {
+            $mdl = $this->getModel();
+            $mdl->setNodes($this->request->getPost("deepinspector"));
+            $valMsgs = $mdl->performValidation();
+            
+            if ($valMsgs->count() > 0) {
+                $result["validations"] = [];
+                foreach ($valMsgs as $msg) {
+                    $field = $msg->getField();
+                    $result["validations"]["deepinspector." . $field] = $msg->getMessage();
+                }
+            } else {
+                $mdl->serializeToConfig();
+                Config::getInstance()->save();
+                $result["result"] = "saved";
             }
         }
         return $result;
@@ -137,165 +206,6 @@ class SettingsController extends ApiMutableModelControllerBase
                 ];
             }
             return ['status' => 'ok', 'data' => $stats];
-        } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => $e->getMessage()];
-        }
-    }
-
-    /**
-     * Update threat signatures
-     * @return array
-     */
-    public function updateSignaturesAction()
-    {
-        try {
-            $backend = new Backend();
-            $response = $backend->configdRun("deepinspector update_signatures");
-            return ['status' => 'ok', 'message' => 'Signature update initiated'];
-        } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => $e->getMessage()];
-        }
-    }
-
-    /**
-     * Test DPI engine with sample data
-     * @return array
-     */
-    public function testEngineAction()
-    {
-        try {
-            $backend = new Backend();
-            $response = $backend->configdRun("deepinspector test_engine");
-            $result = json_decode($response, true);
-            return ['status' => 'ok', 'data' => $result];
-        } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => $e->getMessage()];
-        }
-    }
-
-    /**
-     * Get industrial protocol statistics
-     * @return array
-     */
-    public function industrialStatsAction()
-    {
-        try {
-            $backend = new Backend();
-            $response = $backend->configdRun("deepinspector get_industrial_stats");
-            $stats = json_decode($response, true);
-            if (!$stats) {
-                $stats = [
-                    'modbus_packets' => 0,
-                    'dnp3_packets' => 0,
-                    'opcua_packets' => 0,
-                    'scada_alerts' => 0,
-                    'plc_communications' => 0,
-                    'industrial_threats' => 0,
-                    'avg_latency' => 0,
-                    'protocol_distribution' => []
-                ];
-            }
-            return ['status' => 'ok', 'data' => $stats];
-        } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => $e->getMessage()];
-        }
-    }
-
-    /**
-     * Get latency metrics for industrial environments
-     * @return array
-     */
-    public function latencyMetricsAction()
-    {
-        try {
-            $backend = new Backend();
-            $response = $backend->configdRun("deepinspector get_latency_metrics");
-            $metrics = json_decode($response, true);
-            if (!$metrics) {
-                $metrics = [
-                    'avg_latency' => 0,
-                    'max_latency' => 0,
-                    'min_latency' => 0,
-                    'latency_distribution' => [],
-                    'threshold_violations' => 0,
-                    'industrial_impact' => 'none'
-                ];
-            }
-            return ['status' => 'ok', 'data' => $metrics];
-        } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => $e->getMessage()];
-        }
-    }
-
-    /**
-     * Apply industrial optimization settings
-     * @return array
-     */
-    public function applyIndustrialOptimizationAction()
-    {
-        try {
-            $mdl = $this->getModel();
-            $recommendations = $mdl->getIndustrialRecommendations();
-            
-            // Apply recommended settings
-            foreach ($recommendations as $key => $value) {
-                $node = $mdl->getNodeByReference('general.' . $key);
-                if ($node) {
-                    $node->setValue($value);
-                }
-            }
-            
-            $mdl->serializeToConfig();
-            Config::getInstance()->save();
-            
-            $backend = new Backend();
-            $backend->configdRun("deepinspector reconfigure");
-            
-            return ['status' => 'ok', 'message' => 'Industrial optimization applied'];
-        } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => $e->getMessage()];
-        }
-    }
-
-    /**
-     * Get Zero Trust compliance status
-     * @return array
-     */
-    public function zeroTrustStatusAction()
-    {
-        try {
-            $mdl = $this->getModel();
-            $general = $mdl->getNodeByReference('general');
-            $protocols = $mdl->getNodeByReference('protocols');
-            $detection = $mdl->getNodeByReference('detection');
-            
-            $compliance = [
-                'overall_score' => 0,
-                'checks' => [
-                    'deep_inspection_enabled' => (string)$general->malware_detection === '1',
-                    'all_protocols_inspected' => true,
-                    'ssl_inspection_enabled' => (string)$general->ssl_inspection === '1',
-                    'anomaly_detection_enabled' => (string)$general->anomaly_detection === '1',
-                    'industrial_protocols_covered' => (string)$protocols->industrial_protocols === '1',
-                    'zero_day_protection' => (string)$detection->zero_day_heuristics === '1'
-                ],
-                'recommendations' => []
-            ];
-            
-            // Calculate compliance score
-            $passed = array_sum($compliance['checks']);
-            $total = count($compliance['checks']);
-            $compliance['overall_score'] = round(($passed / $total) * 100);
-            
-            // Generate recommendations
-            if (!$compliance['checks']['ssl_inspection_enabled']) {
-                $compliance['recommendations'][] = 'Enable SSL/TLS inspection for complete Zero Trust coverage';
-            }
-            if (!$compliance['checks']['industrial_protocols_covered']) {
-                $compliance['recommendations'][] = 'Enable industrial protocol inspection for OT environments';
-            }
-            
-            return ['status' => 'ok', 'data' => $compliance];
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => $e->getMessage()];
         }

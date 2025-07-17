@@ -10,6 +10,7 @@
         <id>deepinspector.general.mode</id>
         <label>Operation Mode</label>
         <type>dropdown</type>
+        <style>selectpicker</style>
         <help>
             <![CDATA[
             Select the DPI operation mode:<br/>
@@ -23,14 +24,17 @@
     <field>
         <id>deepinspector.general.interfaces</id>
         <label>Monitored Interfaces</label>
-        <type>dropdown</type>
+        <type>select_multiple</type>
+        <style>selectpicker</style>
         <help>Select the network interfaces to monitor for deep packet inspection. Traffic on these interfaces will be analyzed for threats.</help>
     </field>
     
     <field>
         <id>deepinspector.general.trusted_networks</id>
         <label>Trusted Networks</label>
-        <type>text</type>
+        <type>select_multiple</type>
+        <style>tokenize</style>
+        <allownew>true</allownew>
         <help>
             <![CDATA[
             Define networks considered trusted (comma-separated CIDR format).<br/>
@@ -50,7 +54,9 @@
     <field>
         <id>deepinspector.general.deep_scan_ports</id>
         <label>Deep Scan Ports</label>
-        <type>text</type>
+        <type>select_multiple</type>
+        <style>tokenize</style>
+        <allownew>true</allownew>
         <help>
             <![CDATA[
             Ports that require deep content analysis (comma-separated).<br/>
@@ -92,6 +98,7 @@
         <id>deepinspector.general.performance_profile</id>
         <label>Performance Profile</label>
         <type>dropdown</type>
+        <style>selectpicker</style>
         <help>
             <![CDATA[
             Balance between performance and security:<br/>
@@ -122,6 +129,7 @@
         <id>deepinspector.general.log_level</id>
         <label>Log Level</label>
         <type>dropdown</type>
+        <style>selectpicker</style>
         <help>
             <![CDATA[
             Set the verbosity of logging output:<br/>
