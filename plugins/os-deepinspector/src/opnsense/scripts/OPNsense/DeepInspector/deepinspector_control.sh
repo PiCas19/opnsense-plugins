@@ -1,3 +1,4 @@
+
 #!/bin/sh
 
 # DeepInspector Control Script - Simple Version
@@ -22,7 +23,9 @@ log_action() {
 
 # Function to validate IP address
 validate_ip() {
-    echo "$1" | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}'
+    echo "$1" | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$' >/dev/null 2>&1
+    return $?
+}
 
 case "$1" in
     block_ip)
