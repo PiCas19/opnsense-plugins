@@ -22,14 +22,14 @@
                 <ValidationMessage>Select the DPI operation mode.</ValidationMessage>
             </mode>
             
-            <interfaces type="InterfaceField">
+           <interfaces type="InterfaceField">
                 <Required>Y</Required>
                 <Multiple>Y</Multiple>
-                 <asList>N</asList>
+                <style>selectpicker</style>    
+                <asList>N</asList>
                 <AddParentDevices>Y</AddParentDevices>
-                <ValidationMessage>Please choose at least one interface.</ValidationMessage>
+                <ValidationMessage>Please choose at least one interface to monitor.</ValidationMessage>
             </interfaces>
-            
             <trusted_networks type="NetworkField">
                 <Required>N</Required>
                 <FieldSeparator>,</FieldSeparator>
