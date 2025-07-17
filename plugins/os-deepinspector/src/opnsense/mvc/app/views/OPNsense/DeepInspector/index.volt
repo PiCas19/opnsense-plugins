@@ -136,26 +136,55 @@ $(function() {
             var formData = { deepinspector: {} };
             var $form = $('#' + formId);
             
+            console.log("Form found:", $form.length, "Form ID:", formId);
+            console.log("Form fields found:", $form.find('input, select, textarea').length);
+            
             // Serializza tutti i campi del form
             $form.find('input, select, textarea').each(function() {
                 var $field = $(this);
+                var id = $field.attr('id');
                 var name = $field.attr('name');
                 
-                if (name && name.indexOf('deepinspector.') === 0) {
-                    // Rimuovi il prefisso deepinspector.
-                    var cleanName = name.substring(13);
+                console.log("Processing field - ID:", id, "Name:", name, "Type:", $field.prop('type'), "Value:", $field.val());
+                
+                // Usa l'ID se il name non è presente o usa il name direttamente
+                var fieldName = name || id;
+                
+                if (fieldName) {
+                    // Se il nome/id inizia con deepinspector., rimuovi il prefisso
+                    var cleanName = fieldName.indexOf('deepinspector.') === 0 ? 
+                        fieldName.substring(13) : fieldName;
                     
                     if ($field.is(':checkbox')) {
                         formData.deepinspector[cleanName] = $field.is(':checked') ? '1' : '0';
-                    } else if ($field.is('select[multiple]')) {
-                        formData.deepinspector[cleanName] = $field.val() ? $field.val().join(',') : '';
+                    } else if ($field.is('select[multiple]') || $field.attr('multiple') === 'multiple') {
+                        // Gestione select multipli
+                        var selectedValues = $field.val();
+                        if (selectedValues && selectedValues.length > 0) {
+                            formData.deepinspector[cleanName] = selectedValues.join(',');
+                        } else {
+                            formData.deepinspector[cleanName] = '';
+                        }
                     } else {
                         formData.deepinspector[cleanName] = $field.val() || '';
                     }
                 }
             });
             
-            console.log("Saving data for " + formId + ":", formData);
+            // Fallback: se non abbiamo trovato campi, prova con la serializzazione standard
+            if (Object.keys(formData.deepinspector).length === 0) {
+                console.log("No fields found, trying standard serialization");
+                var serializedArray = $form.serializeArray();
+                console.log("Serialized array:", serializedArray);
+                
+                $.each(serializedArray, function(i, field) {
+                    var cleanName = field.name.indexOf('deepinspector.') === 0 ? 
+                        field.name.substring(13) : field.name;
+                    formData.deepinspector[cleanName] = field.value;
+                });
+            }
+            
+            console.log("Final form data:", formData);
             
             // Salva i dati prima di applicare
             ajaxCall("/api/deepinspector/settings/set", formData,
@@ -235,6 +264,11 @@ $(function() {
         console.log("Initial data loaded:", data);
         $('.selectpicker').selectpicker('refresh');
         formatTokenizersUI();
+        
+        // Forza il refresh dei selectpicker dopo un breve delay
+        setTimeout(function() {
+            $('.selectpicker').selectpicker('refresh');
+        }, 100);
     }).fail(function(error) {
         console.error("Failed to load initial data:", error);
     });
