@@ -25,10 +25,9 @@
             <interfaces type="InterfaceField">
                 <Required>Y</Required>
                 <Multiple>Y</Multiple>
-                <style>selectpicker</style>    
-                <asList>N</asList>
+                 <asList>N</asList>
                 <AddParentDevices>Y</AddParentDevices>
-                <ValidationMessage>Please choose at least one interface to monitor.</ValidationMessage>
+                <ValidationMessage>Please choose at least one interface.</ValidationMessage>
             </interfaces>
             
             <trusted_networks type="NetworkField">
