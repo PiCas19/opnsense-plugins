@@ -19,7 +19,7 @@ log_action() {
 
 # Function to validate IP address
 validate_ip() {
-    echo "$1" | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$' > /dev/null
+    echo "$1" | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3} > /dev/null
     return $?
 }
 
@@ -36,12 +36,26 @@ case "$1" in
             exit 1
         fi
         
-        # Add to pfctl table
-        /sbin/pfctl -t $PFCTL_TABLE -T add "$IP" 2>/dev/null || {
-            # Create table if it doesn't exist
-            echo "table <$PFCTL_TABLE> persist" | /sbin/pfctl -f -
-            /sbin/pfctl -t $PFCTL_TABLE -T add "$IP"
-        }
+        # Try to find pfctl in common locations
+        PFCTL=""
+        for path in /sbin/pfctl /usr/sbin/pfctl /usr/local/sbin/pfctl; do
+            if [ -x "$path" ]; then
+                PFCTL="$path"
+                break
+            fi
+        done
+        
+        if [ -z "$PFCTL" ]; then
+            log_action "ERROR: pfctl not found - IP blocking disabled"
+            echo "WARNING: pfctl not found, only logging IP: $IP"
+        else
+            # Add to pfctl table
+            $PFCTL -t $PFCTL_TABLE -T add "$IP" 2>/dev/null || {
+                # Create table if it doesn't exist
+                echo "table <$PFCTL_TABLE> persist" | $PFCTL -f -
+                $PFCTL -t $PFCTL_TABLE -T add "$IP"
+            }
+        fi
         
         # Add to blocked IPs file
         if ! grep -q "^$IP$" "$BLOCKED_IPS_FILE" 2>/dev/null; then
@@ -64,12 +78,23 @@ case "$1" in
             exit 1
         fi
         
-        # Remove from pfctl table
-        /sbin/pfctl -t $PFCTL_TABLE -T delete "$IP" 2>/dev/null
+        # Try to find pfctl
+        PFCTL=""
+        for path in /sbin/pfctl /usr/sbin/pfctl /usr/local/sbin/pfctl; do
+            if [ -x "$path" ]; then
+                PFCTL="$path"
+                break
+            fi
+        done
+        
+        if [ -n "$PFCTL" ]; then
+            # Remove from pfctl table
+            $PFCTL -t $PFCTL_TABLE -T delete "$IP" 2>/dev/null
+        fi
         
         # Remove from blocked IPs file
         if [ -f "$BLOCKED_IPS_FILE" ]; then
-            grep -v "^$IP$" "$BLOCKED_IPS_FILE" > "$BLOCKED_IPS_FILE.tmp" 2>/dev/null
+            grep -v "^$IP$" "$BLOCKED_IPS_FILE" > "$BLOCKED_IPS_FILE.tmp" 2>/dev/null || touch "$BLOCKED_IPS_FILE.tmp"
             mv "$BLOCKED_IPS_FILE.tmp" "$BLOCKED_IPS_FILE" 2>/dev/null
         fi
         
@@ -96,12 +121,23 @@ case "$1" in
         
         # Remove from blocked list if present
         if [ -f "$BLOCKED_IPS_FILE" ]; then
-            grep -v "^$IP$" "$BLOCKED_IPS_FILE" > "$BLOCKED_IPS_FILE.tmp" 2>/dev/null
+            grep -v "^$IP$" "$BLOCKED_IPS_FILE" > "$BLOCKED_IPS_FILE.tmp" 2>/dev/null || touch "$BLOCKED_IPS_FILE.tmp"
             mv "$BLOCKED_IPS_FILE.tmp" "$BLOCKED_IPS_FILE" 2>/dev/null
         fi
         
-        # Remove from pfctl table
-        /sbin/pfctl -t $PFCTL_TABLE -T delete "$IP" 2>/dev/null
+        # Try to find pfctl
+        PFCTL=""
+        for path in /sbin/pfctl /usr/sbin/pfctl /usr/local/sbin/pfctl; do
+            if [ -x "$path" ]; then
+                PFCTL="$path"
+                break
+            fi
+        done
+        
+        if [ -n "$PFCTL" ]; then
+            # Remove from pfctl table
+            $PFCTL -t $PFCTL_TABLE -T delete "$IP" 2>/dev/null
+        fi
         
         log_action "Whitelisted IP: $IP"
         echo "OK"
