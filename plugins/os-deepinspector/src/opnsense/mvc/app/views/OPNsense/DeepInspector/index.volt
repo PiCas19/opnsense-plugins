@@ -144,30 +144,38 @@ $(function() {
                 var $field = $(this);
                 var id = $field.attr('id');
                 var name = $field.attr('name');
+                var fieldValue = $field.val();
                 
-                console.log("Processing field - ID:", id, "Name:", name, "Type:", $field.prop('type'), "Value:", $field.val());
+                console.log("Processing field - ID:", id, "Name:", name, "Type:", $field.prop('type'), "Value:", fieldValue);
                 
                 // Usa l'ID se il name non è presente o usa il name direttamente
                 var fieldName = name || id;
                 
-                if (fieldName) {
-                    // Se il nome/id inizia con deepinspector., rimuovi il prefisso
-                    var cleanName = fieldName.indexOf('deepinspector.') === 0 ? 
-                        fieldName.substring(13) : fieldName;
-                    
-                    if ($field.is(':checkbox')) {
-                        formData.deepinspector[cleanName] = $field.is(':checked') ? '1' : '0';
-                    } else if ($field.is('select[multiple]') || $field.attr('multiple') === 'multiple') {
-                        // Gestione select multipli
-                        var selectedValues = $field.val();
-                        if (selectedValues && selectedValues.length > 0) {
-                            formData.deepinspector[cleanName] = selectedValues.join(',');
-                        } else {
-                            formData.deepinspector[cleanName] = '';
-                        }
+                // Skip se né ID né name sono presenti
+                if (!fieldName) {
+                    console.log("Skipping field - no ID or name");
+                    return;
+                }
+                
+                // Se il nome/id inizia con deepinspector., rimuovi il prefisso
+                var cleanName = fieldName.indexOf('deepinspector.') === 0 ? 
+                    fieldName.substring(13) : fieldName;
+                
+                console.log("Clean name:", cleanName);
+                
+                if ($field.is(':checkbox')) {
+                    formData.deepinspector[cleanName] = $field.is(':checked') ? '1' : '0';
+                } else if ($field.is('select[multiple]') || $field.attr('multiple') === 'multiple' || $field.hasClass('selectpicker')) {
+                    // Gestione select multipli (inclusi selectpicker)
+                    var selectedValues = $field.val();
+                    console.log("Multi-select values:", selectedValues);
+                    if (selectedValues && selectedValues.length > 0) {
+                        formData.deepinspector[cleanName] = Array.isArray(selectedValues) ? selectedValues.join(',') : selectedValues;
                     } else {
-                        formData.deepinspector[cleanName] = $field.val() || '';
+                        formData.deepinspector[cleanName] = '';
                     }
+                } else {
+                    formData.deepinspector[cleanName] = fieldValue || '';
                 }
             });
             
@@ -178,10 +186,38 @@ $(function() {
                 console.log("Serialized array:", serializedArray);
                 
                 $.each(serializedArray, function(i, field) {
-                    var cleanName = field.name.indexOf('deepinspector.') === 0 ? 
-                        field.name.substring(13) : field.name;
-                    formData.deepinspector[cleanName] = field.value;
+                    if (field.name) {
+                        var cleanName = field.name.indexOf('deepinspector.') === 0 ? 
+                            field.name.substring(13) : field.name;
+                        formData.deepinspector[cleanName] = field.value;
+                    }
                 });
+                
+                // Se ancora non abbiamo dati, prova a raccogliere manualmente tutti i campi visibili
+                if (Object.keys(formData.deepinspector).length === 0) {
+                    console.log("Standard serialization failed, trying manual collection");
+                    $form.find('input:visible, select:visible, textarea:visible').each(function() {
+                        var $field = $(this);
+                        var fieldId = $field.attr('id');
+                        
+                        if (fieldId && fieldId.indexOf('deepinspector.') === 0) {
+                            var cleanName = fieldId.substring(13);
+                            
+                            if ($field.is(':checkbox')) {
+                                formData.deepinspector[cleanName] = $field.is(':checked') ? '1' : '0';
+                            } else if ($field.is('select')) {
+                                var val = $field.val();
+                                if (Array.isArray(val)) {
+                                    formData.deepinspector[cleanName] = val.join(',');
+                                } else {
+                                    formData.deepinspector[cleanName] = val || '';
+                                }
+                            } else {
+                                formData.deepinspector[cleanName] = $field.val() || '';
+                            }
+                        }
+                    });
+                }
             }
             
             console.log("Final form data:", formData);
