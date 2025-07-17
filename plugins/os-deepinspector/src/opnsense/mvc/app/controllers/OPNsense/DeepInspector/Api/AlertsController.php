@@ -30,21 +30,28 @@ class AlertsController extends ApiControllerBase
                     if ($alert && isset($alert['id']) && $alert['id'] === $threatId) {
                         $result["status"] = "ok";
                         $result["data"] = [
+                            'id' => $alert['id'],
                             'threat_id' => $alert['id'],
                             'timestamp' => $alert['timestamp'],
                             'source_ip' => $alert['source_ip'],
+                            'source_port' => $alert['source_port'] ?? null,
                             'destination_ip' => $alert['destination_ip'],
+                            'destination_port' => $alert['destination_port'] ?? null,
                             'threat_type' => $alert['threat_type'],
                             'severity' => $alert['severity'],
                             'protocol' => $alert['protocol'],
                             'description' => $alert['description'],
                             'detection_method' => $alert['detection_method'] ?? 'Unknown',
+                            'method' => $alert['detection_method'] ?? 'Unknown',
+                            'pattern' => $alert['pattern'] ?? 'N/A',
                             'industrial_context' => $alert['industrial_context'] ?? false,
                             'industrial_protocol' => $alert['industrial_protocol'] ?? null,
                             'zero_trust_triggered' => $alert['zero_trust_triggered'] ?? false,
                             'status' => 'active',
                             'first_seen' => $alert['timestamp'],
-                            'last_seen' => $alert['timestamp']
+                            'last_seen' => $alert['timestamp'],
+                            'interface' => $alert['interface'] ?? null,
+                            'packet_data' => $alert['packet_data'] ?? null
                         ];
                         break;
                     }
@@ -63,10 +70,10 @@ class AlertsController extends ApiControllerBase
     }
     
     /**
-     * Get all alerts with pagination
+     * Get alerts list with filtering and pagination
      * @return array alerts list
      */
-    public function getAllAction()
+    public function listAction()
     {
         $result = ["status" => "ok"];
         
@@ -74,63 +81,186 @@ class AlertsController extends ApiControllerBase
             $alertsFile = '/var/log/deepinspector/alerts.log';
             $alerts = [];
             
+            // Get filter parameters
+            $severityFilter = $this->request->get('severity', 'all');
+            $typeFilter = $this->request->get('type', 'all');
+            $timeFilter = $this->request->get('time', '24h');
+            $sourceFilter = $this->request->get('source', '');
+            $page = intval($this->request->get('page', 1));
+            $limit = intval($this->request->get('limit', 50));
+            
             if (file_exists($alertsFile)) {
                 $lines = file($alertsFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                $filteredAlerts = [];
                 
-                // Get pagination parameters
-                $page = $this->request->get('page', 1);
-                $limit = $this->request->get('limit', 50);
-                $offset = ($page - 1) * $limit;
+                // Calculate time filter
+                $timeLimit = $this->calculateTimeLimit($timeFilter);
                 
-                // Reverse to get newest first
-                $lines = array_reverse($lines);
-                $totalLines = count($lines);
-                
-                // Apply pagination
-                $paginatedLines = array_slice($lines, $offset, $limit);
-                
-                foreach ($paginatedLines as $line) {
+                foreach ($lines as $line) {
                     $alert = json_decode($line, true);
-                    if ($alert) {
-                        $alerts[] = [
+                    if ($alert && $this->matchesFilters($alert, $severityFilter, $typeFilter, $sourceFilter, $timeLimit)) {
+                        $filteredAlerts[] = [
                             'id' => $alert['id'] ?? uniqid(),
                             'timestamp' => $alert['timestamp'] ?? date('c'),
                             'source_ip' => $alert['source_ip'] ?? 'Unknown',
+                            'source_port' => $alert['source_port'] ?? null,
                             'destination_ip' => $alert['destination_ip'] ?? 'Unknown',
+                            'destination_port' => $alert['destination_port'] ?? null,
                             'threat_type' => $alert['threat_type'] ?? 'Unknown',
                             'severity' => $alert['severity'] ?? 'medium',
                             'protocol' => $alert['protocol'] ?? 'Unknown',
                             'description' => $alert['description'] ?? 'No description',
-                            'industrial_context' => $alert['industrial_context'] ?? false
+                            'industrial_context' => $alert['industrial_context'] ?? false,
+                            'detection_method' => $alert['detection_method'] ?? 'Unknown'
                         ];
                     }
                 }
                 
-                $result["data"] = [
-                    'alerts' => $alerts,
-                    'pagination' => [
-                        'page' => $page,
-                        'limit' => $limit,
-                        'total' => $totalLines,
-                        'pages' => ceil($totalLines / $limit)
-                    ]
+                // Sort by timestamp (newest first)
+                usort($filteredAlerts, function($a, $b) {
+                    return strtotime($b['timestamp']) - strtotime($a['timestamp']);
+                });
+                
+                // Apply pagination
+                $totalAlerts = count($filteredAlerts);
+                $offset = ($page - 1) * $limit;
+                $paginatedAlerts = array_slice($filteredAlerts, $offset, $limit);
+                
+                $result["data"] = $paginatedAlerts;
+                $result["pagination"] = [
+                    'page' => $page,
+                    'limit' => $limit,
+                    'total' => $totalAlerts,
+                    'pages' => ceil($totalAlerts / $limit)
                 ];
             } else {
-                $result["data"] = [
-                    'alerts' => [],
-                    'pagination' => [
-                        'page' => 1,
-                        'limit' => $limit,
-                        'total' => 0,
-                        'pages' => 0
-                    ]
+                $result["data"] = [];
+                $result["pagination"] = [
+                    'page' => 1,
+                    'limit' => $limit,
+                    'total' => 0,
+                    'pages' => 0
                 ];
             }
             
         } catch (Exception $e) {
             $result["status"] = "error";
             $result["message"] = "Error retrieving alerts: " . $e->getMessage();
-            $result["data"] = ['alerts' => [], 'pagination' => []];
+            $result["data"] = [];
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Get all alerts with pagination (alias for listAction)
+     * @return array alerts list
+     */
+    public function getAllAction()
+    {
+        return $this->listAction();
+    }
+    
+    /**
+     * Export alerts to CSV
+     * @return array export result
+     */
+    public function exportAction()
+    {
+        $result = ["status" => "failed"];
+        
+        try {
+            $alertsFile = '/var/log/deepinspector/alerts.log';
+            
+            // Get filter parameters
+            $severityFilter = $this->request->get('severity', 'all');
+            $typeFilter = $this->request->get('type', 'all');
+            $timeFilter = $this->request->get('time', '24h');
+            $sourceFilter = $this->request->get('source', '');
+            $format = $this->request->get('format', 'csv');
+            
+            if (file_exists($alertsFile)) {
+                $lines = file($alertsFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                $filteredAlerts = [];
+                
+                // Calculate time filter
+                $timeLimit = $this->calculateTimeLimit($timeFilter);
+                
+                foreach ($lines as $line) {
+                    $alert = json_decode($line, true);
+                    if ($alert && $this->matchesFilters($alert, $severityFilter, $typeFilter, $sourceFilter, $timeLimit)) {
+                        $filteredAlerts[] = $alert;
+                    }
+                }
+                
+                // Sort by timestamp (newest first)
+                usort($filteredAlerts, function($a, $b) {
+                    return strtotime($b['timestamp']) - strtotime($a['timestamp']);
+                });
+                
+                if ($format === 'csv') {
+                    $csvData = $this->generateCSV($filteredAlerts);
+                    $result["status"] = "ok";
+                    $result["data"] = $csvData;
+                } else {
+                    $result["status"] = "ok";
+                    $result["data"] = json_encode($filteredAlerts, JSON_PRETTY_PRINT);
+                }
+            } else {
+                $result["message"] = "Alerts file not found";
+            }
+            
+        } catch (Exception $e) {
+            $result["message"] = "Error exporting alerts: " . $e->getMessage();
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Clear old alerts
+     * @return array result
+     */
+    public function clearOldAction()
+    {
+        $result = ["status" => "failed"];
+        
+        try {
+            $alertsFile = '/var/log/deepinspector/alerts.log';
+            $backupFile = $alertsFile . '.backup.' . date('Y-m-d');
+            
+            if (file_exists($alertsFile)) {
+                $lines = file($alertsFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                $cutoffTime = time() - (30 * 24 * 60 * 60); // 30 days ago
+                $newLines = [];
+                $removedCount = 0;
+                
+                foreach ($lines as $line) {
+                    $alert = json_decode($line, true);
+                    if ($alert && isset($alert['timestamp'])) {
+                        $alertTime = strtotime($alert['timestamp']);
+                        if ($alertTime > $cutoffTime) {
+                            $newLines[] = $line;
+                        } else {
+                            $removedCount++;
+                        }
+                    }
+                }
+                
+                // Backup old file
+                copy($alertsFile, $backupFile);
+                
+                // Write new file
+                file_put_contents($alertsFile, implode("\n", $newLines) . "\n");
+                
+                $result["status"] = "ok";
+                $result["message"] = "Removed $removedCount old alerts";
+            } else {
+                $result["message"] = "Alerts file not found";
+            }
+            
+        } catch (Exception $e) {
+            $result["message"] = "Error clearing old alerts: " . $e->getMessage();
         }
         
         return $result;
@@ -294,5 +424,103 @@ class AlertsController extends ApiControllerBase
         }
         
         return $result;
+    }
+    
+    /**
+     * Helper method to calculate time limit based on filter
+     * @param string $timeFilter time filter value
+     * @return int timestamp limit
+     */
+    private function calculateTimeLimit($timeFilter)
+    {
+        $now = time();
+        
+        switch ($timeFilter) {
+            case '1h':
+                return $now - 3600;
+            case '24h':
+                return $now - 86400;
+            case '7d':
+                return $now - 604800;
+            case '30d':
+                return $now - 2592000;
+            case 'all':
+            default:
+                return 0;
+        }
+    }
+    
+    /**
+     * Helper method to check if alert matches filters
+     * @param array $alert alert data
+     * @param string $severityFilter severity filter
+     * @param string $typeFilter type filter
+     * @param string $sourceFilter source IP filter
+     * @param int $timeLimit time limit timestamp
+     * @return bool true if matches
+     */
+    private function matchesFilters($alert, $severityFilter, $typeFilter, $sourceFilter, $timeLimit)
+    {
+        // Time filter
+        if ($timeLimit > 0) {
+            $alertTime = strtotime($alert['timestamp'] ?? '');
+            if ($alertTime < $timeLimit) {
+                return false;
+            }
+        }
+        
+        // Severity filter
+        if ($severityFilter !== 'all') {
+            $alertSeverity = $alert['severity'] ?? 'medium';
+            if ($alertSeverity !== $severityFilter) {
+                return false;
+            }
+        }
+        
+        // Type filter
+        if ($typeFilter !== 'all') {
+            $alertType = $alert['threat_type'] ?? 'unknown';
+            if ($alertType !== $typeFilter) {
+                return false;
+            }
+        }
+        
+        // Source IP filter
+        if (!empty($sourceFilter)) {
+            $sourceIP = $alert['source_ip'] ?? '';
+            if (stripos($sourceIP, $sourceFilter) === false) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Generate CSV from alerts data
+     * @param array $alerts alerts data
+     * @return string CSV content
+     */
+    private function generateCSV($alerts)
+    {
+        $csv = "Timestamp,Severity,Threat Type,Source IP,Source Port,Destination IP,Destination Port,Protocol,Description,Industrial Context,Detection Method\n";
+        
+        foreach ($alerts as $alert) {
+            $csv .= sprintf('"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"' . "\n",
+                $alert['timestamp'] ?? '',
+                $alert['severity'] ?? 'medium',
+                $alert['threat_type'] ?? 'unknown',
+                $alert['source_ip'] ?? '',
+                $alert['source_port'] ?? '',
+                $alert['destination_ip'] ?? '',
+                $alert['destination_port'] ?? '',
+                $alert['protocol'] ?? '',
+                str_replace('"', '""', $alert['description'] ?? ''),
+                ($alert['industrial_context'] ?? false) ? 'Yes' : 'No',
+                $alert['detection_method'] ?? 'Unknown'
+            );
+        }
+        
+        return $csv;
     }
 }

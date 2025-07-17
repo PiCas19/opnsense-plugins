@@ -833,9 +833,18 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
     
+    # Check if running as root (required for packet capture)
+    if os.geteuid() != 0:
+        logger.error("This script must be run as root for packet capture")
+        return 1
+    
     # Save PID
-    with open(PID_FILE, 'w') as f:
-        f.write(str(os.getpid()))
+    try:
+        with open(PID_FILE, 'w') as f:
+            f.write(str(os.getpid()))
+    except Exception as e:
+        logger.error(f"Failed to write PID file: {e}")
+        return 1
     
     logger.info("Starting Deep Packet Inspector Engine")
     
@@ -850,3 +859,116 @@ def main():
     # Check if enabled
     if not config['general']['enabled']:
         logger.info("DPI engine is disabled in configuration")
+        return 0
+        return 0
+        
+    # Get and resolve interfaces
+    logical_interfaces = config['general']['interfaces']
+    if not logical_interfaces:
+        logger.error("No interfaces configured for monitoring")
+        return 1
+        
+    # Convert logical interface names to physical interface names
+    physical_interfaces = resolve_interfaces(logical_interfaces)
+    if not physical_interfaces:
+        logger.error("No valid interfaces found after resolution")
+        return 1
+        
+    logger.info(f"Starting packet capture on interfaces: {physical_interfaces}")
+    
+    # Validate interfaces exist
+    valid_interfaces = []
+    for interface in physical_interfaces:
+        try:
+            result = subprocess.run(['ifconfig', interface], capture_output=True, text=True)
+            if result.returncode == 0:
+                valid_interfaces.append(interface)
+                logger.info(f"Interface {interface} is valid and active")
+            else:
+                logger.error(f"Interface {interface} is not available")
+        except Exception as e:
+            logger.error(f"Error checking interface {interface}: {e}")
+    
+    if not valid_interfaces:
+        logger.error("No valid interfaces found")
+        return 1
+        
+    # Statistics thread
+    def stats_worker():
+        while running:
+            save_stats()
+            time.sleep(60)
+    
+    stats_thread = threading.Thread(target=stats_worker)
+    stats_thread.daemon = True
+    stats_thread.start()
+    
+    # Capture threads for each interface
+    capture_threads = []
+    
+    def capture_worker(interface):
+        """Worker function for packet capture on a specific interface"""
+        logger.info(f"Starting capture worker for interface: {interface}")
+        
+        try:
+            # Open packet capture
+            cap = pcapy.open_live(interface, 
+                                config['general']['max_packet_size'], 
+                                1,  # promiscuous mode
+                                100)  # timeout in ms
+            
+            logger.info(f"Successfully opened capture on interface: {interface}")
+            
+            # Main capture loop
+            while running:
+                try:
+                    header, packet = cap.next()
+                    if packet:
+                        analyze_packet(packet, datetime.now())
+                except pcapy.PcapError as e:
+                    if "timeout" not in str(e).lower():
+                        logger.error(f"Pcap error on {interface}: {e}")
+                        break
+                except Exception as e:
+                    logger.error(f"Error processing packet on {interface}: {e}")
+                    
+        except Exception as e:
+            logger.error(f"Failed to open capture on interface {interface}: {e}")
+            
+        logger.info(f"Capture worker for {interface} stopped")
+    
+    # Start capture threads
+    for interface in valid_interfaces:
+        thread = threading.Thread(target=capture_worker, args=(interface,))
+        thread.daemon = True
+        capture_threads.append(thread)
+        thread.start()
+    
+    # Main loop - wait for threads and handle signals
+    try:
+        while running and any(thread.is_alive() for thread in capture_threads):
+            time.sleep(1)
+            
+    except KeyboardInterrupt:
+        logger.info("Received keyboard interrupt")
+    except Exception as e:
+        logger.error(f"Fatal error: {e}")
+        return 1
+    finally:
+        # Cleanup
+        running = False
+        logger.info("Stopping all capture threads...")
+        
+        # Wait for threads to finish (with timeout)
+        for thread in capture_threads:
+            thread.join(timeout=5)
+            
+        save_stats()
+        if os.path.exists(PID_FILE):
+            os.remove(PID_FILE)
+        logger.info("Deep Packet Inspector Engine stopped")
+        
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())
