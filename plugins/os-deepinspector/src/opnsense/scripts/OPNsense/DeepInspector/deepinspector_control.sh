@@ -22,7 +22,7 @@ log_action() {
 
 # Function to validate IP address
 validate_ip() {
-    echo "$1" | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}
+    echo "$1" | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}'
 
 case "$1" in
     block_ip)
