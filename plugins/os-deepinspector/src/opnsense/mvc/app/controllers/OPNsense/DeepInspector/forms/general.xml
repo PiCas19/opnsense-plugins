@@ -26,16 +26,13 @@
         <label>Monitored Interfaces</label>
         <type>select_multiple</type>
         <style>selectpicker</style>
-        <multiple>Y</multiple>
         <help>Select the network interfaces to monitor for deep packet inspection. Traffic on these interfaces will be analyzed for threats.</help>
     </field>
     
     <field>
         <id>deepinspector.general.trusted_networks</id>
         <label>Trusted Networks</label>
-        <type>select_multiple</type>
-        <style>tokenize</style>
-        <allownew>true</allownew>
+        <type>text</type>
         <help>
             <![CDATA[
             Define networks considered trusted (comma-separated CIDR format).<br/>
@@ -55,9 +52,7 @@
     <field>
         <id>deepinspector.general.deep_scan_ports</id>
         <label>Deep Scan Ports</label>
-        <type>select_multiple</type>
-        <style>tokenize</style>
-        <allownew>true</allownew>
+        <type>text</type>
         <help>
             <![CDATA[
             Ports that require deep content analysis (comma-separated).<br/>
