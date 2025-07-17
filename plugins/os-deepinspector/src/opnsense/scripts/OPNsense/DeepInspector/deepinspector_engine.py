@@ -11,11 +11,8 @@ import logging
 import hashlib
 import struct
 import re
-import zlib
-import base64
 from collections import defaultdict, deque
-from datetime import datetime, timedelta
-import ipaddress
+from datetime import datetime
 import socket
 import subprocess
 import xml.etree.ElementTree as ET
@@ -167,6 +164,9 @@ def load_config():
         with open(CONFIG_FILE, 'r') as f:
             config = json.load(f)
             
+        # Debug: print the loaded configuration
+        logger.info(f"Raw configuration loaded: {json.dumps(config, indent=2)}")
+            
         # Set defaults for missing values
         defaults = {
             'general': {
@@ -215,6 +215,8 @@ def load_config():
                     config[section][key] = default_value
                     
         logger.info(f"Configuration loaded: {len(config)} sections")
+        logger.info(f"Enabled: {config['general']['enabled']}")
+        logger.info(f"Interfaces: {config['general']['interfaces']} (type: {type(config['general']['interfaces'])})")
         return True
         
     except Exception as e:
@@ -860,13 +862,34 @@ def main():
     if not config['general']['enabled']:
         logger.info("DPI engine is disabled in configuration")
         return 0
-        return 0
         
     # Get and resolve interfaces
     logical_interfaces = config['general']['interfaces']
     if not logical_interfaces:
         logger.error("No interfaces configured for monitoring")
         return 1
+        
+    # Handle different interface formats
+    if isinstance(logical_interfaces, str):
+        # If it's a single interface string, convert to list
+        if ',' in logical_interfaces:
+            # If it's a comma-separated string, split it
+            logical_interfaces = [iface.strip() for iface in logical_interfaces.split(',') if iface.strip()]
+        else:
+            # If it's a single interface, make it a list
+            logical_interfaces = [logical_interfaces.strip()]
+    elif not isinstance(logical_interfaces, list):
+        logger.error(f"Invalid interfaces format: {type(logical_interfaces)}")
+        return 1
+        
+    # Filter out empty or invalid interface names
+    logical_interfaces = [iface for iface in logical_interfaces if iface and len(iface) > 1]
+    
+    if not logical_interfaces:
+        logger.error("No valid interfaces found in configuration")
+        return 1
+        
+    logger.info(f"Logical interfaces to resolve: {logical_interfaces}")
         
     # Convert logical interface names to physical interface names
     physical_interfaces = resolve_interfaces(logical_interfaces)
