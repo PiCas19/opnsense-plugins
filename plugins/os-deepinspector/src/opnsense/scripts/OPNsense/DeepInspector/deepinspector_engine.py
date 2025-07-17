@@ -218,10 +218,26 @@ def load_config():
             for key, default_value in values.items():
                 if key not in config[section]:
                     config[section][key] = default_value
+                else:
+                    # Convert string numbers to integers where needed
+                    if key in ['max_packet_size', 'memory_limit', 'thread_count', 'analysis_timeout', 'latency_threshold', 'update_interval', 'packet_buffer_size']:
+                        try:
+                            config[section][key] = int(config[section][key])
+                        except (ValueError, TypeError):
+                            config[section][key] = default_value
+                            logger.warning(f"Invalid {key} value, using default: {default_value}")
+                    
+                    # Convert string booleans to actual booleans
+                    elif isinstance(default_value, bool):
+                        if isinstance(config[section][key], str):
+                            config[section][key] = config[section][key].lower() in ['true', '1', 'yes', 'on']
+                        elif isinstance(config[section][key], int):
+                            config[section][key] = bool(config[section][key])
                     
         logger.info(f"Configuration loaded: {len(config)} sections")
         logger.info(f"Enabled: {config['general']['enabled']}")
         logger.info(f"Interfaces: {config['general']['interfaces']} (type: {type(config['general']['interfaces'])})")
+        logger.info(f"Max packet size: {config['general']['max_packet_size']} (type: {type(config['general']['max_packet_size'])})")
         return True
         
     except Exception as e:
