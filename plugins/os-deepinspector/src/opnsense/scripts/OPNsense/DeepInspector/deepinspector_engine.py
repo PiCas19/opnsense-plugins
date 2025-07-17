@@ -218,26 +218,52 @@ def load_config():
             for key, default_value in values.items():
                 if key not in config[section]:
                     config[section][key] = default_value
-                else:
-                    # Convert string numbers to integers where needed
-                    if key in ['max_packet_size', 'memory_limit', 'thread_count', 'analysis_timeout', 'latency_threshold', 'update_interval', 'packet_buffer_size']:
-                        try:
-                            config[section][key] = int(config[section][key])
-                        except (ValueError, TypeError):
-                            config[section][key] = default_value
-                            logger.warning(f"Invalid {key} value, using default: {default_value}")
                     
-                    # Convert string booleans to actual booleans
-                    elif isinstance(default_value, bool):
-                        if isinstance(config[section][key], str):
-                            config[section][key] = config[section][key].lower() in ['true', '1', 'yes', 'on']
-                        elif isinstance(config[section][key], int):
-                            config[section][key] = bool(config[section][key])
+        # Force convert all numeric fields to integers
+        numeric_fields = {
+            'general': ['max_packet_size'],
+            'advanced': ['memory_limit', 'thread_count', 'analysis_timeout', 'latency_threshold', 'update_interval', 'packet_buffer_size']
+        }
+        
+        for section, fields in numeric_fields.items():
+            if section in config:
+                for field in fields:
+                    if field in config[section]:
+                        try:
+                            config[section][field] = int(str(config[section][field]))
+                            logger.info(f"Converted {section}.{field} to int: {config[section][field]}")
+                        except (ValueError, TypeError) as e:
+                            logger.error(f"Failed to convert {section}.{field}: {e}, using default")
+                            config[section][field] = defaults[section][field]
+        
+        # Force convert all boolean fields
+        boolean_fields = {
+            'general': ['enabled', 'low_latency_mode', 'industrial_mode', 'ssl_inspection', 'archive_extraction', 'malware_detection', 'anomaly_detection'],
+            'protocols': ['http_inspection', 'https_inspection', 'ftp_inspection', 'smtp_inspection', 'dns_inspection', 'industrial_protocols', 'p2p_detection', 'voip_inspection'],
+            'detection': ['virus_signatures', 'trojan_detection', 'crypto_mining', 'data_exfiltration', 'command_injection', 'sql_injection', 'script_injection', 'suspicious_downloads', 'phishing_detection', 'botnet_detection', 'steganography_detection', 'zero_day_heuristics'],
+            'advanced': ['signature_updates', 'quarantine_enabled', 'bypass_trusted_networks', 'industrial_optimization', 'scada_protocols', 'plc_protocols']
+        }
+        
+        for section, fields in boolean_fields.items():
+            if section in config:
+                for field in fields:
+                    if field in config[section]:
+                        value = config[section][field]
+                        if isinstance(value, str):
+                            config[section][field] = value.lower() in ['true', '1', 'yes', 'on']
+                        elif isinstance(value, int):
+                            config[section][field] = bool(value)
+                        # else already boolean, leave as is
                     
         logger.info(f"Configuration loaded: {len(config)} sections")
-        logger.info(f"Enabled: {config['general']['enabled']}")
+        logger.info(f"Enabled: {config['general']['enabled']} (type: {type(config['general']['enabled'])})")
         logger.info(f"Interfaces: {config['general']['interfaces']} (type: {type(config['general']['interfaces'])})")
         logger.info(f"Max packet size: {config['general']['max_packet_size']} (type: {type(config['general']['max_packet_size'])})")
+        
+        # Debug all numeric values
+        logger.info(f"Memory limit: {config['advanced']['memory_limit']} (type: {type(config['advanced']['memory_limit'])})")
+        logger.info(f"Thread count: {config['advanced']['thread_count']} (type: {type(config['advanced']['thread_count'])})")
+        
         return True
         
     except Exception as e:
