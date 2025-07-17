@@ -3,6 +3,7 @@
     <div class="row">
         <div class="col-md-12">
             <div class="dpi-header">
+                <h1>{{ lang._('Deep Packet Inspector Dashboard') }}</h1>
                 <div class="service-status">
                     <span id="serviceStatus" class="badge badge-secondary">{{ lang._('Loading...') }}</span>
                 </div>
@@ -185,6 +186,22 @@ function updateMetrics(data) {
 
 function updateSystemInfo(systemInfo) {
     $('#signaturesVersion').text(systemInfo.signatures_version || '{{ lang._("Unknown") }}');
+    $('#engineStatus').text(systemInfo.engine_status || '{{ lang._("Unknown") }}');
+    $('#enginePid').text(systemInfo.pid || '{{ lang._("Unknown") }}');
+    $('#memoryUsage').text(systemInfo.memory_usage || '{{ lang._("Unknown") }}');
+    $('#cpuUsage').text(systemInfo.cpu_usage || '{{ lang._("Unknown") }}');
+    $('#uptime').text(systemInfo.uptime || '{{ lang._("Unknown") }}');
+    
+    // Update service status badge based on engine status
+    if (systemInfo.engine_status === 'Active') {
+        $('#serviceStatus').removeClass('badge-secondary badge-danger')
+                         .addClass('badge-success')
+                         .text('{{ lang._("Running") }}');
+    } else {
+        $('#serviceStatus').removeClass('badge-secondary badge-success')
+                         .addClass('badge-danger')
+                         .text('{{ lang._("Stopped") }}');
+    }
 }
 
 function updateRecentThreats(threats) {
@@ -225,48 +242,6 @@ function updateRecentThreats(threats) {
     });
 }
 
-function checkServiceStatus() {
-    ajaxCall("/api/deepinspector/service/status", {}, function(data) {
-        if (data.status === 'ok' && data.running) {
-            $('#serviceStatus').removeClass('badge-secondary badge-danger')
-                             .addClass('badge-success')
-                             .text('{{ lang._("Running") }}');
-            $('#engineStatus').text('{{ lang._("Active") }}');
-            $('#enginePid').text(data.pid || '{{ lang._("Unknown") }}');
-            $('#memoryUsage').text(data.memory_usage || '{{ lang._("Unknown") }}');
-            $('#cpuUsage').text(data.cpu_usage || '{{ lang._("Unknown") }}');
-            $('#uptime').text(data.uptime || '{{ lang._("Unknown") }}');
-        } else {
-            $('#serviceStatus').removeClass('badge-secondary badge-success')
-                             .addClass('badge-danger')
-                             .text('{{ lang._("Stopped") }}');
-            $('#engineStatus').text('{{ lang._("Inactive") }}');
-            $('#enginePid').text('{{ lang._("N/A") }}');
-            $('#memoryUsage').text('{{ lang._("N/A") }}');
-            $('#cpuUsage').text('{{ lang._("N/A") }}');
-            $('#uptime').text('{{ lang._("N/A") }}');
-        }
-    });
-}
-
-function parseServiceResponse(response, pid) {
-    // Extract memory usage from response
-    const memoryMatch = response.match(/Memory usage:\s*(\d+(?:\.\d+)?)\s*MB/i);
-    if (memoryMatch) {
-        $('#memoryUsage').text(memoryMatch[1] + ' MB');
-    }
-    
-    // Get CPU usage and uptime via additional system calls if PID is available
-    if (pid) {
-        getProcessInfo(pid);
-    }
-}
-
-function getProcessInfo(pid) {
-    // This function is now redundant since we get the data from the backend
-    // Keeping it for compatibility
-}
-
 function controlService(action) {
     const button = $(`#${action}Service`);
     const originalText = button.text();
@@ -278,7 +253,8 @@ function controlService(action) {
         
         if (data.status === 'ok') {
             showNotification(`{{ lang._("Service") }} ${action} {{ lang._("completed successfully") }}`, 'success');
-            setTimeout(checkServiceStatus, 2000);
+            // Reload dashboard data after service action
+            setTimeout(loadDashboardData, 2000);
         } else {
             showNotification(`{{ lang._("Service") }} ${action} {{ lang._("failed") }}`, 'error');
         }
