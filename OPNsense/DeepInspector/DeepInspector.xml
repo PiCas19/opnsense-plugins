@@ -1,0 +1,354 @@
+<model>
+    <mount>//OPNsense/DeepInspector</mount>
+    <description>Deep Packet Inspection Engine Settings</description>
+    <version>1.0.0</version>
+    <items>
+        <general>
+            <enabled type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Please indicate whether to enable the DPI engine.</ValidationMessage>
+            </enabled>
+            
+            <mode type="OptionField">
+                <Required>Y</Required>
+                <Default>passive</Default>
+                <OptionValues>
+                    <passive>Passive Monitoring</passive>
+                    <active>Active Blocking</active>
+                    <learning>Learning Mode</learning>
+                </OptionValues>
+                <style>selectpicker</style>   
+                <ValidationMessage>Select the DPI operation mode.</ValidationMessage>
+            </mode>
+            
+            <interfaces type="InterfaceField">
+                <Required>Y</Required>
+                <Multiple>Y</Multiple>
+                <style>selectpicker</style>    
+                <asList>N</asList>
+                <AddParentDevices>Y</AddParentDevices>
+                <ValidationMessage>Please choose at least one interface to monitor.</ValidationMessage>
+            </interfaces>
+            
+            <trusted_networks type="NetworkField">
+                <Required>N</Required>
+                <FieldSeparator>,</FieldSeparator>
+                <asList>N</asList>
+                <ValidationMessage>Please specify trusted networks in CIDR format.</ValidationMessage>
+                <WildcardEnabled>N</WildcardEnabled>
+                <NetMaskRequired>Y</NetMaskRequired>
+            </trusted_networks>
+            
+            <max_packet_size type="IntegerField">
+                <Required>Y</Required>
+                <Default>1500</Default>
+                <MinimumValue>64</MinimumValue>
+                <MaximumValue>9000</MaximumValue>
+                <ValidationMessage>Maximum packet size to analyze (64-9000 bytes).</ValidationMessage>
+            </max_packet_size>
+            
+            <deep_scan_ports type="TextField">
+                <Required>N</Required>
+                <Mask>/^[0-9,-]*$/</Mask>
+                <ValidationMessage>Ports for deep content analysis (comma separated or ranges).</ValidationMessage>
+            </deep_scan_ports>
+            
+            <ssl_inspection type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable SSL/TLS traffic inspection when possible.</ValidationMessage>
+            </ssl_inspection>
+            
+            <archive_extraction type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable archive file extraction and analysis.</ValidationMessage>
+            </archive_extraction>
+            
+            <malware_detection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable malware pattern detection.</ValidationMessage>
+            </malware_detection>
+            
+            <anomaly_detection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable behavioral anomaly detection.</ValidationMessage>
+            </anomaly_detection>
+            
+            <performance_profile type="OptionField">
+                <Required>Y</Required>
+                <Default>balanced</Default>
+                <OptionValues>
+                    <high_performance>High Performance (Industrial/Low Latency)</high_performance>
+                    <balanced>Balanced</balanced>
+                    <high_security>High Security</high_security>
+                    <industrial>Industrial Optimized</industrial>
+                    <custom>Custom</custom>
+                </OptionValues>
+                <style>selectpicker</style>
+                <ValidationMessage>Select performance vs security balance.</ValidationMessage>
+            </performance_profile>
+            
+            <low_latency_mode type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable low latency mode for industrial environments.</ValidationMessage>
+            </low_latency_mode>
+            
+            <industrial_mode type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable industrial mode for SCADA/PLC environments.</ValidationMessage>
+            </industrial_mode>
+            
+            <log_level type="OptionField">
+                <Required>Y</Required>
+                <Default>info</Default>
+                <OptionValues>
+                    <critical>Critical Only</critical>
+                    <error>Error</error>
+                    <warning>Warning</warning>
+                    <info>Info</info>
+                    <debug>Debug</debug>
+                    <trace>Trace</trace>
+                </OptionValues>
+                <style>selectpicker</style>
+                <ValidationMessage>Set logging verbosity level.</ValidationMessage>
+            </log_level>
+        </general>
+        
+        <protocols>
+            <http_inspection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable HTTP protocol deep inspection.</ValidationMessage>
+            </http_inspection>
+            
+            <https_inspection type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable HTTPS inspection (requires SSL certificates).</ValidationMessage>
+            </https_inspection>
+            
+            <ftp_inspection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable FTP protocol inspection.</ValidationMessage>
+            </ftp_inspection>
+            
+            <smtp_inspection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable SMTP email inspection.</ValidationMessage>
+            </smtp_inspection>
+            
+            <dns_inspection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable DNS traffic analysis.</ValidationMessage>
+            </dns_inspection>
+            
+            <industrial_protocols type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable industrial protocol inspection (Modbus, DNP3, OPC UA, etc.).</ValidationMessage>
+            </industrial_protocols>
+            
+            <p2p_detection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable P2P traffic detection.</ValidationMessage>
+            </p2p_detection>
+            
+            <voip_inspection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable VoIP protocol inspection.</ValidationMessage>
+            </voip_inspection>
+            
+            <custom_protocols type="TextField">
+                <Required>N</Required>
+                <ValidationMessage>Custom protocol signatures (one per line).</ValidationMessage>
+            </custom_protocols>
+        </protocols>
+        
+        <detection>
+            <virus_signatures type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable virus signature detection.</ValidationMessage>
+            </virus_signatures>
+            
+            <trojan_detection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable trojan detection algorithms.</ValidationMessage>
+            </trojan_detection>
+            
+            <crypto_mining type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Detect cryptocurrency mining activity.</ValidationMessage>
+            </crypto_mining>
+            
+            <data_exfiltration type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Detect potential data exfiltration patterns.</ValidationMessage>
+            </data_exfiltration>
+            
+            <command_injection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Detect command injection attempts.</ValidationMessage>
+            </command_injection>
+            
+            <sql_injection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Detect SQL injection attempts.</ValidationMessage>
+            </sql_injection>
+            
+            <script_injection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Detect script injection (XSS, etc.).</ValidationMessage>
+            </script_injection>
+            
+            <suspicious_downloads type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Monitor suspicious file downloads.</ValidationMessage>
+            </suspicious_downloads>
+            
+            <phishing_detection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Detect phishing attempts.</ValidationMessage>
+            </phishing_detection>
+            
+            <botnet_detection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Detect botnet communications.</ValidationMessage>
+            </botnet_detection>
+            
+            <steganography_detection type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Detect hidden data in media files.</ValidationMessage>
+            </steganography_detection>
+            
+            <zero_day_heuristics type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable zero-day heuristic detection.</ValidationMessage>
+            </zero_day_heuristics>
+        </detection>
+        
+        <advanced>
+            <signature_updates type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable automatic signature updates.</ValidationMessage>
+            </signature_updates>
+            
+            <update_interval type="IntegerField">
+                <Default>24</Default>
+                <Required>Y</Required>
+                <MinimumValue>1</MinimumValue>
+                <MaximumValue>24</MaximumValue>
+                <ValidationMessage>Update interval in hours (1-24).</ValidationMessage>
+            </update_interval>
+            
+            <threat_intelligence_feeds type="TextField">
+                <Required>N</Required>
+                <ValidationMessage>Threat intelligence feed URLs (one per line).</ValidationMessage>
+            </threat_intelligence_feeds>
+            
+            <custom_signatures type="TextField">
+                <Required>N</Required>
+                <ValidationMessage>Custom YARA signatures.</ValidationMessage>
+            </custom_signatures>
+            
+            <quarantine_enabled type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable quarantine functionality.</ValidationMessage>
+            </quarantine_enabled>
+            
+            <quarantine_path type="TextField">
+                <Default>/var/quarantine/deepinspector</Default>
+                <Required>N</Required>
+                <ValidationMessage>Quarantine directory path.</ValidationMessage>
+            </quarantine_path>
+            
+            <memory_limit type="IntegerField">
+                <Default>1024</Default>
+                <Required>Y</Required>
+                <MinimumValue>512</MinimumValue>
+                <MaximumValue>8192</MaximumValue>
+                <ValidationMessage>Memory limit in MB (512-8192).</ValidationMessage>
+            </memory_limit>
+            
+            <thread_count type="IntegerField">
+                <Default>0</Default>
+                <Required>Y</Required>
+                <MinimumValue>0</MinimumValue>
+                <MaximumValue>16</MaximumValue>
+                <ValidationMessage>Number of threads (0 for auto).</ValidationMessage>
+            </thread_count>
+            
+            <packet_buffer_size type="IntegerField">
+                <Default>4096</Default>
+                <Required>Y</Required>
+                <MinimumValue>1024</MinimumValue>
+                <MaximumValue>65536</MaximumValue>
+                <ValidationMessage>Packet buffer size (1024-65536).</ValidationMessage>
+            </packet_buffer_size>
+            
+            <analysis_timeout type="IntegerField">
+                <Default>5</Default>
+                <Required>Y</Required>
+                <MinimumValue>1</MinimumValue>
+                <MaximumValue>30</MaximumValue>
+                <ValidationMessage>Analysis timeout in seconds (1-30).</ValidationMessage>
+            </analysis_timeout>
+            
+            <bypass_trusted_networks type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Bypass deep inspection for trusted networks.</ValidationMessage>
+            </bypass_trusted_networks>
+            
+            <industrial_optimization type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable industrial environment optimizations.</ValidationMessage>
+            </industrial_optimization>
+            
+            <scada_protocols type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable SCADA protocol inspection.</ValidationMessage>
+            </scada_protocols>
+            
+            <plc_protocols type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable PLC protocol inspection.</ValidationMessage>
+            </plc_protocols>
+            
+            <latency_threshold type="IntegerField">
+                <Default>100</Default>
+                <Required>Y</Required>
+                <MinimumValue>1</MinimumValue>
+                <MaximumValue>1000</MaximumValue>
+                <ValidationMessage>Maximum acceptable latency in microseconds.</ValidationMessage>
+            </latency_threshold>
+        </advanced>
+    </items>
+</model>

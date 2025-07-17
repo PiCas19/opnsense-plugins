@@ -1,0 +1,137 @@
+<form>
+    <field>
+        <id>deepinspector.general.enabled</id>
+        <label>Enable Deep Packet Inspector</label>
+        <type>checkbox</type>
+        <help>Enable or disable the Deep Packet Inspector engine for advanced threat detection and malware analysis.</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.general.mode</id>
+        <label>Operation Mode</label>
+        <type>dropdown</type>
+        <help>
+            <![CDATA[
+            Select the DPI operation mode:<br/>
+            <strong>Passive Monitoring</strong>: Only detect and log threats without blocking<br/>
+            <strong>Active Blocking</strong>: Detect and automatically block threats<br/>
+            <strong>Learning Mode</strong>: Learn traffic patterns to reduce false positives
+            ]]>
+        </help>
+    </field>
+    
+    <field>
+        <id>deepinspector.general.interfaces</id>
+        <label>Monitored Interfaces</label>
+        <type>dropdown</type>
+        <help>Select the network interfaces to monitor for deep packet inspection. Traffic on these interfaces will be analyzed for threats.</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.general.trusted_networks</id>
+        <label>Trusted Networks</label>
+        <type>text</type>
+        <help>
+            <![CDATA[
+            Define networks considered trusted (comma-separated CIDR format).<br/>
+            Example: 192.168.0.0/16,10.0.0.0/8,172.16.0.0/12<br/>
+            Traffic from these networks may receive reduced scrutiny.
+            ]]>
+        </help>
+    </field>
+    
+    <field>
+        <id>deepinspector.general.max_packet_size</id>
+        <label>Maximum Packet Size</label>
+        <type>text</type>
+        <help>Maximum packet size in bytes to analyze for deep inspection (64-9000). Larger packets will be skipped to maintain performance.</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.general.deep_scan_ports</id>
+        <label>Deep Scan Ports</label>
+        <type>text</type>
+        <help>
+            <![CDATA[
+            Ports that require deep content analysis (comma-separated).<br/>
+            Example: 80,443,21,25,53,502,4840<br/>
+            Traffic on these ports will receive enhanced inspection.
+            ]]>
+        </help>
+    </field>
+    
+    <field>
+        <id>deepinspector.general.ssl_inspection</id>
+        <label>SSL/TLS Inspection</label>
+        <type>checkbox</type>
+        <help>Enable SSL/TLS traffic inspection when possible. Requires additional configuration for certificate management.</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.general.archive_extraction</id>
+        <label>Archive Extraction</label>
+        <type>checkbox</type>
+        <help>Enable extraction and analysis of archive files (ZIP, RAR, etc.) for hidden malware detection.</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.general.malware_detection</id>
+        <label>Malware Detection</label>
+        <type>checkbox</type>
+        <help>Enable malware signature detection and heuristic analysis for threat identification.</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.general.anomaly_detection</id>
+        <label>Behavioral Anomaly Detection</label>
+        <type>checkbox</type>
+        <help>Enable behavioral analysis to detect anomalous traffic patterns that may indicate threats.</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.general.performance_profile</id>
+        <label>Performance Profile</label>
+        <type>dropdown</type>
+        <help>
+            <![CDATA[
+            Balance between performance and security:<br/>
+            <strong>High Performance</strong>: Optimized for speed with basic detection<br/>
+            <strong>Balanced</strong>: Good balance of performance and security<br/>
+            <strong>High Security</strong>: Maximum detection capabilities<br/>
+            <strong>Industrial Optimized</strong>: Optimized for industrial environments<br/>
+            <strong>Custom</strong>: Manual configuration of all settings
+            ]]>
+        </help>
+    </field>
+    
+    <field>
+        <id>deepinspector.general.low_latency_mode</id>
+        <label>Low Latency Mode</label>
+        <type>checkbox</type>
+        <help>Enable low latency mode for industrial environments requiring minimal processing delay.</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.general.industrial_mode</id>
+        <label>Industrial Mode</label>
+        <type>checkbox</type>
+        <help>Enable industrial mode for SCADA/PLC environments with specialized protocol handling.</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.general.log_level</id>
+        <label>Log Level</label>
+        <type>dropdown</type>
+        <help>
+            <![CDATA[
+            Set the verbosity of logging output:<br/>
+            <strong>Critical Only</strong>: Only critical threats<br/>
+            <strong>Error</strong>: Errors and critical threats<br/>
+            <strong>Warning</strong>: Warnings, errors, and critical threats<br/>
+            <strong>Info</strong>: General information and above<br/>
+            <strong>Debug</strong>: Detailed debugging information<br/>
+            <strong>Trace</strong>: Maximum verbosity (may impact performance)
+            ]]>
+        </help>
+    </field>
+</form>

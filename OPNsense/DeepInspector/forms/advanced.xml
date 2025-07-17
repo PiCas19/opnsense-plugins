@@ -1,0 +1,106 @@
+<form>
+    <field>
+        <id>deepinspector.advanced.signature_updates</id>
+        <label>Automatic Signature Updates</label>
+        <type>checkbox</type>
+        <help>Enable automatic updates of threat signatures from threat intelligence feeds.</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.advanced.update_interval</id>
+        <label>Update Interval (hours)</label>
+        <type>text</type>
+        <help>How often to check for signature updates (1-24 hours).</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.advanced.threat_intelligence_feeds</id>
+        <label>Threat Intelligence Feeds</label>
+        <type>textarea</type>
+        <help>URLs of threat intelligence feeds to use for signature updates (one per line).</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.advanced.custom_signatures</id>
+        <label>Custom Signatures</label>
+        <type>textarea</type>
+        <help>Custom threat signatures in YARA format (for advanced users).</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.advanced.quarantine_enabled</id>
+        <label>Enable Quarantine</label>
+        <type>checkbox</type>
+        <help>Enable quarantine functionality for suspicious files and content.</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.advanced.quarantine_path</id>
+        <label>Quarantine Path</label>
+        <type>text</type>
+        <help>Directory path for quarantined files (default: /var/quarantine/deepinspector).</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.advanced.memory_limit</id>
+        <label>Memory Limit (MB)</label>
+        <type>text</type>
+        <help>Maximum memory usage for the DPI engine (512-8192 MB).</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.advanced.thread_count</id>
+        <label>Processing Threads</label>
+        <type>text</type>
+        <help>Number of processing threads (1-16, 0 for auto-detect).</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.advanced.packet_buffer_size</id>
+        <label>Packet Buffer Size</label>
+        <type>text</type>
+        <help>Size of packet buffer for analysis (1024-65536 packets).</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.advanced.analysis_timeout</id>
+        <label>Analysis Timeout (seconds)</label>
+        <type>text</type>
+        <help>Maximum time to spend analyzing a single packet (1-30 seconds).</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.advanced.bypass_trusted_networks</id>
+        <label>Bypass Trusted Networks</label>
+        <type>checkbox</type>
+        <help>Bypass deep inspection for traffic from trusted networks.</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.advanced.industrial_optimization</id>
+        <label>Industrial Optimization</label>
+        <type>checkbox</type>
+        <help>Enable industrial environment optimizations for minimal latency.</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.advanced.scada_protocols</id>
+        <label>SCADA Protocol Inspection</label>
+        <type>checkbox</type>
+        <help>Enable SCADA protocol inspection for industrial control systems.</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.advanced.plc_protocols</id>
+        <label>PLC Protocol Inspection</label>
+        <type>checkbox</type>
+        <help>Enable PLC protocol inspection for programmable logic controllers.</help>
+    </field>
+    
+    <field>
+        <id>deepinspector.advanced.latency_threshold</id>
+        <label>Latency Threshold (μs)</label>
+        <type>text</type>
+        <help>Maximum acceptable latency in microseconds for industrial environments.</help>
+    </field>
+</form>
