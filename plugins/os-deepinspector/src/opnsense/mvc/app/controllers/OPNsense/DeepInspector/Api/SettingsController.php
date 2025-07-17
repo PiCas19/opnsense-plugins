@@ -217,8 +217,8 @@ class SettingsController extends ApiMutableModelControllerBase
         
         return $recentThreats;
     }
-    
-     /**
+
+    /**
      * Get system information
      * @return array system info
      */
@@ -234,40 +234,39 @@ class SettingsController extends ApiMutableModelControllerBase
             'cpu_usage' => 'Unknown'
         ];
         
-        // Get status from service controller
+        // Get status from backend (correct approach)
         $backend = new Backend();
-        $statusResponse = $backend->configdRun("deepinspector status");
+        $response = $backend->configdRun("deepinspector status");
         
-        // Parse the status response like the ServiceController does
-        $lines = explode("\n", trim($statusResponse));
+        $lines = explode("\n", trim($response));
         $running = false;
         $pid = null;
+        $memory_usage = null;
         
         foreach ($lines as $line) {
             if (strpos($line, "is running as PID") !== false) {
                 $running = true;
                 if (preg_match('/PID (\d+)/', $line, $matches)) {
                     $pid = $matches[1];
-                    $info['pid'] = $pid;
                 }
             } elseif (strpos($line, "is not running") !== false) {
                 $running = false;
             } elseif (strpos($line, "Memory usage:") !== false) {
                 if (preg_match('/Memory usage:\s*(\d+(?:\.\d+)?)\s*MB/', $line, $matches)) {
-                    $info['memory_usage'] = $matches[1] . "MB";
+                    $memory_usage = $matches[1] . "MB";
                 }
             }
         }
         
-        if ($running) {
+        if ($running && $pid) {
             $info['engine_status'] = 'Active';
+            $info['pid'] = $pid;
+            $info['memory_usage'] = $memory_usage ?: 'Unknown';
             
-            // Get additional process info if PID is available
-            if ($pid) {
-                $processInfo = $this->getProcessInfo($pid);
-                $info['cpu_usage'] = $processInfo['cpu_usage'];
-                $info['uptime'] = $processInfo['uptime'];
-            }
+            // Get additional process info
+            $processInfo = $this->getProcessInfo($pid);
+            $info['cpu_usage'] = $processInfo['cpu_usage'];
+            $info['uptime'] = $processInfo['uptime'];
         } else {
             $info['engine_status'] = 'Inactive';
             $info['pid'] = 'N/A';
@@ -315,7 +314,7 @@ class SettingsController extends ApiMutableModelControllerBase
             $cpuResult = @shell_exec($cpuCmd);
             if ($cpuResult !== null && $cpuResult !== false) {
                 $cpuResult = trim($cpuResult);
-                if ($cpuResult !== '') {
+                if ($cpuResult !== '' && is_numeric($cpuResult)) {
                     $cpu_usage = $cpuResult . "%";
                 }
             }
