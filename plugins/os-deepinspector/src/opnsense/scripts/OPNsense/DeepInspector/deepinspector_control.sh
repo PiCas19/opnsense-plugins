@@ -22,7 +22,7 @@ log_action() {
 
 # Function to validate IP address
 validate_ip() {
-    echo "$1" | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$' > /dev/null
+    echo "$1" | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3} > /dev/null
     return $?
 }
 
@@ -42,8 +42,8 @@ case "$1" in
         # Try pfctl with full path
         if command -v /sbin/pfctl >/dev/null 2>&1; then
             /sbin/pfctl -t "$PFCTL_TABLE" -T add "$IP" 2>/dev/null || {
-                echo "table <$PFCTL_TABLE> persist" | /sbin/pfctl -f -
-                /sbin/pfctl -t "$PFCTL_TABLE" -T add "$IP"
+                echo "table <$PFCTL_TABLE> persist" | /sbin/pfctl -f - 2>/dev/null
+                /sbin/pfctl -t "$PFCTL_TABLE" -T add "$IP" 2>/dev/null
             }
             log_action "Added IP $IP to pfctl table"
         else
@@ -57,6 +57,7 @@ case "$1" in
         
         log_action "Blocked IP: $IP"
         echo "OK"
+        exit 0
         ;;
         
     unblock_ip)
@@ -79,12 +80,13 @@ case "$1" in
         
         # Remove from blocked IPs file
         if [ -f "$BLOCKED_IPS_FILE" ]; then
-            grep -v "^$IP$" "$BLOCKED_IPS_FILE" > "$BLOCKED_IPS_FILE.tmp" 2>/dev/null
-            mv "$BLOCKED_IPS_FILE.tmp" "$BLOCKED_IPS_FILE"
+            grep -v "^$IP$" "$BLOCKED_IPS_FILE" > "$BLOCKED_IPS_FILE.tmp" 2>/dev/null || touch "$BLOCKED_IPS_FILE.tmp"
+            mv "$BLOCKED_IPS_FILE.tmp" "$BLOCKED_IPS_FILE" 2>/dev/null
         fi
         
         log_action "Unblocked IP: $IP"
         echo "OK"
+        exit 0
         ;;
         
     whitelist_ip)
@@ -106,8 +108,8 @@ case "$1" in
         
         # Remove from blocked list
         if [ -f "$BLOCKED_IPS_FILE" ]; then
-            grep -v "^$IP$" "$BLOCKED_IPS_FILE" > "$BLOCKED_IPS_FILE.tmp" 2>/dev/null
-            mv "$BLOCKED_IPS_FILE.tmp" "$BLOCKED_IPS_FILE"
+            grep -v "^$IP$" "$BLOCKED_IPS_FILE" > "$BLOCKED_IPS_FILE.tmp" 2>/dev/null || touch "$BLOCKED_IPS_FILE.tmp"
+            mv "$BLOCKED_IPS_FILE.tmp" "$BLOCKED_IPS_FILE" 2>/dev/null
         fi
         
         # Remove from pfctl
@@ -117,6 +119,7 @@ case "$1" in
         
         log_action "Whitelisted IP: $IP"
         echo "OK"
+        exit 0
         ;;
         
     clear_logs)
@@ -127,18 +130,25 @@ case "$1" in
         done
         log_action "Logs cleared"
         echo "OK"
+        exit 0
         ;;
         
     list_blocked)
         if [ -f "$BLOCKED_IPS_FILE" ]; then
             cat "$BLOCKED_IPS_FILE"
+        else
+            echo ""
         fi
+        exit 0
         ;;
         
     list_whitelist)
         if [ -f "$WHITELIST_IPS_FILE" ]; then
             cat "$WHITELIST_IPS_FILE"
+        else
+            echo ""
         fi
+        exit 0
         ;;
         
     test)
@@ -148,6 +158,7 @@ case "$1" in
         which pfctl 2>/dev/null || echo "pfctl not in PATH"
         ls -la /sbin/pfctl 2>/dev/null || echo "/sbin/pfctl not found"
         echo "Test complete"
+        exit 0
         ;;
         
     *)
