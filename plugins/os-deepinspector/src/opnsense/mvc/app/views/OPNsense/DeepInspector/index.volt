@@ -223,6 +223,11 @@ $(function() {
                                 // Controlla lo stato dirty
                                 isSubsystemDirty();
                                 
+                                // Ricarica i dati nel form dopo l'apply
+                                setTimeout(function() {
+                                    reloadFormData();
+                                }, 500);
+                                
                                 // Mostra snackbar di successo
                                 BootstrapDialog.show({
                                     type: BootstrapDialog.TYPE_SUCCESS,
@@ -252,7 +257,7 @@ $(function() {
     bindApplyButton('#btnApplyDetection', 'frm_DeepInspectorDetection');
     bindApplyButton('#btnApplyAdvanced', 'frm_DeepInspectorAdvanced');
 
-    // Carica i dati iniziali
+    // Carica i dati iniziali con gestione errori migliorata
     var initialFormMap = {
         'frm_DeepInspectorGeneral': "/api/deepinspector/settings/get",
         'frm_DeepInspectorProtocols': "/api/deepinspector/settings/get",
@@ -260,22 +265,59 @@ $(function() {
         'frm_DeepInspectorAdvanced': "/api/deepinspector/settings/get"
     };
     
-    mapDataToFormUI(initialFormMap).done(function(data) {
-        console.log("Initial data loaded:", data);
-        $('.selectpicker').selectpicker('refresh');
-        formatTokenizersUI();
+    // Funzione per ricaricare i dati nei form
+    function reloadFormData() {
+        console.log("Reloading form data...");
         
-        // Forza il refresh dei selectpicker dopo un breve delay
-        setTimeout(function() {
+        mapDataToFormUI(initialFormMap).done(function(data) {
+            console.log("Form data reloaded successfully:", data);
+            
+            // Forza il refresh di tutti i componenti UI
             $('.selectpicker').selectpicker('refresh');
-        }, 100);
-    }).fail(function(error) {
-        console.error("Failed to load initial data:", error);
-    });
+            formatTokenizersUI();
+            
+            // Assicura che i multi-select siano correttamente inizializzati
+            $('select[multiple]').each(function() {
+                $(this).selectpicker('refresh');
+            });
+            
+            // Forza il refresh dei selectpicker dopo un breve delay
+            setTimeout(function() {
+                $('.selectpicker').selectpicker('refresh');
+            }, 100);
+            
+        }).fail(function(error) {
+            console.error("Failed to reload form data:", error);
+            
+            // Mostra errore all'utente
+            BootstrapDialog.show({
+                type: BootstrapDialog.TYPE_WARNING,
+                title: "{{ lang._('Warning') }}",
+                message: "{{ lang._('Failed to load configuration data. Please refresh the page.') }}",
+                buttons: [{ 
+                    label: 'OK', 
+                    action: function(d) { d.close(); } 
+                }]
+            });
+        });
+    }
+    
+    // Caricamento iniziale
+    reloadFormData();
 
     // Listener per rilevare cambiamenti nei form e mostrare il banner
     $('.tab-content').on('change', 'input, select, textarea', function() {
+        console.log("Form field changed:", $(this).attr('id') || $(this).attr('name'));
         isSubsystemDirty();
+    });
+    
+    // Listener per i tab changes per ricaricare i dati
+    $('a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
+        console.log("Tab changed to:", e.target.getAttribute('href'));
+        // Forza il refresh dei selectpicker nel tab attivo
+        setTimeout(function() {
+            $('.tab-pane.active .selectpicker').selectpicker('refresh');
+        }, 100);
     });
 
     isSubsystemDirty();
