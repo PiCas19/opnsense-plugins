@@ -50,13 +50,66 @@
       $('#btnSaveGeneral').unbind('click').click(function(){
          $("#btnSaveGeneralProgress").addClass("fa fa-spinner fa-pulse");
          var frm_id = 'frm_GeneralSettings';
-         // COPIA ESATTA DI MONIT - USA L'ENDPOINT /set/ NON /setGeneral/
          saveFormToEndpoint("/api/deepinspector/settings/set/", frm_id, function(){
             isSubsystemDirty();
             updateServiceControlUI('deepinspector');
          }, true);
          $("#btnSaveGeneralProgress").removeClass("fa fa-spinner fa-pulse");
          $("#btnSaveGeneral").blur();
+      });
+
+      /**
+       * protocols settings
+       */
+      mapDataToFormUI({'frm_ProtocolsSettings':"/api/deepinspector/settings/getGeneral/"}).done(function(){
+         formatTokenizersUI();
+         $('.selectpicker').selectpicker('refresh');
+      });
+
+      $('#btnSaveProtocols').unbind('click').click(function(){
+         $("#btnSaveProtocolsProgress").addClass("fa fa-spinner fa-pulse");
+         var frm_id = 'frm_ProtocolsSettings';
+         saveFormToEndpoint("/api/deepinspector/settings/set/", frm_id, function(){
+            isSubsystemDirty();
+         }, true);
+         $("#btnSaveProtocolsProgress").removeClass("fa fa-spinner fa-pulse");
+         $("#btnSaveProtocols").blur();
+      });
+
+      /**
+       * detection settings
+       */
+      mapDataToFormUI({'frm_DetectionSettings':"/api/deepinspector/settings/getGeneral/"}).done(function(){
+         formatTokenizersUI();
+         $('.selectpicker').selectpicker('refresh');
+      });
+
+      $('#btnSaveDetection').unbind('click').click(function(){
+         $("#btnSaveDetectionProgress").addClass("fa fa-spinner fa-pulse");
+         var frm_id = 'frm_DetectionSettings';
+         saveFormToEndpoint("/api/deepinspector/settings/set/", frm_id, function(){
+            isSubsystemDirty();
+         }, true);
+         $("#btnSaveDetectionProgress").removeClass("fa fa-spinner fa-pulse");
+         $("#btnSaveDetection").blur();
+      });
+
+      /**
+       * advanced settings
+       */
+      mapDataToFormUI({'frm_AdvancedSettings':"/api/deepinspector/settings/getGeneral/"}).done(function(){
+         formatTokenizersUI();
+         $('.selectpicker').selectpicker('refresh');
+      });
+
+      $('#btnSaveAdvanced').unbind('click').click(function(){
+         $("#btnSaveAdvancedProgress").addClass("fa fa-spinner fa-pulse");
+         var frm_id = 'frm_AdvancedSettings';
+         saveFormToEndpoint("/api/deepinspector/settings/set/", frm_id, function(){
+            isSubsystemDirty();
+         }, true);
+         $("#btnSaveAdvancedProgress").removeClass("fa fa-spinner fa-pulse");
+         $("#btnSaveAdvanced").blur();
       });
 
    });
@@ -73,6 +126,13 @@
    {{ lang._('The Deep Packet Inspector configuration has been changed') }} <br /> {{ lang._('You must apply the changes in order for them to take effect.')}}
 </div>
 
+<ul class="nav nav-tabs" role="tablist" id="maintabs">
+   <li class="active"><a data-toggle="tab" href="#general">{{ lang._('General Settings') }}</a></li>
+   <li><a data-toggle="tab" href="#protocols">{{ lang._('Protocol Inspection') }}</a></li>
+   <li><a data-toggle="tab" href="#detection">{{ lang._('Detection Engines') }}</a></li>
+   <li><a data-toggle="tab" href="#advanced">{{ lang._('Advanced Settings') }}</a></li>
+</ul>
+
 <div class="tab-content content-box">
    <div id="general" class="tab-pane fade in active">
       {{ partial("layout_partials/base_form",['fields':formGeneralSettings,'id':'frm_GeneralSettings'])}}
@@ -82,6 +142,51 @@
                <td>
                   <button class="btn btn-primary" id="btnSaveGeneral" type="button">
                      <b>{{ lang._('Save') }}</b> <i id="btnSaveGeneralProgress"></i>
+                  </button>
+               </td>
+            </tr>
+         </table>
+      </div>
+   </div>
+
+   <div id="protocols" class="tab-pane fade in">
+      {{ partial("layout_partials/base_form",['fields':formProtocolsSettings,'id':'frm_ProtocolsSettings'])}}
+      <div class="table-responsive">
+         <table class="table table-striped table-condensed table-responsive">
+            <tr>
+               <td>
+                  <button class="btn btn-primary" id="btnSaveProtocols" type="button">
+                     <b>{{ lang._('Save') }}</b> <i id="btnSaveProtocolsProgress"></i>
+                  </button>
+               </td>
+            </tr>
+         </table>
+      </div>
+   </div>
+
+   <div id="detection" class="tab-pane fade in">
+      {{ partial("layout_partials/base_form",['fields':formDetectionSettings,'id':'frm_DetectionSettings'])}}
+      <div class="table-responsive">
+         <table class="table table-striped table-condensed table-responsive">
+            <tr>
+               <td>
+                  <button class="btn btn-primary" id="btnSaveDetection" type="button">
+                     <b>{{ lang._('Save') }}</b> <i id="btnSaveDetectionProgress"></i>
+                  </button>
+               </td>
+            </tr>
+         </table>
+      </div>
+   </div>
+
+   <div id="advanced" class="tab-pane fade in">
+      {{ partial("layout_partials/base_form",['fields':formAdvancedSettings,'id':'frm_AdvancedSettings'])}}
+      <div class="table-responsive">
+         <table class="table table-striped table-condensed table-responsive">
+            <tr>
+               <td>
+                  <button class="btn btn-primary" id="btnSaveAdvanced" type="button">
+                     <b>{{ lang._('Save') }}</b> <i id="btnSaveAdvancedProgress"></i>
                   </button>
                </td>
             </tr>
