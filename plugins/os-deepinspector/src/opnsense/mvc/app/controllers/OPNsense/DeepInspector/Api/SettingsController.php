@@ -218,7 +218,7 @@ class SettingsController extends ApiMutableModelControllerBase
         return $recentThreats;
     }
     
-       /**
+     /**
      * Get system information
      * @return array system info
      */
@@ -234,11 +234,12 @@ class SettingsController extends ApiMutableModelControllerBase
             'cpu_usage' => 'Unknown'
         ];
         
-        // Check if engine is running via backend
+        // Get status from service controller
         $backend = new Backend();
-        $response = $backend->configdRun("deepinspector status");
+        $statusResponse = $backend->configdRun("deepinspector status");
         
-        $lines = explode("\n", trim($response));
+        // Parse the status response like the ServiceController does
+        $lines = explode("\n", trim($statusResponse));
         $running = false;
         $pid = null;
         
@@ -253,13 +254,13 @@ class SettingsController extends ApiMutableModelControllerBase
                 $running = false;
             } elseif (strpos($line, "Memory usage:") !== false) {
                 if (preg_match('/Memory usage:\s*(\d+(?:\.\d+)?)\s*MB/', $line, $matches)) {
-                    $info['memory_usage'] = $matches[1] . " MB";
+                    $info['memory_usage'] = $matches[1] . "MB";
                 }
             }
         }
         
         if ($running) {
-            $info['engine_status'] = 'Running';
+            $info['engine_status'] = 'Active';
             
             // Get additional process info if PID is available
             if ($pid) {
@@ -268,7 +269,7 @@ class SettingsController extends ApiMutableModelControllerBase
                 $info['uptime'] = $processInfo['uptime'];
             }
         } else {
-            $info['engine_status'] = 'Stopped';
+            $info['engine_status'] = 'Inactive';
             $info['pid'] = 'N/A';
             $info['memory_usage'] = 'N/A';
             $info['cpu_usage'] = 'N/A';
@@ -282,9 +283,15 @@ class SettingsController extends ApiMutableModelControllerBase
             if ($sigData !== false) {
                 $sigJson = @json_decode($sigData, true);
                 if ($sigJson !== null && isset($sigJson['version'])) {
-                    $info['signatures_version'] = $sigJson['version'];
+                    $sigVersion = $sigJson['version'];
+                    // If it's a date, format it as yyyy-mm-dd
+                    if (strtotime($sigVersion) !== false) {
+                        $info['signatures_version'] = date('Y-m-d', strtotime($sigVersion));
+                    } else {
+                        $info['signatures_version'] = $sigVersion;
+                    }
                 } else {
-                    $info['signatures_version'] = 'Default';
+                    $info['signatures_version'] = date('Y-m-d'); // Current date as default
                 }
             }
         }
@@ -304,17 +311,23 @@ class SettingsController extends ApiMutableModelControllerBase
         
         try {
             // Get CPU usage
-            $cpuCmd = "ps -o pcpu= -p " . escapeshellarg($pid) . " 2>/dev/null";
-            $cpuResult = trim(@shell_exec($cpuCmd));
-            if ($cpuResult !== '' && $cpuResult !== null) {
-                $cpu_usage = $cpuResult . "%";
+            $cpuCmd = "ps -o pcpu= -p " . escapeshellarg($pid);
+            $cpuResult = @shell_exec($cpuCmd);
+            if ($cpuResult !== null && $cpuResult !== false) {
+                $cpuResult = trim($cpuResult);
+                if ($cpuResult !== '') {
+                    $cpu_usage = $cpuResult . "%";
+                }
             }
             
             // Get uptime
-            $uptimeCmd = "ps -o etime= -p " . escapeshellarg($pid) . " 2>/dev/null";
-            $uptimeResult = trim(@shell_exec($uptimeCmd));
-            if ($uptimeResult !== '' && $uptimeResult !== null) {
-                $uptime = $uptimeResult;
+            $uptimeCmd = "ps -o etime= -p " . escapeshellarg($pid);
+            $uptimeResult = @shell_exec($uptimeCmd);
+            if ($uptimeResult !== null && $uptimeResult !== false) {
+                $uptimeResult = trim($uptimeResult);
+                if ($uptimeResult !== '') {
+                    $uptime = $uptimeResult;
+                }
             }
         } catch (Exception $e) {
             // Ignore errors, keep default values
