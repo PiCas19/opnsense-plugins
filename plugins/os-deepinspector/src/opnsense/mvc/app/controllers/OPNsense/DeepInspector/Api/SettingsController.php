@@ -100,7 +100,7 @@ class SettingsController extends ApiMutableModelControllerBase
         return $result;
     }
 
-    /**
+     /**
      * Get DPI engine statistics for dashboard
      * @return array statistics data
      */
@@ -108,33 +108,31 @@ class SettingsController extends ApiMutableModelControllerBase
     {
         $result = ["status" => "ok"];
         
-        try {
-            $statsFile = '/var/log/deepinspector/stats.json';
-            $alertsFile = '/var/log/deepinspector/alerts.log';
-            
-            // Load statistics from file
-            if (file_exists($statsFile)) {
-                $statsData = json_decode(file_get_contents($statsFile), true);
-                if ($statsData) {
-                    $result['data'] = $statsData;
+        $statsFile = '/var/log/deepinspector/stats.json';
+        $alertsFile = '/var/log/deepinspector/alerts.log';
+        
+        // Load statistics from file
+        if (file_exists($statsFile)) {
+            $statsData = @file_get_contents($statsFile);
+            if ($statsData !== false) {
+                $decodedStats = @json_decode($statsData, true);
+                if ($decodedStats !== null) {
+                    $result['data'] = $decodedStats;
                 } else {
                     $result['data'] = $this->getDefaultStats();
                 }
             } else {
                 $result['data'] = $this->getDefaultStats();
             }
-            
-            // Load recent threats from alerts log
-            $result['data']['recent_threats'] = $this->getRecentThreats($alertsFile);
-            
-            // Add system information
-            $result['data']['system_info'] = $this->getSystemInfo();
-            
-        } catch (Exception $e) {
-            $result['status'] = 'error';
-            $result['message'] = 'Failed to load statistics: ' . $e->getMessage();
+        } else {
             $result['data'] = $this->getDefaultStats();
         }
+        
+        // Load recent threats from alerts log
+        $result['data']['recent_threats'] = $this->getRecentThreats($alertsFile);
+        
+        // Add system information
+        $result['data']['system_info'] = $this->getSystemInfo();
         
         return $result;
     }
@@ -189,23 +187,23 @@ class SettingsController extends ApiMutableModelControllerBase
         $recentThreats = [];
         
         if (file_exists($alertsFile)) {
-            try {
-                $lines = file($alertsFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            $lines = @file($alertsFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            if ($lines !== false) {
                 $lines = array_slice($lines, -50); // Get last 50 lines
                 
                 foreach (array_reverse($lines) as $line) {
-                    $threat = json_decode($line, true);
-                    if ($threat && isset($threat['threat_type'])) {
+                    $threat = @json_decode($line, true);
+                    if ($threat !== null && isset($threat['threat_type'])) {
                         $recentThreats[] = [
-                            'id' => $threat['id'] ?? uniqid(),
-                            'timestamp' => $threat['timestamp'] ?? date('c'),
-                            'source_ip' => $threat['source_ip'] ?? 'Unknown',
-                            'destination_ip' => $threat['destination_ip'] ?? 'Unknown',
+                            'id' => isset($threat['id']) ? $threat['id'] : uniqid(),
+                            'timestamp' => isset($threat['timestamp']) ? $threat['timestamp'] : date('c'),
+                            'source_ip' => isset($threat['source_ip']) ? $threat['source_ip'] : 'Unknown',
+                            'destination_ip' => isset($threat['destination_ip']) ? $threat['destination_ip'] : 'Unknown',
                             'threat_type' => $threat['threat_type'],
-                            'severity' => $threat['severity'] ?? 'medium',
-                            'protocol' => $threat['protocol'] ?? 'Unknown',
-                            'description' => $threat['description'] ?? 'No description',
-                            'industrial_context' => $threat['industrial_context'] ?? false
+                            'severity' => isset($threat['severity']) ? $threat['severity'] : 'medium',
+                            'protocol' => isset($threat['protocol']) ? $threat['protocol'] : 'Unknown',
+                            'description' => isset($threat['description']) ? $threat['description'] : 'No description',
+                            'industrial_context' => isset($threat['industrial_context']) ? $threat['industrial_context'] : false
                         ];
                         
                         // Limit to 20 most recent threats
@@ -214,9 +212,6 @@ class SettingsController extends ApiMutableModelControllerBase
                         }
                     }
                 }
-            } catch (Exception $e) {
-                // Log error but continue with empty array
-                error_log("Error reading alerts file: " . $e->getMessage());
             }
         }
         
@@ -236,40 +231,28 @@ class SettingsController extends ApiMutableModelControllerBase
             'engine_status' => 'Unknown'
         ];
         
-        try {
-            // Check if engine is running
-            $pidFile = '/var/run/deepinspector.pid';
-            if (file_exists($pidFile)) {
-                $pid = trim(file_get_contents($pidFile));
-                if ($pid && posix_kill($pid, 0)) {
-                    $info['engine_status'] = 'Running';
-                    
-                    // Get uptime from process
-                    $cmd = "ps -o etime= -p $pid 2>/dev/null";
-                    $uptime = trim(shell_exec($cmd));
-                    if ($uptime) {
-                        $info['uptime'] = $uptime;
-                    }
-                } else {
-                    $info['engine_status'] = 'Stopped';
-                }
-            } else {
-                $info['engine_status'] = 'Stopped';
-            }
-            
-            // Get signatures version
-            $sigFile = '/usr/local/etc/deepinspector/signatures.json';
-            if (file_exists($sigFile)) {
-                $sigData = json_decode(file_get_contents($sigFile), true);
-                if ($sigData && isset($sigData['version'])) {
-                    $info['signatures_version'] = $sigData['version'];
+        // Check if engine is running via backend
+        $backend = new Backend();
+        $response = $backend->configdRun("deepinspector status");
+        
+        if (strpos($response, "running") !== false) {
+            $info['engine_status'] = 'Running';
+        } else {
+            $info['engine_status'] = 'Stopped';
+        }
+        
+        // Get signatures version
+        $sigFile = '/usr/local/etc/deepinspector/signatures.json';
+        if (file_exists($sigFile)) {
+            $sigData = @file_get_contents($sigFile);
+            if ($sigData !== false) {
+                $sigJson = @json_decode($sigData, true);
+                if ($sigJson !== null && isset($sigJson['version'])) {
+                    $info['signatures_version'] = $sigJson['version'];
                 } else {
                     $info['signatures_version'] = 'Default';
                 }
             }
-            
-        } catch (Exception $e) {
-            error_log("Error getting system info: " . $e->getMessage());
         }
         
         return $info;
