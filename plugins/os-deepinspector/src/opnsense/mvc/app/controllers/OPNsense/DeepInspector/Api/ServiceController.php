@@ -325,4 +325,55 @@ class ServiceController extends ApiMutableServiceControllerBase
             "message" => "Getting $type IPs JSON data"
         ];
     }
+
+
+    /**
+     * Check IP status (blocked, whitelisted, or unknown)
+     * @return array
+     */
+    public function checkIPStatusAction()
+    {
+        $ip = $this->request->getPost('ip') ?: $this->request->getParam('ip');
+        
+        if (empty($ip)) {
+            return ["status" => "failed", "message" => "IP address is required"];
+        }
+        
+        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+            return ["status" => "failed", "message" => "Invalid IP address format"];
+        }
+        
+        $backend = new Backend();
+        
+        // Check blocked list
+        $blockedResponse = $backend->configdpRun("deepinspector", array("list_blocked"));
+        $blockedIPs = array_filter(explode("\n", trim($blockedResponse)));
+        
+        if (in_array($ip, $blockedIPs)) {
+            return [
+                "status" => "ok",
+                "ip_status" => "blocked",
+                "message" => "IP is in blocked list"
+            ];
+        }
+        
+        // Check whitelist
+        $whitelistResponse = $backend->configdpRun("deepinspector", array("list_whitelist"));
+        $whitelistIPs = array_filter(explode("\n", trim($whitelistResponse)));
+        
+        if (in_array($ip, $whitelistIPs)) {
+            return [
+                "status" => "ok",
+                "ip_status" => "whitelisted",
+                "message" => "IP is in whitelist"
+            ];
+        }
+        
+        return [
+            "status" => "ok",
+            "ip_status" => "unknown",
+            "message" => "IP is not in any list"
+        ];
+    }
+
 }
