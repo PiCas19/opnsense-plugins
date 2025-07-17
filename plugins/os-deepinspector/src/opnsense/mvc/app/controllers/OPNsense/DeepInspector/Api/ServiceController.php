@@ -54,7 +54,8 @@ class ServiceController extends ApiMutableServiceControllerBase
             $response = $backend->configdRun("deepinspector start");
             return [
                 "response" => $response,
-                "status" => trim($response) === "deepinspector started successfully" ? "ok" : "failed"
+                "status" => strpos($response, "started") !== false ? "ok" : "failed",
+                "message" => "Starting Deep Packet Inspector Engine"
             ];
         }
         return ["status" => "failed", "message" => "POST method required"];
@@ -71,7 +72,8 @@ class ServiceController extends ApiMutableServiceControllerBase
             $response = $backend->configdRun("deepinspector stop");
             return [
                 "response" => $response,
-                "status" => trim($response) === "deepinspector stopped" ? "ok" : "failed"
+                "status" => strpos($response, "stopped") !== false ? "ok" : "failed",
+                "message" => "Stopping Deep Packet Inspector Engine"
             ];
         }
         return ["status" => "failed", "message" => "POST method required"];
@@ -88,35 +90,8 @@ class ServiceController extends ApiMutableServiceControllerBase
             $response = $backend->configdRun("deepinspector restart");
             return [
                 "response" => $response,
-                "status" => "ok"
-            ];
-        }
-        return ["status" => "failed", "message" => "POST method required"];
-    }
-
-    /**
-     * Reconfigure and restart DeepInspector service
-     * @return array
-     */
-    public function reconfigureAction()
-    {
-        if ($this->request->isPost()) {
-            $backend = new Backend();
-            
-            // Generate new configuration first
-            $backend->configdRun("template reload OPNsense/DeepInspector");
-            
-            // Then restart the service
-            $response = $backend->configdRun("deepinspector reconfigure");
-            
-            // Mark configuration as clean
-            $mdl = new \OPNsense\DeepInspector\DeepInspector();
-            $mdl->configClean();
-            
-            return [
-                "response" => $response,
                 "status" => "ok",
-                "message" => "Configuration applied and service restarted"
+                "message" => "Restarting Deep Packet Inspector Engine"
             ];
         }
         return ["status" => "failed", "message" => "POST method required"];
@@ -137,14 +112,14 @@ class ServiceController extends ApiMutableServiceControllerBase
         $socket_status = "unknown";
         
         foreach ($lines as $line) {
-            if (strpos($line, "is running as PID") !== false) {
+            if (strpos($line, "is running") !== false || strpos($line, "started") !== false) {
                 $running = true;
                 if (preg_match('/PID (\d+)/', $line, $matches)) {
                     $pid = $matches[1];
                 }
             } elseif (strpos($line, "Socket:") !== false) {
                 $socket_status = strpos($line, "(active)") !== false ? "active" : "inactive";
-            } elseif (strpos($line, "is not running") !== false) {
+            } elseif (strpos($line, "is not running") !== false || strpos($line, "stopped") !== false) {
                 $running = false;
             }
         }
@@ -154,12 +129,41 @@ class ServiceController extends ApiMutableServiceControllerBase
             "response" => $response,
             "running" => $running,
             "pid" => $pid,
-            "socket_status" => $socket_status
+            "socket_status" => $socket_status,
+            "message" => "Getting DPI engine status"
         ];
     }
 
     /**
-     * Block an IP address
+     * Reconfigure and restart DeepInspector service
+     * @return array
+     */
+    public function reconfigureAction()
+    {
+        if ($this->request->isPost()) {
+            $backend = new Backend();
+            
+            // Generate new configuration first
+            $backend->configdRun("template reload OPNsense/DeepInspector");
+            
+            // Then restart the service
+            $response = $backend->configdRun("deepinspector restart");
+            
+            // Mark configuration as clean
+            $mdl = new \OPNsense\DeepInspector\DeepInspector();
+            $mdl->configClean();
+            
+            return [
+                "response" => $response,
+                "status" => "ok",
+                "message" => "Reconfiguring Deep Packet Inspector Engine"
+            ];
+        }
+        return ["status" => "failed", "message" => "POST method required"];
+    }
+
+    /**
+     * Block an IP address using daemon
      * @return array
      */
     public function blockIPAction()
@@ -169,7 +173,7 @@ class ServiceController extends ApiMutableServiceControllerBase
             
             if (filter_var($ip, FILTER_VALIDATE_IP)) {
                 $backend = new Backend();
-                $response = $backend->configdRun("deepinspector block_ip " . escapeshellarg($ip));
+                $response = $backend->configdRun("deepinspector block_ip", $ip);
                 
                 return [
                     "status" => trim($response) === "OK" ? "ok" : "failed",
@@ -184,7 +188,7 @@ class ServiceController extends ApiMutableServiceControllerBase
     }
 
     /**
-     * Unblock an IP address
+     * Unblock an IP address using daemon
      * @return array
      */
     public function unblockIPAction()
@@ -194,7 +198,7 @@ class ServiceController extends ApiMutableServiceControllerBase
             
             if (filter_var($ip, FILTER_VALIDATE_IP)) {
                 $backend = new Backend();
-                $response = $backend->configdRun("deepinspector unblock_ip " . escapeshellarg($ip));
+                $response = $backend->configdRun("deepinspector unblock_ip", $ip);
                 
                 return [
                     "status" => trim($response) === "OK" ? "ok" : "failed",
@@ -209,7 +213,7 @@ class ServiceController extends ApiMutableServiceControllerBase
     }
 
     /**
-     * Whitelist an IP address
+     * Whitelist an IP address using daemon
      * @return array
      */
     public function whitelistIPAction()
@@ -219,7 +223,7 @@ class ServiceController extends ApiMutableServiceControllerBase
             
             if (filter_var($ip, FILTER_VALIDATE_IP)) {
                 $backend = new Backend();
-                $response = $backend->configdRun("deepinspector whitelist_ip " . escapeshellarg($ip));
+                $response = $backend->configdRun("deepinspector whitelist_ip", $ip);
                 
                 return [
                     "status" => trim($response) === "OK" ? "ok" : "failed",
@@ -234,7 +238,7 @@ class ServiceController extends ApiMutableServiceControllerBase
     }
 
     /**
-     * Clear DeepInspector logs
+     * Clear DeepInspector logs using daemon
      * @return array
      */
     public function clearLogsAction()
@@ -244,11 +248,81 @@ class ServiceController extends ApiMutableServiceControllerBase
             $response = $backend->configdRun("deepinspector clear_logs");
             
             return [
-                "status" => "ok",
+                "status" => trim($response) === "OK" ? "ok" : "failed",
                 "response" => $response,
-                "message" => "Logs cleared successfully"
+                "message" => trim($response) === "OK" ? "Logs cleared successfully" : "Failed to clear logs"
             ];
         }
         return ["status" => "failed", "message" => "POST method required"];
+    }
+
+    /**
+     * List blocked IPs
+     * @return array
+     */
+    public function listBlockedAction()
+    {
+        $backend = new Backend();
+        $response = $backend->configdRun("deepinspector list_blocked");
+        
+        $ips = array_filter(explode("\n", trim($response)));
+        
+        return [
+            "status" => "ok",
+            "data" => $ips,
+            "count" => count($ips),
+            "message" => "Getting blocked IP list"
+        ];
+    }
+
+    /**
+     * List whitelisted IPs
+     * @return array
+     */
+    public function listWhitelistAction()
+    {
+        $backend = new Backend();
+        $response = $backend->configdRun("deepinspector list_whitelist");
+        
+        $ips = array_filter(explode("\n", trim($response)));
+        
+        return [
+            "status" => "ok",
+            "data" => $ips,
+            "count" => count($ips),
+            "message" => "Getting whitelist IP list"
+        ];
+    }
+
+    /**
+     * Show JSON data for blocked or whitelisted IPs
+     * @return array
+     */
+    public function showJsonAction()
+    {
+        $type = $this->request->getPost('type') ?: $this->request->getParam('type');
+        
+        if (!in_array($type, ['blocked', 'whitelist'])) {
+            return ["status" => "failed", "message" => "Type must be 'blocked' or 'whitelist'"];
+        }
+        
+        $backend = new Backend();
+        $response = $backend->configdRun("deepinspector show_json", $type);
+        
+        // Try to decode JSON response
+        $data = json_decode($response, true);
+        if (json_last_error() === JSON_ERROR_NONE) {
+            return [
+                "status" => "ok",
+                "data" => $data,
+                "message" => "Getting $type IPs JSON data"
+            ];
+        }
+        
+        return [
+            "status" => "ok",
+            "response" => $response,
+            "message" => "Getting $type IPs JSON data"
+        ];
     }
 }
