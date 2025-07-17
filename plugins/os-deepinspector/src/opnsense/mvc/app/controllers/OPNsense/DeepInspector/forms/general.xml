@@ -26,6 +26,7 @@
         <label>Monitored Interfaces</label>
         <type>select_multiple</type>
         <style>selectpicker</style>
+        <multiple>Y</multiple>
         <help>Select the network interfaces to monitor for deep packet inspection. Traffic on these interfaces will be analyzed for threats.</help>
     </field>
     

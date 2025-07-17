@@ -43,19 +43,42 @@ class SettingsController extends ApiMutableModelControllerBase
         $result = ["result" => "failed"];
         if ($this->request->isPost()) {
             $mdl = $this->getModel();
-            $mdl->setNodes($this->request->getPost("deepinspector"));
-            $valMsgs = $mdl->performValidation();
             
-            if ($valMsgs->count() > 0) {
-                $result["validations"] = [];
-                foreach ($valMsgs as $msg) {
-                    $field = $msg->getField();
-                    $result["validations"]["deepinspector." . $field] = $msg->getMessage();
+            // Debug logging
+            error_log("DeepInspector setGeneral - Raw POST: " . print_r($this->request->getPost(), true));
+            
+            $postData = $this->request->getPost();
+            
+            // Extract only the general section data
+            $generalData = [];
+            if (isset($postData['deepinspector'])) {
+                foreach ($postData['deepinspector'] as $key => $value) {
+                    if (strpos($key, 'general.') === 0) {
+                        $generalData[substr($key, 8)] = $value; // Remove 'general.' prefix
+                    }
+                }
+            }
+            
+            error_log("DeepInspector setGeneral - Processed data: " . print_r(['general' => $generalData], true));
+            
+            if (!empty($generalData)) {
+                $mdl->setNodes(['general' => $generalData]);
+                $valMsgs = $mdl->performValidation();
+                
+                if ($valMsgs->count() > 0) {
+                    $result["validations"] = [];
+                    foreach ($valMsgs as $msg) {
+                        $field = $msg->getField();
+                        $result["validations"]["deepinspector." . $field] = $msg->getMessage();
+                    }
+                    error_log("DeepInspector setGeneral validation errors: " . print_r($result["validations"], true));
+                } else {
+                    $mdl->serializeToConfig();
+                    Config::getInstance()->save();
+                    $result["result"] = "saved";
                 }
             } else {
-                $mdl->serializeToConfig();
-                Config::getInstance()->save();
-                $result["result"] = "saved";
+                $result["validations"] = ["general" => "No configuration data received"];
             }
         }
         return $result;

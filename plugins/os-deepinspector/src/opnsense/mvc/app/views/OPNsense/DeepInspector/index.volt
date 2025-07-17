@@ -43,6 +43,13 @@
       mapDataToFormUI({'frm_GeneralSettings':"/api/deepinspector/settings/getGeneral/"}).done(function(){
          formatTokenizersUI();
          $('.selectpicker').selectpicker('refresh');
+         
+         // Forza il refresh dei multi-select dopo caricamento
+         setTimeout(function() {
+            $('select[multiple]').selectpicker('refresh');
+            $('.selectpicker').selectpicker('refresh');
+         }, 200);
+         
          isSubsystemDirty();
          updateServiceControlUI('deepinspector');
       });
@@ -50,10 +57,13 @@
       $('#btnSaveGeneral').unbind('click').click(function(){
          $("#btnSaveGeneralProgress").addClass("fa fa-spinner fa-pulse");
          var frm_id = 'frm_GeneralSettings';
+         
+         // Usa la funzione di salvataggio personalizzata per gestire multi-select
          saveFormToEndpoint("/api/deepinspector/settings/setGeneral/", frm_id, function(){
             isSubsystemDirty();
             updateServiceControlUI('deepinspector');
          }, true);
+         
          $("#btnSaveGeneralProgress").removeClass("fa fa-spinner fa-pulse");
          $("#btnSaveGeneral").blur();
       });
