@@ -1,270 +1,298 @@
 <?php
-
 namespace OPNsense\DeepInspector\Api;
 
 use OPNsense\Base\ApiControllerBase;
+use OPNsense\Core\Backend;
 
+/**
+ * Class AlertsController
+ * @package OPNsense\DeepInspector
+ */
 class AlertsController extends ApiControllerBase
 {
-    private const ALERT_LOG = '/var/log/deepinspector/alerts.log';
-    private const THREAT_LOG = '/var/log/deepinspector/threats.log';
-    private const DETECTION_LOG = '/var/log/deepinspector/detections.log';
-
     /**
-     * Get recent alerts with filtering and pagination
-     * @return array
+     * Get threat details by ID
+     * @param string $threatId threat identifier
+     * @return array threat details
      */
-    public function listAction()
+    public function threatDetailsAction($threatId)
     {
-        $severity = $this->request->get('severity') ?: 'all';
-        $type = $this->request->get('type') ?: 'all';
-        $since = $this->request->get('since') ?: null;
-        $limit = min((int)($this->request->get('limit') ?: 100), 500);
-
-        try {
-            $alerts = $this->readAlertLog(self::ALERT_LOG, $since, $limit);
-            
-            // Filter by severity and type
-            if ($severity !== 'all') {
-                $alerts = array_filter($alerts, function($alert) use ($severity) {
-                    return ($alert['severity'] ?? 'medium') === $severity;
-                });
-            }
-
-            if ($type !== 'all') {
-                $alerts = array_filter($alerts, function($alert) use ($type) {
-                    return ($alert['threat_type'] ?? 'unknown') === $type;
-                });
-            }
-
-            return [
-                'status' => 'ok',
-                'data' => array_values($alerts),
-                'count' => count($alerts),
-                'filters' => [
-                    'severity' => $severity,
-                    'type' => $type,
-                    'since' => $since
-                ]
-            ];
-
-        } catch (\Exception $e) {
-            return [
-                'status' => 'error',
-                'message' => 'Failed to read alerts: ' . $e->getMessage()
-            ];
-        }
-    }
-
-    /**
-     * Get threat statistics and trends
-     * @return array
-     */
-    public function threatStatsAction()
-    {
-        try {
-            $stats = $this->calculateThreatStats();
-            return ['status' => 'ok', 'data' => $stats];
-        } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => $e->getMessage()];
-        }
-    }
-
-    /**
-     * Get detailed information about a specific threat
-     * @param string $threatId
-     * @return array
-     */
-    public function threatDetailsAction($threatId = null)
-    {
-        if (!$threatId) {
-            return ['status' => 'error', 'message' => 'Threat ID required'];
-        }
-
-        try {
-            $details = $this->getThreatDetails($threatId);
-            return ['status' => 'ok', 'data' => $details];
-        } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => $e->getMessage()];
-        }
-    }
-
-    /**
-     * Export alerts for external analysis
-     * @return array
-     */
-    public function exportAction()
-    {
-        $format = $this->request->get('format') ?: 'json';
-        $hours = min((int)($this->request->get('hours') ?: 24), 168); // Max 1 week
-
-        try {
-            $since = date('c', time() - ($hours * 3600));
-            $alerts = $this->readAlertLog(self::ALERT_LOG, $since, 10000);
-
-            if ($format === 'csv') {
-                return $this->exportToCsv($alerts);
-            } else {
-                return [
-                    'status' => 'ok',
-                    'data' => $alerts,
-                    'export_time' => date('c'),
-                    'timeframe_hours' => $hours
-                ];
-            }
-        } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => $e->getMessage()];
-        }
-    }
-
-    /**
-     * Mark alert as resolved or add notes
-     * @param string $alertId
-     * @return array
-     */
-    public function updateAlertAction($alertId = null)
-    {
-        if (!$alertId || !$this->request->isPost()) {
-            return ['status' => 'error', 'message' => 'Invalid request'];
-        }
-
-        $status = $this->request->getPost('status');
-        $notes = $this->request->getPost('notes');
-
-        try {
-            $result = $this->updateAlertStatus($alertId, $status, $notes);
-            return ['status' => 'ok', 'data' => $result];
-        } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => $e->getMessage()];
-        }
-    }
-
-    private function readAlertLog($logFile, $since = null, $limit = 100)
-    {
-        if (!file_exists($logFile) || !is_readable($logFile)) {
-            return [];
-        }
-
-        $alerts = [];
-        $lines = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        $result = ["status" => "failed"];
         
-        // Read from end for recent alerts
-        $lines = array_reverse($lines);
-        $count = 0;
-
-        foreach ($lines as $line) {
-            if ($count >= $limit) break;
-
-            $alert = json_decode($line, true);
-            if (!is_array($alert)) continue;
-
-            if ($since && isset($alert['timestamp'])) {
-                if (strtotime($alert['timestamp']) < strtotime($since)) {
-                    break;
+        try {
+            $alertsFile = '/var/log/deepinspector/alerts.log';
+            
+            if (file_exists($alertsFile)) {
+                $lines = file($alertsFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                
+                foreach ($lines as $line) {
+                    $alert = json_decode($line, true);
+                    if ($alert && isset($alert['id']) && $alert['id'] === $threatId) {
+                        $result["status"] = "ok";
+                        $result["data"] = [
+                            'threat_id' => $alert['id'],
+                            'timestamp' => $alert['timestamp'],
+                            'source_ip' => $alert['source_ip'],
+                            'destination_ip' => $alert['destination_ip'],
+                            'threat_type' => $alert['threat_type'],
+                            'severity' => $alert['severity'],
+                            'protocol' => $alert['protocol'],
+                            'description' => $alert['description'],
+                            'detection_method' => $alert['detection_method'] ?? 'Unknown',
+                            'industrial_context' => $alert['industrial_context'] ?? false,
+                            'industrial_protocol' => $alert['industrial_protocol'] ?? null,
+                            'zero_trust_triggered' => $alert['zero_trust_triggered'] ?? false,
+                            'status' => 'active',
+                            'first_seen' => $alert['timestamp'],
+                            'last_seen' => $alert['timestamp']
+                        ];
+                        break;
+                    }
                 }
             }
-
-            $alerts[] = $alert;
-            $count++;
-        }
-
-        return array_reverse($alerts); // Restore chronological order
-    }
-
-    private function calculateThreatStats()
-    {
-        $stats = [
-            'last_24h' => ['total' => 0, 'critical' => 0, 'high' => 0, 'medium' => 0, 'low' => 0],
-            'last_7d' => ['total' => 0, 'critical' => 0, 'high' => 0, 'medium' => 0, 'low' => 0],
-            'threat_types' => [],
-            'top_sources' => [],
-            'detection_rate_trend' => []
-        ];
-
-        $alerts = $this->readAlertLog(self::ALERT_LOG, date('c', time() - (7*24*3600)), 10000);
-
-        $day_ago = time() - (24*3600);
-        
-        foreach ($alerts as $alert) {
-            $timestamp = strtotime($alert['timestamp'] ?? '');
-            $severity = $alert['severity'] ?? 'medium';
-            $threat_type = $alert['threat_type'] ?? 'unknown';
-            $source_ip = $alert['source_ip'] ?? 'unknown';
-
-            // Last 7 days stats
-            $stats['last_7d']['total']++;
-            $stats['last_7d'][$severity] = ($stats['last_7d'][$severity] ?? 0) + 1;
-
-            // Last 24 hours stats
-            if ($timestamp >= $day_ago) {
-                $stats['last_24h']['total']++;
-                $stats['last_24h'][$severity] = ($stats['last_24h'][$severity] ?? 0) + 1;
+            
+            if ($result["status"] === "failed") {
+                $result["message"] = "Threat not found";
             }
-
-            // Threat types
-            $stats['threat_types'][$threat_type] = ($stats['threat_types'][$threat_type] ?? 0) + 1;
-
-            // Top sources
-            $stats['top_sources'][$source_ip] = ($stats['top_sources'][$source_ip] ?? 0) + 1;
+            
+        } catch (Exception $e) {
+            $result["message"] = "Error retrieving threat details: " . $e->getMessage();
         }
-
-        // Sort top sources
-        arsort($stats['top_sources']);
-        $stats['top_sources'] = array_slice($stats['top_sources'], 0, 10, true);
-
-        return $stats;
-    }
-
-    private function getThreatDetails($threatId)
-    {
-        // Implementation would search through logs for specific threat ID
-        // and compile detailed information including packet captures,
-        // analysis results, related alerts, etc.
         
-        return [
-            'threat_id' => $threatId,
-            'status' => 'active',
-            'first_seen' => date('c'),
-            'last_seen' => date('c'),
-            'packet_samples' => [],
-            'analysis_results' => [],
-            'related_alerts' => []
-        ];
+        return $result;
     }
-
-    private function exportToCsv($alerts)
+    
+    /**
+     * Get all alerts with pagination
+     * @return array alerts list
+     */
+    public function getAllAction()
     {
-        $csv = "timestamp,severity,threat_type,source_ip,destination_ip,protocol,description\n";
+        $result = ["status" => "ok"];
         
-        foreach ($alerts as $alert) {
-            $csv .= sprintf("%s,%s,%s,%s,%s,%s,\"%s\"\n",
-                $alert['timestamp'] ?? '',
-                $alert['severity'] ?? '',
-                $alert['threat_type'] ?? '',
-                $alert['source_ip'] ?? '',
-                $alert['destination_ip'] ?? '',
-                $alert['protocol'] ?? '',
-                str_replace('"', '""', $alert['description'] ?? '')
-            );
+        try {
+            $alertsFile = '/var/log/deepinspector/alerts.log';
+            $alerts = [];
+            
+            if (file_exists($alertsFile)) {
+                $lines = file($alertsFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                
+                // Get pagination parameters
+                $page = $this->request->get('page', 1);
+                $limit = $this->request->get('limit', 50);
+                $offset = ($page - 1) * $limit;
+                
+                // Reverse to get newest first
+                $lines = array_reverse($lines);
+                $totalLines = count($lines);
+                
+                // Apply pagination
+                $paginatedLines = array_slice($lines, $offset, $limit);
+                
+                foreach ($paginatedLines as $line) {
+                    $alert = json_decode($line, true);
+                    if ($alert) {
+                        $alerts[] = [
+                            'id' => $alert['id'] ?? uniqid(),
+                            'timestamp' => $alert['timestamp'] ?? date('c'),
+                            'source_ip' => $alert['source_ip'] ?? 'Unknown',
+                            'destination_ip' => $alert['destination_ip'] ?? 'Unknown',
+                            'threat_type' => $alert['threat_type'] ?? 'Unknown',
+                            'severity' => $alert['severity'] ?? 'medium',
+                            'protocol' => $alert['protocol'] ?? 'Unknown',
+                            'description' => $alert['description'] ?? 'No description',
+                            'industrial_context' => $alert['industrial_context'] ?? false
+                        ];
+                    }
+                }
+                
+                $result["data"] = [
+                    'alerts' => $alerts,
+                    'pagination' => [
+                        'page' => $page,
+                        'limit' => $limit,
+                        'total' => $totalLines,
+                        'pages' => ceil($totalLines / $limit)
+                    ]
+                ];
+            } else {
+                $result["data"] = [
+                    'alerts' => [],
+                    'pagination' => [
+                        'page' => 1,
+                        'limit' => $limit,
+                        'total' => 0,
+                        'pages' => 0
+                    ]
+                ];
+            }
+            
+        } catch (Exception $e) {
+            $result["status"] = "error";
+            $result["message"] = "Error retrieving alerts: " . $e->getMessage();
+            $result["data"] = ['alerts' => [], 'pagination' => []];
         }
-
-        return [
-            'status' => 'ok',
-            'data' => $csv,
-            'content_type' => 'text/csv',
-            'filename' => 'dpi_alerts_' . date('Y-m-d_H-i-s') . '.csv'
-        ];
+        
+        return $result;
     }
-
-    private function updateAlertStatus($alertId, $status, $notes)
+    
+    /**
+     * Get alert statistics
+     * @return array alert statistics
+     */
+    public function getStatsAction()
     {
-        // Implementation would update alert status in database or log file
-        return [
-            'alert_id' => $alertId,
-            'old_status' => 'active',
-            'new_status' => $status,
-            'updated_at' => date('c'),
-            'notes' => $notes
-        ];
+        $result = ["status" => "ok"];
+        
+        try {
+            $alertsFile = '/var/log/deepinspector/alerts.log';
+            $stats = [
+                'total_alerts' => 0,
+                'critical_alerts' => 0,
+                'high_alerts' => 0,
+                'medium_alerts' => 0,
+                'low_alerts' => 0,
+                'industrial_alerts' => 0,
+                'threat_types' => [],
+                'top_sources' => [],
+                'hourly_distribution' => []
+            ];
+            
+            if (file_exists($alertsFile)) {
+                $lines = file($alertsFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                $threatTypes = [];
+                $sources = [];
+                $hourly = [];
+                
+                foreach ($lines as $line) {
+                    $alert = json_decode($line, true);
+                    if ($alert) {
+                        $stats['total_alerts']++;
+                        
+                        // Count by severity
+                        $severity = $alert['severity'] ?? 'medium';
+                        switch ($severity) {
+                            case 'critical':
+                                $stats['critical_alerts']++;
+                                break;
+                            case 'high':
+                                $stats['high_alerts']++;
+                                break;
+                            case 'medium':
+                                $stats['medium_alerts']++;
+                                break;
+                            case 'low':
+                                $stats['low_alerts']++;
+                                break;
+                        }
+                        
+                        // Count industrial alerts
+                        if ($alert['industrial_context'] ?? false) {
+                            $stats['industrial_alerts']++;
+                        }
+                        
+                        // Count threat types
+                        $threatType = $alert['threat_type'] ?? 'unknown';
+                        $threatTypes[$threatType] = ($threatTypes[$threatType] ?? 0) + 1;
+                        
+                        // Count source IPs
+                        $sourceIP = $alert['source_ip'] ?? 'unknown';
+                        $sources[$sourceIP] = ($sources[$sourceIP] ?? 0) + 1;
+                        
+                        // Count by hour
+                        $timestamp = $alert['timestamp'] ?? date('c');
+                        $hour = date('H', strtotime($timestamp));
+                        $hourly[$hour] = ($hourly[$hour] ?? 0) + 1;
+                    }
+                }
+                
+                // Sort and limit results
+                arsort($threatTypes);
+                arsort($sources);
+                ksort($hourly);
+                
+                $stats['threat_types'] = array_slice($threatTypes, 0, 10, true);
+                $stats['top_sources'] = array_slice($sources, 0, 10, true);
+                $stats['hourly_distribution'] = $hourly;
+            }
+            
+            $result["data"] = $stats;
+            
+        } catch (Exception $e) {
+            $result["status"] = "error";
+            $result["message"] = "Error retrieving alert statistics: " . $e->getMessage();
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Mark alert as resolved
+     * @param string $alertId alert identifier
+     * @return array result
+     */
+    public function resolveAction($alertId)
+    {
+        $result = ["status" => "failed"];
+        
+        try {
+            // For now, just log the resolution
+            $resolvedFile = '/var/log/deepinspector/resolved.log';
+            $resolution = [
+                'alert_id' => $alertId,
+                'resolved_at' => date('c'),
+                'resolved_by' => 'admin'
+            ];
+            
+            file_put_contents($resolvedFile, json_encode($resolution) . "\n", FILE_APPEND | LOCK_EX);
+            
+            $result["status"] = "ok";
+            $result["message"] = "Alert marked as resolved";
+            
+        } catch (Exception $e) {
+            $result["message"] = "Error resolving alert: " . $e->getMessage();
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Delete alert
+     * @param string $alertId alert identifier
+     * @return array result
+     */
+    public function deleteAction($alertId)
+    {
+        $result = ["status" => "failed"];
+        
+        try {
+            $alertsFile = '/var/log/deepinspector/alerts.log';
+            $tempFile = $alertsFile . '.tmp';
+            
+            if (file_exists($alertsFile)) {
+                $lines = file($alertsFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                $newLines = [];
+                
+                foreach ($lines as $line) {
+                    $alert = json_decode($line, true);
+                    if (!$alert || !isset($alert['id']) || $alert['id'] !== $alertId) {
+                        $newLines[] = $line;
+                    }
+                }
+                
+                file_put_contents($tempFile, implode("\n", $newLines) . "\n");
+                rename($tempFile, $alertsFile);
+                
+                $result["status"] = "ok";
+                $result["message"] = "Alert deleted successfully";
+            } else {
+                $result["message"] = "Alerts file not found";
+            }
+            
+        } catch (Exception $e) {
+            $result["message"] = "Error deleting alert: " . $e->getMessage();
+        }
+        
+        return $result;
     }
 }
