@@ -1,3 +1,6 @@
+#!/usr/local/bin/python3
+# update_signatures.py - Download and update threat signatures
+
 import os
 import json
 from datetime import datetime
@@ -25,7 +28,7 @@ def download_signatures():
                 'industrial_threats': []
             }
         }
-
+        
         # Add default patterns
         signatures['patterns']['malware_signatures'] = [
             r'X5O!P%@AP\[4\\PZX54\(P\^\)7CC\)7\}\$EICAR',
@@ -34,7 +37,7 @@ def download_signatures():
             r'MZ[\x00-\xFF]{58}PE',
             r'\\x7fELF'
         ]
-
+        
         signatures['patterns']['command_injection'] = [
             r'[\;\|&`\$\(\)].*?(ls|cat|wget|curl|nc|netcat)',
             r'(cmd\.exe|powershell|bash|sh).*?[\;\|&]',
@@ -42,7 +45,7 @@ def download_signatures():
             r'(ping|nslookup|dig).*?[\;\|&]',
             r'(chmod|chown|rm|mv).*?[\;\|&]'
         ]
-
+        
         signatures['patterns']['sql_injection'] = [
             r'(union|select|insert|update|delete).*?(from|into|where)',
             r'[\'"].*?(or|and).*?[\'"].*?=.*?[\'"]',
@@ -50,7 +53,7 @@ def download_signatures():
             r'(drop|alter|create).*?(table|database|index)',
             r'(information_schema|sys\.databases|pg_catalog)'
         ]
-
+        
         signatures['patterns']['script_injection'] = [
             r'<script[^>]*>.*?</script>',
             r'javascript:.*?(alert|eval|document)',
@@ -58,7 +61,7 @@ def download_signatures():
             r'<iframe[^>]*src.*?javascript:',
             r'eval\s*\(\s*[\'"].*?[\'"]'
         ]
-
+        
         signatures['patterns']['crypto_mining'] = [
             r'(coinhive|cryptonight|monero|bitcoin).*?(miner|mine)',
             r'stratum\+tcp://.*?:[0-9]+',
@@ -66,7 +69,7 @@ def download_signatures():
             r'(xmrig|cpuminer|cgminer)',
             r'cryptonight.*?hash'
         ]
-
+        
         signatures['patterns']['data_exfiltration'] = [
             r'(password|passwd|credential|token|key).*?[:=].*?[a-zA-Z0-9]{8,}',
             r'(BEGIN|END).*?(PRIVATE KEY|CERTIFICATE)',
@@ -74,7 +77,7 @@ def download_signatures():
             r'(ftp|sftp|scp)://.*?:[0-9]+',
             r'(aws|s3).*?(access|secret).*?key'
         ]
-
+        
         signatures['patterns']['industrial_threats'] = [
             r'(modbus|dnp3|opcua).*?(exploit|attack|malicious)',
             r'(scada|plc|hmi).*?(compromise|hijack|control)',
@@ -82,14 +85,14 @@ def download_signatures():
             r'(ladder|logic|program).*?(upload|download|modify)',
             r'(coil|register|input).*?(read|write|force)'
         ]
-
+        
         # Ensure directory exists
         os.makedirs(os.path.dirname(SIGNATURES_FILE), exist_ok=True)
-
+        
         # Write signatures
         with open(SIGNATURES_FILE, 'w') as f:
             json.dump(signatures, f, indent=2)
-
+            
         print(f"Signatures updated: {len(signatures['patterns'])} categories")
         
         # Calculate total patterns
@@ -97,7 +100,7 @@ def download_signatures():
         print(f"Total patterns: {total_patterns}")
         
         return True
-
+        
     except Exception as e:
         print(f"Error updating signatures: {e}")
         return False
