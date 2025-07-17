@@ -981,9 +981,13 @@ def main():
         logger.info(f"Starting capture worker for interface: {interface}")
         
         try:
+            # Force convert max_packet_size to int right here
+            max_packet_size = int(config['general']['max_packet_size'])
+            logger.info(f"Max packet size for {interface}: {max_packet_size} (type: {type(max_packet_size)})")
+            
             # Open packet capture
             cap = pcapy.open_live(interface, 
-                                config['general']['max_packet_size'], 
+                                max_packet_size, 
                                 1,  # promiscuous mode
                                 100)  # timeout in ms
             
@@ -1004,6 +1008,7 @@ def main():
                     
         except Exception as e:
             logger.error(f"Failed to open capture on interface {interface}: {e}")
+            logger.error(f"Config max_packet_size: {config['general']['max_packet_size']} (type: {type(config['general']['max_packet_size'])})")
             
         logger.info(f"Capture worker for {interface} stopped")
     
