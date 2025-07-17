@@ -137,19 +137,17 @@ class ServiceController extends ApiMutableServiceControllerBase
                 }
             }
             
-            $statusInfo = [
+            $result["data"] = [
                 "running" => $isRunning,
                 "pid" => $pid
             ];
             
             if ($isRunning) {
                 // Get additional process information
-                $statusInfo["uptime"] = $this->getProcessUptime($pid);
-                $statusInfo["memory_usage"] = $this->getProcessMemoryUsage($pid);
-                $statusInfo["cpu_usage"] = $this->getProcessCpuUsage($pid);
+                $result["data"]["uptime"] = $this->getProcessUptime($pid);
+                $result["data"]["memory_usage"] = $this->getProcessMemoryUsage($pid);
+                $result["data"]["cpu_usage"] = $this->getProcessCpuUsage($pid);
             }
-            
-            $result["status"] = $statusInfo;
             
         } catch (Exception $e) {
             $result["status"] = "error";
