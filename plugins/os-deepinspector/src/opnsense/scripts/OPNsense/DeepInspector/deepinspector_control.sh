@@ -1,4 +1,3 @@
-
 #!/bin/sh
 
 # DeepInspector Control Script - Simple Version
