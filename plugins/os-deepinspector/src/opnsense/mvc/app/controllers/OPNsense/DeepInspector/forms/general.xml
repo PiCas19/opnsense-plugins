@@ -18,17 +18,12 @@
             <strong>Learning Mode</strong>: Learn traffic patterns to reduce false positives
             ]]>
         </help>
-        <options>
-            <passive>Passive Monitoring</passive>
-            <active>Active Blocking</active>
-            <learning>Learning Mode</learning>
-        </options>
     </field>
     
     <field>
         <id>deepinspector.general.interfaces</id>
         <label>Monitored Interfaces</label>
-        <type>select_multiple</type>
+        <type>dropdown</type>
         <help>Select the network interfaces to monitor for deep packet inspection. Traffic on these interfaces will be analyzed for threats.</help>
     </field>
     
@@ -107,13 +102,6 @@
             <strong>Custom</strong>: Manual configuration of all settings
             ]]>
         </help>
-        <options>
-            <high_performance>High Performance (Industrial/Low Latency)</high_performance>
-            <balanced>Balanced</balanced>
-            <high_security>High Security</high_security>
-            <industrial>Industrial Optimized</industrial>
-            <custom>Custom</custom>
-        </options>
     </field>
     
     <field>
@@ -145,13 +133,5 @@
             <strong>Trace</strong>: Maximum verbosity (may impact performance)
             ]]>
         </help>
-        <options>
-            <critical>Critical Only</critical>
-            <error>Error</error>
-            <warning>Warning</warning>
-            <info>Info</info>
-            <debug>Debug</debug>
-            <trace>Trace</trace>
-        </options>
     </field>
 </form>
