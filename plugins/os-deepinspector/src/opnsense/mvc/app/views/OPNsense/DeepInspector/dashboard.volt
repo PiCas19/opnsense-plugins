@@ -347,10 +347,7 @@ function getCurrentThreatData(threatId) {
 
 function blockSource(sourceIP) {
     if (confirm(`{{ lang._("Are you sure you want to block IP") }} ${sourceIP}?`)) {
-        const formData = new FormData();
-        formData.append('ip', sourceIP);
-        
-        ajaxCall("/api/deepinspector/service/blockIP", formData, function(data) {
+        ajaxCall("/api/deepinspector/service/blockIP", {ip: sourceIP}, function(data) {
             if (data.status === 'ok') {
                 showNotification(`{{ lang._("IP") }} ${sourceIP} {{ lang._("blocked successfully") }}`, 'success');
                 // Close modal if open
