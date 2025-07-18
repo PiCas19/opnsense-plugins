@@ -20,16 +20,12 @@ class LogsController extends ApiControllerBase
         
         try {
             // Get filter parameters with proper default values
-            $levelFilter = $this->request->get('level', 'string', 'all');
-            $sourceFilter = $this->request->get('source', 'string', 'all');
-            $timeFilter = $this->request->get('timeRange', 'string', '24h');
-            $searchFilter = $this->request->get('search', 'string', '');
-            $page = intval($this->request->get('page', 'int', 1));
-            $limit = intval($this->request->get('limit', 'int', 100));
-            
-            // Ensure page and limit are valid
-            $page = max(1, $page);
-            $limit = max(1, min(1000, $limit)); // Limit max to 1000
+            $levelFilter = $this->request->get('level') ?: 'all';
+            $sourceFilter = $this->request->get('source') ?: 'all';
+            $timeFilter = $this->request->get('timeRange') ?: '24h';
+            $searchFilter = $this->request->get('search') ?: '';
+            $page = max(1, intval($this->request->get('page') ?: 1));
+            $limit = max(1, min(1000, intval($this->request->get('limit') ?: 100)));
             
             // Define log file paths
             $logFiles = [
@@ -65,13 +61,22 @@ class LogsController extends ApiControllerBase
                         continue;
                     }
                     
-                    $lines = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                    // Handle empty files
+                    if ($fileSize === 0) {
+                        continue;
+                    }
                     
-                    if ($lines !== false) {
-                        // Process only the last 10000 lines to prevent memory issues
-                        $lines = array_slice($lines, -10000);
+                    $lines = @file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                    
+                    if ($lines !== false && is_array($lines)) {
+                        // Process only the last 1000 lines to prevent memory issues
+                        $lines = array_slice($lines, -1000);
                         
                         foreach ($lines as $lineNum => $line) {
+                            if (empty(trim($line))) {
+                                continue;
+                            }
+                            
                             try {
                                 $logEntry = $this->parseLogLine($line, $source, $lineNum);
                                 
@@ -84,7 +89,7 @@ class LogsController extends ApiControllerBase
                                         $statistics[$level]++;
                                     }
                                 }
-                            } catch (Exception $e) {
+                            } catch (Throwable $e) {
                                 // Log parsing error but continue processing
                                 error_log("DeepInspector: Error parsing log line: " . $e->getMessage());
                                 continue;
@@ -94,11 +99,19 @@ class LogsController extends ApiControllerBase
                 }
             }
             
-            // Sort by timestamp (newest first)
+            // Sort by timestamp (newest first) with error handling
             usort($logs, function($a, $b) {
-                $timeA = strtotime($a['timestamp']);
-                $timeB = strtotime($b['timestamp']);
-                return $timeB - $timeA;
+                try {
+                    $timeA = strtotime($a['timestamp'] ?? '');
+                    $timeB = strtotime($b['timestamp'] ?? '');
+                    
+                    if ($timeA === false) $timeA = 0;
+                    if ($timeB === false) $timeB = 0;
+                    
+                    return $timeB - $timeA;
+                } catch (Throwable $e) {
+                    return 0;
+                }
             });
             
             // Apply pagination
@@ -114,15 +127,29 @@ class LogsController extends ApiControllerBase
                 'lastUpdated' => $this->getLastLogUpdate($logFiles),
                 'page' => $page,
                 'limit' => $limit,
-                'totalPages' => ceil($totalLogs / $limit)
+                'totalPages' => max(1, ceil($totalLogs / $limit))
             ];
             
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             $result["status"] = "error";
             $result["message"] = "Error retrieving logs: " . $e->getMessage();
             $result["data"] = [];
-            $result["statistics"] = [];
-            $result["info"] = [];
+            $result["statistics"] = [
+                'trace' => 0,
+                'debug' => 0,
+                'info' => 0,
+                'warning' => 0,
+                'error' => 0,
+                'critical' => 0
+            ];
+            $result["info"] = [
+                'count' => 0,
+                'size' => 0,
+                'lastUpdated' => date('c'),
+                'page' => 1,
+                'limit' => 100,
+                'totalPages' => 1
+            ];
             
             // Log the error
             error_log("DeepInspector LogsController listAction error: " . $e->getMessage());
@@ -157,14 +184,14 @@ class LogsController extends ApiControllerBase
             
             foreach ($logFiles as $logFile) {
                 if (file_exists($logFile) && is_readable($logFile)) {
-                    $lines = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                    $lines = @file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
                     
-                    if ($lines !== false) {
+                    if ($lines !== false && is_array($lines)) {
                         foreach ($lines as $lineNum => $line) {
                             try {
-                                $logEntry = $this->parseLogLine($line, 'engine', $lineNum);
+                                $logEntry = $this->parseLogLine($line, basename($logFile, '.log'), $lineNum);
                                 
-                                if ($logEntry && $logEntry['id'] === $logId) {
+                                if ($logEntry && isset($logEntry['id']) && $logEntry['id'] === $logId) {
                                     $result["status"] = "ok";
                                     $result["data"] = [
                                         'id' => $logEntry['id'],
@@ -184,7 +211,7 @@ class LogsController extends ApiControllerBase
                                     ];
                                     break 2;
                                 }
-                            } catch (Exception $e) {
+                            } catch (Throwable $e) {
                                 continue;
                             }
                         }
@@ -196,7 +223,7 @@ class LogsController extends ApiControllerBase
                 $result["message"] = "Log entry not found";
             }
             
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             $result["message"] = "Error retrieving log details: " . $e->getMessage();
             error_log("DeepInspector LogsController detailsAction error: " . $e->getMessage());
         }
@@ -214,11 +241,11 @@ class LogsController extends ApiControllerBase
         
         try {
             // Get filter parameters
-            $levelFilter = $this->request->get('level', 'string', 'all');
-            $sourceFilter = $this->request->get('source', 'string', 'all');
-            $timeFilter = $this->request->get('timeRange', 'string', '24h');
-            $searchFilter = $this->request->get('search', 'string', '');
-            $format = $this->request->get('format', 'string', 'txt');
+            $levelFilter = $this->request->get('level') ?: 'all';
+            $sourceFilter = $this->request->get('source') ?: 'all';
+            $timeFilter = $this->request->get('timeRange') ?: '24h';
+            $searchFilter = $this->request->get('search') ?: '';
+            $format = $this->request->get('format') ?: 'txt';
             
             $logFiles = [
                 'engine' => '/var/log/deepinspector/engine.log',
@@ -233,9 +260,9 @@ class LogsController extends ApiControllerBase
             
             foreach ($logFiles as $source => $logFile) {
                 if (file_exists($logFile) && is_readable($logFile)) {
-                    $lines = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                    $lines = @file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
                     
-                    if ($lines !== false) {
+                    if ($lines !== false && is_array($lines)) {
                         foreach ($lines as $lineNum => $line) {
                             try {
                                 $logEntry = $this->parseLogLine($line, $source, $lineNum);
@@ -243,7 +270,7 @@ class LogsController extends ApiControllerBase
                                 if ($logEntry && $this->matchesLogFilters($logEntry, $levelFilter, $sourceFilter, $searchFilter, $timeLimit)) {
                                     $logs[] = $logEntry;
                                 }
-                            } catch (Exception $e) {
+                            } catch (Throwable $e) {
                                 continue;
                             }
                         }
@@ -253,9 +280,17 @@ class LogsController extends ApiControllerBase
             
             // Sort by timestamp
             usort($logs, function($a, $b) {
-                $timeA = strtotime($a['timestamp']);
-                $timeB = strtotime($b['timestamp']);
-                return $timeA - $timeB;
+                try {
+                    $timeA = strtotime($a['timestamp'] ?? '');
+                    $timeB = strtotime($b['timestamp'] ?? '');
+                    
+                    if ($timeA === false) $timeA = 0;
+                    if ($timeB === false) $timeB = 0;
+                    
+                    return $timeA - $timeB;
+                } catch (Throwable $e) {
+                    return 0;
+                }
             });
             
             if ($format === 'txt') {
@@ -268,7 +303,7 @@ class LogsController extends ApiControllerBase
             $result["data"] = $exportData;
             $result["filename"] = "deepinspector_logs_" . date('Y-m-d_H-i-s') . '.' . $format;
             
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             $result["message"] = "Error exporting logs: " . $e->getMessage();
             error_log("DeepInspector LogsController exportAction error: " . $e->getMessage());
         }
@@ -302,9 +337,9 @@ class LogsController extends ApiControllerBase
                     try {
                         // Backup the file first
                         $backupFile = $logFile . '.backup.' . date('Y-m-d-H-i-s');
-                        if (copy($logFile, $backupFile)) {
+                        if (@copy($logFile, $backupFile)) {
                             // Clear the file
-                            if (file_put_contents($logFile, '') !== false) {
+                            if (@file_put_contents($logFile, '') !== false) {
                                 $clearedCount++;
                             } else {
                                 $errors[] = "Failed to clear: " . basename($logFile);
@@ -312,7 +347,7 @@ class LogsController extends ApiControllerBase
                         } else {
                             $errors[] = "Failed to backup: " . basename($logFile);
                         }
-                    } catch (Exception $e) {
+                    } catch (Throwable $e) {
                         $errors[] = "Error with " . basename($logFile) . ": " . $e->getMessage();
                     }
                 }
@@ -329,7 +364,7 @@ class LogsController extends ApiControllerBase
                 $result["message"] = "No log files were cleared. Errors: " . implode(", ", $errors);
             }
             
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             $result["message"] = "Error clearing logs: " . $e->getMessage();
             error_log("DeepInspector LogsController clearAction error: " . $e->getMessage());
         }
@@ -346,98 +381,104 @@ class LogsController extends ApiControllerBase
      */
     private function parseLogLine($line, $source, $lineNum = 0)
     {
-        if (empty(trim($line))) {
+        try {
+            if (empty(trim($line))) {
+                return null;
+            }
+            
+            // Try to parse JSON log entries first (for detection, alerts, threats logs)
+            if (($source === 'detection' || $source === 'alerts' || $source === 'threats') && 
+                (strpos($line, '{') === 0)) {
+                try {
+                    $jsonData = json_decode($line, true);
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($jsonData)) {
+                        return [
+                            'id' => $jsonData['id'] ?? md5($line . $lineNum),
+                            'timestamp' => $jsonData['timestamp'] ?? date('c'),
+                            'level' => $this->determineLevelFromJson($jsonData),
+                            'source' => $source,
+                            'message' => $this->extractMessageFromJson($jsonData),
+                            'context' => isset($jsonData['details']) ? json_encode($jsonData['details']) : null,
+                            'details' => $jsonData
+                        ];
+                    }
+                } catch (Throwable $e) {
+                    // Fall through to other parsing methods
+                }
+            }
+            
+            // Try to parse Python logging format: YYYY-MM-DD HH:MM:SS,mmm - LEVEL - MESSAGE
+            $pattern = '/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),?\d* - (\w+) - (.+)$/';
+            
+            if (preg_match($pattern, $line, $matches)) {
+                $timestamp = $matches[1];
+                $level = strtolower($matches[2]);
+                $message = $matches[3];
+                
+                return [
+                    'id' => md5($line . $lineNum),
+                    'timestamp' => $this->formatTimestamp($timestamp),
+                    'level' => $level,
+                    'source' => $source,
+                    'message' => $message,
+                    'context' => null,
+                    'details' => null
+                ];
+            }
+            
+            // Try to parse daemon log format: [YYYY-MM-DD HH:MM:SS] MESSAGE
+            $daemonPattern = '/^\[([^\]]+)\] (.+)$/';
+            if (preg_match($daemonPattern, $line, $matches)) {
+                $timestamp = $matches[1];
+                $message = $matches[2];
+                
+                // Determine level from message content
+                $level = $this->determineLevelFromMessage($message);
+                
+                return [
+                    'id' => md5($line . $lineNum),
+                    'timestamp' => $this->formatTimestamp($timestamp),
+                    'level' => $level,
+                    'source' => 'daemon',
+                    'message' => $message,
+                    'context' => null,
+                    'details' => null
+                ];
+            }
+            
+            // Try to parse syslog format: MMM DD HH:MM:SS hostname program: message
+            $syslogPattern = '/^(\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+\S+\s+(\w+):\s*(.+)$/';
+            if (preg_match($syslogPattern, $line, $matches)) {
+                $timestamp = $matches[1];
+                $program = $matches[2];
+                $message = $matches[3];
+                
+                return [
+                    'id' => md5($line . $lineNum),
+                    'timestamp' => $this->formatTimestamp($timestamp),
+                    'level' => $this->determineLevelFromMessage($message),
+                    'source' => $program,
+                    'message' => $message,
+                    'context' => null,
+                    'details' => null
+                ];
+            }
+            
+            // Fallback: treat as plain message
+            return [
+                'id' => md5($line . $lineNum),
+                'timestamp' => date('c'),
+                'level' => 'info',
+                'source' => $source,
+                'message' => $line,
+                'context' => null,
+                'details' => null
+            ];
+            
+        } catch (Throwable $e) {
+            error_log("DeepInspector: Error in parseLogLine: " . $e->getMessage());
             return null;
         }
-        
-        // Try to parse JSON log entries first (for detection, alerts, threats logs)
-        if (($source === 'detection' || $source === 'alerts' || $source === 'threats') && 
-            (strpos($line, '{') === 0)) {
-            try {
-                $jsonData = json_decode($line, true);
-                if (json_last_error() === JSON_ERROR_NONE && is_array($jsonData)) {
-                    return [
-                        'id' => $jsonData['id'] ?? md5($line . $lineNum),
-                        'timestamp' => $jsonData['timestamp'] ?? date('c'),
-                        'level' => $this->determineLevelFromJson($jsonData),
-                        'source' => $source,
-                        'message' => $this->extractMessageFromJson($jsonData),
-                        'context' => isset($jsonData['details']) ? json_encode($jsonData['details']) : null,
-                        'details' => $jsonData
-                    ];
-                }
-            } catch (Exception $e) {
-                // Fall through to other parsing methods
-            }
-        }
-        
-        // Try to parse Python logging format: YYYY-MM-DD HH:MM:SS,mmm - LEVEL - MESSAGE
-        $pattern = '/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),?\d* - (\w+) - (.+)$/';
-        
-        if (preg_match($pattern, $line, $matches)) {
-            $timestamp = $matches[1];
-            $level = strtolower($matches[2]);
-            $message = $matches[3];
-            
-            return [
-                'id' => md5($line . $lineNum),
-                'timestamp' => $this->formatTimestamp($timestamp),
-                'level' => $level,
-                'source' => $source,
-                'message' => $message,
-                'context' => null,
-                'details' => null
-            ];
-        }
-        
-        // Try to parse daemon log format: [YYYY-MM-DD HH:MM:SS] MESSAGE
-        $daemonPattern = '/^\[([^\]]+)\] (.+)$/';
-        if (preg_match($daemonPattern, $line, $matches)) {
-            $timestamp = $matches[1];
-            $message = $matches[2];
-            
-            // Determine level from message content
-            $level = $this->determineLevelFromMessage($message);
-            
-            return [
-                'id' => md5($line . $lineNum),
-                'timestamp' => $this->formatTimestamp($timestamp),
-                'level' => $level,
-                'source' => 'daemon',
-                'message' => $message,
-                'context' => null,
-                'details' => null
-            ];
-        }
-        
-        // Try to parse syslog format: MMM DD HH:MM:SS hostname program: message
-        $syslogPattern = '/^(\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+\S+\s+(\w+):\s*(.+)$/';
-        if (preg_match($syslogPattern, $line, $matches)) {
-            $timestamp = $matches[1];
-            $program = $matches[2];
-            $message = $matches[3];
-            
-            return [
-                'id' => md5($line . $lineNum),
-                'timestamp' => $this->formatTimestamp($timestamp),
-                'level' => $this->determineLevelFromMessage($message),
-                'source' => $program,
-                'message' => $message,
-                'context' => null,
-                'details' => null
-            ];
-        }
-        
-        // Fallback: treat as plain message
-        return [
-            'id' => md5($line . $lineNum),
-            'timestamp' => date('c'),
-            'level' => 'info',
-            'source' => $source,
-            'message' => $line,
-            'context' => null,
-            'details' => null
-        ];
     }
     
     /**
@@ -524,9 +565,9 @@ class LogsController extends ApiControllerBase
     private function formatTimestamp($timestamp)
     {
         try {
-            $dateTime = new DateTime($timestamp);
+            $dateTime = new \DateTime($timestamp);
             return $dateTime->format('c');
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             return date('c');
         }
     }
@@ -542,38 +583,42 @@ class LogsController extends ApiControllerBase
      */
     private function matchesLogFilters($logEntry, $levelFilter, $sourceFilter, $searchFilter, $timeLimit)
     {
-        // Time filter
-        if ($timeLimit > 0) {
-            $logTime = strtotime($logEntry['timestamp']);
-            if ($logTime < $timeLimit) {
-                return false;
+        try {
+            // Time filter
+            if ($timeLimit > 0) {
+                $logTime = strtotime($logEntry['timestamp'] ?? '');
+                if ($logTime === false || $logTime < $timeLimit) {
+                    return false;
+                }
             }
-        }
-        
-        // Level filter
-        if ($levelFilter !== 'all') {
-            if ($logEntry['level'] !== $levelFilter) {
-                return false;
+            
+            // Level filter
+            if ($levelFilter !== 'all') {
+                if (($logEntry['level'] ?? '') !== $levelFilter) {
+                    return false;
+                }
             }
-        }
-        
-        // Source filter
-        if ($sourceFilter !== 'all') {
-            if ($logEntry['source'] !== $sourceFilter) {
-                return false;
+            
+            // Source filter
+            if ($sourceFilter !== 'all') {
+                if (($logEntry['source'] ?? '') !== $sourceFilter) {
+                    return false;
+                }
             }
-        }
-        
-        // Search filter
-        if (!empty($searchFilter)) {
-            $message = strtolower($logEntry['message']);
-            $search = strtolower($searchFilter);
-            if (strpos($message, $search) === false) {
-                return false;
+            
+            // Search filter
+            if (!empty($searchFilter)) {
+                $message = strtolower($logEntry['message'] ?? '');
+                $search = strtolower($searchFilter);
+                if (strpos($message, $search) === false) {
+                    return false;
+                }
             }
+            
+            return true;
+        } catch (Throwable $e) {
+            return false;
         }
-        
-        return true;
     }
     
     /**
@@ -610,10 +655,17 @@ class LogsController extends ApiControllerBase
     {
         $totalSize = 0;
         
-        foreach ($logFiles as $logFile) {
-            if (file_exists($logFile)) {
-                $totalSize += filesize($logFile);
+        try {
+            foreach ($logFiles as $logFile) {
+                if (file_exists($logFile)) {
+                    $size = filesize($logFile);
+                    if ($size !== false) {
+                        $totalSize += $size;
+                    }
+                }
             }
+        } catch (Throwable $e) {
+            error_log("DeepInspector: Error calculating log size: " . $e->getMessage());
         }
         
         return $totalSize;
@@ -628,13 +680,17 @@ class LogsController extends ApiControllerBase
     {
         $latestTime = 0;
         
-        foreach ($logFiles as $logFile) {
-            if (file_exists($logFile)) {
-                $mtime = filemtime($logFile);
-                if ($mtime > $latestTime) {
-                    $latestTime = $mtime;
+        try {
+            foreach ($logFiles as $logFile) {
+                if (file_exists($logFile)) {
+                    $mtime = filemtime($logFile);
+                    if ($mtime !== false && $mtime > $latestTime) {
+                        $latestTime = $mtime;
+                    }
                 }
             }
+        } catch (Throwable $e) {
+            error_log("DeepInspector: Error getting last update time: " . $e->getMessage());
         }
         
         return $latestTime > 0 ? date('c', $latestTime) : date('c');
@@ -647,31 +703,36 @@ class LogsController extends ApiControllerBase
      */
     private function generateLogText($logs)
     {
-        $text = "Deep Packet Inspector - Log Export\n";
-        $text .= "Generated: " . date('Y-m-d H:i:s') . "\n";
-        $text .= "Total entries: " . count($logs) . "\n";
-        $text .= str_repeat("=", 80) . "\n\n";
-        
-        foreach ($logs as $log) {
-            $text .= sprintf("[%s] %s [%s:%s] %s\n",
-                $log['timestamp'],
-                strtoupper($log['level']),
-                strtoupper($log['source']),
-                $log['id'],
-                $log['message']
-            );
+        try {
+            $text = "Deep Packet Inspector - Log Export\n";
+            $text .= "Generated: " . date('Y-m-d H:i:s') . "\n";
+            $text .= "Total entries: " . count($logs) . "\n";
+            $text .= str_repeat("=", 80) . "\n\n";
             
-            if (!empty($log['context'])) {
-                $text .= "  Context: " . $log['context'] . "\n";
+            foreach ($logs as $log) {
+                $text .= sprintf("[%s] %s [%s:%s] %s\n",
+                    $log['timestamp'] ?? 'Unknown',
+                    strtoupper($log['level'] ?? 'INFO'),
+                    strtoupper($log['source'] ?? 'UNKNOWN'),
+                    $log['id'] ?? 'NO-ID',
+                    $log['message'] ?? 'No message'
+                );
+                
+                if (!empty($log['context'])) {
+                    $text .= "  Context: " . $log['context'] . "\n";
+                }
+                
+                if (!empty($log['details'])) {
+                    $details = is_array($log['details']) ? json_encode($log['details']) : $log['details'];
+                    $text .= "  Details: " . $details . "\n";
+                }
+                
+                $text .= "\n";
             }
             
-            if (!empty($log['details'])) {
-                $text .= "  Details: " . (is_array($log['details']) ? json_encode($log['details']) : $log['details']) . "\n";
-            }
-            
-            $text .= "\n";
+            return $text;
+        } catch (Throwable $e) {
+            return "Error generating log text: " . $e->getMessage();
         }
-        
-        return $text;
     }
 }
