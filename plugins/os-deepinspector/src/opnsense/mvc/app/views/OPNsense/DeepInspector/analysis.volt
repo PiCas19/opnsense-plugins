@@ -287,7 +287,7 @@
     </div>
 </div>
 
-<!-- Aggiungi Chart.js CDN prima del tuo script -->
+<!-- Chart.js CDN -->
 <script src="/ui/js/chart.min.js"></script>
 
 <script>
@@ -316,14 +316,28 @@ $(document).ready(function() {
         exportAnalysisReport();
     });
     
-    // Filter change handlers
-    $('#analysisTimeRange, #analysisProtocol, #analysisInterface, #analysisType').change(function() {
+    // CORREZIONE: Filter change handlers con debounce per evitare troppe chiamate
+    $('#analysisTimeRange, #analysisProtocol, #analysisInterface, #analysisType').change(debounce(function() {
+        console.log('Filter changed, reloading data...');
         loadAnalysisData();
+    }, 500));
+    
+    // CORREZIONE: Modal Save Report handler
+    $('#saveAnalysisReport').click(function() {
+        saveAnalysisReport();
     });
     
-    // Auto-refresh every 60 seconds
-    setInterval(loadAnalysisData, 60000);
+    // Auto-refresh ogni 60 secondi solo se l'analisi è attiva
+    setInterval(function() {
+        const status = $('#analysisStatus').text();
+        if (status === '{{ lang._("Running") }}' || status === '{{ lang._("Completed") }}') {
+            loadAnalysisData();
+        }
+    }, 60000);
 });
+
+// Variabile globale per gestire il progress interval
+let progressInterval = null;
 
 function initializeAnalysis() {
     // Initialize charts only if Chart.js is available
@@ -426,69 +440,6 @@ function updateProtocolPieChart(data) {
     }
 }
 
-// Resto delle funzioni rimangono uguali...
-function loadAnalysisData() {
-    const filters = {
-        timeRange: $('#analysisTimeRange').val(),
-        protocol: $('#analysisProtocol').val(),
-        interface: $('#analysisInterface').val(),
-        type: $('#analysisType').val()
-    };
-    
-    // Per ora, dati mock dato che non abbiamo l'API ancora
-    updateAnalysisResults({
-        total_packets: 125430,
-        threats_found: 23,
-        anomalies_found: 7,
-        industrial_traffic: 8950,
-        protocol_stats: {
-            http: 45680000,
-            industrial: 8950000,
-            email: 2340000,
-            dns: 890000,
-            other: 12340000
-        },
-        industrial_stats: {
-            modbus: 45,
-            dnp3: 12,
-            opcua: 8,
-            avg_latency: 250
-        },
-        zero_trust_stats: {
-            untrusted: 15,
-            blocked: 8,
-            trust_score: 87
-        },
-        traffic_patterns: {
-            labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'],
-            total_traffic: [1200, 1800, 3400, 4200, 3800, 2100],
-            threat_traffic: [12, 18, 34, 42, 38, 21]
-        },
-        protocol_distribution: {
-            'HTTP/HTTPS': 45,
-            'Industrial': 25,
-            'Email': 15,
-            'DNS': 10,
-            'Other': 5
-        },
-        anomalies: [
-            {
-                id: '1',
-                timestamp: new Date().toISOString(),
-                type: 'Unusual Traffic',
-                source: '192.168.1.100',
-                severity: 'medium',
-                description: 'Unusual traffic pattern detected'
-            }
-        ],
-        top_talkers: [
-            { ip: '192.168.1.100', bytes: 45680000, packets: 1234 },
-            { ip: '192.168.1.101', bytes: 23450000, packets: 856 },
-            { ip: '192.168.1.102', bytes: 12340000, packets: 567 }
-        ]
-    });
-}
-
 function startAnalysis() {
     const $btn = $('#startAnalysis');
     const originalText = $btn.html();
@@ -499,6 +450,7 @@ function startAnalysis() {
     setTimeout(function() {
         $btn.prop('disabled', false).html(originalText);
         $('#analysisStatus').text('{{ lang._("Running") }}');
+        $('#stopAnalysis').prop('disabled', false); // CORREZIONE: Abilita stop
         showNotification('{{ lang._("Analysis started successfully") }}', 'success');
         startProgressMonitoring();
     }, 2000);
@@ -510,7 +462,12 @@ function stopAnalysis() {
     
     $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> {{ lang._("Stopping...") }}');
     
-    // Simulate stopping analysis
+    // CORREZIONE: Ferma il progress interval
+    if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+    }
+    
     setTimeout(function() {
         $btn.prop('disabled', false).html(originalText);
         $('#analysisStatus').text('{{ lang._("Stopped") }}');
@@ -521,18 +478,299 @@ function stopAnalysis() {
 
 function startProgressMonitoring() {
     let progress = 0;
-    const progressInterval = setInterval(function() {
-        progress += Math.random() * 20;
+    
+    // CORREZIONE: Ferma il precedente interval se esiste
+    if (progressInterval) {
+        clearInterval(progressInterval);
+    }
+    
+    progressInterval = setInterval(function() {
+        progress += Math.random() * 15 + 5; // Progresso più consistente
         if (progress > 100) progress = 100;
         
         $('#analysisProgress').css('width', progress + '%');
         
         if (progress >= 100) {
             clearInterval(progressInterval);
+            progressInterval = null;
             $('#analysisStatus').text('{{ lang._("Completed") }}');
+            
+            // CORREZIONE: Carica dati aggiornati e mostra risultati più interessanti
             loadAnalysisData();
+            showNotification('{{ lang._("Analysis completed successfully") }}', 'success');
         }
+    }, 1500);
+}
+
+// CORREZIONE: Funzione per gestire i filtri
+function loadAnalysisData() {
+    const filters = {
+        timeRange: $('#analysisTimeRange').val(),
+        protocol: $('#analysisProtocol').val(),
+        interface: $('#analysisInterface').val(),
+        type: $('#analysisType').val()
+    };
+    
+    console.log('Loading data with filters:', filters);
+    
+    // CORREZIONE: Dati mock più realistici basati sui filtri
+    const mockData = generateMockData(filters);
+    updateAnalysisResults(mockData);
+}
+
+// CORREZIONE: Genera dati mock basati sui filtri
+function generateMockData(filters) {
+    const baseData = {
+        total_packets: 125430,
+        threats_found: 23,
+        anomalies_found: 7,
+        industrial_traffic: 8950
+    };
+    
+    // Modifica i dati basandosi sui filtri
+    let multiplier = 1;
+    
+    switch(filters.timeRange) {
+        case '1h': multiplier = 0.1; break;
+        case '6h': multiplier = 0.5; break;
+        case '24h': multiplier = 1; break;
+        case '7d': multiplier = 7; break;
+        case '30d': multiplier = 30; break;
+    }
+    
+    // Ajusta i dati per il protocollo
+    let protocolMultiplier = 1;
+    if (filters.protocol !== 'all') {
+        protocolMultiplier = 0.3; // Meno traffico per protocolli specifici
+    }
+    
+    return {
+        total_packets: Math.round(baseData.total_packets * multiplier * protocolMultiplier),
+        threats_found: Math.round(baseData.threats_found * multiplier * protocolMultiplier),
+        anomalies_found: Math.round(baseData.anomalies_found * multiplier),
+        industrial_traffic: Math.round(baseData.industrial_traffic * multiplier),
+        protocol_stats: {
+            http: Math.round(45680000 * multiplier),
+            industrial: Math.round(8950000 * multiplier),
+            email: Math.round(2340000 * multiplier),
+            dns: Math.round(890000 * multiplier),
+            other: Math.round(12340000 * multiplier)
+        },
+        industrial_stats: {
+            modbus: Math.round(45 * multiplier),
+            dnp3: Math.round(12 * multiplier),
+            opcua: Math.round(8 * multiplier),
+            avg_latency: 250 + Math.round(Math.random() * 100)
+        },
+        zero_trust_stats: {
+            untrusted: Math.round(15 * multiplier),
+            blocked: Math.round(8 * multiplier),
+            trust_score: 87 + Math.round(Math.random() * 10)
+        },
+        traffic_patterns: {
+            labels: generateTimeLabels(filters.timeRange),
+            total_traffic: generateTrafficData(filters.timeRange, 'total'),
+            threat_traffic: generateTrafficData(filters.timeRange, 'threat')
+        },
+        protocol_distribution: generateProtocolDistribution(filters.protocol),
+        anomalies: generateAnomalies(filters, Math.round(baseData.anomalies_found * multiplier)),
+        top_talkers: generateTopTalkers(multiplier)
+    };
+}
+
+function generateTimeLabels(timeRange) {
+    const labels = [];
+    let count, format;
+    
+    switch(timeRange) {
+        case '1h':
+            count = 12; format = (i) => String(i * 5).padStart(2, '0') + ':00';
+            break;
+        case '6h':
+            count = 6; format = (i) => String(i).padStart(2, '0') + ':00';
+            break;
+        case '24h':
+            count = 6; format = (i) => String(i * 4).padStart(2, '0') + ':00';
+            break;
+        case '7d':
+            count = 7; format = (i) => `Day ${i + 1}`;
+            break;
+        case '30d':
+            count = 6; format = (i) => `Week ${i + 1}`;
+            break;
+    }
+    
+    for (let i = 0; i < count; i++) {
+        labels.push(format(i));
+    }
+    return labels;
+}
+
+function generateTrafficData(timeRange, type) {
+    const count = generateTimeLabels(timeRange).length;
+    const data = [];
+    const base = type === 'threat' ? 10 : 1000;
+    
+    for (let i = 0; i < count; i++) {
+        data.push(Math.round(base + Math.random() * base * 3));
+    }
+    return data;
+}
+
+function generateProtocolDistribution(selectedProtocol) {
+    if (selectedProtocol === 'all') {
+        return {
+            'HTTP/HTTPS': 45,
+            'Industrial': 25,
+            'Email': 15,
+            'DNS': 10,
+            'Other': 5
+        };
+    } else {
+        return {
+            [selectedProtocol.toUpperCase()]: 80,
+            'Other': 20
+        };
+    }
+}
+
+function generateAnomalies(filters, count) {
+    const anomalies = [];
+    const types = ['Unusual Traffic', 'Port Scan', 'DDoS Attack', 'Malware Communication'];
+    const severities = ['low', 'medium', 'high', 'critical'];
+    
+    for (let i = 0; i < Math.min(count, 10); i++) {
+        anomalies.push({
+            id: String(i + 1),
+            timestamp: new Date(Date.now() - Math.random() * 24 * 60 * 60 * 1000).toISOString(),
+            type: types[Math.floor(Math.random() * types.length)],
+            source: `192.168.1.${100 + i}`,
+            severity: severities[Math.floor(Math.random() * severities.length)],
+            description: `${types[Math.floor(Math.random() * types.length)]} detected from source`
+        });
+    }
+    return anomalies;
+}
+
+function generateTopTalkers(multiplier) {
+    return [
+        { ip: '192.168.1.100', bytes: Math.round(45680000 * multiplier), packets: Math.round(1234 * multiplier) },
+        { ip: '192.168.1.101', bytes: Math.round(23450000 * multiplier), packets: Math.round(856 * multiplier) },
+        { ip: '192.168.1.102', bytes: Math.round(12340000 * multiplier), packets: Math.round(567 * multiplier) }
+    ];
+}
+
+// CORREZIONE: Export Report funzionante
+function exportAnalysisReport() {
+    const $btn = $('#exportReport');
+    const originalText = $btn.html();
+    
+    $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> {{ lang._("Exporting...") }}');
+    
+    setTimeout(function() {
+        // Genera un report CSV semplice
+        const filters = {
+            timeRange: $('#analysisTimeRange').val(),
+            protocol: $('#analysisProtocol').val(),
+            interface: $('#analysisInterface').val(),
+            type: $('#analysisType').val()
+        };
+        
+        const csvContent = generateCSVReport(filters);
+        downloadCSV(csvContent, `dpi_analysis_report_${new Date().toISOString().split('T')[0]}.csv`);
+        
+        $btn.prop('disabled', false).html(originalText);
+        showNotification('{{ lang._("Analysis report exported successfully") }}', 'success');
     }, 2000);
+}
+
+// CORREZIONE: Save Report dal modal
+function saveAnalysisReport() {
+    const $btn = $('#saveAnalysisReport');
+    const originalText = $btn.html();
+    
+    $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> {{ lang._("Saving...") }}');
+    
+    setTimeout(function() {
+        const reportContent = generateDetailedReport();
+        downloadTXT(reportContent, `dpi_detailed_analysis_${new Date().toISOString().split('T')[0]}.txt`);
+        
+        $btn.prop('disabled', false).html(originalText);
+        $('#analysisDetailsModal').modal('hide');
+        showNotification('{{ lang._("Detailed report saved successfully") }}', 'success');
+    }, 1500);
+}
+
+function generateCSVReport(filters) {
+    const header = 'Metric,Value,Unit\n';
+    const rows = [
+        `Total Packets,${$('#totalPackets').text()},packets`,
+        `Threats Found,${$('#threatsFound').text()},threats`,
+        `Anomalies Found,${$('#anomaliesFound').text()},anomalies`,
+        `Industrial Traffic,${$('#industrialTrafficCount').text()},packets`,
+        `HTTP Traffic,${$('#httpTraffic').text()},bytes`,
+        `Industrial Protocol Traffic,${$('#industrialTraffic').text()},bytes`,
+        `Email Traffic,${$('#emailTraffic').text()},bytes`,
+        `DNS Traffic,${$('#dnsTraffic').text()},bytes`,
+        `Trust Score,${$('#trustScore').text()},%`
+    ];
+    
+    return header + rows.join('\n');
+}
+
+function generateDetailedReport() {
+    return `Deep Packet Inspector - Detailed Analysis Report
+Generated: ${new Date().toLocaleString()}
+
+SUMMARY METRICS:
+- Total Packets: ${$('#totalPackets').text()}
+- Threats Found: ${$('#threatsFound').text()}
+- Anomalies Found: ${$('#anomaliesFound').text()}
+- Industrial Traffic: ${$('#industrialTrafficCount').text()}
+
+PROTOCOL STATISTICS:
+- HTTP/HTTPS Traffic: ${$('#httpTraffic').text()}
+- Industrial Protocol Traffic: ${$('#industrialTraffic').text()}
+- Email Traffic: ${$('#emailTraffic').text()}
+- DNS Traffic: ${$('#dnsTraffic').text()}
+- Other Traffic: ${$('#otherTraffic').text()}
+
+ZERO TRUST ANALYSIS:
+- Untrusted Connections: ${$('#untrustedConnections').text()}
+- Blocked Attempts: ${$('#blockedAttempts').text()}
+- Trust Score: ${$('#trustScore').text()}
+
+INDUSTRIAL METRICS:
+- Modbus Communications: ${$('#modbusCount').text()}
+- DNP3 Messages: ${$('#dnp3Count').text()}
+- OPC UA Sessions: ${$('#opcuaCount').text()}
+- Average Latency: ${$('#avgLatency').text()}
+
+This report was generated by OPNsense Deep Packet Inspector.`;
+}
+
+function downloadCSV(content, filename) {
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function downloadTXT(content, filename) {
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
 
 function updateAnalysisResults(data) {
@@ -560,6 +798,8 @@ function updateAnalysisResults(data) {
         
         if (data.industrial_stats.modbus > 0 || data.industrial_stats.dnp3 > 0 || data.industrial_stats.opcua > 0) {
             $('#industrialAnalysis').show();
+        } else {
+            $('#industrialAnalysis').hide();
         }
     }
     
@@ -686,19 +926,42 @@ function viewAnomalyDetails(anomalyId) {
                         <td><strong>{{ lang._('Description') }}:</strong></td>
                         <td>Unusual traffic pattern detected from this source</td>
                     </tr>
+                    <tr>
+                        <td><strong>{{ lang._('First Detected') }}:</strong></td>
+                        <td>${formatTimestamp(new Date(Date.now() - 3600000).toISOString())}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>{{ lang._('Last Seen') }}:</strong></td>
+                        <td>${formatTimestamp(new Date().toISOString())}</td>
+                    </tr>
                 </table>
                 
                 <h6>{{ lang._('Technical Details') }}</h6>
                 <pre class="anomaly-details-text">Traffic volume exceeded normal baseline by 300%
 Protocol distribution anomaly detected
-Connections to unusual ports: 4444, 5555, 6666</pre>
+Connections to unusual ports: 4444, 5555, 6666
+User-Agent strings indicate potential bot activity
+Packet timing suggests automated behavior</pre>
+                
+                <h6>{{ lang._('Recommended Actions') }}</h6>
+                <ul class="list-group">
+                    <li class="list-group-item">Monitor the source IP for continued suspicious activity</li>
+                    <li class="list-group-item">Consider blocking or rate-limiting the IP address</li>
+                    <li class="list-group-item">Review firewall logs for related events</li>
+                    <li class="list-group-item">Analyze packet captures for detailed inspection</li>
+                </ul>
             </div>
         `);
     }, 1000);
 }
 
-function exportAnalysisReport() {
-    showNotification('{{ lang._("Report export functionality will be implemented") }}', 'info');
+// Debounce function
+function debounce(func, delay) {
+    let timeoutId;
+    return function(...args) {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => func.apply(this, args), delay);
+    };
 }
 
 // Utility functions
@@ -730,7 +993,8 @@ function formatTimestamp(timestamp) {
 
 function showNotification(message, type) {
     const alertClass = type === 'success' ? 'alert-success' : 
-                      type === 'warning' ? 'alert-warning' : 'alert-danger';
+                      type === 'warning' ? 'alert-warning' : 
+                      type === 'info' ? 'alert-info' : 'alert-danger';
     const notification = $(`
         <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
             ${message}
@@ -742,7 +1006,6 @@ function showNotification(message, type) {
     setTimeout(() => notification.alert('close'), 5000);
 }
 </script>
-
 
 <div id="notifications" style="position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px;"></div>
 
@@ -901,6 +1164,23 @@ function showNotification(message, type) {
     margin-bottom: 0.5rem;
 }
 
+.anomaly-details h6 {
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+    color: #495057;
+    border-bottom: 2px solid #e9ecef;
+    padding-bottom: 0.5rem;
+}
+
+.anomaly-details h6:first-child {
+    margin-top: 0;
+}
+
+.list-group-item {
+    border: 1px solid #e9ecef;
+    padding: 0.75rem 1rem;
+}
+
 @media (max-width: 768px) {
     .analysis-header {
         flex-direction: column;
@@ -913,6 +1193,15 @@ function showNotification(message, type) {
     
     .chart-container {
         height: 250px;
+    }
+    
+    .metric-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .metric-icon {
+        margin-bottom: 0.5rem;
     }
 }
 </style>

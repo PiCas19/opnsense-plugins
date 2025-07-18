@@ -17,6 +17,30 @@ import socket
 import subprocess
 import xml.etree.ElementTree as ET
 
+# Import support functions from separate files
+try:
+    from update_signatures import download_signatures
+    from export_config import export_config
+    from get_industrial_stats import get_industrial_stats
+    from get_latency_metrics import get_latency_metrics
+    from get_metrics import get_metrics
+    from get_stats import get_stats as get_dpi_stats
+except ImportError as e:
+    print(f"Warning: Could not import support functions: {e}")
+    # Define fallback functions
+    def download_signatures():
+        return False
+    def export_config():
+        return False
+    def get_industrial_stats():
+        return {}
+    def get_latency_metrics():
+        return {}
+    def get_metrics():
+        return {}
+    def get_dpi_stats():
+        return {}
+
 # Network capture and analysis
 try:
     import pcapy
@@ -34,6 +58,7 @@ ALERT_LOG = f"{LOG_DIR}/alerts.log"
 THREAT_LOG = f"{LOG_DIR}/threats.log"
 DETECTION_LOG = f"{LOG_DIR}/detections.log"
 ENGINE_LOG = f"{LOG_DIR}/engine.log"
+LATENCY_LOG = f"{LOG_DIR}/latency.log"
 STATS_FILE = f"{LOG_DIR}/stats.json"
 PID_FILE = "/var/run/deepinspector.pid"
 
@@ -59,7 +84,10 @@ stats = {
         'modbus_packets': 0,
         'dnp3_packets': 0,
         'opcua_packets': 0,
-        'scada_alerts': 0
+        'scada_alerts': 0,
+        'plc_communications': 0,
+        'industrial_threats': 0,
+        'avg_latency': 0
     }
 }
 
@@ -83,6 +111,12 @@ latency_measurements = deque(maxlen=1000)
 def setup_logging():
     """Initialize logging system"""
     os.makedirs(LOG_DIR, exist_ok=True)
+    
+    # Create all log files if they don't exist
+    for log_file in [ALERT_LOG, THREAT_LOG, DETECTION_LOG, ENGINE_LOG, LATENCY_LOG]:
+        if not os.path.exists(log_file):
+            with open(log_file, 'w') as f:
+                pass  # Create empty file
     
     logging.basicConfig(
         level=logging.INFO,
@@ -166,6 +200,10 @@ def load_config():
     """Load DPI engine configuration"""
     global config
     try:
+        # First try to export from OPNsense
+        export_config()
+        
+        # Then load the configuration
         with open(CONFIG_FILE, 'r') as f:
             config = json.load(f)
             
@@ -260,10 +298,6 @@ def load_config():
         logger.info(f"Interfaces: {config['general']['interfaces']} (type: {type(config['general']['interfaces'])})")
         logger.info(f"Max packet size: {config['general']['max_packet_size']} (type: {type(config['general']['max_packet_size'])})")
         
-        # Debug all numeric values
-        logger.info(f"Memory limit: {config['advanced']['memory_limit']} (type: {type(config['advanced']['memory_limit'])})")
-        logger.info(f"Thread count: {config['advanced']['thread_count']} (type: {type(config['advanced']['thread_count'])})")
-        
         return True
         
     except Exception as e:
@@ -276,6 +310,11 @@ def load_signatures():
     global signatures, threat_patterns
     
     try:
+        # First try to update signatures using imported function
+        if not os.path.exists(SIGNATURES_FILE):
+            logger.info("Signatures file not found, downloading...")
+            download_signatures()
+        
         with open(SIGNATURES_FILE, 'r') as f:
             signatures = json.load(f)
             
@@ -337,7 +376,79 @@ def load_default_signatures():
         re.compile(r'(function_code|unit_id).*?(0x[0-9a-f]+)', re.IGNORECASE),
     ]
 
-def analyze_packet(packet_data, timestamp):
+def log_detection(threat, ip, timestamp):
+    """Log detection to detections.log"""
+    try:
+        detection = {
+            'id': hashlib.md5(f"{timestamp}{ip.src}{ip.dst}{threat['type']}_detection".encode()).hexdigest(),
+            'timestamp': timestamp.isoformat(),
+            'source_ip': socket.inet_ntoa(ip.src),
+            'destination_ip': socket.inet_ntoa(ip.dst),
+            'protocol': get_protocol_name(ip.p),
+            'threat_type': threat['type'],
+            'severity': threat['severity'],
+            'description': threat['description'],
+            'pattern': threat.get('pattern', 'heuristic'),
+            'subtype': threat.get('subtype', ''),
+            'details': threat.get('details', {}),
+            'detection_method': 'signature' if 'pattern' in threat else 'heuristic'
+        }
+        
+        with open(DETECTION_LOG, 'a') as f:
+            f.write(json.dumps(detection) + '\n')
+            
+        logger.debug(f"Detection logged: {threat['type']} from {socket.inet_ntoa(ip.src)}")
+        
+    except Exception as e:
+        logger.error(f"Error logging detection: {e}")
+
+def log_threat(threat, ip, timestamp):
+    """Log threat to threats.log"""
+    try:
+        threat_record = {
+            'id': hashlib.md5(f"{timestamp}{ip.src}{ip.dst}{threat['type']}_threat".encode()).hexdigest(),
+            'timestamp': timestamp.isoformat(),
+            'source_ip': socket.inet_ntoa(ip.src),
+            'destination_ip': socket.inet_ntoa(ip.dst),
+            'protocol': get_protocol_name(ip.p),
+            'threat_type': threat['type'],
+            'severity': threat['severity'],
+            'description': threat['description'],
+            'pattern': threat.get('pattern', 'heuristic'),
+            'subtype': threat.get('subtype', ''),
+            'details': threat.get('details', {}),
+            'action_taken': config['general']['mode'] == 'active',
+            'blocked': False,
+            'quarantined': False
+        }
+        
+        with open(THREAT_LOG, 'a') as f:
+            f.write(json.dumps(threat_record) + '\n')
+            
+        logger.debug(f"Threat logged: {threat['type']} from {socket.inet_ntoa(ip.src)}")
+        
+    except Exception as e:
+        logger.error(f"Error logging threat: {e}")
+
+def log_latency(latency, interface, source_ip, dest_ip):
+    """Log latency measurement"""
+    try:
+        latency_entry = {
+            'timestamp': datetime.now().isoformat(),
+            'latency': latency,
+            'interface': interface,
+            'source_ip': source_ip,
+            'destination_ip': dest_ip,
+            'threshold_exceeded': latency > config['advanced']['latency_threshold']
+        }
+        
+        with open(LATENCY_LOG, 'a') as f:
+            f.write(json.dumps(latency_entry) + '\n')
+            
+    except Exception as e:
+        logger.error(f"Error logging latency: {e}")
+
+def analyze_packet(packet_data, timestamp, interface='unknown'):
     """Analyze individual packet for threats"""
     global stats
     
@@ -376,6 +487,9 @@ def analyze_packet(packet_data, timestamp):
             latency = (time.time() - start_time) * 1000000  # microseconds
             latency_measurements.append(latency)
             stats['performance']['latency_avg'] = sum(latency_measurements) / len(latency_measurements)
+            
+            # Log latency
+            log_latency(latency, interface, socket.inet_ntoa(ip.src), socket.inet_ntoa(ip.dst))
             
             # Alert if latency exceeds threshold
             if latency > config['advanced']['latency_threshold']:
@@ -769,6 +883,12 @@ def process_threat(threat, ip, timestamp):
     if threat['severity'] == 'critical':
         stats['critical_alerts'] += 1
         
+    # Log the detection first
+    log_detection(threat, ip, timestamp)
+    
+    # Log the threat
+    log_threat(threat, ip, timestamp)
+        
     # Create alert record
     alert = {
         'id': hashlib.md5(f"{timestamp}{ip.src}{ip.dst}{threat['type']}".encode()).hexdigest(),
@@ -789,6 +909,7 @@ def process_threat(threat, ip, timestamp):
     # Add industrial-specific fields
     if alert['industrial_context']:
         stats['industrial_stats']['scada_alerts'] += 1
+        stats['industrial_stats']['industrial_threats'] += 1
         alert['industrial_protocol'] = threat.get('subtype', '').split('_')[0]
         
     # Log alert
@@ -861,9 +982,50 @@ def get_protocol_name(protocol_number):
 def save_stats():
     """Save statistics to file"""
     try:
+        # Update stats with data from imported functions
+        try:
+            industrial_stats = get_industrial_stats()
+            if 'error' not in industrial_stats:
+                stats['industrial_stats'].update(industrial_stats)
+        except Exception as e:
+            logger.error(f"Error getting industrial stats: {e}")
+            
+        try:
+            latency_metrics = get_latency_metrics()
+            if 'error' not in latency_metrics:
+                stats['performance']['latency_avg'] = latency_metrics.get('avg_latency', 0)
+        except Exception as e:
+            logger.error(f"Error getting latency metrics: {e}")
+            
+        try:
+            system_metrics = get_metrics()
+            if 'error' not in system_metrics:
+                stats['performance']['cpu_usage'] = system_metrics.get('system', {}).get('cpu_usage', 0)
+                stats['performance']['memory_usage'] = system_metrics.get('system', {}).get('memory_usage', 0)
+        except Exception as e:
+            logger.error(f"Error getting system metrics: {e}")
+            
+        try:
+            # Use get_dpi_stats to get comprehensive statistics
+            dpi_stats = get_dpi_stats()
+            if 'error' not in dpi_stats:
+                # Update with comprehensive stats from the external function
+                stats['threats_by_severity'] = dpi_stats.get('threats_by_severity', stats.get('threats_by_severity', {}))
+                stats['top_threats'] = dpi_stats.get('top_threats', [])
+                stats['recent_threats'] = dpi_stats.get('recent_threats', [])
+                stats['detection_rate_trend'] = dpi_stats.get('detection_rate_trend', [])
+                
+                # Update protocol stats
+                if 'protocols' in dpi_stats:
+                    stats['protocols_analyzed'].update(dpi_stats['protocols'])
+                    
+        except Exception as e:
+            logger.error(f"Error getting DPI stats: {e}")
+        
         stats['timestamp'] = datetime.now().isoformat()
         with open(STATS_FILE, 'w') as f:
             json.dump(stats, f, indent=2, default=str)
+            
     except Exception as e:
         logger.error(f"Error saving stats: {e}")
 
@@ -973,6 +1135,23 @@ def main():
     stats_thread.daemon = True
     stats_thread.start()
     
+    # Signature update thread
+    def signature_update_worker():
+        while running:
+            try:
+                # Update signatures every 24 hours
+                time.sleep(86400)
+                if running:
+                    logger.info("Updating threat signatures...")
+                    download_signatures()
+                    load_signatures()
+            except Exception as e:
+                logger.error(f"Error in signature update thread: {e}")
+    
+    signature_thread = threading.Thread(target=signature_update_worker)
+    signature_thread.daemon = True
+    signature_thread.start()
+    
     # Capture threads for each interface
     capture_threads = []
     
@@ -998,7 +1177,7 @@ def main():
                 try:
                     header, packet = cap.next()
                     if packet:
-                        analyze_packet(packet, datetime.now())
+                        analyze_packet(packet, datetime.now(), interface)
                 except pcapy.PcapError as e:
                     if "timeout" not in str(e).lower():
                         logger.error(f"Pcap error on {interface}: {e}")
@@ -1021,6 +1200,11 @@ def main():
     
     # Main loop - wait for threads and handle signals
     try:
+        logger.info("Deep Packet Inspector Engine is running...")
+        logger.info(f"Monitoring interfaces: {valid_interfaces}")
+        logger.info(f"Mode: {config['general']['mode']}")
+        logger.info(f"Industrial mode: {config['general']['industrial_mode']}")
+        
         while running and any(thread.is_alive() for thread in capture_threads):
             time.sleep(1)
             

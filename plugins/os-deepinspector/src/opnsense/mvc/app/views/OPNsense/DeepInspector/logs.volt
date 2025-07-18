@@ -37,10 +37,10 @@
                     <option value="all">{{ lang._('All Sources') }}</option>
                     <option value="engine">{{ lang._('DPI Engine') }}</option>
                     <option value="detection">{{ lang._('Detection') }}</option>
-                    <option value="analysis">{{ lang._('Analysis') }}</option>
                     <option value="alerts">{{ lang._('Alerts') }}</option>
-                    <option value="industrial">{{ lang._('Industrial') }}</option>
-                    <option value="zerotrust">{{ lang._('Zero Trust') }}</option>
+                    <option value="threats">{{ lang._('Threats') }}</option>
+                    <option value="daemon">{{ lang._('Daemon') }}</option>
+                    <option value="latency">{{ lang._('Latency') }}</option>
                 </select>
             </div>
             <div class="col-md-2">
@@ -53,7 +53,7 @@
                     <option value="30d">{{ lang._('Last Month') }}</option>
                 </select>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label for="logSearch">{{ lang._('Search') }}</label>
                 <input type="text" class="form-control" id="logSearch" placeholder="{{ lang._('Search logs...') }}">
             </div>
@@ -71,6 +71,15 @@
                     <option value="10">{{ lang._('10 seconds') }}</option>
                     <option value="30" selected>{{ lang._('30 seconds') }}</option>
                     <option value="60">{{ lang._('1 minute') }}</option>
+                </select>
+            </div>
+            <div class="col-md-1">
+                <label for="logLimit">{{ lang._('Limit') }}</label>
+                <select class="form-control" id="logLimit">
+                    <option value="50">50</option>
+                    <option value="100" selected>100</option>
+                    <option value="250">250</option>
+                    <option value="500">500</option>
                 </select>
             </div>
         </div>
@@ -155,6 +164,7 @@
                 <div class="log-info">
                     <span id="logCount">0</span> {{ lang._('entries') }} |
                     <span id="logSize">0 KB</span> |
+                    {{ lang._('Page') }}: <span id="currentPage">1</span> {{ lang._('of') }} <span id="totalPages">1</span> |
                     {{ lang._('Last updated') }}: <span id="lastUpdated">--</span>
                 </div>
                 <div class="log-controls-inline">
@@ -173,6 +183,21 @@
             <div class="log-content" id="logContent">
                 <div class="log-loading">
                     <i class="fa fa-spinner fa-spin"></i> {{ lang._('Loading logs...') }}
+                </div>
+            </div>
+            
+            <!-- Pagination -->
+            <div class="log-pagination">
+                <div class="pagination-info">
+                    <span id="paginationInfo">{{ lang._('Showing') }} 0 {{ lang._('of') }} 0 {{ lang._('entries') }}</span>
+                </div>
+                <div class="pagination-controls">
+                    <button class="btn btn-sm btn-secondary" id="prevPage" disabled>
+                        <i class="fa fa-chevron-left"></i> {{ lang._('Previous') }}
+                    </button>
+                    <button class="btn btn-sm btn-secondary" id="nextPage" disabled>
+                        {{ lang._('Next') }} <i class="fa fa-chevron-right"></i>
+                    </button>
                 </div>
             </div>
         </div>
@@ -223,17 +248,20 @@ $(document).ready(function() {
     });
     
     $('#searchLogs').click(function() {
+        currentPage = 1;
         loadLogs();
     });
     
     // Filter change handlers
-    $('#logLevel, #logSource, #logTimeRange').change(function() {
+    $('#logLevel, #logSource, #logTimeRange, #logLimit').change(function() {
+        currentPage = 1;
         loadLogs();
     });
     
     // Search on Enter key
     $('#logSearch').keypress(function(e) {
         if (e.which == 13) {
+            currentPage = 1;
             loadLogs();
         }
     });
@@ -257,19 +285,38 @@ $(document).ready(function() {
         logContent.scrollTop = logContent.scrollHeight;
     });
     
+    // Pagination controls
+    $('#prevPage').click(function() {
+        if (currentPage > 1) {
+            currentPage--;
+            loadLogs();
+        }
+    });
+    
+    $('#nextPage').click(function() {
+        if (currentPage < totalPages) {
+            currentPage++;
+            loadLogs();
+        }
+    });
+    
     // Setup initial auto-refresh
     setupAutoRefresh();
 });
 
 let autoRefreshInterval;
 let scrollPaused = false;
+let currentPage = 1;
+let totalPages = 1;
 
 function loadLogs() {
     const filters = {
         level: $('#logLevel').val(),
         source: $('#logSource').val(),
         timeRange: $('#logTimeRange').val(),
-        search: $('#logSearch').val()
+        search: $('#logSearch').val(),
+        page: currentPage,
+        limit: $('#logLimit').val()
     };
     
     $('#logContent').html(`
@@ -278,18 +325,36 @@ function loadLogs() {
         </div>
     `);
     
-    ajaxCall("/api/deepinspector/logs/list", filters, function(data) {
-        if (data.status === 'ok') {
-            displayLogs(data.data);
-            updateLogStatistics(data.statistics);
-            updateLogInfo(data.info);
-        } else {
+    // Use GET request with query parameters
+    const queryString = $.param(filters);
+    
+    $.ajax({
+        url: '/api/deepinspector/logs/list?' + queryString,
+        method: 'GET',
+        dataType: 'json',
+        success: function(data) {
+            if (data.status === 'ok') {
+                displayLogs(data.data);
+                updateLogStatistics(data.statistics);
+                updateLogInfo(data.info);
+                updatePagination(data.info);
+            } else {
+                $('#logContent').html(`
+                    <div class="log-error">
+                        <i class="fa fa-exclamation-triangle"></i>
+                        {{ lang._('Error loading logs') }}: ${data.message || 'Unknown error'}
+                    </div>
+                `);
+            }
+        },
+        error: function(xhr, status, error) {
             $('#logContent').html(`
                 <div class="log-error">
                     <i class="fa fa-exclamation-triangle"></i>
-                    {{ lang._('Error loading logs') }}: ${data.message}
+                    {{ lang._('Error loading logs') }}: ${error}
                 </div>
             `);
+            console.error('AJAX Error:', xhr.responseText);
         }
     });
 }
@@ -298,7 +363,7 @@ function displayLogs(logs) {
     const logContent = $('#logContent');
     logContent.empty();
     
-    if (logs.length === 0) {
+    if (!logs || logs.length === 0) {
         logContent.html(`
             <div class="log-empty">
                 <i class="fa fa-info-circle"></i>
@@ -335,12 +400,12 @@ function createLogEntry(log) {
                 ${log.source}
             </div>
             <div class="log-message" onclick="showLogDetails('${log.id}')">
-                ${highlightLogMessage(log.message)}
+                ${escapeHtml(highlightLogMessage(log.message))}
                 ${log.details ? '<i class="fa fa-info-circle text-info ms-2" title="Has details"></i>' : ''}
             </div>
             ${log.context ? `
             <div class="log-context">
-                <small class="text-muted">${log.context}</small>
+                <small class="text-muted">${escapeHtml(log.context)}</small>
             </div>
             ` : ''}
         </div>
@@ -362,6 +427,23 @@ function updateLogInfo(info) {
     $('#lastUpdated').text(formatTimestamp(info.lastUpdated));
 }
 
+function updatePagination(info) {
+    currentPage = info.page || 1;
+    totalPages = info.totalPages || 1;
+    
+    $('#currentPage').text(currentPage);
+    $('#totalPages').text(totalPages);
+    
+    // Update pagination controls
+    $('#prevPage').prop('disabled', currentPage <= 1);
+    $('#nextPage').prop('disabled', currentPage >= totalPages);
+    
+    // Update pagination info
+    const start = ((currentPage - 1) * (info.limit || 100)) + 1;
+    const end = Math.min(start + (info.limit || 100) - 1, info.count || 0);
+    $('#paginationInfo').text(`{{ lang._('Showing') }} ${start}-${end} {{ lang._('of') }} ${info.count || 0} {{ lang._('entries') }}`);
+}
+
 function showLogDetails(logId) {
     $('#logDetailsBody').html(`
         <div class="text-center">
@@ -372,105 +454,128 @@ function showLogDetails(logId) {
     
     $('#logDetailsModal').modal('show');
     
-    ajaxCall(`/api/deepinspector/logs/details/${logId}`, {}, function(data) {
-        if (data.status === 'ok') {
-            const log = data.data;
-            
-            $('#logDetailsBody').html(`
-                <div class="log-details">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h6>{{ lang._('Basic Information') }}</h6>
-                            <table class="table table-sm">
-                                <tr>
-                                    <td><strong>{{ lang._('ID') }}:</strong></td>
-                                    <td>${log.id}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>{{ lang._('Timestamp') }}:</strong></td>
-                                    <td>${formatTimestamp(log.timestamp)}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>{{ lang._('Level') }}:</strong></td>
-                                    <td><span class="badge badge-${getLogLevelClass(log.level)}">${log.level.toUpperCase()}</span></td>
-                                </tr>
-                                <tr>
-                                    <td><strong>{{ lang._('Source') }}:</strong></td>
-                                    <td><i class="fa ${getSourceIcon(log.source)}"></i> ${log.source}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>{{ lang._('Thread') }}:</strong></td>
-                                    <td>${log.thread || 'N/A'}</td>
-                                </tr>
-                            </table>
-                        </div>
-                        <div class="col-md-6">
-                            <h6>{{ lang._('Context Information') }}</h6>
-                            <table class="table table-sm">
-                                <tr>
-                                    <td><strong>{{ lang._('Process') }}:</strong></td>
-                                    <td>${log.process || 'N/A'}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>{{ lang._('Module') }}:</strong></td>
-                                    <td>${log.module || 'N/A'}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>{{ lang._('Function') }}:</strong></td>
-                                    <td>${log.function || 'N/A'}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>{{ lang._('Line') }}:</strong></td>
-                                    <td>${log.line || 'N/A'}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>{{ lang._('File') }}:</strong></td>
-                                    <td>${log.file || 'N/A'}</td>
-                                </tr>
-                            </table>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-12">
-                            <h6>{{ lang._('Message') }}</h6>
-                            <div class="log-message-detail">
-                                ${log.message}
+    $.ajax({
+        url: `/api/deepinspector/logs/details/${logId}`,
+        method: 'GET',
+        dataType: 'json',
+        success: function(data) {
+            if (data.status === 'ok') {
+                const log = data.data;
+                
+                $('#logDetailsBody').html(`
+                    <div class="log-details">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>{{ lang._('Basic Information') }}</h6>
+                                <table class="table table-sm">
+                                    <tr>
+                                        <td><strong>{{ lang._('ID') }}:</strong></td>
+                                        <td>${escapeHtml(log.id)}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>{{ lang._('Timestamp') }}:</strong></td>
+                                        <td>${formatTimestamp(log.timestamp)}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>{{ lang._('Level') }}:</strong></td>
+                                        <td><span class="badge badge-${getLogLevelClass(log.level)}">${log.level.toUpperCase()}</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>{{ lang._('Source') }}:</strong></td>
+                                        <td><i class="fa ${getSourceIcon(log.source)}"></i> ${escapeHtml(log.source)}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>{{ lang._('Thread') }}:</strong></td>
+                                        <td>${escapeHtml(log.thread || 'N/A')}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>{{ lang._('Context Information') }}</h6>
+                                <table class="table table-sm">
+                                    <tr>
+                                        <td><strong>{{ lang._('Process') }}:</strong></td>
+                                        <td>${escapeHtml(log.process || 'N/A')}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>{{ lang._('Module') }}:</strong></td>
+                                        <td>${escapeHtml(log.module || 'N/A')}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>{{ lang._('Function') }}:</strong></td>
+                                        <td>${escapeHtml(log.function || 'N/A')}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>{{ lang._('Line') }}:</strong></td>
+                                        <td>${escapeHtml(log.line || 'N/A')}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>{{ lang._('File') }}:</strong></td>
+                                        <td>${escapeHtml(log.file || 'N/A')}</td>
+                                    </tr>
+                                </table>
                             </div>
                         </div>
-                    </div>
-                    
-                    ${log.details ? `
-                    <div class="row">
-                        <div class="col-md-12">
-                            <h6>{{ lang._('Details') }}</h6>
-                            <pre class="log-details-text">${log.details}</pre>
+                        
+                        <div class="row">
+                            <div class="col-md-12">
+                                <h6>{{ lang._('Message') }}</h6>
+                                <div class="log-message-detail">
+                                    ${escapeHtml(log.message)}
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                    ` : ''}
-                    
-                    ${log.stack_trace ? `
-                    <div class="row">
-                        <div class="col-md-12">
-                            <h6>{{ lang._('Stack Trace') }}</h6>
-                            <pre class="log-stack-trace">${log.stack_trace}</pre>
+                        
+                        ${log.details ? `
+                        <div class="row">
+                            <div class="col-md-12">
+                                <h6>{{ lang._('Details') }}</h6>
+                                <pre class="log-details-text">${escapeHtml(typeof log.details === 'object' ? JSON.stringify(log.details, null, 2) : log.details)}</pre>
+                            </div>
                         </div>
+                        ` : ''}
+                        
+                        ${log.stack_trace ? `
+                        <div class="row">
+                            <div class="col-md-12">
+                                <h6>{{ lang._('Stack Trace') }}</h6>
+                                <pre class="log-stack-trace">${escapeHtml(log.stack_trace)}</pre>
+                            </div>
+                        </div>
+                        ` : ''}
                     </div>
-                    ` : ''}
-                </div>
-            `);
-            
-            // Set up copy button
-            $('#copyLogEntry').off('click').on('click', function() {
-                const logText = `[${log.timestamp}] ${log.level.toUpperCase()} [${log.source}] ${log.message}`;
-                navigator.clipboard.writeText(logText).then(function() {
-                    showNotification('{{ lang._("Log entry copied to clipboard") }}', 'success');
+                `);
+                
+                // Set up copy button
+                $('#copyLogEntry').off('click').on('click', function() {
+                    const logText = `[${log.timestamp}] ${log.level.toUpperCase()} [${log.source}] ${log.message}`;
+                    if (navigator.clipboard) {
+                        navigator.clipboard.writeText(logText).then(function() {
+                            showNotification('{{ lang._("Log entry copied to clipboard") }}', 'success');
+                        });
+                    } else {
+                        // Fallback for older browsers
+                        const textArea = document.createElement('textarea');
+                        textArea.value = logText;
+                        document.body.appendChild(textArea);
+                        textArea.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(textArea);
+                        showNotification('{{ lang._("Log entry copied to clipboard") }}', 'success');
+                    }
                 });
-            });
-        } else {
+            } else {
+                $('#logDetailsBody').html(`
+                    <div class="alert alert-danger">
+                        {{ lang._('Error loading log details') }}: ${data.message}
+                    </div>
+                `);
+            }
+        },
+        error: function(xhr, status, error) {
             $('#logDetailsBody').html(`
                 <div class="alert alert-danger">
-                    {{ lang._('Error loading log details') }}: ${data.message}
+                    {{ lang._('Error loading log details') }}: ${error}
                 </div>
             `);
         }
@@ -486,33 +591,55 @@ function downloadLogs() {
         format: 'txt'
     };
     
-    ajaxCall("/api/deepinspector/logs/export", filters, function(data) {
-        if (data.status === 'ok') {
-            const blob = new Blob([data.data], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `dpi_logs_${new Date().toISOString().split('T')[0]}.txt`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            
-            showNotification('{{ lang._("Logs downloaded successfully") }}', 'success');
-        } else {
-            showNotification('{{ lang._("Failed to download logs") }}', 'error');
+    const queryString = $.param(filters);
+    
+    $.ajax({
+        url: '/api/deepinspector/logs/export?' + queryString,
+        method: 'GET',
+        dataType: 'json',
+        success: function(data) {
+            if (data.status === 'ok') {
+                const blob = new Blob([data.data], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = data.filename || `dpi_logs_${new Date().toISOString().split('T')[0]}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                showNotification('{{ lang._("Logs downloaded successfully") }}', 'success');
+            } else {
+                showNotification('{{ lang._("Failed to download logs") }}: ' + data.message, 'error');
+            }
+        },
+        error: function(xhr, status, error) {
+            showNotification('{{ lang._("Failed to download logs") }}: ' + error, 'error');
         }
     });
 }
 
 function clearLogs() {
     if (confirm('{{ lang._("Are you sure you want to clear all logs? This action cannot be undone.") }}')) {
-        ajaxCall("/api/deepinspector/logs/clear", {}, function(data) {
-            if (data.status === 'ok') {
-                showNotification('{{ lang._("Logs cleared successfully") }}', 'success');
-                loadLogs();
-            } else {
-                showNotification('{{ lang._("Failed to clear logs") }}', 'error');
+        $.ajax({
+            url: '/api/deepinspector/logs/clear',
+            method: 'POST',
+            dataType: 'json',
+            success: function(data) {
+                if (data.status === 'ok') {
+                    showNotification('{{ lang._("Logs cleared successfully") }}', 'success');
+                    if (data.warnings && data.warnings.length > 0) {
+                        showNotification('{{ lang._("Warnings") }}: ' + data.warnings.join(', '), 'warning');
+                    }
+                    currentPage = 1;
+                    loadLogs();
+                } else {
+                    showNotification('{{ lang._("Failed to clear logs") }}: ' + data.message, 'error');
+                }
+            },
+            error: function(xhr, status, error) {
+                showNotification('{{ lang._("Failed to clear logs") }}: ' + error, 'error');
             }
         });
     }
@@ -545,10 +672,21 @@ function toggleScrollPause() {
 function highlightLogMessage(message) {
     const search = $('#logSearch').val();
     if (search && search.length > 0) {
-        const regex = new RegExp(`(${search})`, 'gi');
+        const regex = new RegExp(`(${escapeRegExp(search)})`, 'gi');
         return message.replace(regex, '<mark>$1</mark>');
     }
     return message;
+}
+
+function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 function getLogLevelClass(level) {
@@ -567,15 +705,16 @@ function getSourceIcon(source) {
     switch(source.toLowerCase()) {
         case 'engine': return 'fa-cogs';
         case 'detection': return 'fa-shield-alt';
-        case 'analysis': return 'fa-chart-line';
         case 'alerts': return 'fa-bell';
-        case 'industrial': return 'fa-industry';
-        case 'zerotrust': return 'fa-lock';
+        case 'threats': return 'fa-exclamation-triangle';
+        case 'daemon': return 'fa-server';
+        case 'latency': return 'fa-clock-o';
         default: return 'fa-info-circle';
     }
 }
 
 function formatTimestamp(timestamp) {
+    if (!timestamp) return '--';
     return new Date(timestamp).toLocaleString();
 }
 
@@ -588,7 +727,8 @@ function formatBytes(bytes) {
 }
 
 function showNotification(message, type) {
-    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const alertClass = type === 'success' ? 'alert-success' : 
+                      type === 'warning' ? 'alert-warning' : 'alert-danger';
     const notification = $(`
         <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
             ${message}
@@ -714,6 +854,26 @@ function showNotification(message, type) {
     font-size: 0.875rem;
 }
 
+.log-pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid #dee2e6;
+    background: #f8f9fa;
+    border-radius: 0 0 0.5rem 0.5rem;
+}
+
+.pagination-info {
+    font-size: 0.875rem;
+    color: #6c757d;
+}
+
+.pagination-controls {
+    display: flex;
+    gap: 0.5rem;
+}
+
 .log-entry {
     display: flex;
     padding: 0.5rem;
@@ -758,6 +918,7 @@ function showNotification(message, type) {
     flex: 1;
     cursor: pointer;
     color: #212529;
+    word-break: break-word;
 }
 
 .log-message:hover {
@@ -767,6 +928,7 @@ function showNotification(message, type) {
 .log-context {
     margin-top: 0.25rem;
     font-size: 0.75rem;
+    word-break: break-word;
 }
 
 .log-loading,
@@ -789,6 +951,9 @@ function showNotification(message, type) {
     font-family: 'Courier New', monospace;
     font-size: 0.875rem;
     white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 300px;
+    overflow-y: auto;
 }
 
 .log-details-text,
@@ -802,6 +967,7 @@ function showNotification(message, type) {
     max-height: 300px;
     overflow-y: auto;
     white-space: pre-wrap;
+    word-break: break-word;
 }
 
 .log-stack-trace {
@@ -812,14 +978,17 @@ function showNotification(message, type) {
 
 .badge-trace {
     background-color: #6c757d;
+    color: white;
 }
 
 .badge-debug {
     background-color: #17a2b8;
+    color: white;
 }
 
 .badge-info {
     background-color: #007bff;
+    color: white;
 }
 
 .badge-warning {
@@ -829,10 +998,12 @@ function showNotification(message, type) {
 
 .badge-error {
     background-color: #dc3545;
+    color: white;
 }
 
 .badge-critical {
     background-color: #6f42c1;
+    color: white;
 }
 
 mark {
@@ -841,6 +1012,7 @@ mark {
     border-radius: 0.2em;
 }
 
+/* Responsive Design */
 @media (max-width: 768px) {
     .logs-header {
         flex-direction: column;
@@ -874,6 +1046,15 @@ mark {
     
     .log-controls-inline {
         margin-top: 0.5rem;
+    }
+    
+    .log-pagination {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .pagination-controls {
+        justify-content: center;
     }
 }
 
@@ -910,5 +1091,106 @@ mark {
 
 .log-entry {
     animation: logEntryFadeIn 0.3s ease-out;
+}
+
+/* Loading spinner */
+.log-loading i {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+}
+
+/* Modal improvements */
+.modal-lg {
+    max-width: 90%;
+}
+
+.log-details .table td {
+    word-break: break-word;
+}
+
+/* Notification improvements */
+#notifications .alert {
+    margin-bottom: 0.5rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+/* Button improvements */
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+.logs-controls .btn {
+    margin-left: 0.5rem;
+}
+
+.logs-controls .btn:first-child {
+    margin-left: 0;
+}
+
+/* Form improvements */
+.logs-filters .form-control {
+    font-size: 0.875rem;
+}
+
+.logs-filters label {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    color: #495057;
+}
+
+/* Improved error handling */
+.log-error {
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin: 1rem;
+}
+
+.log-empty {
+    background-color: #d1ecf1;
+    border: 1px solid #bee5eb;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin: 1rem;
+}
+
+/* Accessibility improvements */
+.log-entry:focus {
+    outline: 2px solid #007bff;
+    outline-offset: 2px;
+}
+
+button:focus,
+select:focus,
+input:focus {
+    outline: 2px solid #007bff;
+    outline-offset: 2px;
+}
+
+/* Print styles */
+@media print {
+    .logs-header,
+    .logs-filters,
+    .log-statistics,
+    .log-header,
+    .log-pagination,
+    .logs-controls,
+    .log-controls-inline {
+        display: none !important;
+    }
+    
+    .log-container {
+        height: auto !important;
+    }
+    
+    .log-content {
+        overflow: visible !important;
+    }
+    
+    .log-entry {
+        page-break-inside: avoid;
+    }
 }
 </style>
