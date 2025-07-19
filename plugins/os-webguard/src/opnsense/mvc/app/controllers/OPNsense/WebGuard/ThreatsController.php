@@ -31,133 +31,139 @@ namespace OPNsense\WebGuard;
 use OPNsense\Base\IndexController;
 use OPNsense\WebGuard\WebGuard;
 
-/**
- * Class ThreatsController
- * @package OPNsense\WebGuard
- */
 class ThreatsController extends IndexController
 {
-    /**
-     * Threats index page
-     * @return void
-     */
     public function indexAction()
     {
-        // Get WebGuard model instance
-        $mdlWebGuard = new WebGuard();
+        try {
+            $mdlWebGuard = new WebGuard();
+            $this->view->webguardModel = $mdlWebGuard;
+            $this->view->isEnabled = (string)$mdlWebGuard->general->enabled === '1';
+            $this->view->title = gettext("WebGuard Threats");
+            
+        } catch (\Exception $e) {
+            error_log("WebGuard Threats Error: " . $e->getMessage());
+            $this->view->webguardModel = null;
+            $this->view->isEnabled = false;
+            $this->view->error = $e->getMessage();
+            $this->view->title = gettext("WebGuard Threats");
+        }
         
-        // Pass model to view
-        $this->view->webguardModel = $mdlWebGuard;
-        $this->view->isEnabled = $mdlWebGuard->general->enabled->__toString() === '1';
-        
-        // Set page title
-        $this->view->title = $this->gettext("WebGuard Threats");
-        
-        // Pick the template
         $this->view->pick('OPNsense/WebGuard/threats');
     }
-
-    /**
-     * Threat details page
-     * @param string $id
-     * @return void
-     */
+    
     public function detailAction($id = null)
     {
-        // Get WebGuard model instance
-        $mdlWebGuard = new WebGuard();
+        try {
+            $mdlWebGuard = new WebGuard();
+            $this->view->webguardModel = $mdlWebGuard;
+            $this->view->threatId = $id;
+            $this->view->isEnabled = (string)$mdlWebGuard->general->enabled === '1';
+            $this->view->title = gettext("Threat Details");
+            
+        } catch (\Exception $e) {
+            error_log("WebGuard Threat Detail Error: " . $e->getMessage());
+            $this->view->webguardModel = null;
+            $this->view->threatId = $id;
+            $this->view->isEnabled = false;
+            $this->view->error = $e->getMessage();
+            $this->view->title = gettext("Threat Details");
+        }
         
-        // Pass model and threat ID to view
-        $this->view->webguardModel = $mdlWebGuard;
-        $this->view->threatId = $id;
-        $this->view->isEnabled = $mdlWebGuard->general->enabled->__toString() === '1';
-        
-        // Set page title
-        $this->view->title = $this->gettext("Threat Details");
-        
-        // Pick the template
         $this->view->pick('OPNsense/WebGuard/threat_detail');
     }
-
-    /**
-     * Threat statistics page
-     * @return void
-     */
+    
     public function statsAction()
     {
-        // Get WebGuard model instance
-        $mdlWebGuard = new WebGuard();
+        try {
+            $mdlWebGuard = new WebGuard();
+            $this->view->webguardModel = $mdlWebGuard;
+            $this->view->isEnabled = (string)$mdlWebGuard->general->enabled === '1';
+            $this->view->title = gettext("Threat Statistics");
+            
+        } catch (\Exception $e) {
+            error_log("WebGuard Threat Stats Error: " . $e->getMessage());
+            $this->view->webguardModel = null;
+            $this->view->isEnabled = false;
+            $this->view->error = $e->getMessage();
+            $this->view->title = gettext("Threat Statistics");
+        }
         
-        // Pass model to view
-        $this->view->webguardModel = $mdlWebGuard;
-        $this->view->isEnabled = $mdlWebGuard->general->enabled->__toString() === '1';
-        
-        // Set page title
-        $this->view->title = $this->gettext("Threat Statistics");
-        
-        // Pick the template
         $this->view->pick('OPNsense/WebGuard/threat_stats');
     }
-
-    /**
-     * Real-time threat feed page
-     * @return void
-     */
+    
     public function feedAction()
     {
-        // Get WebGuard model instance
-        $mdlWebGuard = new WebGuard();
+        try {
+            $mdlWebGuard = new WebGuard();
+            $this->view->webguardModel = $mdlWebGuard;
+            $this->view->isEnabled = (string)$mdlWebGuard->general->enabled === '1';
+            $this->view->title = gettext("Real-time Threat Feed");
+            
+        } catch (\Exception $e) {
+            error_log("WebGuard Threat Feed Error: " . $e->getMessage());
+            $this->view->webguardModel = null;
+            $this->view->isEnabled = false;
+            $this->view->error = $e->getMessage();
+            $this->view->title = gettext("Real-time Threat Feed");
+        }
         
-        // Pass model to view
-        $this->view->webguardModel = $mdlWebGuard;
-        $this->view->isEnabled = $mdlWebGuard->general->enabled->__toString() === '1';
-        
-        // Set page title
-        $this->view->title = $this->gettext("Real-time Threat Feed");
-        
-        // Pick the template
         $this->view->pick('OPNsense/WebGuard/threat_feed');
     }
-
-    /**
-     * Geographic threats view
-     * @return void
-     */
+    
     public function geoAction()
     {
-        // Get WebGuard model instance
-        $mdlWebGuard = new WebGuard();
+        try {
+            $mdlWebGuard = new WebGuard();
+            $this->view->webguardModel = $mdlWebGuard;
+            $this->view->isEnabled = (string)$mdlWebGuard->general->enabled === '1';
+            $this->view->geoBlocking = (string)$mdlWebGuard->general->geo_blocking === '1';
+            $this->view->title = gettext("Geographic Threat Analysis");
+            
+        } catch (\Exception $e) {
+            error_log("WebGuard Geo Analysis Error: " . $e->getMessage());
+            $this->view->webguardModel = null;
+            $this->view->isEnabled = false;
+            $this->view->geoBlocking = false;
+            $this->view->error = $e->getMessage();
+            $this->view->title = gettext("Geographic Threat Analysis");
+        }
         
-        // Pass model to view
-        $this->view->webguardModel = $mdlWebGuard;
-        $this->view->isEnabled = $mdlWebGuard->general->enabled->__toString() === '1';
-        $this->view->geoBlocking = $mdlWebGuard->general->geo_blocking->__toString() === '1';
-        
-        // Set page title
-        $this->view->title = $this->gettext("Geographic Threat Analysis");
-        
-        // Pick the template
         $this->view->pick('OPNsense/WebGuard/threat_geo');
     }
-
-    /**
-     * Attack patterns analysis page
-     * @return void
-     */
+    
     public function patternsAction()
     {
-        // Get WebGuard model instance
-        $mdlWebGuard = new WebGuard();
+        try {
+            $mdlWebGuard = new WebGuard();
+            $this->view->webguardModel = $mdlWebGuard;
+            $this->view->isEnabled = (string)$mdlWebGuard->general->enabled === '1';
+            
+            // Usa il metodo che creeremo nel modello
+            $this->view->behavioralEnabled = $this->isBehavioralEnabled($mdlWebGuard);
+            $this->view->title = gettext("Attack Pattern Analysis");
+            
+        } catch (\Exception $e) {
+            error_log("WebGuard Attack Patterns Error: " . $e->getMessage());
+            $this->view->webguardModel = null;
+            $this->view->isEnabled = false;
+            $this->view->behavioralEnabled = false;
+            $this->view->error = $e->getMessage();
+            $this->view->title = gettext("Attack Pattern Analysis");
+        }
         
-        // Pass model to view
-        $this->view->webguardModel = $mdlWebGuard;
-        $this->view->isEnabled = $mdlWebGuard->general->enabled->__toString() === '1';
-        $this->view->behavioralEnabled = $mdlWebGuard->isBehavioralEnabled();
-        
-        // Set page title
-        $this->view->title = $this->gettext("Attack Pattern Analysis");
-        
-        // Pick the template
         $this->view->pick('OPNsense/WebGuard/attack_patterns');
+    }
+    
+    /**
+     * Verifica se l'analisi comportamentale è abilitata
+     */
+    private function isBehavioralEnabled($model)
+    {
+        try {
+            return (string)$model->behavioral->anomaly_detection === '1';
+        } catch (\Exception $e) {
+            return false;
+        }
     }
 }

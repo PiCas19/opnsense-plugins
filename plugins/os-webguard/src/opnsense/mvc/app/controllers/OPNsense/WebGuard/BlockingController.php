@@ -31,130 +31,146 @@ namespace OPNsense\WebGuard;
 use OPNsense\Base\IndexController;
 use OPNsense\WebGuard\WebGuard;
 
-/**
- * Class BlockingController
- * @package OPNsense\WebGuard
- */
 class BlockingController extends IndexController
 {
-    /**
-     * Blocking index page - shows blocked IPs
-     * @return void
-     */
     public function indexAction()
     {
-        // Get WebGuard model instance
-        $mdlWebGuard = new WebGuard();
-        
-        // Pass model to view
-        $this->view->webguardModel = $mdlWebGuard;
-        $this->view->isEnabled = $mdlWebGuard->general->enabled->__toString() === '1';
-        $this->view->autoBlocking = $mdlWebGuard->response->auto_blocking->__toString() === '1';
-        
-        // Get forms for dialogs
-        $this->view->blockIpForm = $this->getForm("block_ip");
-        $this->view->bulkBlockForm = $this->getForm("bulk_block");
-        
-        // Set page title
-        $this->view->title = $this->gettext("WebGuard IP Blocking");
-        
-        // Pick the template
-        $this->view->pick('OPNsense/WebGuard/blocking');
-    }
-
-    /**
-     * Whitelist management page
-     * @return void
-     */
-    public function whitelistAction()
-    {
-        // Get WebGuard model instance
-        $mdlWebGuard = new WebGuard();
-        
-        // Pass model to view
-        $this->view->webguardModel = $mdlWebGuard;
-        $this->view->isEnabled = $mdlWebGuard->general->enabled->__toString() === '1';
-        
-        // Get forms for dialogs
-        $this->view->addWhitelistForm = $this->getForm("add_whitelist");
-        $this->view->bulkWhitelistForm = $this->getForm("bulk_whitelist");
-        
-        // Set page title
-        $this->view->title = $this->gettext("WebGuard Whitelist Management");
-        
-        // Pick the template
-        $this->view->pick('OPNsense/WebGuard/whitelist');
-    }
-
-    /**
-     * IP history page
-     * @param string $ip
-     * @return void
-     */
-    public function historyAction($ip = null)
-    {
-        // Get WebGuard model instance
-        $mdlWebGuard = new WebGuard();
-        
-        // Pass model and IP to view
-        $this->view->webguardModel = $mdlWebGuard;
-        $this->view->ipAddress = $ip;
-        $this->view->isEnabled = $mdlWebGuard->general->enabled->__toString() === '1';
-        
-        // Set page title
-        if ($ip) {
-            $this->view->title = $this->gettext("IP History: " . $ip);
-        } else {
-            $this->view->title = $this->gettext("IP History");
+        try {
+            $mdlWebGuard = new WebGuard();
+            $this->view->webguardModel = $mdlWebGuard;
+            $this->view->isEnabled = (string)$mdlWebGuard->general->enabled === '1';
+            $this->view->autoBlocking = (string)$mdlWebGuard->response->auto_blocking === '1';
+            
+            // Carica i form in modo sicuro
+            $this->view->blockIpForm = $this->getFormSafely("block_ip");
+            $this->view->bulkBlockForm = $this->getFormSafely("bulk_block");
+            
+            $this->view->title = gettext("WebGuard IP Blocking");
+            
+        } catch (\Exception $e) {
+            error_log("WebGuard Blocking Error: " . $e->getMessage());
+            $this->view->webguardModel = null;
+            $this->view->isEnabled = false;
+            $this->view->autoBlocking = false;
+            $this->view->blockIpForm = null;
+            $this->view->bulkBlockForm = null;
+            $this->view->error = $e->getMessage();
+            $this->view->title = gettext("WebGuard IP Blocking");
         }
         
-        // Pick the template
+        $this->view->pick('OPNsense/WebGuard/blocking');
+    }
+    
+    public function whitelistAction()
+    {
+        try {
+            $mdlWebGuard = new WebGuard();
+            $this->view->webguardModel = $mdlWebGuard;
+            $this->view->isEnabled = (string)$mdlWebGuard->general->enabled === '1';
+            
+            $this->view->addWhitelistForm = $this->getFormSafely("add_whitelist");
+            $this->view->bulkWhitelistForm = $this->getFormSafely("bulk_whitelist");
+            
+            $this->view->title = gettext("WebGuard Whitelist Management");
+            
+        } catch (\Exception $e) {
+            error_log("WebGuard Whitelist Error: " . $e->getMessage());
+            $this->view->webguardModel = null;
+            $this->view->isEnabled = false;
+            $this->view->addWhitelistForm = null;
+            $this->view->bulkWhitelistForm = null;
+            $this->view->error = $e->getMessage();
+            $this->view->title = gettext("WebGuard Whitelist Management");
+        }
+        
+        $this->view->pick('OPNsense/WebGuard/whitelist');
+    }
+    
+    public function historyAction($ip = null)
+    {
+        try {
+            $mdlWebGuard = new WebGuard();
+            $this->view->webguardModel = $mdlWebGuard;
+            $this->view->ipAddress = $ip;
+            $this->view->isEnabled = (string)$mdlWebGuard->general->enabled === '1';
+            
+            if ($ip) {
+                $this->view->title = gettext("IP History: " . $ip);
+            } else {
+                $this->view->title = gettext("IP History");
+            }
+            
+        } catch (\Exception $e) {
+            error_log("WebGuard IP History Error: " . $e->getMessage());
+            $this->view->webguardModel = null;
+            $this->view->ipAddress = $ip;
+            $this->view->isEnabled = false;
+            $this->view->error = $e->getMessage();
+            $this->view->title = gettext("IP History");
+        }
+        
         $this->view->pick('OPNsense/WebGuard/ip_history');
     }
-
-    /**
-     * Blocking statistics page
-     * @return void
-     */
+    
     public function statsAction()
     {
-        // Get WebGuard model instance
-        $mdlWebGuard = new WebGuard();
+        try {
+            $mdlWebGuard = new WebGuard();
+            $this->view->webguardModel = $mdlWebGuard;
+            $this->view->isEnabled = (string)$mdlWebGuard->general->enabled === '1';
+            $this->view->autoBlocking = (string)$mdlWebGuard->response->auto_blocking === '1';
+            $this->view->progressiveBlocking = (string)$mdlWebGuard->response->progressive_blocking === '1';
+            
+            $this->view->title = gettext("Blocking Statistics");
+            
+        } catch (\Exception $e) {
+            error_log("WebGuard Blocking Stats Error: " . $e->getMessage());
+            $this->view->webguardModel = null;
+            $this->view->isEnabled = false;
+            $this->view->autoBlocking = false;
+            $this->view->progressiveBlocking = false;
+            $this->view->error = $e->getMessage();
+            $this->view->title = gettext("Blocking Statistics");
+        }
         
-        // Pass model to view
-        $this->view->webguardModel = $mdlWebGuard;
-        $this->view->isEnabled = $mdlWebGuard->general->enabled->__toString() === '1';
-        $this->view->autoBlocking = $mdlWebGuard->response->auto_blocking->__toString() === '1';
-        $this->view->progressiveBlocking = $mdlWebGuard->response->progressive_blocking->__toString() === '1';
-        
-        // Set page title
-        $this->view->title = $this->gettext("Blocking Statistics");
-        
-        // Pick the template
         $this->view->pick('OPNsense/WebGuard/blocking_stats');
     }
-
-    /**
-     * Import/Export page for blocked IPs
-     * @return void
-     */
+    
     public function importexportAction()
     {
-        // Get WebGuard model instance
-        $mdlWebGuard = new WebGuard();
+        try {
+            $mdlWebGuard = new WebGuard();
+            $this->view->webguardModel = $mdlWebGuard;
+            $this->view->isEnabled = (string)$mdlWebGuard->general->enabled === '1';
+            
+            $this->view->importForm = $this->getFormSafely("import_blocked");
+            $this->view->exportForm = $this->getFormSafely("export_blocked");
+            
+            $this->view->title = gettext("Import/Export Blocked IPs");
+            
+        } catch (\Exception $e) {
+            error_log("WebGuard Import/Export Error: " . $e->getMessage());
+            $this->view->webguardModel = null;
+            $this->view->isEnabled = false;
+            $this->view->importForm = null;
+            $this->view->exportForm = null;
+            $this->view->error = $e->getMessage();
+            $this->view->title = gettext("Import/Export Blocked IPs");
+        }
         
-        // Pass model to view
-        $this->view->webguardModel = $mdlWebGuard;
-        $this->view->isEnabled = $mdlWebGuard->general->enabled->__toString() === '1';
-        
-        // Get forms for import/export
-        $this->view->importForm = $this->getForm("import_blocked");
-        $this->view->exportForm = $this->getForm("export_blocked");
-        
-        // Set page title
-        $this->view->title = $this->gettext("Import/Export Blocked IPs");
-        
-        // Pick the template
         $this->view->pick('OPNsense/WebGuard/import_export');
+    }
+    
+    /**
+     * Carica un form in modo sicuro
+     */
+    private function getFormSafely($formName)
+    {
+        try {
+            return $this->getForm($formName);
+        } catch (\Exception $e) {
+            error_log("Form '$formName' not found: " . $e->getMessage());
+            return null;
+        }
     }
 }
