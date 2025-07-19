@@ -1,0 +1,85 @@
+<form>
+    <field>
+        <id>webguard.general.enabled</id>
+        <label>Enable WebGuard</label>
+        <type>checkbox</type>
+        <help>Enable the WebGuard Web Application Firewall and Behavioral Analysis Engine</help>
+    </field>
+    
+    <field>
+        <id>webguard.general.mode</id>
+        <label>Operation Mode</label>
+        <type>dropdown</type>
+        <help>Select the WebGuard operation mode. Learning mode builds behavioral baselines, Detection mode identifies threats without blocking, Protection mode actively blocks threats, Zero Trust mode applies strict security policies.</help>
+    </field>
+    
+    <field>
+        <id>webguard.general.interfaces</id>
+        <label>Protected Interfaces</label>
+        <type>select_multiple</type>
+        <help>Select the network interfaces to protect with WebGuard</help>
+    </field>
+    
+    <field>
+        <id>webguard.general.protected_networks</id>
+        <label>Protected Networks</label>
+        <type>text</type>
+        <help>Comma-separated list of networks to protect (CIDR format, e.g., 192.168.1.0/24,10.0.0.0/8)</help>
+    </field>
+    
+    <field>
+        <id>webguard.general.learning_period</id>
+        <label>Learning Period (Hours)</label>
+        <type>text</type>
+        <help>Duration in hours for the learning phase to establish behavioral baselines (24-720 hours)</help>
+    </field>
+    
+    <field>
+        <id>webguard.general.sensitivity_level</id>
+        <label>Detection Sensitivity</label>
+        <type>dropdown</type>
+        <help>Set the sensitivity level for threat detection. Higher sensitivity may increase false positives but catch more subtle attacks.</help>
+    </field>
+    
+    <field>
+        <id>webguard.general.auto_block_threshold</id>
+        <label>Auto-Block Threshold</label>
+        <type>text</type>
+        <help>Number of violations before automatically blocking an IP address (1-100)</help>
+    </field>
+    
+    <field>
+        <id>webguard.general.block_duration</id>
+        <label>Block Duration (Seconds)</label>
+        <type>text</type>
+        <help>Default duration in seconds for automatic IP blocks (60-86400 seconds)</help>
+    </field>
+    
+    <field>
+        <id>webguard.general.ssl_inspection</id>
+        <label>SSL/TLS Inspection</label>
+        <type>checkbox</type>
+        <help>Enable deep packet inspection of SSL/TLS encrypted traffic (requires valid certificates)</help>
+    </field>
+    
+    <field>
+        <id>webguard.general.geo_blocking</id>
+        <label>Geographic Blocking</label>
+        <type>checkbox</type>
+        <help>Enable geographic IP blocking based on country/region threat intelligence</help>
+    </field>
+    
+    <field>
+        <id>webguard.general.rate_limiting</id>
+        <label>Rate Limiting</label>
+        <type>checkbox</type>
+        <help>Enable rate limiting protection against DDoS and brute force attacks</help>
+    </field>
+    
+    <field>
+        <id>webguard.general.log_level</id>
+        <label>Log Level</label>
+        <type>dropdown</type>
+        <help>Set the verbosity level for WebGuard logging. Higher levels provide more detail but consume more storage.</help>
+    </field>
+</form>

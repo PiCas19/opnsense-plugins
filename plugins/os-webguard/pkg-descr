@@ -1,0 +1,95 @@
+WebGuard is an advanced Web Application Firewall (WAF) and Behavioral Analysis Engine
+for OPNsense that provides comprehensive protection against sophisticated web attacks
+and insider threats through machine learning-based anomaly detection.
+
+Key Features:
+============
+
+**Web Application Firewall (WAF):**
+- Protection against SQL injection, XSS, CSRF, and other OWASP Top 10 threats
+- Custom rule engine with ModSecurity-compatible syntax
+- Real-time request inspection and blocking
+- File upload protection with malware scanning
+- HTTP protocol validation and normalization
+
+**Behavioral Analysis Engine:**
+- Machine learning-based anomaly detection
+- User behavior profiling and deviation analysis
+- Beaconing detection for C2 communications
+- Data exfiltration pattern recognition
+- Traffic timing and entropy analysis
+
+**Covert Channel Detection:**
+- DNS tunneling detection with entropy analysis
+- HTTP steganography identification
+- ICMP tunneling monitoring
+- Protocol anomaly detection
+- Size pattern analysis for hidden communications
+
+**Advanced Features:**
+- Zero Trust security model with learning modes
+- Geographic IP blocking with GeoIP integration
+- Progressive blocking with escalating responses
+- Honeypot redirection and tarpit modes
+- Real-time threat feed and statistics
+- SIEM integration with webhook notifications
+- Comprehensive audit trails and forensics
+
+**Management Interface:**
+- Modern web-based dashboard with real-time metrics
+- Interactive threat visualization and mapping
+- Flexible rule management and testing
+- Import/export configuration capabilities
+- Multi-level user access controls
+
+**Deployment Modes:**
+- Learning Mode: Builds behavioral baselines
+- Detection Mode: Monitors without blocking
+- Protection Mode: Active threat mitigation
+- Zero Trust Mode: Strict security enforcement
+
+**Use Cases:**
+- Enterprise web application protection
+- E-commerce and financial services security
+- Healthcare and compliance environments (HIPAA, GDPR)
+- Industrial control system (ICS/SCADA) protection
+- Government and critical infrastructure defense
+
+**Performance & Scalability:**
+- High-throughput packet processing
+- Optimized pattern matching algorithms
+- Distributed deployment support
+- Resource-efficient operation
+- Horizontal scaling capabilities
+
+Installation Requirements:
+=========================
+- OPNsense 24.1 or later
+- Python 3.9+ with required modules
+- 256MB RAM minimum (512MB recommended)
+- 100MB disk space for logs and database
+
+Optional Dependencies:
+=====================
+- GeoIP database for geographic features
+- Scapy for advanced packet analysis
+- NumPy for machine learning algorithms
+- PSUtil for system monitoring
+
+Changelog:
+=========
+
+Version 1.0.0:
+- Initial release with full WAF capabilities
+- Behavioral analysis engine implementation
+- Covert channel detection features
+- Real-time dashboard and monitoring
+- Geographic blocking and threat intelligence
+- Machine learning anomaly detection
+- SIEM integration and API endpoints
+- Comprehensive documentation and examples
+- Multi-mode operation (Learning/Detection/Protection/Zero Trust)
+- Advanced threat response mechanisms
+
+Project Page:
+WWW: https://git.consoli.ch/students/20250400_lavsem/moretto/

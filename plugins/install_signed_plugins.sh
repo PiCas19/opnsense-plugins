@@ -8,7 +8,7 @@
 
 set -e
 
-PLUGIN_DIRS="os-advinspector os-netzones os-deepinspector"
+PLUGIN_DIRS="os-webguard"
 REPO_NAME="localrepo"
 REPO_BASE="/usr/local/localrepo"
 REPO_DIR="${REPO_BASE}/packages"

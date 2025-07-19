@@ -1,0 +1,24 @@
+<form>
+    <field>
+        <id>webguard.whitelist.trusted_sources</id>
+        <label>Trusted Source Networks</label>
+        <type>text</type>
+        <help>Comma-separated list of trusted IP addresses or networks in CIDR format that will bypass some security checks</help>
+    </field>
+    
+    <field>
+        <id>webguard.whitelist.trusted_user_agents</id>
+        <label>Trusted User Agents</label>
+        <type>textbox</type>
+        <help>List of trusted User-Agent strings (one per line) that will receive reduced scrutiny</help>
+        <style>height:150px;</style>
+    </field>
+    
+    <field>
+        <id>webguard.whitelist.bypass_urls</id>
+        <label>Bypass URLs</label>
+        <type>textbox</type>
+        <help>List of URL patterns (one per line) that should bypass WAF inspection entirely. Use with caution!</help>
+        <style>height:150px;</style>
+    </field>
+</form>

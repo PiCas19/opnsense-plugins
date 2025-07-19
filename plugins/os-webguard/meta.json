@@ -1,0 +1,37 @@
+{
+  "product_name": "os-webguard",
+  "product_version": "1.0.0",
+  "product_id": "os-webguard",
+  "product_arch": "amd64",
+  "product_abi": "1402000",
+  "product_tier": "3",
+  "product_email": "webguard@opnsense.org",
+  "product_website": "https://github.com/opnsense/plugins/tree/master/security/webguard/",
+  "product_comment": "Web Application Firewall and Behavioral Analysis Engine with advanced threat detection",
+  "product_category": "security",
+  "product_license": "BSD-2-Clause",
+  "product_dependencies": [
+    "py39-sqlite3",
+    "py39-numpy",
+    "py39-requests",
+    "py39-scapy",
+    "py39-geoip2-python",
+    "py39-psutil"
+  ],
+  "product_requirements": {
+    "opnsense_version": ">=24.1",
+    "python_version": ">=3.9",
+    "disk_space": "100MB",
+    "memory": "256MB"
+  },
+  "product_features": [
+    "Web Application Firewall (WAF)",
+    "Behavioral Analysis Engine",
+    "Covert Channel Detection",
+    "Real-time Threat Monitoring",
+    "Geographic IP Blocking",
+    "Machine Learning Anomaly Detection",
+    "API Integration",
+    "SIEM Integration"
+  ]
+}

@@ -1,0 +1,336 @@
+<model>
+    <mount>//OPNsense/WebGuard</mount>
+    <description>Web Application Firewall and Behavioral Analysis Engine</description>
+    <version>1.0.0</version>
+    <items>
+        <general>
+            <enabled type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Please indicate whether to enable the WAF engine.</ValidationMessage>
+            </enabled>
+            
+            <mode type="OptionField">
+                <Required>Y</Required>
+                <Default>learning</Default>
+                <OptionValues>
+                    <learning>Learning Mode</learning>
+                    <detection>Detection Only</detection>
+                    <protection>Active Protection</protection>
+                    <zero_trust>Zero Trust Mode</zero_trust>
+                </OptionValues>
+                <ValidationMessage>Select the WAF operation mode.</ValidationMessage>
+            </mode>
+            
+            <interfaces type="InterfaceField">
+                <Required>Y</Required>
+                <Multiple>Y</Multiple>
+                <asList>N</asList>
+                <AddParentDevices>Y</AddParentDevices>
+                <ValidationMessage>Please choose at least one interface to protect.</ValidationMessage>
+            </interfaces>
+            
+            <protected_networks type="NetworkField">
+                <Required>Y</Required>
+                <FieldSeparator>,</FieldSeparator>
+                <asList>N</asList>
+                <ValidationMessage>Please specify protected networks in CIDR format.</ValidationMessage>
+                <WildcardEnabled>N</WildcardEnabled>
+                <NetMaskRequired>Y</NetMaskRequired>
+            </protected_networks>
+            
+            <learning_period type="IntegerField">
+                <Required>Y</Required>
+                <Default>168</Default>
+                <MinimumValue>24</MinimumValue>
+                <MaximumValue>720</MaximumValue>
+                <ValidationMessage>Learning period in hours (24-720).</ValidationMessage>
+            </learning_period>
+            
+            <sensitivity_level type="OptionField">
+                <Required>Y</Required>
+                <Default>medium</Default>
+                <OptionValues>
+                    <low>Low Sensitivity</low>
+                    <medium>Medium Sensitivity</medium>
+                    <high>High Sensitivity</high>
+                    <paranoid>Paranoid Mode</paranoid>
+                </OptionValues>
+                <ValidationMessage>Set detection sensitivity level.</ValidationMessage>
+            </sensitivity_level>
+            
+            <auto_block_threshold type="IntegerField">
+                <Required>Y</Required>
+                <Default>5</Default>
+                <MinimumValue>1</MinimumValue>
+                <MaximumValue>100</MaximumValue>
+                <ValidationMessage>Number of violations before auto-blocking (1-100).</ValidationMessage>
+            </auto_block_threshold>
+            
+            <block_duration type="IntegerField">
+                <Required>Y</Required>
+                <Default>3600</Default>
+                <MinimumValue>60</MinimumValue>
+                <MaximumValue>86400</MaximumValue>
+                <ValidationMessage>Auto-block duration in seconds (60-86400).</ValidationMessage>
+            </block_duration>
+            
+            <ssl_inspection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable SSL/TLS traffic inspection.</ValidationMessage>
+            </ssl_inspection>
+            
+            <geo_blocking type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable geographic IP blocking.</ValidationMessage>
+            </geo_blocking>
+            
+            <rate_limiting type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable rate limiting protection.</ValidationMessage>
+            </rate_limiting>
+            
+            <log_level type="OptionField">
+                <Required>Y</Required>
+                <Default>info</Default>
+                <OptionValues>
+                    <critical>Critical Only</critical>
+                    <error>Error</error>
+                    <warning>Warning</warning>
+                    <info>Info</info>
+                    <debug>Debug</debug>
+                    <trace>Trace</trace>
+                </OptionValues>
+                <ValidationMessage>Set logging verbosity level.</ValidationMessage>
+            </log_level>
+        </general>
+        
+        <waf>
+            <sql_injection_protection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable SQL injection protection.</ValidationMessage>
+            </sql_injection_protection>
+            
+            <xss_protection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable Cross-Site Scripting (XSS) protection.</ValidationMessage>
+            </xss_protection>
+            
+            <csrf_protection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable Cross-Site Request Forgery (CSRF) protection.</ValidationMessage>
+            </csrf_protection>
+            
+            <rfi_protection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable Remote File Inclusion (RFI) protection.</ValidationMessage>
+            </rfi_protection>
+            
+            <lfi_protection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable Local File Inclusion (LFI) protection.</ValidationMessage>
+            </lfi_protection>
+            
+            <directory_traversal_protection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable directory traversal protection.</ValidationMessage>
+            </directory_traversal_protection>
+            
+            <command_injection_protection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable command injection protection.</ValidationMessage>
+            </command_injection_protection>
+            
+            <http_protocol_validation type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable HTTP protocol validation.</ValidationMessage>
+            </http_protocol_validation>
+            
+            <file_upload_protection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable malicious file upload protection.</ValidationMessage>
+            </file_upload_protection>
+            
+            <session_protection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable session manipulation protection.</ValidationMessage>
+            </session_protection>
+            
+            <custom_rules type="TextField">
+                <Required>N</Required>
+                <ValidationMessage>Custom WAF rules in ModSecurity format.</ValidationMessage>
+            </custom_rules>
+        </waf>
+        
+        <behavioral>
+            <anomaly_detection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable behavioral anomaly detection.</ValidationMessage>
+            </anomaly_detection>
+            
+            <beaconing_detection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable beaconing pattern detection.</ValidationMessage>
+            </beaconing_detection>
+            
+            <data_exfiltration_detection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable slow data exfiltration detection.</ValidationMessage>
+            </data_exfiltration_detection>
+            
+            <traffic_pattern_analysis type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable traffic pattern analysis.</ValidationMessage>
+            </traffic_pattern_analysis>
+            
+            <user_behavior_profiling type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable user behavior profiling.</ValidationMessage>
+            </user_behavior_profiling>
+            
+            <timing_analysis type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable request timing analysis.</ValidationMessage>
+            </timing_analysis>
+            
+            <entropy_analysis type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable data entropy analysis for encrypted payloads.</ValidationMessage>
+            </entropy_analysis>
+            
+            <baseline_learning type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable automatic baseline learning.</ValidationMessage>
+            </baseline_learning>
+        </behavioral>
+        
+        <covert_channels>
+            <dns_tunneling_detection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable DNS tunneling detection.</ValidationMessage>
+            </dns_tunneling_detection>
+            
+            <http_steganography_detection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable HTTP steganography detection.</ValidationMessage>
+            </http_steganography_detection>
+            
+            <icmp_tunneling_detection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable ICMP tunneling detection.</ValidationMessage>
+            </icmp_tunneling_detection>
+            
+            <protocol_anomaly_detection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable protocol anomaly detection.</ValidationMessage>
+            </protocol_anomaly_detection>
+            
+            <payload_entropy_analysis type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable payload entropy analysis.</ValidationMessage>
+            </payload_entropy_analysis>
+            
+            <timing_channel_detection type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable timing channel detection.</ValidationMessage>
+            </timing_channel_detection>
+            
+            <size_pattern_analysis type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable packet size pattern analysis.</ValidationMessage>
+            </size_pattern_analysis>
+        </covert_channels>
+        
+        <response>
+            <auto_blocking type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable automatic blocking of threats.</ValidationMessage>
+            </auto_blocking>
+            
+            <progressive_blocking type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable progressive blocking (escalating response).</ValidationMessage>
+            </progressive_blocking>
+            
+            <session_termination type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable automatic session termination.</ValidationMessage>
+            </session_termination>
+            
+            <honeypot_redirect type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable honeypot redirection for attackers.</ValidationMessage>
+            </honeypot_redirect>
+            
+            <tarpit_mode type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable tarpit mode to slow down attackers.</ValidationMessage>
+            </tarpit_mode>
+            
+            <notification_webhook type="TextField">
+                <Required>N</Required>
+                <ValidationMessage>Webhook URL for real-time notifications.</ValidationMessage>
+            </notification_webhook>
+            
+            <siem_integration type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+                <ValidationMessage>Enable SIEM integration for threat intelligence sharing.</ValidationMessage>
+            </siem_integration>
+        </response>
+        
+        <whitelist>
+            <trusted_sources type="NetworkField">
+                <Required>N</Required>
+                <FieldSeparator>,</FieldSeparator>
+                <asList>N</asList>
+                <ValidationMessage>Trusted source IPs/networks (bypass some checks).</ValidationMessage>
+                <WildcardEnabled>N</WildcardEnabled>
+                <NetMaskRequired>Y</NetMaskRequired>
+            </trusted_sources>
+            
+            <trusted_user_agents type="TextField">
+                <Required>N</Required>
+                <ValidationMessage>Trusted User-Agent strings (one per line).</ValidationMessage>
+            </trusted_user_agents>
+            
+            <bypass_urls type="TextField">
+                <Required>N</Required>
+                <ValidationMessage>URLs to bypass WAF inspection (one per line).</ValidationMessage>
+            </bypass_urls>
+        </whitelist>
+    </items>
+</model>
