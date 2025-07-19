@@ -14,9 +14,8 @@ import logging
 import threading
 import sqlite3
 import re
-import hashlib
 import geoip2.database
-from datetime import datetime, timedelta
+from datetime import datetime
 from collections import defaultdict, deque
 from ipaddress import ip_address, ip_network
 import requests

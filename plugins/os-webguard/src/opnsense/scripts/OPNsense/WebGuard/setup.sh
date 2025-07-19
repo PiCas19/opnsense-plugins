@@ -283,6 +283,20 @@ EOF
 
 # Check for required dependencies
 echo "Checking Python dependencies..."
+
+# Install required packages
+echo "Installing required Python packages..."
+REQUIRED_PACKAGES="py39-sqlite3 py39-numpy py39-requests py39-scapy py39-maxminddb py39-geoip2 py39-psutil GeoIP"
+
+for package in $REQUIRED_PACKAGES; do
+    if ! pkg info $package >/dev/null 2>&1; then
+        echo "Installing $package..."
+        pkg install -y $package
+    else
+        echo "$package is already installed"
+    fi
+done
+
 python3 -c "
 import sys
 required_modules = [
@@ -300,6 +314,7 @@ for module in required_modules:
 
 if missing:
     print('Missing required Python modules:', ', '.join(missing))
+    print('Please install missing packages manually')
     sys.exit(1)
 else:
     print('All required Python modules are available')

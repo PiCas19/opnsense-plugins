@@ -15,8 +15,10 @@
     "py39-numpy",
     "py39-requests",
     "py39-scapy",
-    "py39-geoip2-python",
-    "py39-psutil"
+    "py39-maxminddb",
+    "py39-geoip2",
+    "py39-psutil",
+    "GeoIP"
   ],
   "product_requirements": {
     "opnsense_version": ">=24.1",
