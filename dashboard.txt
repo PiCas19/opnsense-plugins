@@ -1,0 +1,36 @@
+[18-Jul-2025 14:44:42 Europe/Zurich] PHP Fatal error:  Allowed memory size of 1073741824 bytes exhausted (tried to allocate 1215648992 bytes) in /usr/local/opnsense/mvc/app/controllers/OPNsense/AdvInspector/Api/LogsController.php on line 110
+[19-Jul-2025 12:09:23 Europe/Zurich] Error: Call to undefined method OPNsense\WebGuard\SettingsController::gettext() in /usr/local/opnsense/mvc/app/controllers/OPNsense/WebGuard/SettingsController.php:59
+Stack trace:
+#0 /usr/local/opnsense/mvc/app/library/OPNsense/Mvc/Dispatcher.php(166): OPNsense\WebGuard\SettingsController->indexAction()
+#1 /usr/local/opnsense/mvc/app/library/OPNsense/Mvc/Router.php(156): OPNsense\Mvc\Dispatcher->dispatch(Object(OPNsense\Mvc\Request), Object(OPNsense\Mvc\Response), Object(OPNsense\Mvc\Session))
+#2 /usr/local/opnsense/mvc/app/library/OPNsense/Mvc/Router.php(139): OPNsense\Mvc\Router->performRequest(Object(OPNsense\Mvc\Dispatcher))
+#3 /usr/local/opnsense/www/index.php(66): OPNsense\Mvc\Router->routeRequest('/ui/webguard/se...', Array)
+#4 {main}
+[19-Jul-2025 12:10:09 Europe/Zurich] Error: Call to undefined method OPNsense\WebGuard\DashboardController::gettext() in /usr/local/opnsense/mvc/app/controllers/OPNsense/WebGuard/DashboardController.php:55
+Stack trace:
+#0 /usr/local/opnsense/mvc/app/library/OPNsense/Mvc/Dispatcher.php(166): OPNsense\WebGuard\DashboardController->indexAction()
+#1 /usr/local/opnsense/mvc/app/library/OPNsense/Mvc/Router.php(156): OPNsense\Mvc\Dispatcher->dispatch(Object(OPNsense\Mvc\Request), Object(OPNsense\Mvc\Response), Object(OPNsense\Mvc\Session))
+#2 /usr/local/opnsense/mvc/app/library/OPNsense/Mvc/Router.php(139): OPNsense\Mvc\Router->performRequest(Object(OPNsense\Mvc\Dispatcher))
+#3 /usr/local/opnsense/www/index.php(66): OPNsense\Mvc\Router->routeRequest('/ui/webguard/da...', Array)
+#4 {main}
+[19-Jul-2025 12:11:44 Europe/Zurich] Error: Call to undefined method OPNsense\WebGuard\ThreatsController::gettext() in /usr/local/opnsense/mvc/app/controllers/OPNsense/WebGuard/ThreatsController.php:54
+Stack trace:
+#0 /usr/local/opnsense/mvc/app/library/OPNsense/Mvc/Dispatcher.php(166): OPNsense\WebGuard\ThreatsController->indexAction()
+#1 /usr/local/opnsense/mvc/app/library/OPNsense/Mvc/Router.php(156): OPNsense\Mvc\Dispatcher->dispatch(Object(OPNsense\Mvc\Request), Object(OPNsense\Mvc\Response), Object(OPNsense\Mvc\Session))
+#2 /usr/local/opnsense/mvc/app/library/OPNsense/Mvc/Router.php(139): OPNsense\Mvc\Router->performRequest(Object(OPNsense\Mvc\Dispatcher))
+#3 /usr/local/opnsense/www/index.php(66): OPNsense\Mvc\Router->routeRequest('/ui/webguard/th...', Array)
+#4 {main}
+[19-Jul-2025 12:12:02 Europe/Zurich] Error: Call to undefined method OPNsense\WebGuard\DashboardController::gettext() in /usr/local/opnsense/mvc/app/controllers/OPNsense/WebGuard/DashboardController.php:55
+Stack trace:
+#0 /usr/local/opnsense/mvc/app/library/OPNsense/Mvc/Dispatcher.php(166): OPNsense\WebGuard\DashboardController->indexAction()
+#1 /usr/local/opnsense/mvc/app/library/OPNsense/Mvc/Router.php(156): OPNsense\Mvc\Dispatcher->dispatch(Object(OPNsense\Mvc\Request), Object(OPNsense\Mvc\Response), Object(OPNsense\Mvc\Session))
+#2 /usr/local/opnsense/mvc/app/library/OPNsense/Mvc/Router.php(139): OPNsense\Mvc\Router->performRequest(Object(OPNsense\Mvc\Dispatcher))
+#3 /usr/local/opnsense/www/index.php(66): OPNsense\Mvc\Router->routeRequest('/ui/webguard/da...', Array)
+#4 {main}
+[19-Jul-2025 12:16:43 Europe/Zurich] Error: Call to undefined method OPNsense\WebGuard\DashboardController::gettext() in /usr/local/opnsense/mvc/app/controllers/OPNsense/WebGuard/DashboardController.php:55
+Stack trace:
+#0 /usr/local/opnsense/mvc/app/library/OPNsense/Mvc/Dispatcher.php(166): OPNsense\WebGuard\DashboardController->indexAction()
+#1 /usr/local/opnsense/mvc/app/library/OPNsense/Mvc/Router.php(156): OPNsense\Mvc\Dispatcher->dispatch(Object(OPNsense\Mvc\Request), Object(OPNsense\Mvc\Response), Object(OPNsense\Mvc\Session))
+#2 /usr/local/opnsense/mvc/app/library/OPNsense/Mvc/Router.php(139): OPNsense\Mvc\Router->performRequest(Object(OPNsense\Mvc\Dispatcher))
+#3 /usr/local/opnsense/www/index.php(66): OPNsense\Mvc\Router->routeRequest('/ui/webguard/da...', Array)
+#4 {main}
