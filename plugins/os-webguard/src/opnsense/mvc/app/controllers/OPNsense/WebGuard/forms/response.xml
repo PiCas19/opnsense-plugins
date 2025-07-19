@@ -1,0 +1,50 @@
+<form>
+    <field>
+        <id>webguard.response.auto_blocking</id>
+        <label>Automatic Blocking</label>
+        <type>checkbox</type>
+        <help>Enable automatic blocking of detected threats based on configured thresholds</help>
+    </field>
+    
+    <field>
+        <id>webguard.response.progressive_blocking</id>
+        <label>Progressive Blocking</label>
+        <type>checkbox</type>
+        <help>Enable escalating response mechanism that increases blocking duration for repeat offenders</help>
+    </field>
+    
+    <field>
+        <id>webguard.response.session_termination</id>
+        <label>Session Termination</label>
+        <type>checkbox</type>
+        <help>Automatically terminate active sessions when threats are detected from the same source</help>
+    </field>
+    
+    <field>
+        <id>webguard.response.honeypot_redirect</id>
+        <label>Honeypot Redirection</label>
+        <type>checkbox</type>
+        <help>Redirect detected attackers to honeypot systems for further analysis and deception</help>
+    </field>
+    
+    <field>
+        <id>webguard.response.tarpit_mode</id>
+        <label>Tarpit Mode</label>
+        <type>checkbox</type>
+        <help>Slow down attackers by introducing artificial delays instead of blocking completely</help>
+    </field>
+    
+    <field>
+        <id>webguard.response.notification_webhook</id>
+        <label>Notification Webhook URL</label>
+        <type>text</type>
+        <help>Webhook URL for real-time threat notifications (leave empty to disable)</help>
+    </field>
+    
+    <field>
+        <id>webguard.response.siem_integration</id>
+        <label>SIEM Integration</label>
+        <type>checkbox</type>
+        <help>Enable SIEM integration for threat intelligence sharing and centralized security monitoring</help>
+    </field>
+</form>

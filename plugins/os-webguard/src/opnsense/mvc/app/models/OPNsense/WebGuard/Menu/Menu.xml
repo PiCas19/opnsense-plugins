@@ -1,0 +1,10 @@
+<menu>
+    <Services>
+        <WebGuard cssClass="fa fa-shield-alt" order="250">
+            <Dashboard url="/ui/webguard/dashboard" order="10"/>
+            <Settings url="/ui/webguard/settings" order="20"/>
+            <Threats url="/ui/webguard/threats" order="30"/>
+            <Blocking url="/ui/webguard/blocking" order="40"/>
+        </WebGuard>
+    </Services>
+</menu>

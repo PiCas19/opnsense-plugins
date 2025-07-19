@@ -1,0 +1,40 @@
+<acl>
+    <page-OPNsense-WebGuard-Dashboard>
+        <name>WebGuard: Dashboard</name>
+        <patterns>
+            <pattern>ui/webguard/dashboard*</pattern>
+            <pattern>api/webguard/dashboard*</pattern>
+        </patterns>
+    </page-OPNsense-WebGuard-Dashboard>
+    
+    <page-OPNsense-WebGuard-Settings>
+        <name>WebGuard: Settings</name>
+        <patterns>
+            <pattern>ui/webguard/settings*</pattern>
+            <pattern>api/webguard/settings*</pattern>
+        </patterns>
+    </page-OPNsense-WebGuard-Settings>
+    
+    <page-OPNsense-WebGuard-Threats>
+        <name>WebGuard: Threats</name>
+        <patterns>
+            <pattern>ui/webguard/threats*</pattern>
+            <pattern>api/webguard/threats*</pattern>
+        </patterns>
+    </page-OPNsense-WebGuard-Threats>
+    
+    <page-OPNsense-WebGuard-Blocking>
+        <name>WebGuard: Blocking</name>
+        <patterns>
+            <pattern>ui/webguard/blocking*</pattern>
+            <pattern>api/webguard/blocking*</pattern>
+        </patterns>
+    </page-OPNsense-WebGuard-Blocking>
+    
+    <page-OPNsense-WebGuard-Api>
+        <name>WebGuard: API</name>
+        <patterns>
+            <pattern>api/webguard/*</pattern>
+        </patterns>
+    </page-OPNsense-WebGuard-Api>
+</acl>

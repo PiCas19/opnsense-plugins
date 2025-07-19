@@ -1,0 +1,190 @@
+#!/bin/sh
+
+# PROVIDE: webguard
+# REQUIRE: LOGIN cleanvar
+# KEYWORD: shutdown
+#
+# Add the following lines to /etc/rc.conf to enable webguard:
+# webguard_enable (bool):   Set to "NO" by default.
+#                           Set it to "YES" to enable webguard.
+# webguard_config (path):   Set to "/usr/local/etc/webguard/config.json" by default.
+#                           Set it to the webguard configuration file.
+# webguard_flags (string):  Set to "" by default.
+#                           Extra flags passed to webguard daemon.
+
+. /etc/rc.subr
+
+name=webguard
+desc="WebGuard Web Application Firewall and Behavioral Analysis Engine"
+rcvar=webguard_enable
+
+load_rc_config $name
+
+: ${webguard_enable:="NO"}
+: ${webguard_config:="/usr/local/etc/webguard/config.json"}
+: ${webguard_flags:=""}
+: ${webguard_user:="root"}
+: ${webguard_group:="wheel"}
+: ${webguard_pidfile:="/var/run/webguard.pid"}
+: ${webguard_logfile:="/var/log/webguard/engine.log"}
+
+command="/usr/local/opnsense/scripts/OPNsense/WebGuard/web_guard_engine.py"
+command_args="--config ${webguard_config} --daemon ${webguard_flags}"
+pidfile=${webguard_pidfile}
+required_files=${webguard_config}
+
+start_precmd="webguard_prestart"
+stop_postcmd="webguard_poststop"
+status_cmd="webguard_status"
+restart_precmd="webguard_prerestart"
+
+webguard_prestart()
+{
+    # Create necessary directories
+    install -d -o ${webguard_user} -g ${webguard_group} -m 755 /var/db/webguard
+    install -d -o ${webguard_user} -g ${webguard_group} -m 755 /var/log/webguard
+    install -d -o ${webguard_user} -g ${webguard_group} -m 755 /usr/local/etc/webguard
+    
+    # Check if configuration file exists
+    if [ ! -f "${webguard_config}" ]; then
+        echo "Configuration file ${webguard_config} does not exist."
+        echo "Creating default configuration..."
+        /usr/local/opnsense/scripts/OPNsense/WebGuard/create_default_config.sh
+    fi
+    
+    # Check if Python dependencies are installed
+    /usr/local/bin/python3 -c "import sqlite3, json, time, threading, logging, scapy, geoip2, numpy, requests" 2>/dev/null
+    if [ $? -ne 0 ]; then
+        echo "ERROR: Required Python dependencies are missing."
+        echo "Please install the required packages:"
+        echo "  pkg install py39-sqlite3 py39-scapy py39-geoip2 py39-numpy py39-requests"
+        return 1
+    fi
+    
+    # Ensure proper permissions
+    chown -R ${webguard_user}:${webguard_group} /var/db/webguard
+    chown -R ${webguard_user}:${webguard_group} /var/log/webguard
+    chown -R ${webguard_user}:${webguard_group} /usr/local/etc/webguard
+    
+    return 0
+}
+
+webguard_poststop()
+{
+    # Clean up PID file if it exists
+    if [ -f "${pidfile}" ]; then
+        rm -f "${pidfile}"
+    fi
+    
+    # Log stop event
+    echo "$(date): WebGuard stopped" >> ${webguard_logfile}
+    
+    return 0
+}
+
+webguard_status()
+{
+    if [ -f "${pidfile}" ]; then
+        pid=$(cat "${pidfile}")
+        if kill -0 "${pid}" 2>/dev/null; then
+            echo "webguard is running as pid ${pid}."
+            return 0
+        else
+            echo "webguard is not running, but pid file exists."
+            return 1
+        fi
+    else
+        echo "webguard is not running."
+        return 1
+    fi
+}
+
+webguard_prerestart()
+{
+    # Check configuration before restart
+    /usr/local/opnsense/scripts/OPNsense/WebGuard/validate_config.py "${webguard_config}"
+    if [ $? -ne 0 ]; then
+        echo "Configuration validation failed. Restart aborted."
+        return 1
+    fi
+    
+    return 0
+}
+
+# Custom start function to handle daemon mode properly
+webguard_start()
+{
+    check_startmsgs && echo "Starting ${name}."
+    
+    if webguard_prestart; then
+        # Start the daemon
+        /usr/sbin/daemon -c -f -P "${pidfile}" -u "${webguard_user}" \
+            ${command} ${command_args}
+        
+        # Wait a moment and check if it started successfully
+        sleep 2
+        if webguard_status >/dev/null 2>&1; then
+            echo "webguard started successfully."
+            echo "$(date): WebGuard started" >> ${webguard_logfile}
+            return 0
+        else
+            echo "webguard failed to start."
+            return 1
+        fi
+    else
+        return 1
+    fi
+}
+
+# Custom stop function
+webguard_stop()
+{
+    echo "Stopping ${name}."
+    
+    if [ -f "${pidfile}" ]; then
+        pid=$(cat "${pidfile}")
+        if kill -0 "${pid}" 2>/dev/null; then
+            # Send SIGTERM to gracefully stop
+            kill -TERM "${pid}"
+            
+            # Wait up to 30 seconds for graceful shutdown
+            timeout=30
+            while [ ${timeout} -gt 0 ]; do
+                if ! kill -0 "${pid}" 2>/dev/null; then
+                    break
+                fi
+                sleep 1
+                timeout=$((timeout - 1))
+            done
+            
+            # If still running, force kill
+            if kill -0 "${pid}" 2>/dev/null; then
+                echo "Graceful shutdown failed, forcing stop..."
+                kill -KILL "${pid}"
+                sleep 2
+            fi
+        fi
+    fi
+    
+    webguard_poststop
+    return 0
+}
+
+# Custom restart function
+webguard_restart()
+{
+    if webguard_prerestart; then
+        webguard_stop
+        sleep 3
+        webguard_start
+    else
+        return 1
+    fi
+}
+
+# Override the default functions
+start_cmd="webguard_start"
+stop_cmd="webguard_stop"
+restart_cmd="webguard_restart"
+
+run_rc_command "$1"

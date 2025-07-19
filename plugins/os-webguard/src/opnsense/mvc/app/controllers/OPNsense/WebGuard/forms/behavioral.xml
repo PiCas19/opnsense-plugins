@@ -1,0 +1,57 @@
+<form>
+    <field>
+        <id>webguard.behavioral.anomaly_detection</id>
+        <label>Behavioral Anomaly Detection</label>
+        <type>checkbox</type>
+        <help>Enable machine learning-based detection of abnormal user and traffic behavior patterns</help>
+    </field>
+    
+    <field>
+        <id>webguard.behavioral.beaconing_detection</id>
+        <label>Beaconing Detection</label>
+        <type>checkbox</type>
+        <help>Detect malware command and control (C2) beaconing patterns with regular intervals</help>
+    </field>
+    
+    <field>
+        <id>webguard.behavioral.data_exfiltration_detection</id>
+        <label>Data Exfiltration Detection</label>
+        <type>checkbox</type>
+        <help>Detect slow data exfiltration attempts and unusual data transfer patterns</help>
+    </field>
+    
+    <field>
+        <id>webguard.behavioral.traffic_pattern_analysis</id>
+        <label>Traffic Pattern Analysis</label>
+        <type>checkbox</type>
+        <help>Analyze network traffic patterns to identify suspicious activities and attack signatures</help>
+    </field>
+    
+    <field>
+        <id>webguard.behavioral.user_behavior_profiling</id>
+        <label>User Behavior Profiling</label>
+        <type>checkbox</type>
+        <help>Create behavioral profiles for users to detect account compromise and insider threats</help>
+    </field>
+    
+    <field>
+        <id>webguard.behavioral.timing_analysis</id>
+        <label>Request Timing Analysis</label>
+        <type>checkbox</type>
+        <help>Analyze request timing patterns to detect automated attacks and timing-based side channels</help>
+    </field>
+    
+    <field>
+        <id>webguard.behavioral.entropy_analysis</id>
+        <label>Data Entropy Analysis</label>
+        <type>checkbox</type>
+        <help>Analyze data entropy to detect encrypted payloads and data hiding techniques</help>
+    </field>
+    
+    <field>
+        <id>webguard.behavioral.baseline_learning</id>
+        <label>Automatic Baseline Learning</label>
+        <type>checkbox</type>
+        <help>Automatically learn and update behavioral baselines based on observed normal traffic</help>
+    </field>
+</form>

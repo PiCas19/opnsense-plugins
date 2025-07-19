@@ -1,0 +1,49 @@
+<form>
+    <field>
+        <id>bulk_block.ip_list</id>
+        <label>IP Address List</label>
+        <type>textbox</type>
+        <help>List of IP addresses to block (one per line, IPv4 or IPv6)</help>
+        <style>height:200px;width:100%;</style>
+    </field>
+    
+    <field>
+        <id>bulk_block.duration</id>
+        <label>Block Duration (seconds)</label>
+        <type>dropdown</type>
+        <help>Duration for which all IPs should be blocked</help>
+        <options>
+            <option value="300">5 minutes</option>
+            <option value="900">15 minutes</option>
+            <option value="1800">30 minutes</option>
+            <option value="3600">1 hour</option>
+            <option value="7200">2 hours</option>
+            <option value="21600">6 hours</option>
+            <option value="43200">12 hours</option>
+            <option value="86400">24 hours</option>
+            <option value="604800">7 days</option>
+            <option value="2592000">30 days</option>
+            <option value="0">Permanent</option>
+        </options>
+    </field>
+    
+    <field>
+        <id>bulk_block.reason</id>
+        <label>Reason</label>
+        <type>text</type>
+        <help>Reason for blocking these IP addresses</help>
+        <style>width:100%;</style>
+    </field>
+    
+    <field>
+        <id>bulk_block.block_type</id>
+        <label>Block Type</label>
+        <type>dropdown</type>
+        <help>Type of block to apply to all IPs</help>
+        <options>
+            <option value="temporary">Temporary</option>
+            <option value="permanent">Permanent</option>
+            <option value="progressive">Progressive</option>
+        </options>
+    </field>
+</form>
