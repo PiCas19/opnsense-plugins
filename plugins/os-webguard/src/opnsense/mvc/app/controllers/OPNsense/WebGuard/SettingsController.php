@@ -31,154 +31,133 @@ namespace OPNsense\WebGuard;
 use OPNsense\Base\IndexController;
 use OPNsense\WebGuard\WebGuard;
 
-/**
- * Class SettingsController
- * @package OPNsense\WebGuard
- */
 class SettingsController extends IndexController
 {
-    /**
-     * Settings index page
-     * @return void
-     */
     public function indexAction()
     {
-        // Get WebGuard model instance
-        $mdlWebGuard = new WebGuard();
+        try {
+            // Carica il modello WebGuard
+            $mdlWebGuard = new WebGuard();
+            $this->view->webguardModel = $mdlWebGuard;
+            
+            // Carica i form in modo sicuro
+            $this->view->generalForm = $this->getFormSafely("general");
+            $this->view->wafForm = $this->getFormSafely("waf");
+            $this->view->behavioralForm = $this->getFormSafely("behavioral");
+            $this->view->covertChannelsForm = $this->getFormSafely("covert_channels");
+            $this->view->responseForm = $this->getFormSafely("response");
+            $this->view->whitelistForm = $this->getFormSafely("whitelist");
+            
+            // Imposta il titolo
+            $this->view->title = gettext("WebGuard Settings");
+            
+        } catch (\Exception $e) {
+            error_log("WebGuard Settings Error: " . $e->getMessage());
+            $this->handleError($e, "WebGuard Settings");
+        }
         
-        // Pass model to view
-        $this->view->webguardModel = $mdlWebGuard;
-        $this->view->generalForm = $this->getForm("general");
-        $this->view->wafForm = $this->getForm("waf");
-        $this->view->behavioralForm = $this->getForm("behavioral");
-        $this->view->covertChannelsForm = $this->getForm("covert_channels");
-        $this->view->responseForm = $this->getForm("response");
-        $this->view->whitelistForm = $this->getForm("whitelist");
-        
-        // Set page title
-        $this->view->title = $this->gettext("WebGuard Settings");
-        
-        // Pick the template
         $this->view->pick('OPNsense/WebGuard/settings');
     }
-
-    /**
-     * General settings page
-     * @return void
-     */
+    
     public function generalAction()
     {
-        // Get WebGuard model instance
-        $mdlWebGuard = new WebGuard();
-        
-        // Pass model to view
-        $this->view->webguardModel = $mdlWebGuard;
-        $this->view->generalForm = $this->getForm("general");
-        
-        // Set page title
-        $this->view->title = $this->gettext("WebGuard General Settings");
-        
-        // Pick the template
+        try {
+            $mdlWebGuard = new WebGuard();
+            $this->view->webguardModel = $mdlWebGuard;
+            $this->view->generalForm = $this->getFormSafely("general");
+            $this->view->title = gettext("WebGuard General Settings");
+        } catch (\Exception $e) {
+            $this->handleError($e, "WebGuard General Settings");
+        }
         $this->view->pick('OPNsense/WebGuard/general');
     }
-
-    /**
-     * WAF settings page
-     * @return void
-     */
+    
     public function wafAction()
     {
-        // Get WebGuard model instance
-        $mdlWebGuard = new WebGuard();
-        
-        // Pass model to view
-        $this->view->webguardModel = $mdlWebGuard;
-        $this->view->wafForm = $this->getForm("waf");
-        
-        // Set page title
-        $this->view->title = $this->gettext("WebGuard WAF Settings");
-        
-        // Pick the template
+        try {
+            $mdlWebGuard = new WebGuard();
+            $this->view->webguardModel = $mdlWebGuard;
+            $this->view->wafForm = $this->getFormSafely("waf");
+            $this->view->title = gettext("WebGuard WAF Settings");
+        } catch (\Exception $e) {
+            $this->handleError($e, "WebGuard WAF Settings");
+        }
         $this->view->pick('OPNsense/WebGuard/waf');
     }
-
-    /**
-     * Behavioral analysis settings page
-     * @return void
-     */
+    
     public function behavioralAction()
     {
-        // Get WebGuard model instance
-        $mdlWebGuard = new WebGuard();
-        
-        // Pass model to view
-        $this->view->webguardModel = $mdlWebGuard;
-        $this->view->behavioralForm = $this->getForm("behavioral");
-        
-        // Set page title
-        $this->view->title = $this->gettext("WebGuard Behavioral Analysis");
-        
-        // Pick the template
+        try {
+            $mdlWebGuard = new WebGuard();
+            $this->view->webguardModel = $mdlWebGuard;
+            $this->view->behavioralForm = $this->getFormSafely("behavioral");
+            $this->view->title = gettext("WebGuard Behavioral Analysis");
+        } catch (\Exception $e) {
+            $this->handleError($e, "WebGuard Behavioral Analysis");
+        }
         $this->view->pick('OPNsense/WebGuard/behavioral');
     }
-
-    /**
-     * Covert channels detection settings page
-     * @return void
-     */
+    
     public function covertAction()
     {
-        // Get WebGuard model instance
-        $mdlWebGuard = new WebGuard();
-        
-        // Pass model to view
-        $this->view->webguardModel = $mdlWebGuard;
-        $this->view->covertChannelsForm = $this->getForm("covert_channels");
-        
-        // Set page title
-        $this->view->title = $this->gettext("WebGuard Covert Channels Detection");
-        
-        // Pick the template
+        try {
+            $mdlWebGuard = new WebGuard();
+            $this->view->webguardModel = $mdlWebGuard;
+            $this->view->covertChannelsForm = $this->getFormSafely("covert_channels");
+            $this->view->title = gettext("WebGuard Covert Channels Detection");
+        } catch (\Exception $e) {
+            $this->handleError($e, "WebGuard Covert Channels Detection");
+        }
         $this->view->pick('OPNsense/WebGuard/covert');
     }
-
-    /**
-     * Response settings page
-     * @return void
-     */
+    
     public function responseAction()
     {
-        // Get WebGuard model instance
-        $mdlWebGuard = new WebGuard();
-        
-        // Pass model to view
-        $this->view->webguardModel = $mdlWebGuard;
-        $this->view->responseForm = $this->getForm("response");
-        
-        // Set page title
-        $this->view->title = $this->gettext("WebGuard Response Settings");
-        
-        // Pick the template
+        try {
+            $mdlWebGuard = new WebGuard();
+            $this->view->webguardModel = $mdlWebGuard;
+            $this->view->responseForm = $this->getFormSafely("response");
+            $this->view->title = gettext("WebGuard Response Settings");
+        } catch (\Exception $e) {
+            $this->handleError($e, "WebGuard Response Settings");
+        }
         $this->view->pick('OPNsense/WebGuard/response');
     }
-
-    /**
-     * Whitelist settings page
-     * @return void
-     */
+    
     public function whitelistAction()
     {
-        // Get WebGuard model instance
-        $mdlWebGuard = new WebGuard();
-        
-        // Pass model to view
-        $this->view->webguardModel = $mdlWebGuard;
-        $this->view->whitelistForm = $this->getForm("whitelist");
-        
-        // Set page title
-        $this->view->title = $this->gettext("WebGuard Whitelist Settings");
-        
-        // Pick the template
+        try {
+            $mdlWebGuard = new WebGuard();
+            $this->view->webguardModel = $mdlWebGuard;
+            $this->view->whitelistForm = $this->getFormSafely("whitelist");
+            $this->view->title = gettext("WebGuard Whitelist Settings");
+        } catch (\Exception $e) {
+            $this->handleError($e, "WebGuard Whitelist Settings");
+        }
         $this->view->pick('OPNsense/WebGuard/whitelist');
+    }
+    
+    /**
+     * Carica un form in modo sicuro
+     */
+    private function getFormSafely($formName)
+    {
+        try {
+            return $this->getForm($formName);
+        } catch (\Exception $e) {
+            error_log("Form '$formName' not found: " . $e->getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * Gestisce gli errori in modo uniforme
+     */
+    private function handleError($exception, $title)
+    {
+        error_log("WebGuard Error: " . $exception->getMessage());
+        $this->view->webguardModel = null;
+        $this->view->error = $exception->getMessage();
+        $this->view->title = gettext($title);
     }
 }
