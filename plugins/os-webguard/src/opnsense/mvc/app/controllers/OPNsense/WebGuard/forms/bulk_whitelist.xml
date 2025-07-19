@@ -1,0 +1,22 @@
+<form>
+    <field>
+        <id>bulk_whitelist.ip_list</id>
+        <label>IP/Network List</label>
+        <type>textbox</type>
+        <help>List of IP addresses or networks to whitelist (one per line)</help>
+        <style>height:200px;width:100%;</style>
+    </field>
+    <field>
+        <id>bulk_whitelist.description</id>
+        <label>Description</label>
+        <type>text</type>
+        <help>Description for these whitelist entries</help>
+        <style>width:100%;</style>
+    </field>
+    <field>
+        <id>bulk_whitelist.permanent</id>
+        <label>Permanent Entries</label>
+        <type>checkbox</type>
+        <help>Make these permanent whitelist entries</help>
+    </field>
+</form>

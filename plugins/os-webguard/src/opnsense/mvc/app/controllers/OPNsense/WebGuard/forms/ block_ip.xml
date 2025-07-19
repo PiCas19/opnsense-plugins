@@ -6,7 +6,6 @@
         <help>IP address to block (IPv4 or IPv6)</help>
         <style>width:100%;</style>
     </field>
-    
     <field>
         <id>block_ip.duration</id>
         <label>Block Duration (seconds)</label>
@@ -26,7 +25,6 @@
             <option value="0">Permanent</option>
         </options>
     </field>
-    
     <field>
         <id>block_ip.reason</id>
         <label>Reason</label>
@@ -34,7 +32,6 @@
         <help>Reason for blocking this IP address</help>
         <style>width:100%;</style>
     </field>
-    
     <field>
         <id>block_ip.block_type</id>
         <label>Block Type</label>
