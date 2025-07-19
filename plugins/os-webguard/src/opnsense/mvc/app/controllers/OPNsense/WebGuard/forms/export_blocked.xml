@@ -1,0 +1,33 @@
+<form>
+    <field>
+        <id>export_blocked.format</id>
+        <label>Export Format</label>
+        <type>dropdown</type>
+        <help>Format for the export file</help>
+        <options>
+            <option value="csv">CSV</option>
+            <option value="json">JSON</option>
+            <option value="xml">XML</option>
+            <option value="txt">Plain Text</option>
+        </options>
+    </field>
+    <field>
+        <id>export_blocked.include_expired</id>
+        <label>Include Expired</label>
+        <type>checkbox</type>
+        <help>Include expired blocking entries in export</help>
+    </field>
+    <field>
+        <id>export_blocked.date_range</id>
+        <label>Date Range</label>
+        <type>dropdown</type>
+        <help>Time range for export</help>
+        <options>
+            <option value="all">All Time</option>
+            <option value="today">Today</option>
+            <option value="week">Last Week</option>
+            <option value="month">Last Month</option>
+            <option value="custom">Custom Range</option>
+        </options>
+    </field>
+</form>

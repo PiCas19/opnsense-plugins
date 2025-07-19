@@ -1,48 +1,42 @@
 <form>
     <field>
-        <id>webguard.covert_channels.dns_tunneling_detection</id>
+        <id>covert_channels.dns_tunneling_detection</id>
         <label>DNS Tunneling Detection</label>
         <type>checkbox</type>
         <help>Detect DNS tunneling attempts used to bypass firewalls and exfiltrate data</help>
     </field>
-    
     <field>
-        <id>webguard.covert_channels.http_steganography_detection</id>
+        <id>covert_channels.http_steganography_detection</id>
         <label>HTTP Steganography Detection</label>
         <type>checkbox</type>
         <help>Detect hidden data embedded in HTTP headers, cookies, and legitimate-looking traffic</help>
     </field>
-    
     <field>
-        <id>webguard.covert_channels.icmp_tunneling_detection</id>
+        <id>covert_channels.icmp_tunneling_detection</id>
         <label>ICMP Tunneling Detection</label>
         <type>checkbox</type>
         <help>Detect ICMP tunneling used to establish covert communication channels</help>
     </field>
-    
     <field>
-        <id>webguard.covert_channels.protocol_anomaly_detection</id>
+        <id>covert_channels.protocol_anomaly_detection</id>
         <label>Protocol Anomaly Detection</label>
         <type>checkbox</type>
         <help>Detect protocol anomalies that may indicate covert channel usage or protocol abuse</help>
     </field>
-    
     <field>
-        <id>webguard.covert_channels.payload_entropy_analysis</id>
+        <id>covert_channels.payload_entropy_analysis</id>
         <label>Payload Entropy Analysis</label>
         <type>checkbox</type>
         <help>Analyze payload entropy to detect encrypted or compressed data hiding in plain protocols</help>
     </field>
-    
     <field>
-        <id>webguard.covert_channels.timing_channel_detection</id>
+        <id>covert_channels.timing_channel_detection</id>
         <label>Timing Channel Detection</label>
         <type>checkbox</type>
         <help>Detect timing-based covert channels that use delays and intervals to transmit information</help>
     </field>
-    
     <field>
-        <id>webguard.covert_channels.size_pattern_analysis</id>
+        <id>covert_channels.size_pattern_analysis</id>
         <label>Size Pattern Analysis</label>
         <type>checkbox</type>
         <help>Analyze packet size patterns to detect covert channels using size modulation techniques</help>
