@@ -364,41 +364,230 @@ def load_rules():
     
     try:
         # Create rule files if they don't exist
-        rule_files = {
-            WAF_RULES_FILE: {"rules": []},
-            ATTACK_PATTERNS_FILE: {"patterns": []},
-            BEHAVIORAL_BASELINE_FILE: {}
-        }
-        
-        for file_path, default_content in rule_files.items():
-            if not os.path.exists(file_path):
-                os.makedirs(os.path.dirname(file_path), exist_ok=True)
-                with open(file_path, 'w') as f:
-                    json.dump(default_content, f, indent=2)
-                logger.info(f"Created default {file_path}")
+        create_default_rule_files()
         
         # Load WAF rules
-        with open(WAF_RULES_FILE, 'r') as f:
-            waf_rules = json.load(f)
+        try:
+            logger.info(f"Loading WAF rules from: {WAF_RULES_FILE}")
+            with open(WAF_RULES_FILE, 'r') as f:
+                waf_rules = json.load(f)
+            logger.info("WAF rules loaded successfully")
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON error in WAF rules file: {e}")
+            logger.info("Creating new default WAF rules file")
+            create_default_waf_rules()
+            with open(WAF_RULES_FILE, 'r') as f:
+                waf_rules = json.load(f)
+        except Exception as e:
+            logger.error(f"Error loading WAF rules: {e}")
+            create_default_waf_rules()
+            with open(WAF_RULES_FILE, 'r') as f:
+                waf_rules = json.load(f)
             
         # Load attack patterns
-        with open(ATTACK_PATTERNS_FILE, 'r') as f:
-            attack_patterns = json.load(f)
+        try:
+            logger.info(f"Loading attack patterns from: {ATTACK_PATTERNS_FILE}")
+            with open(ATTACK_PATTERNS_FILE, 'r') as f:
+                attack_patterns = json.load(f)
+            logger.info("Attack patterns loaded successfully")
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON error in attack patterns file: {e}")
+            logger.info("Creating new default attack patterns file")
+            create_default_attack_patterns()
+            with open(ATTACK_PATTERNS_FILE, 'r') as f:
+                attack_patterns = json.load(f)
+        except Exception as e:
+            logger.error(f"Error loading attack patterns: {e}")
+            create_default_attack_patterns()
+            with open(ATTACK_PATTERNS_FILE, 'r') as f:
+                attack_patterns = json.load(f)
             
         # Load behavioral baselines
-        with open(BEHAVIORAL_BASELINE_FILE, 'r') as f:
-            behavioral_baselines = json.load(f)
+        try:
+            logger.info(f"Loading behavioral baselines from: {BEHAVIORAL_BASELINE_FILE}")
+            with open(BEHAVIORAL_BASELINE_FILE, 'r') as f:
+                behavioral_baselines = json.load(f)
+            logger.info("Behavioral baselines loaded successfully")
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON error in behavioral baselines file: {e}")
+            logger.info("Creating new default behavioral baselines file")
+            create_default_behavioral_baselines()
+            with open(BEHAVIORAL_BASELINE_FILE, 'r') as f:
+                behavioral_baselines = json.load(f)
+        except Exception as e:
+            logger.error(f"Error loading behavioral baselines: {e}")
+            create_default_behavioral_baselines()
+            with open(BEHAVIORAL_BASELINE_FILE, 'r') as f:
+                behavioral_baselines = json.load(f)
         
         # Compile WAF patterns for faster matching
         compile_waf_patterns()
                 
-        logger.info("Rules and patterns loaded successfully")
+        logger.info("All rules and patterns loaded successfully")
         return True
         
     except Exception as e:
-        logger.warning(f"Failed to load rules: {e}")
+        logger.error(f"Critical error loading rules: {e}")
         load_default_rules()
         return False
+
+def create_default_rule_files():
+    """Create default rule files if they don't exist"""
+    # Ensure directory exists
+    os.makedirs(os.path.dirname(WAF_RULES_FILE), exist_ok=True)
+    
+    # Create WAF rules file
+    if not os.path.exists(WAF_RULES_FILE):
+        create_default_waf_rules()
+    
+    # Create attack patterns file
+    if not os.path.exists(ATTACK_PATTERNS_FILE):
+        create_default_attack_patterns()
+    
+    # Create behavioral baselines file
+    if not os.path.exists(BEHAVIORAL_BASELINE_FILE):
+        create_default_behavioral_baselines()
+
+def create_default_waf_rules():
+    """Create default WAF rules file"""
+    default_waf_rules = {
+        "version": "1.0",
+        "updated": datetime.now().isoformat(),
+        "rules": [
+            {
+                "id": 1,
+                "name": "SQL Injection - UNION SELECT",
+                "type": "sql_injection",
+                "pattern": "union\\s+select",
+                "enabled": True,
+                "score": 50,
+                "description": "Detects UNION SELECT SQL injection attempts"
+            },
+            {
+                "id": 2,
+                "name": "SQL Injection - OR 1=1",
+                "type": "sql_injection",
+                "pattern": "or\\s+1\\s*=\\s*1",
+                "enabled": True,
+                "score": 45,
+                "description": "Detects classic OR 1=1 SQL injection"
+            },
+            {
+                "id": 3,
+                "name": "XSS - Script Tag",
+                "type": "xss",
+                "pattern": "<script[^>]*>.*?</script>",
+                "enabled": True,
+                "score": 40,
+                "description": "Detects script tag XSS attempts"
+            },
+            {
+                "id": 4,
+                "name": "XSS - JavaScript Protocol",
+                "type": "xss",
+                "pattern": "javascript:",
+                "enabled": True,
+                "score": 35,
+                "description": "Detects javascript: protocol XSS"
+            },
+            {
+                "id": 5,
+                "name": "Command Injection",
+                "type": "command_injection",
+                "pattern": "[\\;\\|&`\\$\\(\\)].*?(ls|cat|wget|curl|nc)",
+                "enabled": True,
+                "score": 60,
+                "description": "Detects command injection attempts"
+            },
+            {
+                "id": 6,
+                "name": "Path Traversal",
+                "type": "lfi",
+                "pattern": "\\.\\.\\/.*?\\.\\.\\/.*?\\.\\.\/",
+                "enabled": True,
+                "score": 45,
+                "description": "Detects directory traversal attempts"
+            }
+        ]
+    }
+    
+    try:
+        with open(WAF_RULES_FILE, 'w') as f:
+            json.dump(default_waf_rules, f, indent=2)
+        logger.info(f"Created default WAF rules: {WAF_RULES_FILE}")
+    except Exception as e:
+        logger.error(f"Error creating default WAF rules: {e}")
+
+def create_default_attack_patterns():
+    """Create default attack patterns file"""
+    default_attack_patterns = {
+        "version": "1.0",
+        "updated": datetime.now().isoformat(),
+        "patterns": {
+            "malware_signatures": [
+                "X5O!P%@AP\\[4\\\\PZX54\\(P\\^\\)7CC\\)7\\}\\$EICAR",
+                "TVqQAAMAAAAEAAAA//8AALgAAAAA"
+            ],
+            "crypto_mining": [
+                "coinhive",
+                "cryptonight",
+                "monero",
+                "stratum"
+            ],
+            "suspicious_urls": [
+                "bit\\.ly",
+                "tinyurl\\.com",
+                "t\\.co"
+            ],
+            "data_exfiltration": [
+                "base64",
+                "data:image",
+                "data:text"
+            ]
+        }
+    }
+    
+    try:
+        with open(ATTACK_PATTERNS_FILE, 'w') as f:
+            json.dump(default_attack_patterns, f, indent=2)
+        logger.info(f"Created default attack patterns: {ATTACK_PATTERNS_FILE}")
+    except Exception as e:
+        logger.error(f"Error creating default attack patterns: {e}")
+
+def create_default_behavioral_baselines():
+    """Create default behavioral baselines file"""
+    default_behavioral_baselines = {
+        "version": "1.0",
+        "updated": datetime.now().isoformat(),
+        "baselines": {
+            "normal_request_rate": {
+                "min": 1,
+                "max": 100,
+                "avg": 10
+            },
+            "normal_payload_size": {
+                "min": 100,
+                "max": 10000,
+                "avg": 2000
+            },
+            "beaconing_thresholds": {
+                "min_frequency": 0.05,
+                "max_frequency": 0.5,
+                "min_requests": 10
+            },
+            "data_exfiltration_thresholds": {
+                "bytes_per_request": 50000,
+                "total_bytes_threshold": 1000000
+            }
+        }
+    }
+    
+    try:
+        with open(BEHAVIORAL_BASELINE_FILE, 'w') as f:
+            json.dump(default_behavioral_baselines, f, indent=2)
+        logger.info(f"Created default behavioral baselines: {BEHAVIORAL_BASELINE_FILE}")
+    except Exception as e:
+        logger.error(f"Error creating default behavioral baselines: {e}")
 
 def load_default_rules():
     """Load minimal default WAF rules"""
