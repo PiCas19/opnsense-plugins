@@ -1,384 +1,259 @@
 #!/bin/sh
-
-# WebGuard Plugin Setup Script
-# Copyright (C) 2024 OPNsense WebGuard Plugin
-# All rights reserved.
-
+# setup.sh - WebGuard setup script
 set -e
 
-PLUGIN_NAME="webguard"
-PLUGIN_VERSION="1.0.0"
-OPNSENSE_BASE="/usr/local/opnsense"
-SCRIPTS_DIR="${OPNSENSE_BASE}/scripts/OPNsense/WebGuard"
-CONFIG_DIR="/usr/local/etc/webguard"
+SCRIPT_DIR="/usr/local/opnsense/scripts/OPNsense/WebGuard"
 LOG_DIR="/var/log/webguard"
+CONFIG_DIR="/usr/local/etc/webguard"
 DB_DIR="/var/db/webguard"
 RC_SCRIPT="/usr/local/etc/rc.d/webguard"
+GEOIP_DIR="/usr/local/share/GeoIP"
 
-echo "Setting up WebGuard Plugin v${PLUGIN_VERSION}..."
+echo "Setting up WebGuard..."
 
-# Function to create directory with proper permissions
-create_dir() {
-    local dir=$1
-    local owner=${2:-root}
-    local group=${3:-wheel}
-    local mode=${4:-755}
-    
-    if [ ! -d "${dir}" ]; then
-        mkdir -p "${dir}"
-        echo "Created directory: ${dir}"
-    fi
-    chown ${owner}:${group} "${dir}"
-    chmod ${mode} "${dir}"
-}
-
-# Function to install file with proper permissions
-install_file() {
-    local src=$1
-    local dst=$2
-    local owner=${3:-root}
-    local group=${4:-wheel}
-    local mode=${5:-644}
-    
-    if [ -f "${src}" ]; then
-        cp "${src}" "${dst}"
-        chown ${owner}:${group} "${dst}"
-        chmod ${mode} "${dst}"
-        echo "Installed: ${dst}"
-    else
-        echo "WARNING: Source file not found: ${src}"
-    fi
-}
-
-# Create necessary directories
+# Create directories
 echo "Creating directories..."
-create_dir "${CONFIG_DIR}" root wheel 755
-create_dir "${LOG_DIR}" root wheel 755
-create_dir "${DB_DIR}" root wheel 755
-create_dir "${SCRIPTS_DIR}" root wheel 755
+mkdir -p "${SCRIPT_DIR}"
+mkdir -p "${LOG_DIR}"
+mkdir -p "${CONFIG_DIR}"
+mkdir -p "${DB_DIR}"
+mkdir -p "${GEOIP_DIR}"
 
-# Install Python scripts
-echo "Installing Python scripts..."
-install_file "web_guard_engine.py" "${SCRIPTS_DIR}/web_guard_engine.py" root wheel 755
-install_file "export_config.py" "${SCRIPTS_DIR}/export_config.py" root wheel 755
-install_file "get_stats.py" "${SCRIPTS_DIR}/get_stats.py" root wheel 755
-install_file "manage_whitelist.py" "${SCRIPTS_DIR}/manage_whitelist.py" root wheel 755
-install_file "manage_blocking.py" "${SCRIPTS_DIR}/manage_blocking.py" root wheel 755
-install_file "manage_threats.py" "${SCRIPTS_DIR}/manage_threats.py" root wheel 755
-install_file "get_threats.py" "${SCRIPTS_DIR}/get_threats.py" root wheel 755
-install_file "test_rules.py" "${SCRIPTS_DIR}/test_rules.py" root wheel 755
-install_file "update_rules.py" "${SCRIPTS_DIR}/update_rules.py" root wheel 755
+# Set proper permissions
+echo "Setting permissions..."
+chmod 755 "${SCRIPT_DIR}"
+chmod 755 "${LOG_DIR}"
+chmod 755 "${CONFIG_DIR}"
+chmod 755 "${DB_DIR}"
+chmod 755 "${GEOIP_DIR}"
 
-# Install shell scripts
-echo "Installing shell scripts..."
-install_file "start.sh" "${SCRIPTS_DIR}/start.sh" root wheel 755
-install_file "stop.sh" "${SCRIPTS_DIR}/stop.sh" root wheel 755
-install_file "restart.sh" "${SCRIPTS_DIR}/restart.sh" root wheel 755
-install_file "status.sh" "${SCRIPTS_DIR}/status.sh" root wheel 755
-install_file "reload.sh" "${SCRIPTS_DIR}/reload.sh" root wheel 755
-install_file "create_default_config.sh" "${SCRIPTS_DIR}/create_default_config.sh" root wheel 755
-install_file "validate_config.py" "${SCRIPTS_DIR}/validate_config.py" root wheel 755
+# Install Python dependencies
+echo "Installing Python dependencies..."
+/usr/local/bin/python3.11 -m pip install --upgrade pip
+/usr/local/bin/python3.11 -m pip install psutil requests geoip2 numpy scapy
 
-# Install rc.d script
-echo "Installing rc.d daemon script..."
-install_file "webguard" "${RC_SCRIPT}" root wheel 755
-
-# Create default configuration files
-echo "Creating default configuration files..."
-
-# Main configuration
+# Create main configuration file
+echo "Creating configuration files..."
 cat > "${CONFIG_DIR}/config.json" << 'EOF'
 {
     "general": {
-        "enabled": false,
-        "mode": "learning",
-        "interfaces": ["lan"],
-        "protected_networks": ["192.168.1.0/24"],
+        "enabled": true,
+        "interfaces": ["em0", "em1"],
+        "log_level": "info",
         "learning_period": 168,
-        "sensitivity_level": "medium",
         "auto_block_threshold": 5,
-        "block_duration": 3600,
-        "ssl_inspection": false,
-        "geo_blocking": false,
-        "rate_limiting": true,
-        "log_level": "info"
+        "block_duration": 3600
     },
     "waf": {
+        "enabled": true,
         "sql_injection_protection": true,
         "xss_protection": true,
         "csrf_protection": true,
-        "rfi_protection": true,
         "lfi_protection": true,
-        "directory_traversal_protection": true,
-        "command_injection_protection": true,
-        "http_protocol_validation": true,
-        "file_upload_protection": true,
-        "session_protection": true,
-        "custom_rules": ""
+        "rfi_protection": true
     },
     "behavioral": {
+        "enabled": true,
         "anomaly_detection": true,
         "beaconing_detection": true,
         "data_exfiltration_detection": true,
-        "traffic_pattern_analysis": true,
-        "user_behavior_profiling": true,
-        "timing_analysis": true,
-        "entropy_analysis": true,
-        "baseline_learning": true
+        "learning_mode": true
     },
     "covert_channels": {
+        "enabled": true,
         "dns_tunneling_detection": true,
-        "http_steganography_detection": true,
-        "icmp_tunneling_detection": true,
-        "protocol_anomaly_detection": true,
-        "payload_entropy_analysis": true,
-        "timing_channel_detection": true,
-        "size_pattern_analysis": true
+        "protocol_anomaly_detection": true
     },
     "response": {
         "auto_blocking": true,
-        "progressive_blocking": true,
-        "session_termination": true,
-        "honeypot_redirect": false,
-        "tarpit_mode": false,
         "notification_webhook": "",
-        "siem_integration": false
+        "email_notifications": false,
+        "log_blocked_requests": true
     },
     "whitelist": {
-        "trusted_sources": ["127.0.0.1/8", "::1/128"],
-        "trusted_user_agents": [],
-        "bypass_urls": []
+        "trusted_sources": [
+            "127.0.0.0/8",
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16"
+        ]
     }
 }
 EOF
 
-# WAF Rules
+# Create WAF rules file
 cat > "${CONFIG_DIR}/waf_rules.json" << 'EOF'
 {
     "rules": [
         {
-            "name": "SQL Injection - Union Select",
-            "pattern": "union\\s+select",
+            "name": "SQL Injection - UNION SELECT",
+            "pattern": "union\\s+(all\\s+)?select",
             "score": 50,
             "enabled": true,
-            "category": "sql_injection"
+            "description": "Detects UNION SELECT SQL injection attempts"
         },
         {
-            "name": "SQL Injection - OR 1=1",
-            "pattern": "or\\s+1\\s*=\\s*1",
+            "name": "SQL Injection - Boolean",
+            "pattern": "(or|and)\\s+\\d+\\s*=\\s*\\d+",
             "score": 40,
             "enabled": true,
-            "category": "sql_injection"
+            "description": "Detects boolean-based SQL injection"
+        },
+        {
+            "name": "SQL Injection - Comment",
+            "pattern": "(--|#|/\\*|\\*/)",
+            "score": 30,
+            "enabled": true,
+            "description": "Detects SQL comment injection"
         },
         {
             "name": "XSS - Script Tag",
-            "pattern": "<script[^>]*>",
+            "pattern": "<script[^>]*>.*?</script>",
             "score": 45,
             "enabled": true,
-            "category": "xss"
+            "description": "Detects script tag XSS"
         },
         {
-            "name": "XSS - JavaScript Protocol",
-            "pattern": "javascript\\s*:",
-            "score": 35,
-            "enabled": true,
-            "category": "xss"
-        },
-        {
-            "name": "Directory Traversal",
-            "pattern": "\\.\\./",
-            "score": 30,
-            "enabled": true,
-            "category": "lfi"
-        },
-        {
-            "name": "Command Injection - Semicolon",
-            "pattern": ";\\s*(cat|ls|pwd|id|whoami|uname)",
-            "score": 45,
-            "enabled": true,
-            "category": "command_injection"
-        },
-        {
-            "name": "PHP Code Injection",
-            "pattern": "<\\?php",
+            "name": "XSS - Event Handlers",
+            "pattern": "on(load|error|click|mouse|focus|blur)\\s*=",
             "score": 40,
             "enabled": true,
-            "category": "code_injection"
+            "description": "Detects event handler XSS"
         },
         {
-            "name": "Remote File Inclusion",
-            "pattern": "https?://[^/]+/",
-            "score": 25,
+            "name": "XSS - Javascript URL",
+            "pattern": "javascript:\\s*[^\\s]",
+            "score": 35,
             "enabled": true,
-            "category": "rfi"
+            "description": "Detects javascript: URL XSS"
+        },
+        {
+            "name": "LFI - Directory Traversal",
+            "pattern": "\\.\\./.*\\.\\./",,
+            "score": 40,
+            "enabled": true,
+            "description": "Detects directory traversal attempts"
+        },
+        {
+            "name": "LFI - System Files",
+            "pattern": "(/etc/passwd|/etc/shadow|/windows/system32)",
+            "score": 50,
+            "enabled": true,
+            "description": "Detects system file access attempts"
+        },
+        {
+            "name": "Command Injection",
+            "pattern": "(;|\\||&|`|\\$\\(|\\$\\{)\\s*(cat|ls|pwd|id|whoami|uname)",
+            "score": 45,
+            "enabled": true,
+            "description": "Detects command injection attempts"
+        },
+        {
+            "name": "LDAP Injection",
+            "pattern": "(\\*|\\)|\\(|&|\\|)(cn=|uid=|objectclass=)",
+            "score": 35,
+            "enabled": true,
+            "description": "Detects LDAP injection attempts"
         }
     ]
 }
 EOF
 
-# Attack Patterns
+# Create attack patterns file
 cat > "${CONFIG_DIR}/attack_patterns.json" << 'EOF'
 {
     "patterns": [
         {
-            "name": "SQL Injection Patterns",
-            "type": "sql_injection",
-            "signatures": [
-                "union select",
-                "or 1=1",
-                "drop table",
-                "insert into",
-                "delete from",
-                "'; exec",
-                "' or '1'='1"
-            ]
+            "name": "SQL Injection Keywords",
+            "keywords": ["union", "select", "insert", "update", "delete", "drop", "create", "alter", "exec", "execute"],
+            "category": "sql_injection"
         },
         {
-            "name": "XSS Patterns",
-            "type": "xss",
-            "signatures": [
-                "<script>",
-                "javascript:",
-                "onerror=",
-                "onload=",
-                "onclick=",
-                "eval(",
-                "document.cookie"
-            ]
+            "name": "XSS Keywords",
+            "keywords": ["script", "javascript", "onerror", "onload", "onclick", "alert", "document.cookie"],
+            "category": "xss"
         },
         {
-            "name": "Directory Traversal Patterns",
-            "type": "lfi",
-            "signatures": [
-                "../",
-                "..\\",
-                "/etc/passwd",
-                "\\windows\\system32",
-                "/proc/self/environ"
-            ]
+            "name": "File Inclusion Keywords",
+            "keywords": ["../", "..\\", "/etc/", "\\windows\\", "file://", "http://", "https://"],
+            "category": "file_inclusion"
         },
         {
-            "name": "Command Injection Patterns",
-            "type": "command_injection",
-            "signatures": [
-                "; cat",
-                "| ls",
-                "`whoami`",
-                "$(id)",
-                "&& uname"
-            ]
+            "name": "Command Injection Keywords",
+            "keywords": [";", "|", "&", "`", "$(", "${", "cat", "ls", "pwd", "whoami"],
+            "category": "command_injection"
         }
     ]
 }
 EOF
 
-# Behavioral Baseline (empty initially)
+# Create behavioral baseline file
 cat > "${CONFIG_DIR}/behavioral_baseline.json" << 'EOF'
 {
-    "baselines": {},
-    "created_at": null,
-    "last_updated": null
+    "baselines": {
+        "http_request_rate": {
+            "normal_range": [1, 10],
+            "unit": "requests_per_minute"
+        },
+        "payload_size": {
+            "normal_range": [100, 8192],
+            "unit": "bytes"
+        },
+        "session_duration": {
+            "normal_range": [60, 3600],
+            "unit": "seconds"
+        }
+    },
+    "thresholds": {
+        "anomaly_score": 80,
+        "beaconing_regularity": 0.9,
+        "data_exfiltration_threshold": 1048576
+    }
 }
 EOF
 
-# Check for required dependencies
-echo "Checking Python dependencies..."
-
-# Install required packages
-echo "Installing required Python packages..."
-REQUIRED_PACKAGES="py39-sqlite3 py39-numpy py39-requests py39-scapy py39-maxminddb py39-geoip2 py39-psutil GeoIP"
-
-for package in $REQUIRED_PACKAGES; do
-    if ! pkg info $package >/dev/null 2>&1; then
-        echo "Installing $package..."
-        pkg install -y $package
-    else
-        echo "$package is already installed"
-    fi
-done
-
-python3 -c "
-import sys
-required_modules = [
-    'sqlite3', 'json', 'time', 'threading', 'logging', 
-    'collections', 'datetime', 'ipaddress', 'hashlib',
-    'numpy', 'requests'
-]
-
-missing = []
-for module in required_modules:
-    try:
-        __import__(module)
-    except ImportError:
-        missing.append(module)
-
-if missing:
-    print('Missing required Python modules:', ', '.join(missing))
-    print('Please install missing packages manually')
-    sys.exit(1)
-else:
-    print('All required Python modules are available')
-"
-
-# Try to import optional modules
-echo "Checking optional dependencies..."
-python3 -c "
-optional_modules = ['scapy', 'geoip2', 'psutil']
-available = []
-missing = []
-
-for module in optional_modules:
-    try:
-        __import__(module)
-        available.append(module)
-    except ImportError:
-        missing.append(module)
-
-if available:
-    print('Available optional modules:', ', '.join(available))
-if missing:
-    print('Missing optional modules (install for full functionality):', ', '.join(missing))
-    print('Install with: pkg install', ' '.join(['py39-' + m.replace('geoip2', 'geoip2-python') for m in missing]))
-"
-
-# Download GeoIP database if not present
-GEOIP_DIR="/usr/local/share/GeoIP"
-GEOIP_DB="${GEOIP_DIR}/GeoLite2-Country.mmdb"
-
-if [ ! -f "${GEOIP_DB}" ]; then
-    echo "GeoIP database not found. Geographic blocking will be disabled."
-    echo "To enable geographic features, install GeoIP database:"
-    echo "  pkg install GeoIP"
-    echo "  or download manually to ${GEOIP_DB}"
+# Download GeoIP database (free version)
+echo "Downloading GeoIP database..."
+if command -v fetch >/dev/null 2>&1; then
+    # FreeBSD fetch
+    fetch -o /tmp/GeoLite2-Country.tar.gz "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-Country&license_key=YOUR_LICENSE_KEY&suffix=tar.gz" || echo "Warning: Could not download GeoIP database. Please download manually."
+elif command -v wget >/dev/null 2>&1; then
+    # wget
+    wget -O /tmp/GeoLite2-Country.tar.gz "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-Country&license_key=YOUR_LICENSE_KEY&suffix=tar.gz" || echo "Warning: Could not download GeoIP database. Please download manually."
+else
+    echo "Warning: Neither fetch nor wget available. Please download GeoIP database manually."
 fi
 
-# Set up log rotation
-echo "Setting up log rotation..."
-cat > /usr/local/etc/newsyslog.conf.d/webguard << 'EOF'
-# WebGuard log rotation
-/var/log/webguard/*.log    root:wheel  644  7  100  *  J  /var/run/webguard.pid  30
-EOF
-
-# Enable webguard in rc.conf if not already enabled
-if ! grep -q "webguard_enable" /etc/rc.conf; then
-    echo 'webguard_enable="NO"' >> /etc/rc.conf
-    echo "Added webguard_enable to /etc/rc.conf (disabled by default)"
+# Extract GeoIP database if downloaded
+if [ -f "/tmp/GeoLite2-Country.tar.gz" ]; then
+    echo "Extracting GeoIP database..."
+    cd /tmp
+    tar -xzf GeoLite2-Country.tar.gz
+    find . -name "GeoLite2-Country.mmdb" -exec cp {} "${GEOIP_DIR}/" \;
+    rm -rf GeoLite2-Country*
+    echo "GeoIP database installed."
+else
+    echo "Creating placeholder GeoIP database..."
+    touch "${GEOIP_DIR}/GeoLite2-Country.mmdb"
 fi
 
-# Create initial database
+# Initialize database
 echo "Initializing database..."
-python3 << 'EOF'
+cat > /tmp/init_db.py << 'EOF'
+#!/usr/local/bin/python3
 import sqlite3
 import os
 
-db_file = '/var/db/webguard/webguard.db'
-os.makedirs(os.path.dirname(db_file), exist_ok=True)
+DB_FILE = '/var/db/webguard/webguard.db'
 
-conn = sqlite3.connect(db_file)
-conn.execute('PRAGMA journal_mode=WAL')
+# Ensure directory exists
+os.makedirs(os.path.dirname(DB_FILE), exist_ok=True)
 
-# Create tables
-conn.executescript('''
+# Create database and tables
+db = sqlite3.connect(DB_FILE)
+db.execute('PRAGMA journal_mode=WAL')
+
+db.executescript('''
     CREATE TABLE IF NOT EXISTS threats (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         timestamp INTEGER NOT NULL,
@@ -431,36 +306,319 @@ conn.executescript('''
     CREATE INDEX IF NOT EXISTS idx_whitelist_ip ON whitelist(ip_address);
 ''')
 
-conn.commit()
-conn.close()
+db.commit()
+db.close()
+
 print("Database initialized successfully")
 EOF
 
+/usr/local/bin/python3.11 /tmp/init_db.py
+rm /tmp/init_db.py
+
+# Create RC script for service management
+echo "Creating RC script..."
+cat > "${RC_SCRIPT}" << 'EOF'
+#!/bin/sh
+#
+# PROVIDE: webguard
+# REQUIRE: DAEMON NETWORKING
+# KEYWORD: shutdown
+#
+# Add these lines to /etc/rc.conf.local or /etc/rc.conf
+# to enable this service:
+#
+# webguard_enable (bool):   Set to NO by default.
+#               Set it to YES to enable webguard.
+# webguard_config (path):   Set to /usr/local/etc/webguard/config.json
+#               by default.
+
+. /etc/rc.subr
+
+name=webguard
+rcvar=webguard_enable
+
+load_rc_config $name
+
+: ${webguard_enable:="NO"}
+: ${webguard_config:="/usr/local/etc/webguard/config.json"}
+: ${webguard_user:="root"}
+: ${webguard_group:="wheel"}
+
+pidfile="/var/run/webguard.pid"
+command="/usr/sbin/daemon"
+procname="/usr/local/bin/python3.11"
+command_args="-c -f -P ${pidfile} ${procname} /usr/local/opnsense/scripts/OPNsense/WebGuard/webguard_engine.py --config ${webguard_config} --daemon"
+
+start_precmd="webguard_prestart"
+
+webguard_prestart()
+{
+    if [ ! -f "${webguard_config}" ]; then
+        err 1 "Configuration file ${webguard_config} does not exist"
+    fi
+    
+    # Ensure log directory exists
+    if [ ! -d "/var/log/webguard" ]; then
+        mkdir -p /var/log/webguard
+        chown ${webguard_user}:${webguard_group} /var/log/webguard
+    fi
+    
+    # Ensure database directory exists
+    if [ ! -d "/var/db/webguard" ]; then
+        mkdir -p /var/db/webguard
+        chown ${webguard_user}:${webguard_group} /var/db/webguard
+    fi
+}
+
+run_rc_command "$1"
+EOF
+
+chmod +x "${RC_SCRIPT}"
+
 # Set proper ownership for all files
+echo "Setting file ownership..."
 chown -R root:wheel "${CONFIG_DIR}"
 chown -R root:wheel "${LOG_DIR}"
 chown -R root:wheel "${DB_DIR}"
-chown -R root:wheel "${SCRIPTS_DIR}"
+chown -R root:wheel "${GEOIP_DIR}"
+
+# Create log rotation configuration
+echo "Setting up log rotation..."
+cat > /etc/newsyslog.conf.d/webguard.conf << 'EOF'
+# WebGuard log rotation
+/var/log/webguard/engine.log       644  7     1000 *     Z
+/var/log/webguard/waf.log          644  7     1000 *     Z
+/var/log/webguard/behavioral.log   644  7     1000 *     Z
+/var/log/webguard/covert_channels.log 644  7  1000 *     Z
+/var/log/webguard/blocked.log      644  30    1000 *     Z
+EOF
+
+# Create systemd-style service file for compatibility
+mkdir -p /usr/local/etc/webguard/scripts
+cat > /usr/local/etc/webguard/scripts/start.sh << 'EOF'
+#!/bin/sh
+service webguard start
+EOF
+
+cat > /usr/local/etc/webguard/scripts/stop.sh << 'EOF'
+#!/bin/sh
+service webguard stop
+EOF
+
+cat > /usr/local/etc/webguard/scripts/restart.sh << 'EOF'
+#!/bin/sh
+service webguard restart
+EOF
+
+chmod +x /usr/local/etc/webguard/scripts/*.sh
+
+# Create status check script
+cat > /usr/local/etc/webguard/scripts/status.sh << 'EOF'
+#!/bin/sh
+if [ -f "/var/run/webguard.pid" ] && kill -0 "$(cat /var/run/webguard.pid)" 2>/dev/null; then
+    echo "WebGuard is running (PID: $(cat /var/run/webguard.pid))"
+    exit 0
+else
+    echo "WebGuard is not running"
+    exit 1
+fi
+EOF
+
+chmod +x /usr/local/etc/webguard/scripts/status.sh
+
+# Create maintenance script
+cat > /usr/local/etc/webguard/scripts/maintenance.sh << 'EOF'
+#!/bin/sh
+# WebGuard maintenance script
+
+SCRIPT_DIR="$(dirname "$0")"
+LOG_FILE="/var/log/webguard/maintenance.log"
+
+log_message() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_FILE"
+}
+
+# Cleanup old logs
+log_message "Starting maintenance tasks"
+
+# Rotate logs if they get too large
+find /var/log/webguard -name "*.log" -size +10M -exec newsyslog -f {} \;
+
+# Clean up database
+/usr/local/bin/python3.11 << 'PYTHON_EOF'
+import sqlite3
+import time
+import sys
+
+try:
+    db = sqlite3.connect('/var/db/webguard/webguard.db')
+    
+    # Clean up old threats (keep 30 days)
+    cutoff_time = int(time.time() - (30 * 24 * 3600))
+    cursor = db.execute('DELETE FROM threats WHERE timestamp < ? AND severity != "critical"', (cutoff_time,))
+    deleted_threats = cursor.rowcount
+    
+    # Clean up expired blocks
+    current_time = int(time.time())
+    cursor = db.execute('DELETE FROM blocked_ips WHERE expires_at IS NOT NULL AND expires_at <= ?', (current_time,))
+    deleted_blocks = cursor.rowcount
+    
+    db.commit()
+    db.close()
+    
+    print(f"Cleaned up {deleted_threats} old threats and {deleted_blocks} expired blocks")
+    
+except Exception as e:
+    print(f"Database cleanup failed: {e}")
+    sys.exit(1)
+PYTHON_EOF
+
+log_message "Maintenance tasks completed"
+EOF
+
+chmod +x /usr/local/etc/webguard/scripts/maintenance.sh
+
+# Add crontab entry for maintenance
+echo "Setting up maintenance cron job..."
+(crontab -l 2>/dev/null; echo "0 2 * * * /usr/local/etc/webguard/scripts/maintenance.sh") | crontab -
+
+# Create test configuration validation script
+cat > /usr/local/etc/webguard/scripts/validate_config.py << 'EOF'
+#!/usr/local/bin/python3
+import json
+import sys
+import os
+
+CONFIG_FILE = '/usr/local/etc/webguard/config.json'
+
+def validate_config():
+    try:
+        with open(CONFIG_FILE, 'r') as f:
+            config = json.load(f)
+        
+        # Check required sections
+        required_sections = ['general', 'waf', 'behavioral', 'covert_channels', 'response', 'whitelist']
+        for section in required_sections:
+            if section not in config:
+                print(f"Error: Missing required section '{section}' in config")
+                return False
+        
+        # Validate general section
+        general = config['general']
+        if 'enabled' not in general or not isinstance(general['enabled'], bool):
+            print("Error: 'enabled' must be a boolean in general section")
+            return False
+        
+        if 'interfaces' not in general or not isinstance(general['interfaces'], list):
+            print("Error: 'interfaces' must be a list in general section")
+            return False
+        
+        print("Configuration is valid")
+        return True
+        
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON in config file: {e}")
+        return False
+    except FileNotFoundError:
+        print(f"Error: Config file not found: {CONFIG_FILE}")
+        return False
+    except Exception as e:
+        print(f"Error validating config: {e}")
+        return False
+
+if __name__ == '__main__':
+    if validate_config():
+        sys.exit(0)
+    else:
+        sys.exit(1)
+EOF
+
+chmod +x /usr/local/etc/webguard/scripts/validate_config.py
+
+# Validate the configuration we just created
+echo "Validating configuration..."
+/usr/local/bin/python3.11 /usr/local/etc/webguard/scripts/validate_config.py
+
+# Create README file
+cat > "${CONFIG_DIR}/README.md" << 'EOF'
+# WebGuard Configuration
+
+This directory contains the WebGuard configuration files:
+
+## Files
+
+- `config.json`: Main configuration file
+- `waf_rules.json`: Web Application Firewall rules
+- `attack_patterns.json`: Attack pattern definitions
+- `behavioral_baseline.json`: Behavioral analysis baselines
+
+## Scripts
+
+- `scripts/start.sh`: Start WebGuard service
+- `scripts/stop.sh`: Stop WebGuard service
+- `scripts/restart.sh`: Restart WebGuard service
+- `scripts/status.sh`: Check WebGuard status
+- `scripts/maintenance.sh`: Maintenance tasks
+- `scripts/validate_config.py`: Validate configuration
+
+## Service Management
+
+Enable and start WebGuard:
+```bash
+echo 'webguard_enable="YES"' >> /etc/rc.conf
+service webguard start
+```
+
+Check status:
+```bash
+service webguard status
+```
+
+View logs:
+```bash
+tail -f /var/log/webguard/engine.log
+```
+
+## Configuration
+
+Edit `/usr/local/etc/webguard/config.json` to customize settings.
+After making changes, validate with:
+```bash
+/usr/local/etc/webguard/scripts/validate_config.py
+```
+
+Then restart the service:
+```bash
+service webguard restart
+```
+EOF
 
 echo ""
-echo "============================================"
-echo "WebGuard Plugin Setup Complete!"
-echo "============================================"
+echo "=============================================="
+echo "WebGuard setup completed successfully!"
+echo "=============================================="
 echo ""
-echo "Configuration directory: ${CONFIG_DIR}"
-echo "Log directory: ${LOG_DIR}"
-echo "Database directory: ${DB_DIR}"
-echo "Scripts directory: ${SCRIPTS_DIR}"
+echo "Files created:"
+echo "- Configuration: ${CONFIG_DIR}/config.json"
+echo "- WAF Rules: ${CONFIG_DIR}/waf_rules.json"
+echo "- Attack Patterns: ${CONFIG_DIR}/attack_patterns.json"
+echo "- Behavioral Baselines: ${CONFIG_DIR}/behavioral_baseline.json"
+echo "- Database: ${DB_DIR}/webguard.db"
+echo "- RC Script: ${RC_SCRIPT}"
 echo ""
-echo "To enable WebGuard:"
-echo "1. Configure the plugin via the OPNsense web interface"
-echo "2. Enable the service: sysrc webguard_enable=YES"
-echo "3. Start the service: service webguard start"
+echo "To enable and start WebGuard:"
+echo "  echo 'webguard_enable=\"YES\"' >> /etc/rc.conf"
+echo "  service webguard start"
 echo ""
-echo "For optimal functionality, install optional dependencies:"
-echo "  pkg install py39-scapy py39-geoip2-python py39-psutil"
+echo "To check status:"
+echo "  service webguard status"
+echo "  /usr/local/etc/webguard/scripts/status.sh"
 echo ""
-echo "Check service status: service webguard status"
-echo "View logs: tail -f ${LOG_DIR}/engine.log"
+echo "To view logs:"
+echo "  tail -f /var/log/webguard/engine.log"
 echo ""
-echo "Setup completed successfully!"
+echo "Note: Please obtain a MaxMind license key and update the GeoIP"
+echo "      database download URL in this script for full functionality."
+echo ""
+echo "Configuration validation: PASSED"
+echo "=============================================="
