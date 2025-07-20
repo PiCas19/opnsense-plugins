@@ -1,4 +1,4 @@
-#!/usr/local/bin/python3
+#!/usr/local/bin/python3.11
 
 """
 WebGuard Engine - Main Web Application Firewall and Behavioral Analysis Engine
