@@ -54,7 +54,7 @@ try:
     import geoip2.database
     import numpy as np
     import requests
-    from ipaddress import ip_address, ip_network
+    from ipaddress import IPv4Address, IPv4Network
 except ImportError as e:
     print(f"Error: Required packages not installed: {e}")
     print("Install with: pkg install py311-pcapy py311-dpkt py311-geoip2 py311-numpy py311-requests")
@@ -276,12 +276,18 @@ def resolve_interfaces(logical_interfaces):
         logical_interfaces = [logical_interfaces]
     
     for logical_if in logical_interfaces:
-        if logical_if in interface_map:
+        # Check if it's already a physical interface (starts with common prefixes)
+        if logical_if.startswith(('em', 'igb', 'ix', 're', 'bge', 'vtnet')):
+            # Already a physical interface
+            physical_interfaces.append(logical_if)
+            logger.info(f"Using physical interface directly: {logical_if}")
+        elif logical_if in interface_map:
+            # Map logical to physical
             physical_if = interface_map[logical_if]
             physical_interfaces.append(physical_if)
             logger.info(f"Resolved {logical_if} -> {physical_if}")
         else:
-            # If already a physical interface name, use as-is
+            # Unknown, use as-is but log warning
             physical_interfaces.append(logical_if)
             logger.warning(f"Could not resolve {logical_if}, using as-is")
     
@@ -852,18 +858,24 @@ def is_blocked(ip_address):
     """Check if IP is blocked"""
     return ip_address in blocked_ips
 
-def is_whitelisted(ip_address):
+def is_whitelisted(ip_address_str):
     """Check if IP is whitelisted"""
-    if ip_address in whitelist:
+    if ip_address_str in whitelist:
         return True
     
     # Check if IP is in whitelisted networks
     try:
         for trusted_network in config.get('whitelist', {}).get('trusted_sources', []):
-            if ip_address(ip_address) in ip_network(trusted_network, strict=False):
-                return True
+            try:
+                ip_obj = IPv4Address(ip_address_str)
+                network_obj = IPv4Network(trusted_network, strict=False)
+                if ip_obj in network_obj:
+                    return True
+            except Exception as e:
+                logger.debug(f"Error checking network {trusted_network} for IP {ip_address_str}: {e}")
+                continue
     except Exception as e:
-        logger.error(f"Error checking whitelist for {ip_address}: {e}")
+        logger.error(f"Error checking whitelist for {ip_address_str}: {e}")
     
     return False
 
