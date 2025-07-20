@@ -1,68 +1,68 @@
 <form>
     <field>
-        <id>waf.sql_injection_protection</id>
+        <id>webguard.waf.sql_injection_protection</id>
         <label>SQL Injection Protection</label>
         <type>checkbox</type>
         <help>Enable protection against SQL injection attacks targeting database queries</help>
     </field>
     <field>
-        <id>waf.xss_protection</id>
+        <id>webguard.waf.xss_protection</id>
         <label>Cross-Site Scripting (XSS) Protection</label>
         <type>checkbox</type>
         <help>Enable protection against reflected, stored, and DOM-based XSS attacks</help>
     </field>
     <field>
-        <id>waf.csrf_protection</id>
+        <id>webguard.waf.csrf_protection</id>
         <label>Cross-Site Request Forgery (CSRF) Protection</label>
         <type>checkbox</type>
         <help>Enable protection against CSRF attacks that trick users into performing unwanted actions</help>
     </field>
     <field>
-        <id>waf.rfi_protection</id>
+        <id>webguard.waf.rfi_protection</id>
         <label>Remote File Inclusion (RFI) Protection</label>
         <type>checkbox</type>
         <help>Enable protection against remote file inclusion attacks</help>
     </field>
     <field>
-        <id>waf.lfi_protection</id>
+        <id>webguard.waf.lfi_protection</id>
         <label>Local File Inclusion (LFI) Protection</label>
         <type>checkbox</type>
         <help>Enable protection against local file inclusion and directory traversal attacks</help>
     </field>
     <field>
-        <id>waf.directory_traversal_protection</id>
+        <id>webguard.waf.directory_traversal_protection</id>
         <label>Directory Traversal Protection</label>
         <type>checkbox</type>
         <help>Enable protection against path traversal attacks attempting to access files outside web root</help>
     </field>
     <field>
-        <id>waf.command_injection_protection</id>
+        <id>webguard.waf.command_injection_protection</id>
         <label>Command Injection Protection</label>
         <type>checkbox</type>
         <help>Enable protection against OS command injection attacks</help>
     </field>
     <field>
-        <id>waf.http_protocol_validation</id>
+        <id>webguard.waf.http_protocol_validation</id>
         <label>HTTP Protocol Validation</label>
         <type>checkbox</type>
         <help>Enable strict HTTP protocol validation to prevent malformed requests</help>
     </field>
     <field>
-        <id>waf.file_upload_protection</id>
+        <id>webguard.waf.file_upload_protection</id>
         <label>File Upload Protection</label>
         <type>checkbox</type>
         <help>Enable protection against malicious file uploads including virus scanning and type validation</help>
     </field>
     <field>
-        <id>waf.session_protection</id>
+        <id>webguard.waf.session_protection</id>
         <label>Session Protection</label>
         <type>checkbox</type>
         <help>Enable protection against session hijacking, fixation, and manipulation attacks</help>
     </field>
     <field>
-        <id>waf.custom_rules</id>
+        <id>webguard.waf.custom_rules</id>
         <label>Custom WAF Rules</label>
-        <type>textbox</type>
+        <type>textarea</type>
         <help>Enter custom WAF rules in ModSecurity format (one rule per line)</help>
         <style>height:200px;</style>
     </field>
