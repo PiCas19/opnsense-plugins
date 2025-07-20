@@ -10,121 +10,156 @@ import sys
 import os
 import json
 import time
-import logging
-import threading
-import sqlite3
-import re
-import geoip2.database
-from datetime import datetime
-from collections import defaultdict, deque
-from ipaddress import ip_address, ip_network
-import requests
-import numpy as np
-from scapy.all import *
 import signal
-import argparse
+import threading
+import logging
+import hashlib
+import struct
+import re
+import sqlite3
+from collections import defaultdict, deque
+from datetime import datetime
+import socket
+import subprocess
+import xml.etree.ElementTree as ET
 
-# Configuration
-CONFIG_FILE = '/usr/local/etc/webguard/config.json'
-DB_FILE = '/var/db/webguard/webguard.db'
-LOG_DIR = '/var/log/webguard'
+# Import support functions from separate files
+try:
+    from update_rules import download_rules
+    from export_config import export_config
+    from get_waf_stats import get_waf_stats
+    from get_threat_metrics import get_threat_metrics
+    from get_metrics import get_metrics
+    from get_stats import get_stats as get_webguard_stats
+except ImportError as e:
+    print(f"Warning: Could not import support functions: {e}")
+    # Define fallback functions
+    def download_rules():
+        return False
+    def export_config():
+        return False
+    def get_waf_stats():
+        return {}
+    def get_threat_metrics():
+        return {}
+    def get_metrics():
+        return {}
+    def get_webguard_stats():
+        return {}
 
-class WebGuardEngine:
-    def __init__(self, config_file=CONFIG_FILE):
-        self.config_file = config_file
-        self.config = {}
-        self.running = False
-        self.stats = {
-            'requests_analyzed': 0,
-            'threats_blocked': 0,
-            'ips_blocked': 0,
-            'start_time': time.time(),
-            'cpu_usage': 0,
-            'memory_usage': 0
-        }
-        
-        # Initialize components
-        self.db = None
-        self.logger = None
-        self.waf_engine = None
-        self.behavioral_engine = None
-        self.covert_channel_detector = None
-        self.response_engine = None
-        
-        # Traffic analysis
-        self.traffic_buffer = deque(maxlen=10000)
-        self.ip_stats = defaultdict(lambda: {'requests': 0, 'last_seen': 0, 'violations': 0})
-        self.blocked_ips = set()
-        self.whitelist = set()
-        
-        # Behavioral baselines
-        self.behavioral_baselines = {}
-        self.learning_mode = True
-        self.learning_start_time = time.time()
-        
-        # Initialize
-        self.load_config()
-        self.setup_logging()
-        self.setup_database()
-        self.load_rules()
-        self.load_geoip()
-        
-    def load_config(self):
-        """Load configuration from file"""
-        try:
-            with open(self.config_file, 'r') as f:
-                self.config = json.load(f)
-            
-            # Set learning mode based on config
-            learning_period = self.config.get('general', {}).get('learning_period', 168) * 3600
-            if time.time() - self.learning_start_time < learning_period:
-                self.learning_mode = True
-            else:
-                self.learning_mode = False
-                
-        except Exception as e:
-            print(f"Error loading config: {e}")
-            sys.exit(1)
+# Network capture and analysis
+try:
+    import pcapy
+    import dpkt
+    import geoip2.database
+    import numpy as np
+    import requests
+    from ipaddress import ip_address, ip_network
+except ImportError as e:
+    print(f"Error: Required packages not installed: {e}")
+    print("Install with: pkg install py311-pcapy py311-dpkt py311-geoip2 py311-numpy py311-requests")
+    sys.exit(1)
+
+# Configuration and logging
+CONFIG_FILE = "/usr/local/etc/webguard/config.json"
+WAF_RULES_FILE = "/usr/local/etc/webguard/waf_rules.json"
+ATTACK_PATTERNS_FILE = "/usr/local/etc/webguard/attack_patterns.json"
+BEHAVIORAL_BASELINE_FILE = "/usr/local/etc/webguard/behavioral_baseline.json"
+OPNSENSE_CONFIG = "/conf/config.xml"
+LOG_DIR = "/var/log/webguard"
+ALERT_LOG = f"{LOG_DIR}/alerts.log"
+THREAT_LOG = f"{LOG_DIR}/threats.log"
+BLOCKED_LOG = f"{LOG_DIR}/blocked.log"
+WAF_LOG = f"{LOG_DIR}/waf.log"
+BEHAVIORAL_LOG = f"{LOG_DIR}/behavioral.log"
+COVERT_LOG = f"{LOG_DIR}/covert_channels.log"
+ENGINE_LOG = f"{LOG_DIR}/engine.log"
+STATS_FILE = f"{LOG_DIR}/stats.json"
+DB_FILE = "/var/db/webguard/webguard.db"
+PID_FILE = "/var/run/webguard.pid"
+
+# Global state
+running = True
+config = {}
+waf_rules = {}
+attack_patterns = {}
+behavioral_baselines = {}
+stats = {
+    'requests_analyzed': 0,
+    'threats_blocked': 0,
+    'ips_blocked': 0,
+    'start_time': time.time(),
+    'protocols_analyzed': defaultdict(int),
+    'threat_types': defaultdict(int),
+    'detection_methods': defaultdict(int),
+    'performance': {
+        'cpu_usage': 0,
+        'memory_usage': 0,
+        'throughput_mbps': 0,
+        'uptime': 0
+    },
+    'waf_stats': {
+        'sql_injection_attempts': 0,
+        'xss_attempts': 0,
+        'csrf_attempts': 0,
+        'lfi_attempts': 0,
+        'rfi_attempts': 0,
+        'blocked_requests': 0
+    }
+}
+
+# WAF pattern matching
+waf_patterns = {
+    'sql_injection': [],
+    'xss': [],
+    'csrf': [],
+    'lfi': [],
+    'rfi': [],
+    'command_injection': [],
+    'generic_attacks': []
+}
+
+# Traffic analysis
+packet_buffer = deque(maxlen=10000)
+ip_stats = defaultdict(lambda: {'requests': 0, 'last_seen': 0, 'violations': 0, 'bytes_sent': 0, 'first_seen': 0})
+blocked_ips = set()
+whitelist = set()
+
+# Database connection
+db = None
+
+def setup_logging():
+    """Initialize logging system"""
+    os.makedirs(LOG_DIR, exist_ok=True)
     
-    def setup_logging(self):
-        """Setup logging configuration"""
-        os.makedirs(LOG_DIR, exist_ok=True)
-        
-        log_level = self.config.get('general', {}).get('log_level', 'info').upper()
-        
-        # Main engine log
-        self.logger = logging.getLogger('webguard')
-        self.logger.setLevel(getattr(logging, log_level))
-        
-        handler = logging.FileHandler(f'{LOG_DIR}/engine.log')
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        handler.setFormatter(formatter)
-        self.logger.addHandler(handler)
-        
-        # Setup specialized loggers
-        self.waf_logger = self.setup_specialized_logger('waf')
-        self.behavioral_logger = self.setup_specialized_logger('behavioral')
-        self.covert_logger = self.setup_specialized_logger('covert_channels')
-        self.blocked_logger = self.setup_specialized_logger('blocked')
-        
-    def setup_specialized_logger(self, name):
-        """Setup specialized logger for different components"""
-        logger = logging.getLogger(f'webguard.{name}')
-        handler = logging.FileHandler(f'{LOG_DIR}/{name}.log')
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-        return logger
+    # Create all log files if they don't exist
+    for log_file in [ALERT_LOG, THREAT_LOG, BLOCKED_LOG, WAF_LOG, BEHAVIORAL_LOG, COVERT_LOG, ENGINE_LOG]:
+        if not os.path.exists(log_file):
+            with open(log_file, 'w') as f:
+                pass  # Create empty file
     
-    def setup_database(self):
-        """Initialize SQLite database"""
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(ENGINE_LOG),
+            logging.StreamHandler()
+        ]
+    )
+    
+    return logging.getLogger(__name__)
+
+def setup_database():
+    """Initialize SQLite database"""
+    global db
+    try:
         os.makedirs(os.path.dirname(DB_FILE), exist_ok=True)
         
-        self.db = sqlite3.connect(DB_FILE, check_same_thread=False)
-        self.db.execute('PRAGMA journal_mode=WAL')
+        db = sqlite3.connect(DB_FILE, check_same_thread=False)
+        db.execute('PRAGMA journal_mode=WAL')
         
         # Create tables
-        self.db.executescript('''
+        db.executescript('''
             CREATE TABLE IF NOT EXISTS threats (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp INTEGER NOT NULL,
@@ -177,527 +212,297 @@ class WebGuardEngine:
             CREATE INDEX IF NOT EXISTS idx_whitelist_ip ON whitelist(ip_address);
         ''')
         
-        self.db.commit()
-        self.load_blocked_ips()
-        self.load_whitelist()
+        db.commit()
+        logger.info("Database initialized successfully")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {e}")
+        return False
+
+def get_interface_mapping():
+    """Get mapping of logical interface names to physical interfaces"""
+    interface_map = {}
     
-    def load_rules(self):
-        """Load WAF rules and attack patterns"""
+    try:
+        # Parse OPNsense config.xml
+        tree = ET.parse(OPNSENSE_CONFIG)
+        root = tree.getroot()
+        
+        # Get interface mappings
+        interfaces = root.find('interfaces')
+        if interfaces is not None:
+            for interface in interfaces:
+                if_name = interface.tag
+                if_element = interface.find('if')
+                if if_element is not None:
+                    physical_if = if_element.text
+                    interface_map[if_name] = physical_if
+                    logger.info(f"Mapped interface {if_name} -> {physical_if}")
+                    
+    except Exception as e:
+        logger.error(f"Error parsing OPNsense config: {e}")
+        
+        # Fallback: try to get interfaces from system
         try:
-            # Load WAF rules
-            with open('/usr/local/etc/webguard/waf_rules.json', 'r') as f:
-                self.waf_rules = json.load(f)
-                
-            # Load attack patterns
-            with open('/usr/local/etc/webguard/attack_patterns.json', 'r') as f:
-                self.attack_patterns = json.load(f)
-                
-            # Load behavioral baselines
-            try:
-                with open('/usr/local/etc/webguard/behavioral_baseline.json', 'r') as f:
-                    self.behavioral_baselines = json.load(f)
-            except FileNotFoundError:
-                self.behavioral_baselines = {}
-                
-            self.logger.info("Rules and patterns loaded successfully")
+            result = subprocess.run(['ifconfig', '-l'], capture_output=True, text=True)
+            if result.returncode == 0:
+                system_interfaces = result.stdout.strip().split()
+                # Common mappings
+                common_mappings = {
+                    'lan': 'em0',
+                    'wan': 'em1', 
+                    'opt1': 'em2',
+                    'opt2': 'em3'
+                }
+                for logical, physical in common_mappings.items():
+                    if physical in system_interfaces:
+                        interface_map[logical] = physical
+                        logger.info(f"Fallback mapped {logical} -> {physical}")
+                        
+        except Exception as e2:
+            logger.error(f"Error getting system interfaces: {e2}")
+    
+    return interface_map
+
+def resolve_interfaces(logical_interfaces):
+    """Convert logical interface names to physical interface names"""
+    interface_map = get_interface_mapping()
+    physical_interfaces = []
+    
+    # Ensure logical_interfaces is a list
+    if isinstance(logical_interfaces, str):
+        # Single interface string, make it a list
+        logical_interfaces = [logical_interfaces]
+    
+    for logical_if in logical_interfaces:
+        if logical_if in interface_map:
+            physical_if = interface_map[logical_if]
+            physical_interfaces.append(physical_if)
+            logger.info(f"Resolved {logical_if} -> {physical_if}")
+        else:
+            # If already a physical interface name, use as-is
+            physical_interfaces.append(logical_if)
+            logger.warning(f"Could not resolve {logical_if}, using as-is")
+    
+    return physical_interfaces
+
+def load_config():
+    """Load WebGuard engine configuration"""
+    global config
+    try:
+        # First try to export from OPNsense
+        export_config()
+        
+        # Then load the configuration
+        with open(CONFIG_FILE, 'r') as f:
+            config = json.load(f)
             
-        except Exception as e:
-            self.logger.error(f"Error loading rules: {e}")
-            self.waf_rules = {'rules': []}
-            self.attack_patterns = {'patterns': []}
+        # Set defaults for missing values
+        defaults = {
+            'general': {
+                'enabled': False,
+                'interfaces': [],
+                'log_level': 'info',
+                'learning_period': 168,
+                'auto_block_threshold': 5,
+                'block_duration': 3600
+            },
+            'waf': {
+                'sql_injection_protection': True,
+                'xss_protection': True,
+                'csrf_protection': True,
+                'lfi_protection': True,
+                'rfi_protection': True,
+                'command_injection_protection': True
+            },
+            'behavioral': {
+                'anomaly_detection': True,
+                'beaconing_detection': True,
+                'data_exfiltration_detection': True
+            },
+            'covert_channels': {
+                'dns_tunneling_detection': True,
+                'protocol_anomaly_detection': True
+            },
+            'response': {
+                'auto_blocking': True,
+                'notification_webhook': ""
+            },
+            'whitelist': {
+                'trusted_sources': ["127.0.0.1/8", "10.0.0.0/8"]
+            }
+        }
+        
+        # Merge defaults with loaded config
+        for section, values in defaults.items():
+            if section not in config:
+                config[section] = {}
+            for key, default_value in values.items():
+                if key not in config[section]:
+                    config[section][key] = default_value
+                    
+        logger.info(f"Configuration loaded: {len(config)} sections")
+        logger.info(f"Enabled: {config['general']['enabled']}")
+        logger.info(f"Interfaces: {config['general']['interfaces']}")
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to load configuration: {e}")
+        return False
+
+def load_rules():
+    """Load WAF rules and attack patterns"""
+    global waf_rules, attack_patterns, behavioral_baselines, waf_patterns
     
-    def load_geoip(self):
-        """Load GeoIP database"""
-        try:
-            self.geoip_reader = geoip2.database.Reader('/usr/local/share/GeoIP/GeoLite2-Country.mmdb')
-            self.logger.info("GeoIP database loaded successfully")
-        except Exception as e:
-            self.logger.warning(f"Could not load GeoIP database: {e}")
-            self.geoip_reader = None
+    try:
+        # Create rule files if they don't exist
+        rule_files = {
+            WAF_RULES_FILE: {"rules": []},
+            ATTACK_PATTERNS_FILE: {"patterns": []},
+            BEHAVIORAL_BASELINE_FILE: {}
+        }
+        
+        for file_path, default_content in rule_files.items():
+            if not os.path.exists(file_path):
+                os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                with open(file_path, 'w') as f:
+                    json.dump(default_content, f, indent=2)
+                logger.info(f"Created default {file_path}")
+        
+        # Load WAF rules
+        with open(WAF_RULES_FILE, 'r') as f:
+            waf_rules = json.load(f)
+            
+        # Load attack patterns
+        with open(ATTACK_PATTERNS_FILE, 'r') as f:
+            attack_patterns = json.load(f)
+            
+        # Load behavioral baselines
+        with open(BEHAVIORAL_BASELINE_FILE, 'r') as f:
+            behavioral_baselines = json.load(f)
+        
+        # Compile WAF patterns for faster matching
+        compile_waf_patterns()
+                
+        logger.info("Rules and patterns loaded successfully")
+        return True
+        
+    except Exception as e:
+        logger.warning(f"Failed to load rules: {e}")
+        load_default_rules()
+        return False
+
+def load_default_rules():
+    """Load minimal default WAF rules"""
+    global waf_patterns
     
-    def load_blocked_ips(self):
-        """Load blocked IPs from database"""
-        cursor = self.db.execute('''
+    # Basic SQL injection patterns
+    waf_patterns['sql_injection'] = [
+        re.compile(r'union\s+select', re.IGNORECASE),
+        re.compile(r'or\s+1\s*=\s*1', re.IGNORECASE),
+        re.compile(r'drop\s+table', re.IGNORECASE),
+        re.compile(r';\s*insert', re.IGNORECASE),
+        re.compile(r';\s*delete', re.IGNORECASE)
+    ]
+    
+    # XSS patterns
+    waf_patterns['xss'] = [
+        re.compile(r'<script[^>]*>.*?</script>', re.IGNORECASE | re.DOTALL),
+        re.compile(r'javascript:', re.IGNORECASE),
+        re.compile(r'on(load|error|click|mouseover)=', re.IGNORECASE)
+    ]
+    
+    # Command injection patterns
+    waf_patterns['command_injection'] = [
+        re.compile(r'[\;\|&`\$\(\)].*?(ls|cat|wget|curl|nc|netcat)', re.IGNORECASE),
+        re.compile(r'(cmd\.exe|powershell|bash|sh).*?[\;\|&]', re.IGNORECASE)
+    ]
+    
+    # LFI patterns
+    waf_patterns['lfi'] = [
+        re.compile(r'\.\.\/.*?\.\.\/.*?\.\.\/', re.IGNORECASE),
+        re.compile(r'\/etc\/passwd', re.IGNORECASE),
+        re.compile(r'\\windows\\system32', re.IGNORECASE)
+    ]
+    
+    # RFI patterns
+    waf_patterns['rfi'] = [
+        re.compile(r'https?:\/\/[^\/\s]+\/', re.IGNORECASE)
+    ]
+
+def compile_waf_patterns():
+    """Compile WAF patterns from rules"""
+    global waf_patterns
+    
+    try:
+        for rule in waf_rules.get('rules', []):
+            if rule.get('enabled', True):
+                pattern = rule.get('pattern', '')
+                rule_type = rule.get('type', 'generic_attacks')
+                
+                if pattern and rule_type in waf_patterns:
+                    compiled_pattern = re.compile(pattern, re.IGNORECASE)
+                    waf_patterns[rule_type].append(compiled_pattern)
+                    
+    except Exception as e:
+        logger.error(f"Error compiling WAF patterns: {e}")
+
+def load_blocked_ips():
+    """Load blocked IPs from database"""
+    global blocked_ips
+    try:
+        cursor = db.execute('''
             SELECT ip_address FROM blocked_ips 
             WHERE expires_at IS NULL OR expires_at > ?
         ''', (int(time.time()),))
         
-        self.blocked_ips = set(row[0] for row in cursor.fetchall())
-        self.logger.info(f"Loaded {len(self.blocked_ips)} blocked IPs")
-    
-    def load_whitelist(self):
-        """Load whitelist from database"""
-        cursor = self.db.execute('''
+        blocked_ips = set(row[0] for row in cursor.fetchall())
+        logger.info(f"Loaded {len(blocked_ips)} blocked IPs")
+        
+    except Exception as e:
+        logger.error(f"Error loading blocked IPs: {e}")
+
+def load_whitelist():
+    """Load whitelist from database"""
+    global whitelist
+    try:
+        cursor = db.execute('''
             SELECT ip_address FROM whitelist 
             WHERE expires_at IS NULL OR expires_at > ?
         ''', (int(time.time()),))
         
-        self.whitelist = set(row[0] for row in cursor.fetchall())
-        self.logger.info(f"Loaded {len(self.whitelist)} whitelisted IPs")
+        whitelist = set(row[0] for row in cursor.fetchall())
+        logger.info(f"Loaded {len(whitelist)} whitelisted IPs")
+        
+    except Exception as e:
+        logger.error(f"Error loading whitelist: {e}")
+
+def analyze_packet(packet_data, timestamp, interface='unknown'):
+    """Analyze individual packet for threats"""
+    global stats, ip_stats
     
-    def start(self):
-        """Start the WebGuard engine"""
-        self.logger.info("Starting WebGuard Engine")
-        self.running = True
-        
-        # Start monitoring threads
-        threading.Thread(target=self.packet_monitor, daemon=True).start()
-        threading.Thread(target=self.behavioral_analyzer, daemon=True).start()
-        threading.Thread(target=self.covert_channel_monitor, daemon=True).start()
-        threading.Thread(target=self.stats_updater, daemon=True).start()
-        threading.Thread(target=self.cleanup_worker, daemon=True).start()
-        
-        # Main loop
-        try:
-            while self.running:
-                time.sleep(1)
-                self.update_stats()
-        except KeyboardInterrupt:
-            self.stop()
-    
-    def stop(self):
-        """Stop the WebGuard engine"""
-        self.logger.info("Stopping WebGuard Engine")
-        self.running = False
-        
-        if self.db:
-            self.db.close()
-        
-        if self.geoip_reader:
-            self.geoip_reader.close()
-    
-    def packet_monitor(self):
-        """Monitor network packets for threats"""
-        if not self.config.get('general', {}).get('enabled', False):
+    try:
+        # Parse packet
+        eth = dpkt.ethernet.Ethernet(packet_data)
+        if not isinstance(eth.data, dpkt.ip.IP):
             return
             
-        interfaces = self.config.get('general', {}).get('interfaces', [])
+        ip = eth.data
+        stats['requests_analyzed'] += 1
         
-        try:
-            sniff(iface=interfaces, prn=self.analyze_packet, store=0)
-        except Exception as e:
-            self.logger.error(f"Error in packet monitor: {e}")
-    
-    def analyze_packet(self, packet):
-        """Analyze individual packet for threats"""
-        try:
-            if not packet.haslayer(IP):
-                return
-            
-            src_ip = packet[IP].src
-            dst_ip = packet[IP].dst
-            
-            # Check if source IP is whitelisted
-            if self.is_whitelisted(src_ip):
-                return
-            
-            # Check if source IP is blocked
-            if self.is_blocked(src_ip):
-                self.stats['threats_blocked'] += 1
-                return
-            
-            # Analyze HTTP traffic
-            if packet.haslayer(TCP) and packet[TCP].dport in [80, 443, 8080]:
-                self.analyze_http_traffic(packet)
-            
-            # Analyze DNS traffic for tunneling
-            if packet.haslayer(DNS):
-                self.analyze_dns_traffic(packet)
-            
-            # Update traffic statistics
-            self.update_traffic_stats(src_ip, packet)
-            self.stats['requests_analyzed'] += 1
-            
-        except Exception as e:
-            self.logger.error(f"Error analyzing packet: {e}")
-    
-    def analyze_http_traffic(self, packet):
-        """Analyze HTTP traffic for web application attacks"""
-        if not self.config.get('waf', {}).get('sql_injection_protection', True):
-            return
+        # Protocol analysis
+        protocol = get_protocol_name(ip.p)
+        stats['protocols_analyzed'][protocol] += 1
         
-        try:
-            # Extract HTTP payload
-            if packet.haslayer(Raw):
-                payload = packet[Raw].load.decode('utf-8', errors='ignore')
-                
-                # Analyze payload with WAF rules
-                threat = self.waf_analyze(packet[IP].src, payload, packet)
-                if threat:
-                    self.handle_threat(threat)
-                    
-        except Exception as e:
-            self.logger.error(f"Error analyzing HTTP traffic: {e}")
-    
-    def analyze_dns_traffic(self, packet):
-        """Analyze DNS traffic for tunneling attempts"""
-        if not self.config.get('covert_channels', {}).get('dns_tunneling_detection', True):
-            return
+        # Update IP statistics
+        src_ip = socket.inet_ntoa(ip.src)
+        dst_ip = socket.inet_ntoa(ip.dst)
         
-        try:
-            dns = packet[DNS]
-            
-            # Check for suspicious DNS queries
-            if dns.qr == 0:  # Query
-                query_name = dns.qd.qname.decode('utf-8', errors='ignore')
-                
-                # Detect DNS tunneling patterns
-                if self.detect_dns_tunneling(query_name, packet[IP].src):
-                    threat = {
-                        'timestamp': int(time.time()),
-                        'source_ip': packet[IP].src,
-                        'target': query_name,
-                        'method': 'DNS',
-                        'type': 'dns_tunneling',
-                        'severity': 'high',
-                        'status': 'detected',
-                        'payload': query_name,
-                        'description': 'Suspicious DNS tunneling detected'
-                    }
-                    self.handle_threat(threat)
-                    
-        except Exception as e:
-            self.logger.error(f"Error analyzing DNS traffic: {e}")
-    
-    def waf_analyze(self, src_ip, payload, packet):
-        """Analyze payload with WAF rules"""
-        threat_score = 0
-        matched_rules = []
-        
-        for rule in self.waf_rules.get('rules', []):
-            if rule.get('enabled', True):
-                pattern = rule.get('pattern', '')
-                if re.search(pattern, payload, re.IGNORECASE):
-                    threat_score += rule.get('score', 10)
-                    matched_rules.append(rule.get('name', 'Unknown'))
-        
-        # Check severity based on score
-        if threat_score >= 50:
-            severity = 'critical'
-        elif threat_score >= 30:
-            severity = 'high'
-        elif threat_score >= 15:
-            severity = 'medium'
-        elif threat_score >= 5:
-            severity = 'low'
-        else:
-            return None
-        
-        # Determine attack type
-        attack_type = self.classify_attack(payload)
-        
-        return {
-            'timestamp': int(time.time()),
-            'source_ip': src_ip,
-            'target': packet[IP].dst,
-            'method': 'HTTP',
-            'type': attack_type,
-            'severity': severity,
-            'status': 'detected',
-            'score': threat_score,
-            'payload': payload[:1000],  # Limit payload size
-            'rule_matched': ', '.join(matched_rules),
-            'description': f'{attack_type} attack detected with score {threat_score}'
-        }
-    
-    def classify_attack(self, payload):
-        """Classify the type of attack based on payload"""
-        payload_lower = payload.lower()
-        
-        if any(sql_pattern in payload_lower for sql_pattern in ['union select', 'or 1=1', 'drop table', '; insert', '; delete']):
-            return 'sql_injection'
-        elif any(xss_pattern in payload_lower for xss_pattern in ['<script', 'javascript:', 'onerror=', 'onload=']):
-            return 'xss'
-        elif 'csrf' in payload_lower or 'authenticity_token' in payload_lower:
-            return 'csrf'
-        elif any(lfi_pattern in payload_lower for lfi_pattern in ['../../../', '..\\..\\..\\', '/etc/passwd', '\\windows\\system32']):
-            return 'lfi'
-        elif 'http://' in payload_lower or 'https://' in payload_lower:
-            return 'rfi'
-        else:
-            return 'generic'
-    
-    def detect_dns_tunneling(self, query_name, src_ip):
-        """Detect DNS tunneling based on query patterns"""
-        # Check for suspicious characteristics
-        suspicious_indicators = 0
-        
-        # Unusually long subdomain
-        if len(query_name) > 100:
-            suspicious_indicators += 1
-        
-        # High entropy (random-looking data)
-        entropy = self.calculate_entropy(query_name)
-        if entropy > 4.5:
-            suspicious_indicators += 1
-        
-        # Base64-like patterns
-        if re.search(r'[A-Za-z0-9+/]{20,}=*', query_name):
-            suspicious_indicators += 1
-        
-        # Frequent queries from same IP
         current_time = time.time()
-        if src_ip not in self.ip_stats:
-            self.ip_stats[src_ip] = {'dns_queries': 0, 'last_dns_query': 0}
-        
-        if current_time - self.ip_stats[src_ip]['last_dns_query'] < 10:
-            self.ip_stats[src_ip]['dns_queries'] += 1
-        else:
-            self.ip_stats[src_ip]['dns_queries'] = 1
-        
-        self.ip_stats[src_ip]['last_dns_query'] = current_time
-        
-        if self.ip_stats[src_ip]['dns_queries'] > 10:
-            suspicious_indicators += 1
-        
-        return suspicious_indicators >= 2
-    
-    def calculate_entropy(self, data):
-        """Calculate Shannon entropy of data"""
-        if not data:
-            return 0
-        
-        counts = defaultdict(int)
-        for char in data:
-            counts[char] += 1
-        
-        entropy = 0
-        length = len(data)
-        for count in counts.values():
-            p = count / length
-            entropy -= p * np.log2(p)
-        
-        return entropy
-    
-    def behavioral_analyzer(self):
-        """Analyze behavioral patterns"""
-        while self.running:
-            try:
-                if self.config.get('behavioral', {}).get('anomaly_detection', True):
-                    self.analyze_behavioral_anomalies()
-                time.sleep(30)  # Analyze every 30 seconds
-            except Exception as e:
-                self.logger.error(f"Error in behavioral analyzer: {e}")
-                time.sleep(60)
-    
-    def analyze_behavioral_anomalies(self):
-        """Analyze traffic for behavioral anomalies"""
-        current_time = time.time()
-        
-        for ip, stats in self.ip_stats.items():
-            if current_time - stats['last_seen'] > 300:  # Skip old entries
-                continue
-            
-            # Check for beaconing patterns
-            if self.detect_beaconing(ip, stats):
-                threat = {
-                    'timestamp': int(current_time),
-                    'source_ip': ip,
-                    'target': 'multiple',
-                    'method': 'BEHAVIORAL',
-                    'type': 'beaconing',
-                    'severity': 'high',
-                    'status': 'detected',
-                    'description': 'Suspicious beaconing pattern detected'
-                }
-                self.handle_threat(threat)
-            
-            # Check for data exfiltration
-            if self.detect_data_exfiltration(ip, stats):
-                threat = {
-                    'timestamp': int(current_time),
-                    'source_ip': ip,
-                    'target': 'multiple',
-                    'method': 'BEHAVIORAL',
-                    'type': 'data_exfiltration',
-                    'severity': 'critical',
-                    'status': 'detected',
-                    'description': 'Potential data exfiltration detected'
-                }
-                self.handle_threat(threat)
-    
-    def detect_beaconing(self, ip, stats):
-        """Detect C2 beaconing patterns"""
-        if not self.config.get('behavioral', {}).get('beaconing_detection', True):
-            return False
-        
-        # Simplified beaconing detection
-        request_count = stats.get('requests', 0)
-        time_span = time.time() - stats.get('first_seen', time.time())
-        
-        if time_span > 0 and request_count > 10:
-            frequency = request_count / time_span
-            # Regular intervals might indicate beaconing
-            return 0.05 < frequency < 0.5
-        
-        return False
-    
-    def detect_data_exfiltration(self, ip, stats):
-        """Detect potential data exfiltration"""
-        if not self.config.get('behavioral', {}).get('data_exfiltration_detection', True):
-            return False
-        
-        # Check for unusual data volumes
-        bytes_sent = stats.get('bytes_sent', 0)
-        requests = stats.get('requests', 0)
-        
-        if requests > 0:
-            avg_bytes_per_request = bytes_sent / requests
-            # Unusually large amounts of data per request
-            return avg_bytes_per_request > 50000
-        
-        return False
-    
-    def covert_channel_monitor(self):
-        """Monitor for covert channels"""
-        while self.running:
-            try:
-                if self.config.get('covert_channels', {}).get('protocol_anomaly_detection', True):
-                    self.detect_protocol_anomalies()
-                time.sleep(60)  # Check every minute
-            except Exception as e:
-                self.logger.error(f"Error in covert channel monitor: {e}")
-                time.sleep(120)
-    
-    def detect_protocol_anomalies(self):
-        """Detect protocol anomalies that might indicate covert channels"""
-        # This is a simplified implementation
-        # In practice, this would involve deep packet inspection
-        pass
-    
-    def handle_threat(self, threat):
-        """Handle detected threat"""
-        try:
-            # Log threat
-            self.log_threat(threat)
-            
-            # Store in database
-            self.store_threat(threat)
-            
-            # Take response action
-            if self.config.get('response', {}).get('auto_blocking', True):
-                self.auto_block_ip(threat['source_ip'], threat)
-            
-            # Send notifications
-            self.send_notifications(threat)
-            
-            self.stats['threats_blocked'] += 1
-            
-        except Exception as e:
-            self.logger.error(f"Error handling threat: {e}")
-    
-    def log_threat(self, threat):
-        """Log threat to appropriate logger"""
-        message = f"THREAT DETECTED - IP: {threat['source_ip']}, Type: {threat['type']}, Severity: {threat['severity']}"
-        
-        if threat['type'] in ['sql_injection', 'xss', 'csrf', 'lfi', 'rfi']:
-            self.waf_logger.warning(message)
-        elif threat['type'] in ['beaconing', 'data_exfiltration']:
-            self.behavioral_logger.warning(message)
-        elif threat['type'] in ['dns_tunneling']:
-            self.covert_logger.warning(message)
-        
-        self.logger.warning(message)
-    
-    def store_threat(self, threat):
-        """Store threat in database"""
-        self.db.execute('''
-            INSERT INTO threats (timestamp, source_ip, target, method, type, severity, status, score, payload, rule_matched, description)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            threat['timestamp'],
-            threat['source_ip'],
-            threat['target'],
-            threat['method'],
-            threat['type'],
-            threat['severity'],
-            threat['status'],
-            threat.get('score', 0),
-            threat.get('payload', ''),
-            threat.get('rule_matched', ''),
-            threat.get('description', '')
-        ))
-        self.db.commit()
-    
-    def auto_block_ip(self, ip, threat):
-        """Automatically block IP based on threat"""
-        if self.is_whitelisted(ip):
-            return
-        
-        # Update violation count
-        self.ip_stats[ip]['violations'] += 1
-        violations = self.ip_stats[ip]['violations']
-        
-        threshold = self.config.get('general', {}).get('auto_block_threshold', 5)
-        
-        if violations >= threshold:
-            block_duration = self.config.get('general', {}).get('block_duration', 3600)
-            expires_at = int(time.time() + block_duration) if block_duration > 0 else None
-            
-            self.block_ip(ip, 'automatic', f"Auto-blocked after {violations} violations", expires_at)
-    
-    def block_ip(self, ip, block_type, reason, expires_at=None):
-        """Block an IP address"""
-        try:
-            current_time = int(time.time())
-            
-            self.db.execute('''
-                INSERT OR REPLACE INTO blocked_ips 
-                (ip_address, block_type, blocked_since, expires_at, reason, violations, last_violation)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (ip, block_type, current_time, expires_at, reason, 1, current_time))
-            
-            self.db.commit()
-            self.blocked_ips.add(ip)
-            
-            self.blocked_logger.info(f"BLOCKED IP: {ip}, Type: {block_type}, Reason: {reason}")
-            self.stats['ips_blocked'] += 1
-            
-        except Exception as e:
-            self.logger.error(f"Error blocking IP {ip}: {e}")
-    
-    def is_blocked(self, ip):
-        """Check if IP is blocked"""
-        return ip in self.blocked_ips
-    
-    def is_whitelisted(self, ip):
-        """Check if IP is whitelisted"""
-        if ip in self.whitelist:
-            return True
-        
-        # Check if IP is in whitelisted networks
-        for trusted_network in self.config.get('whitelist', {}).get('trusted_sources', []):
-            try:
-                if ip_address(ip) in ip_network(trusted_network, strict=False):
-                    return True
-            except:
-                pass
-        
-        return False
-    
-    def send_notifications(self, threat):
-        """Send threat notifications"""
-        webhook_url = self.config.get('response', {}).get('notification_webhook', '')
-        
-        if webhook_url:
-            try:
-                payload = {
-                    'type': 'threat_detected',
-                    'threat': threat,
-                    'timestamp': datetime.now().isoformat()
-                }
-                
-                requests.post(webhook_url, json=payload, timeout=10)
-                
-            except Exception as e:
-                self.logger.error(f"Error sending notification: {e}")
-    
-    def update_traffic_stats(self, src_ip, packet):
-        """Update traffic statistics"""
-        current_time = time.time()
-        
-        if src_ip not in self.ip_stats:
-            self.ip_stats[src_ip] = {
+        if src_ip not in ip_stats:
+            ip_stats[src_ip] = {
                 'requests': 0,
                 'first_seen': current_time,
                 'last_seen': current_time,
@@ -705,52 +510,428 @@ class WebGuardEngine:
                 'bytes_sent': 0
             }
         
-        stats = self.ip_stats[src_ip]
-        stats['requests'] += 1
-        stats['last_seen'] = current_time
+        ip_stats[src_ip]['requests'] += 1
+        ip_stats[src_ip]['last_seen'] = current_time
         
-        if packet.haslayer(Raw):
-            stats['bytes_sent'] += len(packet[Raw].load)
-    
-    def stats_updater(self):
-        """Update engine statistics"""
-        while self.running:
-            try:
-                self.update_stats()
-                time.sleep(5)
-            except Exception as e:
-                self.logger.error(f"Error updating stats: {e}")
-                time.sleep(10)
-    
-    def update_stats(self):
-        """Update engine statistics"""
-        self.stats['uptime'] = int(time.time() - self.stats['start_time'])
+        # Check if IP is whitelisted
+        if is_whitelisted(src_ip):
+            return
         
-        # Update CPU and memory usage (simplified)
+        # Check if IP is already blocked
+        if is_blocked(src_ip):
+            stats['threats_blocked'] += 1
+            return
+        
+        # Deep packet inspection based on protocol
+        threats = []
+        
+        if ip.p == dpkt.ip.IP_PROTO_TCP:
+            tcp = ip.data
+            threats.extend(analyze_tcp_packet(ip, tcp))
+                
+        elif ip.p == dpkt.ip.IP_PROTO_UDP:
+            udp = ip.data
+            threats.extend(analyze_udp_packet(ip, udp))
+        
+        # Process detected threats
+        for threat in threats:
+            process_threat(threat, ip, timestamp)
+            
+    except Exception as e:
+        logger.error(f"Error analyzing packet: {e}")
+
+def analyze_tcp_packet(ip, tcp):
+    """Analyze TCP packet for threats"""
+    threats = []
+    
+    try:
+        payload = tcp.data
+        if not payload:
+            return threats
+            
+        # HTTP/HTTPS analysis
+        if tcp.dport == 80 or tcp.sport == 80:
+            if config['waf']['sql_injection_protection']:
+                threats.extend(analyze_http_payload(payload))
+                
+        elif tcp.dport == 443 or tcp.sport == 443:
+            threats.extend(analyze_https_payload(payload))
+                
+        # Generic payload analysis
+        threats.extend(analyze_generic_payload(payload))
+        
+    except Exception as e:
+        logger.error(f"Error analyzing TCP packet: {e}")
+        
+    return threats
+
+def analyze_udp_packet(ip, udp):
+    """Analyze UDP packet for threats"""
+    threats = []
+    
+    try:
+        payload = udp.data
+        if not payload:
+            return threats
+            
+        # DNS analysis
+        if udp.dport == 53 or udp.sport == 53:
+            if config['covert_channels']['dns_tunneling_detection']:
+                threats.extend(analyze_dns_payload(payload))
+                
+        # Generic payload analysis
+        threats.extend(analyze_generic_payload(payload))
+        
+    except Exception as e:
+        logger.error(f"Error analyzing UDP packet: {e}")
+        
+    return threats
+
+def analyze_http_payload(payload):
+    """Analyze HTTP payload for web application attacks"""
+    threats = []
+    
+    try:
+        payload_str = payload.decode('utf-8', errors='ignore')
+        
+        # Check against WAF patterns
+        for pattern_type, patterns in waf_patterns.items():
+            for pattern in patterns:
+                if pattern.search(payload_str):
+                    threat_score = calculate_threat_score(pattern_type)
+                    severity = get_severity_from_score(threat_score)
+                    
+                    threat = {
+                        'type': pattern_type,
+                        'severity': severity,
+                        'score': threat_score,
+                        'description': f'{pattern_type.replace("_", " ").title()} attack detected in HTTP',
+                        'pattern': pattern.pattern,
+                        'payload': payload_str[:1000]  # Limit payload size
+                    }
+                    threats.append(threat)
+                    stats['waf_stats'][f'{pattern_type}_attempts'] += 1
+                    
+    except Exception as e:
+        logger.error(f"Error analyzing HTTP payload: {e}")
+        
+    return threats
+
+def analyze_https_payload(payload):
+    """Analyze HTTPS payload for threats (limited without decryption)"""
+    threats = []
+    
+    try:
+        # Basic TLS analysis
+        if len(payload) < 5:
+            return threats
+            
+        # Check for TLS handshake anomalies
+        if payload[0] == 0x16:  # TLS handshake
+            tls_version = struct.unpack('>H', payload[1:3])[0]
+            if tls_version < 0x0301:  # TLS 1.0 or older
+                threats.append({
+                    'type': 'tls_vulnerability',
+                    'severity': 'low',
+                    'score': 10,
+                    'description': f'Outdated TLS version: {tls_version:04x}',
+                    'details': {'tls_version': tls_version}
+                })
+                
+    except Exception as e:
+        logger.error(f"Error analyzing HTTPS payload: {e}")
+        
+    return threats
+
+def analyze_dns_payload(payload):
+    """Analyze DNS payload for threats"""
+    threats = []
+    
+    try:
+        # Basic DNS analysis
+        if len(payload) < 12:
+            return threats
+            
+        # Check for DNS tunneling (unusually large queries)
+        if len(payload) > 512:
+            threats.append({
+                'type': 'dns_tunneling',
+                'severity': 'medium',
+                'score': 30,
+                'description': 'Potential DNS tunneling detected',
+                'details': {'payload_size': len(payload)}
+            })
+            
+    except Exception as e:
+        logger.error(f"Error analyzing DNS payload: {e}")
+        
+    return threats
+
+def analyze_generic_payload(payload):
+    """Analyze generic payload for threats"""
+    threats = []
+    
+    try:
+        # Convert to string for pattern matching
+        payload_str = payload.decode('utf-8', errors='ignore')
+        
+        # Check for suspicious patterns
+        suspicious_patterns = [
+            (r'X5O!P%@AP\[4\\PZX54\(P\^\)7CC\)7\}\$EICAR', 'eicar_test'),
+            (r'TVqQAAMAAAAEAAAA//8AALgAAAAA', 'pe_header'),
+            (r'(coinhive|cryptonight|monero)', 'crypto_mining')
+        ]
+        
+        for pattern_str, threat_type in suspicious_patterns:
+            pattern = re.compile(pattern_str, re.IGNORECASE)
+            if pattern.search(payload_str):
+                threats.append({
+                    'type': threat_type,
+                    'severity': 'medium',
+                    'score': 25,
+                    'description': f'{threat_type.replace("_", " ").title()} detected',
+                    'pattern': pattern_str
+                })
+                
+    except Exception as e:
+        logger.error(f"Error analyzing generic payload: {e}")
+        
+    return threats
+
+def calculate_threat_score(threat_type):
+    """Calculate threat score based on type"""
+    score_map = {
+        'sql_injection': 50,
+        'xss': 40,
+        'command_injection': 60,
+        'lfi': 45,
+        'rfi': 45,
+        'csrf': 30,
+        'dns_tunneling': 35,
+        'crypto_mining': 25,
+        'eicar_test': 100,
+        'pe_header': 80
+    }
+    return score_map.get(threat_type, 20)
+
+def get_severity_from_score(score):
+    """Get severity level from threat score"""
+    if score >= 80:
+        return 'critical'
+    elif score >= 50:
+        return 'high'
+    elif score >= 30:
+        return 'medium'
+    else:
+        return 'low'
+
+def process_threat(threat, ip, timestamp):
+    """Process detected threat"""
+    global stats
+    
+    stats['threats_blocked'] += 1
+    stats['threat_types'][threat['type']] += 1
+    
+    src_ip = socket.inet_ntoa(ip.src)
+    dst_ip = socket.inet_ntoa(ip.dst)
+    
+    # Update IP violation count
+    ip_stats[src_ip]['violations'] += 1
+    
+    # Log threat
+    log_threat(threat, ip, timestamp)
+    
+    # Auto-block if threshold exceeded
+    if config['response']['auto_blocking']:
+        threshold = config['general']['auto_block_threshold']
+        if ip_stats[src_ip]['violations'] >= threshold:
+            block_ip(src_ip, threat)
+
+def log_threat(threat, ip, timestamp):
+    """Log threat to appropriate log files"""
+    try:
+        src_ip = socket.inet_ntoa(ip.src)
+        dst_ip = socket.inet_ntoa(ip.dst)
+        
+        threat_record = {
+            'id': hashlib.md5(f"{timestamp}{src_ip}{dst_ip}{threat['type']}".encode()).hexdigest(),
+            'timestamp': timestamp.isoformat(),
+            'source_ip': src_ip,
+            'destination_ip': dst_ip,
+            'protocol': get_protocol_name(ip.p),
+            'threat_type': threat['type'],
+            'severity': threat['severity'],
+            'score': threat['score'],
+            'description': threat['description'],
+            'pattern': threat.get('pattern', ''),
+            'payload': threat.get('payload', '')[:500]  # Limit payload
+        }
+        
+        # Log to main threat log
+        with open(THREAT_LOG, 'a') as f:
+            f.write(json.dumps(threat_record) + '\n')
+        
+        # Log to specific category log
+        if threat['type'] in ['sql_injection', 'xss', 'csrf', 'lfi', 'rfi']:
+            with open(WAF_LOG, 'a') as f:
+                f.write(json.dumps(threat_record) + '\n')
+        elif threat['type'] in ['dns_tunneling']:
+            with open(COVERT_LOG, 'a') as f:
+                f.write(json.dumps(threat_record) + '\n')
+        
+        # Store in database
+        store_threat_in_db(threat_record)
+        
+        logger.warning(f"THREAT DETECTED - IP: {src_ip}, Type: {threat['type']}, Severity: {threat['severity']}")
+        
+    except Exception as e:
+        logger.error(f"Error logging threat: {e}")
+
+def store_threat_in_db(threat_record):
+    """Store threat in database"""
+    try:
+        db.execute('''
+            INSERT INTO threats (timestamp, source_ip, target, method, type, severity, status, score, payload, rule_matched, description)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            int(time.time()),
+            threat_record['source_ip'],
+            threat_record['destination_ip'],
+            threat_record['protocol'],
+            threat_record['threat_type'],
+            threat_record['severity'],
+            'detected',
+            threat_record['score'],
+            threat_record.get('payload', ''),
+            threat_record.get('pattern', ''),
+            threat_record['description']
+        ))
+        db.commit()
+        
+    except Exception as e:
+        logger.error(f"Error storing threat in database: {e}")
+
+def block_ip(ip_address, threat):
+    """Block IP address"""
+    try:
+        current_time = int(time.time())
+        block_duration = config['general']['block_duration']
+        expires_at = current_time + block_duration if block_duration > 0 else None
+        
+        # Store in database
+        db.execute('''
+            INSERT OR REPLACE INTO blocked_ips 
+            (ip_address, block_type, blocked_since, expires_at, reason, violations, last_violation)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (ip_address, 'automatic', current_time, expires_at, 
+              f"Auto-blocked after {ip_stats[ip_address]['violations']} violations", 
+              ip_stats[ip_address]['violations'], current_time))
+        
+        db.commit()
+        blocked_ips.add(ip_address)
+        
+        # Log blocking
+        block_record = {
+            'timestamp': datetime.now().isoformat(),
+            'ip_address': ip_address,
+            'reason': f"Auto-blocked after {ip_stats[ip_address]['violations']} violations",
+            'threat_type': threat['type'],
+            'severity': threat['severity']
+        }
+        
+        with open(BLOCKED_LOG, 'a') as f:
+            f.write(json.dumps(block_record) + '\n')
+        
+        stats['ips_blocked'] += 1
+        logger.info(f"BLOCKED IP: {ip_address} - Reason: {block_record['reason']}")
+        
+    except Exception as e:
+        logger.error(f"Error blocking IP {ip_address}: {e}")
+
+def is_blocked(ip_address):
+    """Check if IP is blocked"""
+    return ip_address in blocked_ips
+
+def is_whitelisted(ip_address):
+    """Check if IP is whitelisted"""
+    if ip_address in whitelist:
+        return True
+    
+    # Check if IP is in whitelisted networks
+    try:
+        for trusted_network in config.get('whitelist', {}).get('trusted_sources', []):
+            if ip_address(ip_address) in ip_network(trusted_network, strict=False):
+                return True
+    except Exception as e:
+        logger.error(f"Error checking whitelist for {ip_address}: {e}")
+    
+    return False
+
+def get_protocol_name(protocol_number):
+    """Get protocol name from number"""
+    protocol_map = {
+        1: 'ICMP',
+        6: 'TCP',
+        17: 'UDP',
+        47: 'GRE',
+        50: 'ESP',
+        51: 'AH'
+    }
+    return protocol_map.get(protocol_number, f'Protocol-{protocol_number}')
+
+def save_stats():
+    """Save statistics to file"""
+    try:
+        # Update performance stats
+        stats['performance']['uptime'] = int(time.time() - stats['start_time'])
+        
+        # Update stats with data from imported functions
         try:
-            import psutil
-            process = psutil.Process()
-            self.stats['cpu_usage'] = process.cpu_percent()
-            self.stats['memory_usage'] = process.memory_percent()
-        except:
-            pass
-    
-    def cleanup_worker(self):
-        """Cleanup expired entries and old data"""
-        while self.running:
-            try:
-                self.cleanup_expired_blocks()
-                self.cleanup_old_threats()
-                time.sleep(3600)  # Run every hour
-            except Exception as e:
-                self.logger.error(f"Error in cleanup worker: {e}")
-                time.sleep(1800)
-    
-    def cleanup_expired_blocks(self):
-        """Remove expired IP blocks"""
+            waf_stats = get_waf_stats()
+            if 'error' not in waf_stats:
+                stats['waf_stats'].update(waf_stats)
+        except Exception as e:
+            logger.error(f"Error getting WAF stats: {e}")
+            
+        try:
+            threat_metrics = get_threat_metrics()
+            if 'error' not in threat_metrics:
+                stats['threat_metrics'] = threat_metrics
+        except Exception as e:
+            logger.error(f"Error getting threat metrics: {e}")
+            
+        try:
+            system_metrics = get_metrics()
+            if 'error' not in system_metrics:
+                stats['performance']['cpu_usage'] = system_metrics.get('system', {}).get('cpu_usage', 0)
+                stats['performance']['memory_usage'] = system_metrics.get('system', {}).get('memory_usage', 0)
+        except Exception as e:
+            logger.error(f"Error getting system metrics: {e}")
+            
+        try:
+            comprehensive_stats = get_webguard_stats()
+            if 'error' not in comprehensive_stats:
+                stats['threats_by_severity'] = comprehensive_stats.get('threats_by_severity', {})
+                stats['top_threats'] = comprehensive_stats.get('top_threats', [])
+                stats['recent_threats'] = comprehensive_stats.get('recent_threats', [])
+                stats['detection_rate_trend'] = comprehensive_stats.get('detection_rate_trend', [])
+                
+        except Exception as e:
+            logger.error(f"Error getting comprehensive stats: {e}")
+        
+        stats['timestamp'] = datetime.now().isoformat()
+        with open(STATS_FILE, 'w') as f:
+            json.dump(stats, f, indent=2, default=str)
+            
+    except Exception as e:
+        logger.error(f"Error saving stats: {e}")
+
+def cleanup_expired_blocks():
+    """Remove expired IP blocks"""
+    try:
         current_time = int(time.time())
         
-        cursor = self.db.execute('''
+        cursor = db.execute('''
             SELECT ip_address FROM blocked_ips 
             WHERE expires_at IS NOT NULL AND expires_at <= ?
         ''', (current_time,))
@@ -758,70 +939,321 @@ class WebGuardEngine:
         expired_ips = [row[0] for row in cursor.fetchall()]
         
         if expired_ips:
-            self.db.execute('''
+            db.execute('''
                 DELETE FROM blocked_ips 
                 WHERE expires_at IS NOT NULL AND expires_at <= ?
             ''', (current_time,))
             
-            self.db.commit()
+            db.commit()
             
             for ip in expired_ips:
-                self.blocked_ips.discard(ip)
+                blocked_ips.discard(ip)
             
-            self.logger.info(f"Cleaned up {len(expired_ips)} expired blocks")
-    
-    def cleanup_old_threats(self):
-        """Remove old threat records"""
-        # Keep threats for 30 days by default
-        cutoff_time = int(time.time() - (30 * 24 * 3600))
-        
-        cursor = self.db.execute('SELECT COUNT(*) FROM threats WHERE timestamp < ?', (cutoff_time,))
-        old_count = cursor.fetchone()[0]
-        
-        if old_count > 0:
-            # Keep critical threats longer
-            self.db.execute('''
-                DELETE FROM threats 
-                WHERE timestamp < ? AND severity != 'critical'
-            ''', (cutoff_time,))
+            logger.info(f"Cleaned up {len(expired_ips)} expired blocks")
             
-            self.db.commit()
-            self.logger.info(f"Cleaned up {old_count} old threat records")
+    except Exception as e:
+        logger.error(f"Error cleaning up expired blocks: {e}")
+
+def behavioral_analyzer():
+    """Analyze behavioral patterns in background thread"""
+    while running:
+        try:
+            if config.get('behavioral', {}).get('anomaly_detection', True):
+                analyze_behavioral_anomalies()
+            time.sleep(30)  # Analyze every 30 seconds
+        except Exception as e:
+            logger.error(f"Error in behavioral analyzer: {e}")
+            time.sleep(60)
+
+def analyze_behavioral_anomalies():
+    """Analyze traffic for behavioral anomalies"""
+    current_time = time.time()
     
-    def get_stats(self):
-        """Get current engine statistics"""
-        return self.stats.copy()
+    for ip, ip_data in ip_stats.items():
+        if current_time - ip_data['last_seen'] > 300:  # Skip old entries
+            continue
+        
+        # Check for beaconing patterns
+        if detect_beaconing(ip, ip_data):
+            threat = {
+                'type': 'beaconing',
+                'severity': 'high',
+                'score': 45,
+                'description': 'Suspicious beaconing pattern detected',
+                'details': {'ip': ip, 'requests': ip_data['requests']}
+            }
+            
+            # Create a fake IP packet for logging
+            fake_ip = type('obj', (object,), {
+                'src': socket.inet_aton(ip),
+                'dst': socket.inet_aton('0.0.0.0'),
+                'p': 6  # TCP
+            })
+            
+            process_threat(threat, fake_ip, datetime.now())
+        
+        # Check for data exfiltration
+        if detect_data_exfiltration(ip, ip_data):
+            threat = {
+                'type': 'data_exfiltration',
+                'severity': 'critical',
+                'score': 70,
+                'description': 'Potential data exfiltration detected',
+                'details': {'ip': ip, 'bytes_sent': ip_data['bytes_sent']}
+            }
+            
+            # Create a fake IP packet for logging
+            fake_ip = type('obj', (object,), {
+                'src': socket.inet_aton(ip),
+                'dst': socket.inet_aton('0.0.0.0'),
+                'p': 6  # TCP
+            })
+            
+            process_threat(threat, fake_ip, datetime.now())
+
+def detect_beaconing(ip, ip_data):
+    """Detect C2 beaconing patterns"""
+    if not config.get('behavioral', {}).get('beaconing_detection', True):
+        return False
+    
+    # Simplified beaconing detection
+    request_count = ip_data.get('requests', 0)
+    time_span = time.time() - ip_data.get('first_seen', time.time())
+    
+    if time_span > 0 and request_count > 10:
+        frequency = request_count / time_span
+        # Regular intervals might indicate beaconing
+        return 0.05 < frequency < 0.5
+    
+    return False
+
+def detect_data_exfiltration(ip, ip_data):
+    """Detect potential data exfiltration"""
+    if not config.get('behavioral', {}).get('data_exfiltration_detection', True):
+        return False
+    
+    # Check for unusual data volumes
+    bytes_sent = ip_data.get('bytes_sent', 0)
+    requests = ip_data.get('requests', 0)
+    
+    if requests > 0:
+        avg_bytes_per_request = bytes_sent / requests
+        # Unusually large amounts of data per request
+        return avg_bytes_per_request > 50000
+    
+    return False
 
 def signal_handler(signum, frame):
     """Handle shutdown signals"""
-    print("\nShutdown signal received, stopping WebGuard Engine...")
-    global engine
-    if engine:
-        engine.stop()
-    sys.exit(0)
+    global running
+    logger.info(f"Received signal {signum}, shutting down...")
+    running = False
 
 def main():
-    parser = argparse.ArgumentParser(description='WebGuard Engine')
-    parser.add_argument('--config', default=CONFIG_FILE, help='Configuration file path')
-    parser.add_argument('--daemon', action='store_true', help='Run as daemon')
+    """Main WebGuard engine loop"""
+    global logger, running
     
-    args = parser.parse_args()
-    
-    # Setup signal handlers
-    signal.signal(signal.SIGINT, signal_handler)
+    # Setup
+    logger = setup_logging()
     signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
     
-    # Create and start engine
-    global engine
-    engine = WebGuardEngine(args.config)
+    # Check if running as root (required for packet capture)
+    if os.geteuid() != 0:
+        logger.error("This script must be run as root for packet capture")
+        return 1
     
-    if args.daemon:
-        # Daemonize process
-        import daemon
-        with daemon.DaemonContext():
-            engine.start()
-    else:
-        engine.start()
+    # Save PID
+    try:
+        with open(PID_FILE, 'w') as f:
+            f.write(str(os.getpid()))
+    except Exception as e:
+        logger.error(f"Failed to write PID file: {e}")
+        return 1
+    
+    logger.info("Starting WebGuard Engine")
+    
+    # Initialize database
+    if not setup_database():
+        logger.error("Failed to initialize database")
+        return 1
+    
+    # Load configuration and rules
+    if not load_config():
+        logger.error("Failed to load configuration")
+        return 1
+        
+    if not load_rules():
+        logger.warning("Using default rules")
+    
+    # Load IP lists
+    load_blocked_ips()
+    load_whitelist()
+        
+    # Check if enabled
+    if not config['general']['enabled']:
+        logger.info("WebGuard engine is disabled in configuration")
+        return 0
+        
+    # Get and resolve interfaces
+    logical_interfaces = config['general']['interfaces']
+    if not logical_interfaces:
+        logger.error("No interfaces configured for monitoring")
+        return 1
+        
+    # Handle different interface formats
+    if isinstance(logical_interfaces, str):
+        # If it's a single interface string, convert to list
+        if ',' in logical_interfaces:
+            # If it's a comma-separated string, split it
+            logical_interfaces = [iface.strip() for iface in logical_interfaces.split(',') if iface.strip()]
+        else:
+            # If it's a single interface, make it a list
+            logical_interfaces = [logical_interfaces.strip()]
+    elif not isinstance(logical_interfaces, list):
+        logger.error(f"Invalid interfaces format: {type(logical_interfaces)}")
+        return 1
+        
+    # Filter out empty or invalid interface names
+    logical_interfaces = [iface for iface in logical_interfaces if iface and len(iface) > 1]
+    
+    if not logical_interfaces:
+        logger.error("No valid interfaces found in configuration")
+        return 1
+        
+    logger.info(f"Logical interfaces to resolve: {logical_interfaces}")
+        
+    # Convert logical interface names to physical interface names
+    physical_interfaces = resolve_interfaces(logical_interfaces)
+    if not physical_interfaces:
+        logger.error("No valid interfaces found after resolution")
+        return 1
+        
+    logger.info(f"Starting packet capture on interfaces: {physical_interfaces}")
+    
+    # Validate interfaces exist
+    valid_interfaces = []
+    for interface in physical_interfaces:
+        try:
+            result = subprocess.run(['ifconfig', interface], capture_output=True, text=True)
+            if result.returncode == 0:
+                valid_interfaces.append(interface)
+                logger.info(f"Interface {interface} is valid and active")
+            else:
+                logger.error(f"Interface {interface} is not available")
+        except Exception as e:
+            logger.error(f"Error checking interface {interface}: {e}")
+    
+    if not valid_interfaces:
+        logger.error("No valid interfaces found")
+        return 1
+        
+    # Statistics thread
+    def stats_worker():
+        while running:
+            save_stats()
+            cleanup_expired_blocks()
+            time.sleep(60)
+    
+    stats_thread = threading.Thread(target=stats_worker)
+    stats_thread.daemon = True
+    stats_thread.start()
+    
+    # Behavioral analysis thread
+    behavioral_thread = threading.Thread(target=behavioral_analyzer)
+    behavioral_thread.daemon = True
+    behavioral_thread.start()
+    
+    # Rules update thread
+    def rules_update_worker():
+        while running:
+            try:
+                # Update rules every 24 hours
+                time.sleep(86400)
+                if running:
+                    logger.info("Updating WAF rules...")
+                    download_rules()
+                    load_rules()
+            except Exception as e:
+                logger.error(f"Error in rules update thread: {e}")
+    
+    rules_thread = threading.Thread(target=rules_update_worker)
+    rules_thread.daemon = True
+    rules_thread.start()
+    
+    # Capture threads for each interface
+    capture_threads = []
+    
+    def capture_worker(interface):
+        """Worker function for packet capture on a specific interface"""
+        logger.info(f"Starting capture worker for interface: {interface}")
+        
+        try:
+            # Open packet capture
+            cap = pcapy.open_live(interface, 
+                                1500,  # max packet size
+                                1,     # promiscuous mode
+                                100)   # timeout in ms
+            
+            logger.info(f"Successfully opened capture on interface: {interface}")
+            
+            # Main capture loop
+            while running:
+                try:
+                    header, packet = cap.next()
+                    if packet:
+                        analyze_packet(packet, datetime.now(), interface)
+                except pcapy.PcapError as e:
+                    if "timeout" not in str(e).lower():
+                        logger.error(f"Pcap error on {interface}: {e}")
+                        break
+                except Exception as e:
+                    logger.error(f"Error processing packet on {interface}: {e}")
+                    
+        except Exception as e:
+            logger.error(f"Failed to open capture on interface {interface}: {e}")
+            
+        logger.info(f"Capture worker for {interface} stopped")
+    
+    # Start capture threads
+    for interface in valid_interfaces:
+        thread = threading.Thread(target=capture_worker, args=(interface,))
+        thread.daemon = True
+        capture_threads.append(thread)
+        thread.start()
+    
+    # Main loop - wait for threads and handle signals
+    try:
+        logger.info("WebGuard Engine is running...")
+        logger.info(f"Monitoring interfaces: {valid_interfaces}")
+        logger.info(f"WAF protection enabled: {config['waf']['sql_injection_protection']}")
+        logger.info(f"Behavioral analysis enabled: {config['behavioral']['anomaly_detection']}")
+        
+        while running and any(thread.is_alive() for thread in capture_threads):
+            time.sleep(1)
+            
+    except KeyboardInterrupt:
+        logger.info("Received keyboard interrupt")
+    except Exception as e:
+        logger.error(f"Fatal error: {e}")
+        return 1
+    finally:
+        # Cleanup
+        running = False
+        logger.info("Stopping all capture threads...")
+        
+        # Wait for threads to finish (with timeout)
+        for thread in capture_threads:
+            thread.join(timeout=5)
+            
+        save_stats()
+        if db:
+            db.close()
+        if os.path.exists(PID_FILE):
+            os.remove(PID_FILE)
+        logger.info("WebGuard Engine stopped")
+        
+    return 0
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    sys.exit(main())
