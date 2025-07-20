@@ -1,4 +1,4 @@
-#!/usr/local/bin/python3
+#!/usr/local/bin/python3.11
 # export_config.py - Export OPNsense configuration to WebGuard engine format
 import os
 import json
