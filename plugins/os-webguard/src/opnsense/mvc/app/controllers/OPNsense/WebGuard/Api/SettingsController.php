@@ -3,27 +3,6 @@
 /*
  * Copyright (C) 2024 OPNsense WebGuard Plugin
  * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
- * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
- * AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
- * OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
  */
 
 namespace OPNsense\WebGuard\Api;
@@ -370,7 +349,7 @@ class SettingsController extends ApiMutableModelControllerBase
             
             // Get uptime
             $uptimeCmd = "ps -o etime= -p " . escapeshellarg($pid);
-            $uptimeResult = @shell_exec($uptimeCmd);
+            $uptimeResult = @shell_exec($uptimeResult);
             if ($uptimeResult !== null && $uptimeResult !== false) {
                 $uptimeResult = trim($uptimeResult);
                 if ($uptimeResult !== '') {
@@ -385,139 +364,5 @@ class SettingsController extends ApiMutableModelControllerBase
             'cpu_usage' => $cpu_usage,
             'uptime' => $uptime
         ];
-    }
-
-    /**
-     * Test WAF rules
-     * @return array test result
-     */
-    public function testRulesAction()
-    {
-        $result = array("result" => "failed");
-        if ($this->request->isPost()) {
-            $testUrl = $this->request->getPost("url");
-            $testPayload = $this->request->getPost("payload");
-            
-            if (!empty($testUrl) && !empty($testPayload)) {
-                $backend = new Backend();
-                $response = $backend->configdRun("webguard test_rules", array($testUrl, $testPayload));
-                
-                $testResult = json_decode($response, true);
-                if ($testResult !== null) {
-                    $result = array(
-                        "result" => "ok",
-                        "test_result" => $testResult
-                    );
-                } else {
-                    $result["message"] = "Failed to parse test results";
-                }
-            } else {
-                $result["message"] = "URL and payload are required for testing";
-            }
-        }
-        return $result;
-    }
-
-    /**
-     * Update WAF rules from external sources
-     * @return array update result
-     */
-    public function updateRulesAction()
-    {
-        $result = array("result" => "failed");
-        if ($this->request->isPost()) {
-            $backend = new Backend();
-            $response = $backend->configdRun("webguard update_rules");
-            
-            if (strpos($response, "OK") !== false) {
-                $result["result"] = "ok";
-                $result["message"] = "WAF rules updated successfully";
-            } else {
-                $result["message"] = "Failed to update WAF rules: " . trim($response);
-            }
-        }
-        return $result;
-    }
-
-    /**
-     * Export configuration
-     * @return array export result
-     */
-    public function exportConfigAction()
-    {
-        $result = array("result" => "failed");
-        if ($this->request->isGet()) {
-            $mdl = $this->getModel();
-            $config = $mdl->exportForEngine();
-            
-            $result = array(
-                "result" => "ok",
-                "config" => $config,
-                "timestamp" => date('Y-m-d H:i:s')
-            );
-        }
-        return $result;
-    }
-
-    /**
-     * Import configuration
-     * @return array import result
-     */
-    public function importConfigAction()
-    {
-        $result = array("result" => "failed");
-        if ($this->request->isPost()) {
-            $configData = $this->request->getPost("config");
-            
-            if (!empty($configData)) {
-                try {
-                    $config = json_decode($configData, true);
-                    if ($config !== null) {
-                        $mdl = $this->getModel();
-                        
-                        // Apply configuration sections
-                        if (isset($config['general'])) {
-                            $mdl->general->setNodes($config['general']);
-                        }
-                        if (isset($config['waf'])) {
-                            $mdl->waf->setNodes($config['waf']);
-                        }
-                        if (isset($config['behavioral'])) {
-                            $mdl->behavioral->setNodes($config['behavioral']);
-                        }
-                        if (isset($config['covert_channels'])) {
-                            $mdl->covert_channels->setNodes($config['covert_channels']);
-                        }
-                        if (isset($config['response'])) {
-                            $mdl->response->setNodes($config['response']);
-                        }
-                        if (isset($config['whitelist'])) {
-                            $mdl->whitelist->setNodes($config['whitelist']);
-                        }
-                        
-                        $valMsgs = $mdl->performValidation();
-                        if ($valMsgs->count() == 0) {
-                            $mdl->serializeToConfig();
-                            Config::getInstance()->save();
-                            
-                            $result["result"] = "ok";
-                        } else {
-                            $result["validations"] = [];
-                            foreach ($valMsgs as $msg) {
-                                $field = $msg->getField();
-                                $result["validations"]["webguard." . $field] = $msg->getMessage();
-                            }
-                        }
-                    } else {
-                        $result["message"] = "Invalid JSON configuration";
-                    }
-                } catch (Exception $e) {
-                    $result["message"] = "Error importing configuration: " . $e->getMessage();
-                }
-            } else {
-                $result["message"] = "No configuration data provided";
-            }
-        }
-        return $result;
     }
 }
