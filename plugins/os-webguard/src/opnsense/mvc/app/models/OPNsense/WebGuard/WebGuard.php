@@ -617,4 +617,104 @@ class WebGuard extends BaseModel
         
         return $issues;
     }
+
+    /**
+     * Mark configuration as changed when data is pushed back to the config
+     */
+    public function serializeToConfig($validateFullModel = false, $disable_validation = false)
+    {
+        @touch("/tmp/webguard.dirty");
+        return parent::serializeToConfig($validateFullModel, $disable_validation);
+    }
+
+    /**
+     * Get configuration state
+     * @return bool
+     */
+    public function configChanged()
+    {
+        return file_exists("/tmp/webguard.dirty");
+    }
+
+    /**
+     * Mark configuration as consistent with the running config
+     * @return bool
+     */
+    public function configClean()
+    {
+        return @unlink("/tmp/webguard.dirty");
+    }
+
+    /**
+     * Export configuration for the WAF engine
+     */
+    public function exportForEngine()
+    {
+        $config = [
+            'general' => [
+                'enabled' => (string)$this->general->enabled === "1",
+                'mode' => (string)$this->general->mode,
+                'interfaces' => explode(',', (string)$this->general->interfaces),
+                'protected_networks' => array_filter(explode(',', (string)$this->general->protected_networks)),
+                'learning_period' => (int)(string)$this->general->learning_period,
+                'sensitivity_level' => (string)$this->general->sensitivity_level,
+                'auto_block_threshold' => (int)(string)$this->general->auto_block_threshold,
+                'block_duration' => (int)(string)$this->general->block_duration,
+                'ssl_inspection' => (string)$this->general->ssl_inspection === "1",
+                'geo_blocking' => (string)$this->general->geo_blocking === "1",
+                'rate_limiting' => (string)$this->general->rate_limiting === "1",
+                'log_level' => (string)$this->general->log_level
+            ],
+            'waf' => [
+                'sql_injection_protection' => (string)$this->waf->sql_injection_protection === "1",
+                'xss_protection' => (string)$this->waf->xss_protection === "1",
+                'csrf_protection' => (string)$this->waf->csrf_protection === "1",
+                'rfi_protection' => (string)$this->waf->rfi_protection === "1",
+                'lfi_protection' => (string)$this->waf->lfi_protection === "1",
+                'directory_traversal_protection' => (string)$this->waf->directory_traversal_protection === "1",
+                'command_injection_protection' => (string)$this->waf->command_injection_protection === "1",
+                'http_protocol_validation' => (string)$this->waf->http_protocol_validation === "1",
+                'file_upload_protection' => (string)$this->waf->file_upload_protection === "1",
+                'session_protection' => (string)$this->waf->session_protection === "1",
+                'custom_rules' => (string)$this->waf->custom_rules
+            ],
+            'behavioral' => [
+                'anomaly_detection' => (string)$this->behavioral->anomaly_detection === "1",
+                'beaconing_detection' => (string)$this->behavioral->beaconing_detection === "1",
+                'data_exfiltration_detection' => (string)$this->behavioral->data_exfiltration_detection === "1",
+                'traffic_pattern_analysis' => (string)$this->behavioral->traffic_pattern_analysis === "1",
+                'user_behavior_profiling' => (string)$this->behavioral->user_behavior_profiling === "1",
+                'timing_analysis' => (string)$this->behavioral->timing_analysis === "1",
+                'entropy_analysis' => (string)$this->behavioral->entropy_analysis === "1",
+                'baseline_learning' => (string)$this->behavioral->baseline_learning === "1"
+            ],
+            'covert_channels' => [
+                'dns_tunneling_detection' => (string)$this->covert_channels->dns_tunneling_detection === "1",
+                'http_steganography_detection' => (string)$this->covert_channels->http_steganography_detection === "1",
+                'icmp_tunneling_detection' => (string)$this->covert_channels->icmp_tunneling_detection === "1",
+                'protocol_anomaly_detection' => (string)$this->covert_channels->protocol_anomaly_detection === "1",
+                'payload_entropy_analysis' => (string)$this->covert_channels->payload_entropy_analysis === "1",
+                'timing_channel_detection' => (string)$this->covert_channels->timing_channel_detection === "1",
+                'size_pattern_analysis' => (string)$this->covert_channels->size_pattern_analysis === "1"
+            ],
+            'response' => [
+                'auto_blocking' => (string)$this->response->auto_blocking === "1",
+                'progressive_blocking' => (string)$this->response->progressive_blocking === "1",
+                'session_termination' => (string)$this->response->session_termination === "1",
+                'honeypot_redirect' => (string)$this->response->honeypot_redirect === "1",
+                'tarpit_mode' => (string)$this->response->tarpit_mode === "1",
+                'notification_webhook' => (string)$this->response->notification_webhook,
+                'siem_integration' => (string)$this->response->siem_integration === "1"
+            ],
+            'whitelist' => [
+                'trusted_sources' => array_filter(explode(',', (string)$this->whitelist->trusted_sources)),
+                'trusted_user_agents' => (string)$this->whitelist->trusted_user_agents,
+                'bypass_urls' => (string)$this->whitelist->bypass_urls
+            ]
+        ];
+
+        return $config;
+    }
+
+
 }
