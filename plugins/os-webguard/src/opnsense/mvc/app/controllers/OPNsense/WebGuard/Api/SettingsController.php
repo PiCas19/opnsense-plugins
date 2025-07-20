@@ -57,6 +57,105 @@ class SettingsController extends ApiMutableModelControllerBase
     }
 
     /**
+     * Get general settings (per compatibilità con DeepInspector)
+     * @return array
+     */
+    public function getGeneralAction()
+    {
+        $result = array();
+        if ($this->request->isGet()) {
+            $mdlWebGuard = new WebGuard();
+            $result['webguard'] = $mdlWebGuard->getNodes();
+        }
+        return $result;
+    }
+
+    /**
+     * Get WAF settings
+     * @return array
+     */
+    public function getWafAction()
+    {
+        $result = array();
+        if ($this->request->isGet()) {
+            $mdlWebGuard = new WebGuard();
+            $result['webguard'] = $mdlWebGuard->getNodes();
+        }
+        return $result;
+    }
+
+    /**
+     * Get behavioral settings
+     * @return array
+     */
+    public function getBehavioralAction()
+    {
+        $result = array();
+        if ($this->request->isGet()) {
+            $mdlWebGuard = new WebGuard();
+            $result['webguard'] = $mdlWebGuard->getNodes();
+        }
+        return $result;
+    }
+
+    /**
+     * Get covert channels settings
+     * @return array
+     */
+    public function getCovertChannelsAction()
+    {
+        $result = array();
+        if ($this->request->isGet()) {
+            $mdlWebGuard = new WebGuard();
+            $result['webguard'] = $mdlWebGuard->getNodes();
+        }
+        return $result;
+    }
+
+    /**
+     * Get response settings
+     * @return array
+     */
+    public function getResponseAction()
+    {
+        $result = array();
+        if ($this->request->isGet()) {
+            $mdlWebGuard = new WebGuard();
+            $result['webguard'] = $mdlWebGuard->getNodes();
+        }
+        return $result;
+    }
+
+    /**
+     * Get whitelist settings
+     * @return array
+     */
+    public function getWhitelistAction()
+    {
+        $result = array();
+        if ($this->request->isGet()) {
+            $mdlWebGuard = new WebGuard();
+            $result['webguard'] = $mdlWebGuard->getNodes();
+        }
+        return $result;
+    }
+
+    /**
+     * Check if configuration is dirty (seguendo la logica DeepInspector)
+     * @return array
+     */
+    public function dirtyAction()
+    {
+        $result = array();
+        if ($this->request->isGet()) {
+            $mdlWebGuard = new WebGuard();
+            $result['webguard'] = array();
+            $result['webguard']['dirty'] = $mdlWebGuard->configChanged();
+        }
+        return $result;
+    }
+
+    /**
      * Update WebGuard settings
      * @return array
      */
@@ -221,7 +320,7 @@ class SettingsController extends ApiMutableModelControllerBase
         $result = array("result" => "failed");
         if ($this->request->isGet()) {
             $mdlWebGuard = new WebGuard();
-            $config = $mdlWebGuard->getEngineConfig();
+            $config = $mdlWebGuard->exportForEngine();
             
             $result = array(
                 "result" => "ok",
@@ -333,7 +432,7 @@ class SettingsController extends ApiMutableModelControllerBase
     private function generateEngineConfig()
     {
         $mdlWebGuard = new WebGuard();
-        $config = $mdlWebGuard->getEngineConfig();
+        $config = $mdlWebGuard->exportForEngine();
         
         $backend = new Backend();
         $backend->configdRun("webguard export_config", array(json_encode($config)));
