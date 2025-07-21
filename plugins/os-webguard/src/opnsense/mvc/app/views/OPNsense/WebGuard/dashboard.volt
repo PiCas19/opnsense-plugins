@@ -1,344 +1,200 @@
 {#
  # Copyright (C) 2024 OPNsense WebGuard Plugin
  # All rights reserved.
- #
- # Redistribution and use in source and binary forms, with or without
- # modification, are permitted provided that the following conditions are met:
- #
- # 1. Redistributions of source code must retain the above copyright notice,
- #    this list of conditions and the following disclaimer.
- #
- # 2. Redistributions in binary form must reproduce the above copyright
- #    notice, this list of conditions and the following disclaimer in the
- #    documentation and/or other materials provided with the distribution.
- #
- # THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
- # INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
- # AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- # AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
- # OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- # SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- # INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- # CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- # POSSIBILITY OF SUCH DAMAGE.
  #}
 
-<div class="content-box" style="padding-bottom: 1.5em;">
-    <div class="content-box-main">
-        <div class="table-responsive">
-            <div class="col-sm-12">
-                <div class="pull-right">
-                    <small>{{ lang._('full help') }}&nbsp;</small>
-                    <a href="#" class="showhelp"><i class="fa fa-info-circle"></i></a>
+<div class="content-box">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="dpi-header">
+                <h1>{{ lang._('WebGuard Security Dashboard') }}</h1>
+                <div class="service-status">
+                    <span id="serviceStatus" class="badge badge-secondary">{{ lang._('Loading...') }}</span>
                 </div>
             </div>
-            
-            <!-- Service Status -->
-            <div class="row">
-                <div class="col-md-12">
-                    <div class="panel panel-default">
-                        <div class="panel-heading">
-                            <h3 class="panel-title">
-                                <i class="fa fa-shield-alt"></i> {{ lang._('WebGuard Service Status') }}
-                                <div class="pull-right">
-                                    <button class="btn btn-primary btn-xs" id="reconfigureAct" 
-                                            data-endpoint='/api/webguard/settings/reconfigure' 
-                                            data-label="{{ lang._('Apply') }}" 
-                                            data-error-title="{{ lang._('Error reconfiguring WebGuard') }}" 
-                                            type="button">
-                                        <i class="fa fa-cog"></i> {{ lang._('Apply') }}
-                                    </button>
-                                </div>
-                            </h3>
-                        </div>
-                        <div class="panel-body">
-                            <div class="row">
-                                <div class="col-md-3">
-                                    <div class="info-box">
-                                        <span class="info-box-icon bg-blue"><i class="fa fa-power-off"></i></span>
-                                        <div class="info-box-content">
-                                            <span class="info-box-text">{{ lang._('Service Status') }}</span>
-                                            <span class="info-box-number" id="service-status">
-                                                {% if isEnabled %}
-                                                    <span class="text-success">{{ lang._('Enabled') }}</span>
-                                                {% else %}
-                                                    <span class="text-danger">{{ lang._('Disabled') }}</span>
-                                                {% endif %}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="info-box">
-                                        <span class="info-box-icon bg-green"><i class="fa fa-cogs"></i></span>
-                                        <div class="info-box-content">
-                                            <span class="info-box-text">{{ lang._('Operation Mode') }}</span>
-                                            <span class="info-box-number" id="operation-mode">{{ currentMode|capitalize }}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="info-box">
-                                        <span class="info-box-icon bg-yellow"><i class="fa fa-clock"></i></span>
-                                        <div class="info-box-content">
-                                            <span class="info-box-text">{{ lang._('Uptime') }}</span>
-                                            <span class="info-box-number" id="uptime">--</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="info-box">
-                                        <span class="info-box-icon bg-red"><i class="fa fa-exclamation-triangle"></i></span>
-                                        <div class="info-box-content">
-                                            <span class="info-box-text">{{ lang._('Threats Today') }}</span>
-                                            <span class="info-box-number" id="threats-today">--</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="row" style="margin-top: 20px;">
-                                <div class="col-md-12">
-                                    <div class="btn-group" role="group">
-                                        <button type="button" class="btn btn-success" id="startService" 
-                                                data-endpoint="/api/webguard/settings/start">
-                                            <i class="fa fa-play"></i> {{ lang._('Start') }}
-                                        </button>
-                                        <button type="button" class="btn btn-warning" id="stopService" 
-                                                data-endpoint="/api/webguard/settings/stop">
-                                            <i class="fa fa-stop"></i> {{ lang._('Stop') }}
-                                        </button>
-                                        <button type="button" class="btn btn-info" id="restartService" 
-                                                data-endpoint="/api/webguard/settings/restart">
-                                            <i class="fa fa-refresh"></i> {{ lang._('Restart') }}
-                                        </button>
-                                        <button type="button" class="btn btn-primary" id="reloadService" 
-                                                data-endpoint="/api/webguard/settings/reload">
-                                            <i class="fa fa-refresh"></i> {{ lang._('Reload') }}
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        </div>
+    </div>
 
-            <!-- Statistics Overview -->
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="panel panel-default">
-                        <div class="panel-heading">
-                            <h3 class="panel-title"><i class="fa fa-chart-line"></i> {{ lang._('Real-time Statistics') }}</h3>
-                        </div>
-                        <div class="panel-body">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="metric-box">
-                                        <div class="metric-value" id="requests-analyzed">--</div>
-                                        <div class="metric-label">{{ lang._('Requests Analyzed') }}</div>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="metric-box">
-                                        <div class="metric-value" id="threats-blocked">--</div>
-                                        <div class="metric-label">{{ lang._('Threats Blocked') }}</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="metric-box">
-                                        <div class="metric-value" id="ips-blocked">--</div>
-                                        <div class="metric-label">{{ lang._('IPs Blocked') }}</div>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="metric-box">
-                                        <div class="metric-value" id="cpu-usage">--</div>
-                                        <div class="metric-label">{{ lang._('CPU Usage') }}</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+    <!-- Metric Cards Row -->
+    <div class="row">
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-icon">
+                    <i class="fa fa-search"></i>
                 </div>
-                
-                <div class="col-md-6">
-                    <div class="panel panel-default">
-                        <div class="panel-heading">
-                            <h3 class="panel-title"><i class="fa fa-chart-pie"></i> {{ lang._('Threat Distribution') }}</h3>
-                        </div>
-                        <div class="panel-body">
-                            <canvas id="threatChart" width="400" height="200"></canvas>
-                        </div>
-                    </div>
+                <div class="metric-content">
+                    <div class="metric-value" id="requestsAnalyzed">0</div>
+                    <div class="metric-label">{{ lang._('Requests Analyzed') }}</div>
                 </div>
             </div>
-
-            <!-- Recent Threats -->
-            <div class="row">
-                <div class="col-md-12">
-                    <div class="panel panel-default">
-                        <div class="panel-heading">
-                            <h3 class="panel-title">
-                                <i class="fa fa-exclamation-triangle"></i> {{ lang._('Recent Threats') }}
-                                <div class="pull-right">
-                                    <a href="/ui/webguard/threats" class="btn btn-xs btn-default">
-                                        {{ lang._('View All') }} <i class="fa fa-arrow-right"></i>
-                                    </a>
-                                </div>
-                            </h3>
-                        </div>
-                        <div class="panel-body">
-                            <div class="table-responsive">
-                                <table class="table table-condensed table-hover" id="recentThreatsTable">
-                                    <thead>
-                                        <tr>
-                                            <th>{{ lang._('Time') }}</th>
-                                            <th>{{ lang._('Source IP') }}</th>
-                                            <th>{{ lang._('Threat Type') }}</th>
-                                            <th>{{ lang._('Severity') }}</th>
-                                            <th>{{ lang._('Target') }}</th>
-                                            <th>{{ lang._('Action') }}</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <!-- Populated by JavaScript -->
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-icon">
+                    <i class="fa fa-shield"></i>
                 </div>
+                <div class="metric-content">
+                    <div class="metric-value" id="threatsBlocked">0</div>
+                    <div class="metric-label">{{ lang._('Threats Blocked') }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-icon">
+                    <i class="fa fa-ban"></i>
+                </div>
+                <div class="metric-content">
+                    <div class="metric-value" id="ipsBlocked">0</div>
+                    <div class="metric-label">{{ lang._('IPs Blocked') }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-icon">
+                    <i class="fa fa-percent"></i>
+                </div>
+                <div class="metric-content">
+                    <div class="metric-value" id="blockingRate">0%</div>
+                    <div class="metric-label">{{ lang._('Blocking Rate') }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="chart-container">
+                <h3>{{ lang._('Threat Timeline') }}</h3>
+                <canvas id="threatTimelineChart"></canvas>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="chart-container">
+                <h3>{{ lang._('Threat Distribution') }}</h3>
+                <canvas id="threatChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Row -->
+    <div class="row">
+        <div class="col-md-8">
+            <div class="table-container">
+                <h3>{{ lang._('Recent Threats') }}</h3>
+                <table class="table table-striped" id="recentThreats">
+                    <thead>
+                        <tr>
+                            <th>{{ lang._('Time') }}</th>
+                            <th>{{ lang._('Source IP') }}</th>
+                            <th>{{ lang._('Threat Type') }}</th>
+                            <th>{{ lang._('Severity') }}</th>
+                            <th>{{ lang._('Target') }}</th>
+                            <th>{{ lang._('Actions') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody id="threatTableBody">
+                        <!-- Dynamic content -->
+                    </tbody>
+                </table>
             </div>
 
             <!-- Real-time Feed -->
-            <div class="row">
-                <div class="col-md-12">
-                    <div class="panel panel-default">
-                        <div class="panel-heading">
-                            <h3 class="panel-title">
-                                <i class="fa fa-rss"></i> {{ lang._('Real-time Threat Feed') }}
-                                <div class="pull-right">
-                                    <button type="button" class="btn btn-xs btn-primary" id="toggleFeed">
-                                        <i class="fa fa-pause"></i> {{ lang._('Pause') }}
-                                    </button>
-                                    <button type="button" class="btn btn-xs btn-default" id="clearFeed">
-                                        <i class="fa fa-trash"></i> {{ lang._('Clear') }}
-                                    </button>
-                                </div>
-                            </h3>
-                        </div>
-                        <div class="panel-body">
-                            <div id="threatFeed" style="height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px;">
-                                <!-- Real-time feed content -->
-                            </div>
-                        </div>
+            <div class="table-container">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3>{{ lang._('Real-time Threat Feed') }}</h3>
+                    <div>
+                        <button type="button" class="btn btn-sm btn-primary" id="toggleFeed">
+                            <i class="fa fa-pause"></i> {{ lang._('Pause') }}
+                        </button>
+                        <button type="button" class="btn btn-sm btn-secondary" id="clearFeed">
+                            <i class="fa fa-trash"></i> {{ lang._('Clear') }}
+                        </button>
                     </div>
+                </div>
+                <div id="threatFeed" style="height: 200px; overflow-y: auto; border: 1px solid #e5e7eb; padding: 15px; background: #f9fafb; border-radius: 5px;">
+                    <!-- Real-time feed content -->
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <!-- System Information -->
+            <div class="system-info">
+                <h3>{{ lang._('System Information') }}</h3>
+                <div class="info-item">
+                    <span class="info-label">{{ lang._('Service Status') }}:</span>
+                    <span id="serviceStatusInfo" class="info-value">{{ lang._('Unknown') }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">{{ lang._('Operation Mode') }}:</span>
+                    <span id="operationMode" class="info-value">{{ currentMode|capitalize }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">{{ lang._('Uptime') }}:</span>
+                    <span id="uptime" class="info-value">{{ lang._('Unknown') }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">{{ lang._('CPU Usage') }}:</span>
+                    <span id="cpuUsage" class="info-value">{{ lang._('Unknown') }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">{{ lang._('Memory Usage') }}:</span>
+                    <span id="memoryUsage" class="info-value">{{ lang._('Unknown') }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">{{ lang._('Threats Today') }}:</span>
+                    <span id="threatsToday" class="info-value">{{ lang._('Unknown') }}</span>
+                </div>
+            </div>
+
+            <!-- Service Controls -->
+            <div class="service-controls">
+                <h3>{{ lang._('Service Controls') }}</h3>
+                <div class="btn-group-vertical" style="width: 100%;">
+                    <button class="btn btn-success" id="startService" data-endpoint="/api/webguard/settings/start">
+                        <i class="fa fa-play"></i> {{ lang._('Start Service') }}
+                    </button>
+                    <button class="btn btn-warning" id="restartService" data-endpoint="/api/webguard/settings/restart">
+                        <i class="fa fa-refresh"></i> {{ lang._('Restart Service') }}
+                    </button>
+                    <button class="btn btn-danger" id="stopService" data-endpoint="/api/webguard/settings/stop">
+                        <i class="fa fa-stop"></i> {{ lang._('Stop Service') }}
+                    </button>
+                    <button class="btn btn-primary" id="reloadService" data-endpoint="/api/webguard/settings/reload">
+                        <i class="fa fa-cog"></i> {{ lang._('Reload Config') }}
+                    </button>
+                    <button class="btn btn-info" id="reconfigureAct" data-endpoint="/api/webguard/settings/reconfigure">
+                        <i class="fa fa-cogs"></i> {{ lang._('Apply Changes') }}
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<style>
-.metric-box {
-    text-align: center;
-    padding: 10px;
-}
+<!-- Notifications area -->
+<div id="notifications" style="position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px;"></div>
 
-.metric-value {
-    font-size: 24px;
-    font-weight: bold;
-    color: #337ab7;
-}
-
-.metric-label {
-    font-size: 12px;
-    color: #666;
-    margin-top: 5px;
-}
-
-.info-box {
-    display: block;
-    min-height: 90px;
-    background: #fff;
-    width: 100%;
-    box-shadow: 0 1px 1px rgba(0,0,0,0.1);
-    border-radius: 2px;
-    margin-bottom: 15px;
-}
-
-.info-box-icon {
-    border-top-left-radius: 2px;
-    border-top-right-radius: 0;
-    border-bottom-right-radius: 0;
-    border-bottom-left-radius: 2px;
-    display: block;
-    float: left;
-    height: 90px;
-    width: 90px;
-    text-align: center;
-    font-size: 45px;
-    line-height: 90px;
-    background: rgba(0,0,0,0.2);
-}
-
-.info-box-content {
-    padding: 5px 10px;
-    margin-left: 90px;
-}
-
-.info-box-text {
-    text-transform: uppercase;
-    font-weight: bold;
-    font-size: 13px;
-}
-
-.info-box-number {
-    display: block;
-    font-weight: bold;
-    font-size: 18px;
-}
-
-.bg-blue { background-color: #3c8dbc !important; }
-.bg-green { background-color: #00a65a !important; }
-.bg-yellow { background-color: #f39c12 !important; }
-.bg-red { background-color: #dd4b39 !important; }
-
-.threat-feed-item {
-    padding: 5px;
-    margin: 2px 0;
-    border-left: 3px solid;
-    background: #f9f9f9;
-}
-
-.threat-feed-item.critical { border-color: #d9534f; }
-.threat-feed-item.high { border-color: #f0ad4e; }
-.threat-feed-item.medium { border-color: #5bc0de; }
-.threat-feed-item.low { border-color: #5cb85c; }
-
-.threat-feed-time {
-    font-size: 11px;
-    color: #666;
-}
-</style>
+<!-- Chart.js CDN -->
+<script src="/ui/js/chart.min.js"></script>
 
 <script>
 $(document).ready(function() {
     let feedActive = true;
     let lastThreatId = 0;
+    let threatChart = null;
+    let timelineChart = null;
     
     // Initialize dashboard
-    loadStatistics();
-    loadRecentThreats();
-    initThreatChart();
+    loadDashboardData();
+    initCharts();
     
-    // Auto-refresh every 5 seconds
+    // Set up periodic updates
     setInterval(function() {
-        loadStatistics();
+        loadDashboardData();
         if (feedActive) {
             loadThreatFeed();
         }
@@ -348,41 +204,8 @@ $(document).ready(function() {
     setInterval(loadRecentThreats, 30000);
     
     // Service control buttons
-    $('#startService, #stopService, #restartService, #reloadService').click(function() {
-        let endpoint = $(this).data('endpoint');
-        let button = $(this);
-        
-        button.prop('disabled', true);
-        
-        ajaxCall(endpoint, {}, function(data) {
-            if (data.result === 'ok') {
-                BootstrapDialog.show({
-                    type: BootstrapDialog.TYPE_SUCCESS,
-                    title: '{{ lang._("Success") }}',
-                    message: data.message || '{{ lang._("Operation completed successfully") }}',
-                    buttons: [{
-                        label: '{{ lang._("Close") }}',
-                        action: function(dialogRef) {
-                            dialogRef.close();
-                        }
-                    }]
-                });
-                setTimeout(loadStatistics, 2000);
-            } else {
-                BootstrapDialog.show({
-                    type: BootstrapDialog.TYPE_DANGER,
-                    title: '{{ lang._("Error") }}',
-                    message: data.message || '{{ lang._("Operation failed") }}',
-                    buttons: [{
-                        label: '{{ lang._("Close") }}',
-                        action: function(dialogRef) {
-                            dialogRef.close();
-                        }
-                    }]
-                });
-            }
-            button.prop('disabled', false);
-        });
+    $('#startService, #stopService, #restartService, #reloadService, #reconfigureAct').click(function() {
+        controlService($(this).data('endpoint'), $(this));
     });
     
     // Feed controls
@@ -400,56 +223,108 @@ $(document).ready(function() {
         $('#threatFeed').empty();
         lastThreatId = 0;
     });
-    
-    function loadStatistics() {
+
+    function loadDashboardData() {
+        // Load main statistics
         ajaxGet('/api/webguard/settings/getStats', {}, function(data) {
-            $('#requests-analyzed').text(formatNumber(data.requests_analyzed || 0));
-            $('#threats-blocked').text(formatNumber(data.threats_blocked || 0));
-            $('#ips-blocked').text(formatNumber(data.ips_blocked || 0));
-            $('#uptime').text(formatUptime(data.uptime || 0));
-            $('#cpu-usage').text((data.cpu_usage || 0) + '%');
-            $('#threats-today').text(formatNumber(data.threats_today || 0));
+            updateMetrics(data);
+            updateSystemInfo(data);
         });
+        
+        // Load recent threats
+        loadRecentThreats();
     }
-    
+
+    function updateMetrics(data) {
+        $('#requestsAnalyzed').text(formatNumber(data.requests_analyzed || 0));
+        $('#threatsBlocked').text(formatNumber(data.threats_blocked || 0));
+        $('#ipsBlocked').text(formatNumber(data.ips_blocked || 0));
+        
+        const blockingRate = data.requests_analyzed > 0 
+            ? ((data.threats_blocked / data.requests_analyzed) * 100).toFixed(2)
+            : 0;
+        $('#blockingRate').text(blockingRate + '%');
+    }
+
+    function updateSystemInfo(data) {
+        $('#uptime').text(formatUptime(data.uptime || 0));
+        $('#cpuUsage').text((data.cpu_usage || 0) + '%');
+        $('#memoryUsage').text(data.memory_usage || '{{ lang._("Unknown") }}');
+        $('#threatsToday').text(formatNumber(data.threats_today || 0));
+        
+        // Update service status
+        const isEnabled = data.service_enabled || false;
+        if (isEnabled) {
+            $('#serviceStatus').removeClass('badge-secondary badge-danger')
+                             .addClass('badge-success')
+                             .text('{{ lang._("Running") }}');
+            $('#serviceStatusInfo').text('{{ lang._("Enabled") }}');
+        } else {
+            $('#serviceStatus').removeClass('badge-secondary badge-success')
+                             .addClass('badge-danger')
+                             .text('{{ lang._("Stopped") }}');
+            $('#serviceStatusInfo').text('{{ lang._("Disabled") }}');
+        }
+    }
+
     function loadRecentThreats() {
         ajaxGet('/api/webguard/threats/get', {limit: 10}, function(data) {
-            let tbody = $('#recentThreatsTable tbody');
+            const tbody = $('#threatTableBody');
             tbody.empty();
             
             if (data.threats && data.threats.length > 0) {
                 data.threats.forEach(function(threat) {
-                    let row = $('<tr>');
-                    row.append('<td>' + formatTime(threat.timestamp) + '</td>');
-                    row.append('<td>' + threat.source_ip + '</td>');
-                    row.append('<td>' + threat.type + '</td>');
-                    row.append('<td><span class="label label-' + getSeverityClass(threat.severity) + '">' + threat.severity + '</span></td>');
-                    row.append('<td>' + threat.target + '</td>');
-                    row.append('<td><a href="/ui/webguard/threats/detail/' + threat.id + '" class="btn btn-xs btn-default">Details</a></td>');
+                    const severityClass = getSeverityClass(threat.severity);
+                    const row = $(`
+                        <tr>
+                            <td>${formatTime(threat.timestamp)}</td>
+                            <td><code>${threat.source_ip}</code></td>
+                            <td>${threat.type}</td>
+                            <td><span class="badge ${severityClass}">${threat.severity}</span></td>
+                            <td>${threat.target}</td>
+                            <td>
+                                <button class="btn btn-sm btn-primary" onclick="viewThreatDetails('${threat.id}')">
+                                    <i class="fa fa-eye"></i>
+                                </button>
+                                <button class="btn btn-sm btn-danger" onclick="blockSource('${threat.source_ip}')">
+                                    <i class="fa fa-ban"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `);
                     tbody.append(row);
                 });
             } else {
-                tbody.append('<tr><td colspan="6" class="text-center">{{ lang._("No recent threats") }}</td></tr>');
+                tbody.append(`
+                    <tr>
+                        <td colspan="6" class="text-center text-muted">
+                            {{ lang._('No recent threats') }}
+                        </td>
+                    </tr>
+                `);
             }
         });
     }
-    
+
     function loadThreatFeed() {
         ajaxGet('/api/webguard/threats/getFeed', {last_id: lastThreatId, limit: 20}, function(data) {
             if (data.threats && data.threats.length > 0) {
-                let feed = $('#threatFeed');
+                const feed = $('#threatFeed');
                 
                 data.threats.forEach(function(threat) {
-                    let item = $('<div class="threat-feed-item ' + threat.severity + '">');
-                    item.append('<div class="threat-feed-time">' + formatTime(threat.timestamp) + '</div>');
-                    item.append('<strong>' + threat.type + '</strong> from ' + threat.source_ip + ' → ' + threat.target);
+                    const item = $(`
+                        <div class="threat-feed-item ${threat.severity}">
+                            <div class="threat-feed-time">${formatTime(threat.timestamp)}</div>
+                            <strong>${threat.type}</strong> from ${threat.source_ip} → ${threat.target}
+                        </div>
+                    `);
                     
                     feed.prepend(item);
                     lastThreatId = Math.max(lastThreatId, threat.id);
                 });
                 
-                // Keep only last 100 items
-                feed.children().slice(100).remove();
+                // Keep only last 50 items
+                feed.children().slice(50).remove();
                 
                 // Auto-scroll if needed
                 if (feed.scrollTop() < 50) {
@@ -458,16 +333,16 @@ $(document).ready(function() {
             }
         });
     }
-    
-    function initThreatChart() {
-        // Initialize Chart.js threat distribution chart
-        let ctx = document.getElementById('threatChart').getContext('2d');
-        window.threatChart = new Chart(ctx, {
+
+    function initCharts() {
+        // Initialize Threat Distribution Chart
+        const ctx1 = document.getElementById('threatChart').getContext('2d');
+        threatChart = new Chart(ctx1, {
             type: 'doughnut',
             data: {
                 labels: ['SQL Injection', 'XSS', 'CSRF', 'File Upload', 'Other'],
                 datasets: [{
-                    data: [0, 0, 0, 0, 0],
+                    data: [12, 8, 5, 3, 7],
                     backgroundColor: [
                         '#FF6384',
                         '#36A2EB',
@@ -480,35 +355,135 @@ $(document).ready(function() {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                legend: {
-                    position: 'bottom'
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
                 }
             }
         });
-        
+
+        // Initialize Timeline Chart
+        const ctx2 = document.getElementById('threatTimelineChart').getContext('2d');
+        timelineChart = new Chart(ctx2, {
+            type: 'line',
+            data: {
+                labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'],
+                datasets: [{
+                    label: 'Threats Detected',
+                    data: [5, 12, 8, 15, 22, 18],
+                    borderColor: '#dc3545',
+                    backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                    tension: 0.4
+                }, {
+                    label: 'Requests Analyzed',
+                    data: [150, 280, 200, 320, 450, 380],
+                    borderColor: '#007bff',
+                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        // Load real chart data
+        updateChartData();
+    }
+
+    function updateChartData() {
         // Load threat distribution data
         ajaxGet('/api/webguard/threats/getStats', {period: '24h'}, function(data) {
-            if (data.threats_by_type) {
-                let labels = Object.keys(data.threats_by_type);
-                let values = Object.values(data.threats_by_type);
+            if (data.threats_by_type && threatChart) {
+                const labels = Object.keys(data.threats_by_type);
+                const values = Object.values(data.threats_by_type);
                 
-                window.threatChart.data.labels = labels;
-                window.threatChart.data.datasets[0].data = values;
-                window.threatChart.update();
+                threatChart.data.labels = labels;
+                threatChart.data.datasets[0].data = values;
+                threatChart.update();
+            }
+        });
+
+        // Load timeline data
+        ajaxGet('/api/webguard/threats/getTimeline', {period: '24h'}, function(data) {
+            if (data.timeline && timelineChart) {
+                timelineChart.data.labels = data.timeline.labels;
+                timelineChart.data.datasets[0].data = data.timeline.threats;
+                timelineChart.data.datasets[1].data = data.timeline.requests;
+                timelineChart.update();
             }
         });
     }
-    
-    function formatNumber(num) {
-        return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
+    function controlService(endpoint, button) {
+        const originalText = button.html();
+        
+        button.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> {{ lang._("Processing...") }}');
+        
+        ajaxCall(endpoint, {}, function(data) {
+            button.prop('disabled', false).html(originalText);
+            
+            if (data.result === 'ok' || data.status === 'ok') {
+                showNotification(data.message || '{{ lang._("Operation completed successfully") }}', 'success');
+                setTimeout(loadDashboardData, 2000);
+            } else {
+                showNotification(data.message || '{{ lang._("Operation failed") }}', 'error');
+            }
+        });
     }
-    
+
+    function viewThreatDetails(threatId) {
+        window.open('/ui/webguard/threats/detail/' + threatId, '_blank');
+    }
+
+    function blockSource(sourceIP) {
+        if (confirm(`{{ lang._("Are you sure you want to block IP") }} ${sourceIP}?`)) {
+            ajaxCall("/api/webguard/service/blockIP", {ip: sourceIP}, function(data) {
+                if (data.result === 'ok' || data.status === 'ok') {
+                    showNotification(`{{ lang._("IP") }} ${sourceIP} {{ lang._("blocked successfully") }}`, 'success');
+                } else {
+                    showNotification(`{{ lang._("Failed to block IP") }}: ${data.message || '{{ lang._("Unknown error") }}'}`, 'error');
+                }
+            });
+        }
+    }
+
+    function getSeverityClass(severity) {
+        switch(severity.toLowerCase()) {
+            case 'critical': return 'badge-danger';
+            case 'high': return 'badge-warning';
+            case 'medium': return 'badge-info';
+            case 'low': return 'badge-success';
+            default: return 'badge-secondary';
+        }
+    }
+
+    function formatNumber(num) {
+        return new Intl.NumberFormat().format(num);
+    }
+
+    function formatTime(timestamp) {
+        return new Date(timestamp * 1000).toLocaleTimeString();
+    }
+
     function formatUptime(seconds) {
         if (seconds === 0) return '--';
         
-        let days = Math.floor(seconds / 86400);
-        let hours = Math.floor((seconds % 86400) / 3600);
-        let minutes = Math.floor((seconds % 3600) / 60);
+        const days = Math.floor(seconds / 86400);
+        const hours = Math.floor((seconds % 86400) / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
         
         if (days > 0) {
             return days + 'd ' + hours + 'h ' + minutes + 'm';
@@ -518,20 +493,155 @@ $(document).ready(function() {
             return minutes + 'm';
         }
     }
-    
-    function formatTime(timestamp) {
-        let date = new Date(timestamp * 1000);
-        return date.toLocaleTimeString();
-    }
-    
-    function getSeverityClass(severity) {
-        switch (severity.toLowerCase()) {
-            case 'critical': return 'danger';
-            case 'high': return 'warning';
-            case 'medium': return 'info';
-            case 'low': return 'success';
-            default: return 'default';
-        }
+
+    function showNotification(message, type) {
+        const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+        const notification = $(`
+            <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+                ${message}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+        `);
+        
+        $('#notifications').append(notification);
+        setTimeout(() => notification.alert('close'), 5000);
     }
 });
 </script>
+
+<style>
+.dpi-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.metric-card {
+    background: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+}
+
+.metric-icon {
+    font-size: 2rem;
+    color: #2563eb;
+    margin-right: 1rem;
+}
+
+.metric-content {
+    flex: 1;
+}
+
+.metric-value {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #1f2937;
+}
+
+.metric-label {
+    font-size: 0.875rem;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.chart-container {
+    background: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 1rem;
+    height: 400px;
+}
+
+.chart-container canvas {
+    max-height: 300px;
+}
+
+.table-container {
+    background: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 1rem;
+}
+
+.system-info {
+    background: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 1rem;
+}
+
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.info-item:last-child {
+    border-bottom: none;
+}
+
+.info-label {
+    font-weight: 600;
+    color: #374151;
+}
+
+.info-value {
+    color: #6b7280;
+    font-family: monospace;
+}
+
+.service-controls {
+    background: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.service-controls .btn {
+    margin-bottom: 0.5rem;
+}
+
+.service-controls .btn:last-child {
+    margin-bottom: 0;
+}
+
+.threat-feed-item {
+    padding: 8px;
+    margin: 4px 0;
+    border-left: 3px solid;
+    background: #ffffff;
+    border-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.threat-feed-item.critical { border-color: #dc3545; }
+.threat-feed-item.high { border-color: #ffc107; }
+.threat-feed-item.medium { border-color: #17a2b8; }
+.threat-feed-item.low { border-color: #28a745; }
+
+.threat-feed-time {
+    font-size: 11px;
+    color: #6c757d;
+    margin-bottom: 2px;
+}
+
+.badge-danger { background-color: #dc3545; }
+.badge-warning { background-color: #ffc107; color: #212529; }
+.badge-info { background-color: #17a2b8; }
+.badge-success { background-color: #28a745; }
+.badge-secondary { background-color: #6c757d; }
+</style>
