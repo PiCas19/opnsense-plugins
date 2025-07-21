@@ -179,7 +179,7 @@
 <div id="notifications" style="position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px;"></div>
 
 <!-- Chart.js CDN -->
-<script src="/ui/js/chart.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 
 <script>
 $(document).ready(function() {
@@ -196,12 +196,16 @@ $(document).ready(function() {
     setInterval(function() {
         loadDashboardData();
         if (feedActive) {
-            loadThreatFeed();
+            if (typeof loadThreatFeedFromStats === 'function') {
+                loadThreatFeedFromStats();
+            } else {
+                loadThreatFeed();
+            }
         }
     }, 5000);
     
     // Auto-refresh recent threats every 30 seconds
-    setInterval(loadRecentThreats, 30000);
+    setInterval(loadRecentThreatsFromStats, 30000);
     
     // Service control buttons
     $('#startService, #stopService, #restartService, #reloadService, #reconfigureAct').click(function() {
@@ -225,10 +229,12 @@ $(document).ready(function() {
     });
 
     function loadDashboardData() {
-        // Load main statistics
-        ajaxGet('/api/webguard/settings/getStats', {}, function(data) {
-            updateMetrics(data);
-            updateSystemInfo(data);
+        // Load main statistics - use the correct endpoint
+        ajaxCall('/api/webguard/settings/stats', {}, function(data) {
+            if (data.status === 'ok' && data.data) {
+                updateMetrics(data.data);
+                updateSystemInfo(data.data);
+            }
         });
         
         // Load recent threats
@@ -247,32 +253,34 @@ $(document).ready(function() {
     }
 
     function updateSystemInfo(data) {
-        $('#uptime').text(formatUptime(data.uptime || 0));
-        $('#cpuUsage').text((data.cpu_usage || 0) + '%');
-        $('#memoryUsage').text(data.memory_usage || '{{ lang._("Unknown") }}');
+        const systemInfo = data.system_info || {};
+        
+        $('#uptime').text(formatUptimeFromString(systemInfo.uptime || 'Unknown'));
+        $('#cpuUsage').text(systemInfo.cpu_usage || 'Unknown');
+        $('#memoryUsage').text(systemInfo.memory_usage || 'Unknown');
         $('#threatsToday').text(formatNumber(data.threats_today || 0));
         
         // Update service status
-        const isEnabled = data.service_enabled || false;
-        if (isEnabled) {
+        const isRunning = systemInfo.engine_status === 'Active';
+        if (isRunning) {
             $('#serviceStatus').removeClass('badge-secondary badge-danger')
                              .addClass('badge-success')
                              .text('{{ lang._("Running") }}');
-            $('#serviceStatusInfo').text('{{ lang._("Enabled") }}');
+            $('#serviceStatusInfo').text('{{ lang._("Active") }}');
         } else {
             $('#serviceStatus').removeClass('badge-secondary badge-success')
                              .addClass('badge-danger')
                              .text('{{ lang._("Stopped") }}');
-            $('#serviceStatusInfo').text('{{ lang._("Disabled") }}');
+            $('#serviceStatusInfo').text('{{ lang._("Inactive") }}');
         }
     }
 
     function loadRecentThreats() {
-        ajaxGet('/api/webguard/threats/get', {limit: 10}, function(data) {
+        ajaxCall('/api/webguard/threats/get', {limit: 10}, function(data) {
             const tbody = $('#threatTableBody');
             tbody.empty();
             
-            if (data.threats && data.threats.length > 0) {
+            if (data.status === 'ok' && data.threats && data.threats.length > 0) {
                 data.threats.forEach(function(threat) {
                     const severityClass = getSeverityClass(threat.severity);
                     const row = $(`
@@ -307,8 +315,8 @@ $(document).ready(function() {
     }
 
     function loadThreatFeed() {
-        ajaxGet('/api/webguard/threats/getFeed', {last_id: lastThreatId, limit: 20}, function(data) {
-            if (data.threats && data.threats.length > 0) {
+        ajaxCall('/api/webguard/threats/getFeed', {last_id: lastThreatId, limit: 20}, function(data) {
+            if (data.status === 'ok' && data.threats && data.threats.length > 0) {
                 const feed = $('#threatFeed');
                 
                 data.threats.forEach(function(threat) {
@@ -405,20 +413,22 @@ $(document).ready(function() {
 
     function updateChartData() {
         // Load threat distribution data
-        ajaxGet('/api/webguard/threats/getStats', {period: '24h'}, function(data) {
-            if (data.threats_by_type && threatChart) {
+        ajaxCall('/api/webguard/threats/getStats', {period: '24h'}, function(data) {
+            if (data.status === 'ok' && data.threats_by_type && threatChart) {
                 const labels = Object.keys(data.threats_by_type);
                 const values = Object.values(data.threats_by_type);
                 
-                threatChart.data.labels = labels;
-                threatChart.data.datasets[0].data = values;
-                threatChart.update();
+                if (labels.length > 0) {
+                    threatChart.data.labels = labels;
+                    threatChart.data.datasets[0].data = values;
+                    threatChart.update();
+                }
             }
         });
 
         // Load timeline data
-        ajaxGet('/api/webguard/threats/getTimeline', {period: '24h'}, function(data) {
-            if (data.timeline && timelineChart) {
+        ajaxCall('/api/webguard/threats/getTimeline', {period: '24h'}, function(data) {
+            if (data.status === 'ok' && data.timeline && timelineChart) {
                 timelineChart.data.labels = data.timeline.labels;
                 timelineChart.data.datasets[0].data = data.timeline.threats;
                 timelineChart.data.datasets[1].data = data.timeline.requests;
@@ -450,7 +460,7 @@ $(document).ready(function() {
 
     function blockSource(sourceIP) {
         if (confirm(`{{ lang._("Are you sure you want to block IP") }} ${sourceIP}?`)) {
-            ajaxCall("/api/webguard/service/blockIP", {ip: sourceIP}, function(data) {
+            ajaxCall("/api/webguard/settings/blockIP", {ip: sourceIP}, function(data) {
                 if (data.result === 'ok' || data.status === 'ok') {
                     showNotification(`{{ lang._("IP") }} ${sourceIP} {{ lang._("blocked successfully") }}`, 'success');
                 } else {
@@ -474,12 +484,30 @@ $(document).ready(function() {
         return new Intl.NumberFormat().format(num);
     }
 
+    function formatTimeFromISO(timestamp) {
+        if (!timestamp) return '--';
+        try {
+            // Handle ISO string format from your data
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString();
+        } catch (e) {
+            return timestamp; // Return as-is if parsing fails
+        }
+    }
+
     function formatTime(timestamp) {
-        return new Date(timestamp * 1000).toLocaleTimeString();
+        if (!timestamp) return '--';
+        try {
+            // Handle both Unix timestamp and ISO string
+            const date = typeof timestamp === 'string' ? new Date(timestamp) : new Date(timestamp * 1000);
+            return date.toLocaleTimeString();
+        } catch (e) {
+            return '--';
+        }
     }
 
     function formatUptime(seconds) {
-        if (seconds === 0) return '--';
+        if (seconds === 0 || seconds === '--') return '--';
         
         const days = Math.floor(seconds / 86400);
         const hours = Math.floor((seconds % 86400) / 3600);
@@ -492,6 +520,23 @@ $(document).ready(function() {
         } else {
             return minutes + 'm';
         }
+    }
+
+    function formatUptimeFromString(uptimeStr) {
+        if (uptimeStr === 'Unknown' || uptimeStr === 'N/A') return uptimeStr;
+        
+        // If it's already formatted, return as is
+        if (uptimeStr.includes('d') || uptimeStr.includes('h') || uptimeStr.includes('m')) {
+            return uptimeStr;
+        }
+        
+        // If it's a number, format it
+        const seconds = parseInt(uptimeStr);
+        if (!isNaN(seconds)) {
+            return formatUptime(seconds);
+        }
+        
+        return uptimeStr;
     }
 
     function showNotification(message, type) {
