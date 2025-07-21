@@ -382,6 +382,8 @@ def analyze_geographic_patterns():
         
     except Exception as e:
         logger.error(f"Error in geographic pattern analysis: {e}")
+
+def load_config():
     """Load WebGuard engine configuration using export_config"""
     global config
     try:
