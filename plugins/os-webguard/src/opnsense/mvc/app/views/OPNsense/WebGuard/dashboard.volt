@@ -65,7 +65,13 @@
 
     <!-- Charts Row -->
     <div class="row">
-        <div class="col-md-12">
+        <div class="col-md-6">
+            <div class="chart-container">
+                <h3>{{ lang._('Threat Timeline') }}</h3>
+                <canvas id="threatTimelineChart"></canvas>
+            </div>
+        </div>
+        <div class="col-md-6">
             <div class="chart-container">
                 <h3>{{ lang._('Threat Distribution') }}</h3>
                 <canvas id="threatChart"></canvas>
@@ -372,6 +378,42 @@ $(document).ready(function() {
                 plugins: {
                     legend: {
                         position: 'bottom'
+                    }
+                }
+            }
+        });
+
+        // Initialize Timeline Chart
+        const ctx2 = document.getElementById('threatTimelineChart').getContext('2d');
+        timelineChart = new Chart(ctx2, {
+            type: 'line',
+            data: {
+                labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'],
+                datasets: [{
+                    label: 'Threats Detected',
+                    data: [5, 12, 8, 15, 22, 18],
+                    borderColor: '#dc3545',
+                    backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                    tension: 0.4
+                }, {
+                    label: 'Requests Analyzed',
+                    data: [150, 280, 200, 320, 450, 380],
+                    borderColor: '#007bff',
+                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true
                     }
                 }
             }
