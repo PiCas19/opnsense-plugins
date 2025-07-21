@@ -49,16 +49,23 @@ webguard_prestart()
     if [ ! -f "${webguard_config}" ]; then
         echo "Configuration file ${webguard_config} does not exist."
         echo "Creating default configuration..."
-        /usr/local/opnsense/scripts/OPNsense/WebGuard/create_default_config.sh
+        /usr/local/opnsense/scripts/OPNsense/WebGuard/export_config.py
     fi
     
     # Check if Python dependencies are installed
-    /usr/local/bin/python3 -c "import sqlite3, json, time, threading, logging, scapy, geoip2, numpy, requests" 2>/dev/null
+    /usr/local/bin/python3.11 -c "import sqlite3, json, time, threading, logging, hashlib, struct, socket, subprocess, xml.etree.ElementTree" 2>/dev/null
     if [ $? -ne 0 ]; then
         echo "ERROR: Required Python dependencies are missing."
         echo "Please install the required packages:"
-        echo "  pkg install py39-sqlite3 py39-scapy py39-geoip2 py39-numpy py39-requests"
+        echo "  pkg install python311 py311-sqlite3"
         return 1
+    fi
+    
+    # Check optional dependencies
+    /usr/local/bin/python3.11 -c "import psutil, geoip2" 2>/dev/null
+    if [ $? -ne 0 ]; then
+        echo "WARNING: Optional packages not installed (psutil, geoip2)"
+        echo "Install with: pkg install py311-psutil py311-geoip2"
     fi
     
     # Ensure proper permissions
@@ -102,10 +109,12 @@ webguard_status()
 webguard_prerestart()
 {
     # Check configuration before restart
-    /usr/local/opnsense/scripts/OPNsense/WebGuard/validate_config.py "${webguard_config}"
-    if [ $? -ne 0 ]; then
-        echo "Configuration validation failed. Restart aborted."
-        return 1
+    if [ -f "/usr/local/opnsense/scripts/OPNsense/WebGuard/export_config.py" ]; then
+        /usr/local/opnsense/scripts/OPNsense/WebGuard/export_config.py
+        if [ $? -ne 0 ]; then
+            echo "Configuration validation failed. Restart aborted."
+            return 1
+        fi
     fi
     
     return 0
