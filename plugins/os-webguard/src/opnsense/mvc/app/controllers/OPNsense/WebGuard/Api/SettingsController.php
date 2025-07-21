@@ -428,7 +428,7 @@ class SettingsController extends ApiMutableModelControllerBase
         }
         
         // Get rules version
-        $rulesFile = '/usr/local/etc/webguard/waf_rules.json';
+        $rulesFile = '/usr/local/etc/webguard/rules.json';
         if (file_exists($rulesFile)) {
             $rulesData = @file_get_contents($rulesFile);
             if ($rulesData !== false) {
