@@ -11,7 +11,7 @@ import json
 import sqlite3
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 
 DB_FILE = '/var/db/webguard/webguard.db'
 CONFIG_FILE = '/usr/local/etc/webguard/config.json'
