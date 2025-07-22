@@ -125,6 +125,12 @@ db_lock = threading.Lock()
 # Network sockets for packet capture simulation
 capture_sockets = []
 
+def signal_handler(signum, frame):
+    """Handle shutdown signals"""
+    global running
+    logger.info(f"Received signal {signum}, shutting down...")
+    running = False
+
 def setup_logging():
     """Initialize logging system"""
     os.makedirs(LOG_DIR, exist_ok=True)
