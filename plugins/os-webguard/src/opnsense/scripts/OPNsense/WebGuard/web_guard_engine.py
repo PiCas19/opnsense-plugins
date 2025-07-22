@@ -25,7 +25,7 @@ import xml.etree.ElementTree as ET
 
 # Import support functions from separate files
 try:
-    from update_rules import download_rules, check_rules_age
+    from update_rules import download_rules, need_update as check_rules_age
     from export_config import export_config
     from get_waf_stats import get_waf_stats
     from get_threat_metrics import get_threat_metrics
