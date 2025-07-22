@@ -97,10 +97,6 @@ class ServiceController extends ApiMutableServiceControllerBase
         return ["status" => "failed", "message" => "POST method required"];
     }
 
-    /**
-     * Get WebGuard service status
-     * @return array
-     */
     public function statusAction()
     {
         $backend = new Backend();
@@ -109,7 +105,6 @@ class ServiceController extends ApiMutableServiceControllerBase
         $lines = explode("\n", trim($response));
         $running = false;
         $pid = null;
-        $socket_status = "unknown";
         
         foreach ($lines as $line) {
             if (strpos($line, "is running") !== false || strpos($line, "started") !== false) {
@@ -117,8 +112,6 @@ class ServiceController extends ApiMutableServiceControllerBase
                 if (preg_match('/PID (\d+)/', $line, $matches)) {
                     $pid = $matches[1];
                 }
-            } elseif (strpos($line, "Socket:") !== false) {
-                $socket_status = strpos($line, "(active)") !== false ? "active" : "inactive";
             } elseif (strpos($line, "is not running") !== false || strpos($line, "stopped") !== false) {
                 $running = false;
             }
@@ -129,11 +122,9 @@ class ServiceController extends ApiMutableServiceControllerBase
             "response" => $response,
             "running" => $running,
             "pid" => $pid,
-            "socket_status" => $socket_status,
             "message" => "Getting WebGuard WAF engine status"
         ];
     }
-
     /**
      * Reconfigure and restart WebGuard service
      * @return array
