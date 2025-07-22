@@ -8,7 +8,7 @@ Scarica l'OWASP Core Rule Set e genera:
 JSON ben formati, scritti in modo atomico.
 """
 
-import os, re, io, tarfile, json, shutil, hashlib
+import os, re, io, tarfile, json, shutil, hashlib, time
 from datetime import datetime, timezone
 import requests
 import tempfile
@@ -301,6 +301,24 @@ def download_rules():
         
         print("[+] Fallback rules created successfully")
         return True
+
+def need_update():
+    """Check if rules need updating (for compatibility with web_guard_engine.py)"""
+    try:
+        # Check if files exist and are not too old
+        if not os.path.exists(WAF_RULES_FILE) or not os.path.exists(ATTACK_PATTERNS_FILE):
+            return True
+        
+        # Check file age (update if older than 7 days)
+        waf_age = time.time() - os.path.getmtime(WAF_RULES_FILE)
+        patterns_age = time.time() - os.path.getmtime(ATTACK_PATTERNS_FILE)
+        
+        max_age = 7 * 24 * 3600  # 7 days in seconds
+        return waf_age > max_age or patterns_age > max_age
+        
+    except Exception as e:
+        print(f"[!] Error checking rule age: {e}")
+        return True  # Update if we can't check
 
 def main():
     os.makedirs(BASE_DIR, exist_ok=True)
