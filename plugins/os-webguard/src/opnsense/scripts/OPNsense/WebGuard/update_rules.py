@@ -1,34 +1,26 @@
 #!/usr/local/bin/python3.11
+# -*- coding: utf-8 -*-
 """
-WebGuard Rules Update Script (completo)
-- Scarica OWASP CRS
-- Genera waf_rules.json e attack_patterns.json
+WebGuard - Update Rules
+Scarica l’OWASP Core Rule Set e genera:
+  - /usr/local/etc/webguard/waf_rules.json
+  - /usr/local/etc/webguard/attack_patterns.json
+JSON ben formati, scritti in modo atomico.
 """
 
-import os
-import re
-import io
-import tarfile
-import json
-import time
-import shutil
-import hashlib
+import os, re, io, tarfile, json, shutil, hashlib
 from datetime import datetime, timezone
-
 import requests
+import tempfile
 
-# Paths
 BASE_DIR = "/usr/local/etc/webguard"
-WAF_RULES_FILE = f"{BASE_DIR}/waf_rules.json"
-ATTACK_PATTERNS_FILE = f"{BASE_DIR}/attack_patterns.json"
-BACKUP_DIR = f"{BASE_DIR}/backup"
+WAF_RULES_FILE = os.path.join(BASE_DIR, "waf_rules.json")
+ATTACK_PATTERNS_FILE = os.path.join(BASE_DIR, "attack_patterns.json")
+BACKUP_DIR = os.path.join(BASE_DIR, "backup")
 
-# Settings
-CRS_VERSION = "latest"  # es. "v4.5.0" per bloccare una versione
+CRS_VERSION = "latest"
 CRS_REPO = "https://github.com/coreruleset/coreruleset"
-UPDATE_INTERVAL_SECONDS = 86400  # 24h
 
-# Categories mapping (regex on tag or name -> category)
 CATEGORY_MAP = [
     (re.compile(r"sql|sqli", re.I), "sql_injection"),
     (re.compile(r"xss", re.I), "xss"),
@@ -47,7 +39,8 @@ STATIC_PATTERNS = {
         "TVqQAAMAAAAEAAAA", "\\x4d\\x5a\\x90\\x00", "PK\\x03\\x04", "\\x7fELF", "%PDF-1\\.", "GIF89a"
     ],
     "crypto_mining": [
-        "coinhive", "cryptonight", "monero", "stratum\\+tcp", "webminerpool", "crypto-loot", "coinimp", "authedmine"
+        "coinhive", "cryptonight", "monero", "stratum\\+tcp",
+        "webminerpool", "crypto-loot", "coinimp", "authedmine"
     ],
     "suspicious_domains": [
         "bit\\.ly", "tinyurl\\.com", "t\\.co", "goo\\.gl", "ngrok\\.io",
@@ -58,35 +51,37 @@ STATIC_PATTERNS = {
 def utc_now():
     return datetime.now(timezone.utc).isoformat()
 
-def file_age_seconds(path):
-    return time.time() - os.path.getmtime(path)
+def sha256(b):
+    return hashlib.sha256(b).hexdigest()
 
-def checksum(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
-
-def backup_file(path):
+def backup(path):
     if not os.path.exists(path):
         return
     os.makedirs(BACKUP_DIR, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-    base = os.path.basename(path)
-    shutil.copy2(path, f"{BACKUP_DIR}/{ts}-{base}")
+    shutil.copy2(path, os.path.join(BACKUP_DIR, f"{ts}-{os.path.basename(path)}"))
 
-def need_update():
-    if not os.path.exists(WAF_RULES_FILE):
-        return True
-    try:
-        return file_age_seconds(WAF_RULES_FILE) > UPDATE_INTERVAL_SECONDS
-    except Exception:
-        return True
+def atomic_write(path, data_bytes):
+    """Scrive su file in modo atomico e fa backup se cambia."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    write = True
+    if os.path.exists(path):
+        with open(path, "rb") as f:
+            if sha256(f.read()) == sha256(data_bytes):
+                write = False
+    if write:
+        backup(path)
+        fd, tmp = tempfile.mkstemp(prefix=".wg_", dir=os.path.dirname(path))
+        with os.fdopen(fd, "wb") as tmpf:
+            tmpf.write(data_bytes)
+        os.replace(tmp, path)
 
-def get_crs_tarball_bytes():
+def get_crs_tarball():
     if CRS_VERSION == "latest":
-        # Follow redirects to find latest tarball
         r = requests.get(f"{CRS_REPO}/releases/latest", allow_redirects=True, timeout=20)
         m = re.search(r'href="([^"]+\.tar\.gz)"', r.text)
         if not m:
-            raise RuntimeError("Impossibile trovare tarball CRS")
+            raise RuntimeError("Tarball CRS non trovato")
         url = "https://github.com" + m.group(1)
     else:
         url = f"{CRS_REPO}/archive/refs/tags/{CRS_VERSION}.tar.gz"
@@ -94,47 +89,37 @@ def get_crs_tarball_bytes():
     resp.raise_for_status()
     return resp.content
 
-def parse_modsec_rules(text: str):
-    """Return list of dict for each SecRule found"""
+def parse_modsec_rules(text):
     rules = []
-    # Unisci linee spezzate con backslash
-    text = re.sub(r"\\\s*\n", " ", text)
-    # Trova blocchi SecRule ... "msg:..." ... id:xxxx ...
+    text = re.sub(r"\\\s*\n", " ", text)  # join backslash continuations
     for line in re.findall(r'(?m)^\s*SecRule.*$', text):
-        # Opz: line continua fino a "ctl:" etc. ma prendiamo tutto
-        # Splitta su spazi tenendo quote
-        # Più semplice: prendiamo param2 (regex) come gruppo tra doppi apici dopo la prima parola
         m = re.match(r'SecRule\s+([^\s"]+)\s+"([^"]+)"\s+"([^"]+)"', line)
         if not m:
             continue
         targets_raw, operator_pat, actions_raw = m.groups()
 
-        # Targets
-        targets = [t.strip() for t in re.split(r'\|', targets_raw)]
-        # Normalizza
+        targets = [t.strip() for t in targets_raw.split('|')]
         tmap = {
             "ARGS": "args", "REQUEST_BODY": "body", "REQUEST_HEADERS": "headers",
             "REQUEST_COOKIES": "cookie", "REQUEST_COOKIES_NAMES": "cookie", "REQUEST_URI": "uri",
             "REQUEST_URI_RAW": "uri", "REQUEST_FILENAME": "uri", "REQUEST_METHOD": "method",
             "TX": "tx"
         }
-        norm_targets = []
-        for t in targets:
-            t = t.replace("REQUEST_", "")
-            norm_targets.append(tmap.get(t, t.lower()))
-        norm_targets = sorted(set(norm_targets))
+        norm_targets = sorted({tmap.get(t.replace("REQUEST_",""), t.lower()) for t in targets})
 
-        # Actions
         actions = {}
         for kv in actions_raw.split(','):
+            kv = kv.strip()
             if ':' in kv:
                 k, v = kv.split(':', 1)
                 actions[k.strip()] = v.strip().strip('"')
             else:
-                actions[kv.strip()] = True
+                actions[kv] = True
 
-        rid = int(actions.get("id", 0)) if actions.get("id", "0").isdigit() else None
-        if not rid:
+        rid = actions.get("id")
+        try:
+            rid = int(rid)
+        except (TypeError, ValueError):
             continue
 
         msg = actions.get("msg", "")
@@ -153,118 +138,68 @@ def parse_modsec_rules(text: str):
             "pattern": operator_pat.replace('\\', '\\\\'),
             "transformations": ["none"],
             "action": "block" if "deny" in actions else "log",
-            "score": int(actions.get("t:none", 5)) if actions.get("t:none","").isdigit() else 5,
+            "score": 5,  # placeholder, CRS non usa "score" nativo
             "msg": msg,
             "ref": "https://coreruleset.org/"
         })
     return rules
 
-def build_waf_and_patterns(crs_bytes: bytes):
-    waf = {
-        "version": "2.0",
-        "updated": utc_now(),
-        "source": "OWASP CRS",
-        "rules": []
-    }
+def build(crs_bytes):
+    waf = {"version": "2.0", "updated": utc_now(), "source": "OWASP CRS", "rules": []}
+    patterns = {k: [] for _, k in CATEGORY_MAP}
+    patterns.update({"malware": [], "crypto_mining": [], "suspicious_domains": []})
 
-    # initialize patterns dict
-    patterns = {
-        "sql_injection": [],
-        "xss": [],
-        "path_traversal": [],
-        "rfi": [],
-        "rce": [],
-        "command_injection": [],
-        "ssrf": [],
-        "csrf": [],
-        "webshell": [],
-        "malware": [],
-        "crypto_mining": [],
-        "suspicious_domains": []
-    }
-
-    # read tarball
     with tarfile.open(fileobj=io.BytesIO(crs_bytes), mode="r:gz") as tar:
-        for member in tar.getmembers():
-            if not member.isfile():
-                continue
-            if not member.name.endswith(".conf"):
-                continue
-            f = tar.extractfile(member)
-            if not f:
-                continue
-            text = f.read().decode("utf-8", "ignore")
-            rules = parse_modsec_rules(text)
-            waf["rules"].extend(rules)
+        for m in tar.getmembers():
+            if m.isfile() and m.name.endswith(".conf"):
+                f = tar.extractfile(m)
+                if not f:
+                    continue
+                text = f.read().decode("utf-8", "ignore")
+                rls = parse_modsec_rules(text)
+                waf["rules"].extend(rls)
 
-    # Fill patterns from waf
+    # categorizza pattern
     for r in waf["rules"]:
         pat = r["pattern"]
-        cat = None
         for cre, cname in CATEGORY_MAP:
             if any(cre.search(tag or "") for tag in r["tags"]) or cre.search(r["name"]):
-                cat = cname
+                patterns[cname].append(pat)
                 break
-        if cat:
-            patterns[cat].append(pat)
 
-    # Add static patterns
+    # statici
     for cat, pats in STATIC_PATTERNS.items():
-        patterns.setdefault(cat, [])
         patterns[cat].extend(pats)
 
-    # dedup/sort
+    # dedup + sort
     for k in patterns:
         patterns[k] = sorted(set(patterns[k]))
 
-    attack = {
-        "version": "2.0",
-        "updated": utc_now(),
-        "patterns": patterns
-    }
-
+    attack = {"version": "2.0", "updated": utc_now(), "patterns": patterns}
     return waf, attack
 
-def write_if_changed(path, data_bytes):
-    """Write only if content changed; return True if written"""
-    if os.path.exists(path):
-        with open(path, "rb") as f:
-            old = f.read()
-        if checksum(old) == checksum(data_bytes):
-            return False
-        backup_file(path)
-    with open(path, "wb") as f:
-        f.write(data_bytes)
+def download_rules():
+    print("[*] Downloading CRS & generating JSON...")
+    crs_bytes = get_crs_tarball()
+    waf, attack = build(crs_bytes)
+
+    waf_bytes = json.dumps(waf, indent=2, ensure_ascii=False).encode()
+    attack_bytes = json.dumps(attack, indent=2, ensure_ascii=False).encode()
+
+    atomic_write(WAF_RULES_FILE, waf_bytes)
+    atomic_write(ATTACK_PATTERNS_FILE, attack_bytes)
+
+    print(f"[+] WAF rules: {len(waf['rules'])} salvate")
+    tot_patterns = sum(len(v) for v in attack["patterns"].values())
+    print(f"[+] Attack patterns: {tot_patterns} salvati")
     return True
 
-def download_rules():
-    try:
-        print("Updating WebGuard rules...")
-        os.makedirs(BASE_DIR, exist_ok=True)
-
-        crs_bytes = get_crs_tarball_bytes()
-        waf, attack = build_waf_and_patterns(crs_bytes)
-
-        waf_bytes = json.dumps(waf, indent=2).encode()
-        attack_bytes = json.dumps(attack, indent=2).encode()
-
-        changed_waf = write_if_changed(WAF_RULES_FILE, waf_bytes)
-        changed_att = write_if_changed(ATTACK_PATTERNS_FILE, attack_bytes)
-
-        print("Rules updated successfully")
-        print(f"WAF rules: {len(waf['rules'])} rules (written: {changed_waf})")
-        total_patterns = sum(len(v) for v in attack["patterns"].values())
-        print(f"Attack patterns: {total_patterns} (written: {changed_att})")
-        return True
-    except Exception as e:
-        print(f"Error updating rules: {e}")
-        return False
-
 def main():
-    if need_update():
-        download_rules()
+    os.makedirs(BASE_DIR, exist_ok=True)
+    if download_rules():
+        print("Done.")
     else:
-        print("Rules are up to date")
+        raise SystemExit(1)
 
 if __name__ == "__main__":
     main()

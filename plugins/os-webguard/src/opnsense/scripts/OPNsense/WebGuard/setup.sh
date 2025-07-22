@@ -1,10 +1,10 @@
 #!/bin/sh
 # WebGuard Setup for OPNsense
-# - Crea struttura dir/log/db
+# - Crea dir/log/db
 # - Installa dipendenze Python
 # - Scarica GeoIP
 # - Esegue update_rules.py se presente (genera waf_rules.json e attack_patterns.json)
-# - Valida i JSON e sistema i permessi
+# - Valida JSON e sistema permessi
 
 set -e
 
@@ -27,23 +27,19 @@ echo "[*] Creating db/log files..."
 touch "${DB_DIR}/webguard.db" "${LOG_DIR}/engine.log"
 
 echo "[*] Installing Python dependencies..."
-${PY} -m pip install psutil geoip2 requests 2>/dev/null || echo "pip install errors ignored"
+${PY} -m pip install -q psutil geoip2 requests || echo "pip install errors ignored"
 
 echo "[*] Downloading GeoIP2 database..."
 fetch -o "${GEOIP_DIR}/GeoLite2-Country.mmdb" \
   "https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-Country.mmdb" 2>/dev/null || \
 echo "Warning: GeoIP download failed"
 
-# Placeholder vuoti (se l'updater fallisce rimangono file validi ma vuoti)
-: > "${CONFIG_DIR}/waf_rules.json"
-: > "${CONFIG_DIR}/attack_patterns.json"
-
-# Lancia l'updater se esiste
+# Esegui updater se presente
 if [ -f "${UPDATER}" ]; then
   chmod +x "${UPDATER}"
   echo "[*] Running update_rules.py..."
   if ! ${PY} "${UPDATER}"; then
-    echo "Updater failed, leaving placeholders" >&2
+    echo "Updater failed, keeping existing JSON (if any)" >&2
   fi
 else
   echo "NOTE: ${UPDATER} non trovato. Copialo o genera i JSON manualmente."
@@ -53,18 +49,13 @@ echo "[*] Verifying JSON files..."
 JSON_VALID=true
 for json_file in "${CONFIG_DIR}"/*.json; do
   [ -f "$json_file" ] || continue
-  if ${PY} - <<'PY' "$json_file"
+  if ! ${PY} - <<'PY' "$json_file"
 import json,sys
-try:
-    json.load(open(sys.argv[1]))
-    print("OK", sys.argv[1])
-except Exception as e:
-    print("ERR", sys.argv[1], e)
-    raise
+with open(sys.argv[1],'rb') as f:
+    json.load(f)
+print("OK", sys.argv[1])
 PY
   then
-    :
-  else
     JSON_VALID=false
   fi
 done
@@ -82,7 +73,7 @@ echo "=============================================="
 echo "WebGuard Setup Complete!"
 echo "=============================================="
 echo ""
-echo "✓ Files generati/aggiornati:"
+echo "✓ Files generati/aggiornati (se updater ok):"
 echo "  - ${CONFIG_DIR}/waf_rules.json"
 echo "  - ${CONFIG_DIR}/attack_patterns.json"
 echo "✓ GeoLite2-Country.mmdb scaricato (se disponibile)"
@@ -95,7 +86,7 @@ else
 fi
 echo ""
 echo "Next steps:"
-echo "1. Copia e abilita il motore WebGuard"
+echo "1. Copia/abilita il motore WebGuard"
 echo "2. service webguard start"
 echo "3. tail -f /var/log/webguard/engine.log"
 echo "=============================================="
