@@ -47,14 +47,21 @@ echo "Installing geoip2..."
     echo "Warning: Failed to install geoip2"
 }
 
+# Download GeoIP2 database
+echo "Downloading GeoIP2 database..."
+fetch -o /usr/local/share/GeoIP/GeoLite2-Country.mmdb \
+  "https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-Country.mmdb"
+
 # Set proper permissions
 echo "Setting permissions..."
 chown -R root:wheel "${CONFIG_DIR}"
 chown -R root:wheel "${LOG_DIR}"  
 chown -R root:wheel "${DB_DIR}"
+chown -R root:wheel "${GEOIP_DIR}"
 chmod -R 755 "${CONFIG_DIR}"
 chmod -R 755 "${LOG_DIR}"
 chmod -R 755 "${DB_DIR}"
+chmod 644 "${GEOIP_DIR}/GeoLite2-Country.mmdb"
 
 echo ""
 echo "=============================================="
@@ -77,6 +84,9 @@ echo "- ${CONFIG_DIR}/waf_rules.json"
 echo "- ${CONFIG_DIR}/attack_patterns.json"
 echo "- ${DB_DIR}/webguard.db"
 echo "- ${LOG_DIR}/engine.log"
+echo ""
+echo "Downloaded:"
+echo "- GeoLite2-Country.mmdb (IP geolocation database)"
 echo ""
 echo "File structure ready for WebGuard deployment!"
 echo "=============================================="

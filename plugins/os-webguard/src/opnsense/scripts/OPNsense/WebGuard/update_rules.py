@@ -22,16 +22,16 @@ def download_rules():
         # For now, we'll create updated local rules
         # In production, this would download from a threat intelligence feed
         
-        # Update WAF rules
+        # Update WAF rules - PATTERN CORRETTI PER JSON
         updated_waf_rules = {
-            "version": "1.1",
+            "version": "1.0",
             "updated": datetime.now().isoformat(),
             "rules": [
                 {
                     "id": 1,
                     "name": "SQL Injection - UNION SELECT",
                     "type": "sql_injection",
-                    "pattern": "union\\s+select",
+                    "pattern": "union\\\\s+select",
                     "enabled": True,
                     "score": 50,
                     "description": "Detects UNION SELECT SQL injection attempts"
@@ -40,7 +40,7 @@ def download_rules():
                     "id": 2,
                     "name": "SQL Injection - OR 1=1",
                     "type": "sql_injection",
-                    "pattern": "or\\s+1\\s*=\\s*1",
+                    "pattern": "or\\\\s+1\\\\s*=\\\\s*1",
                     "enabled": True,
                     "score": 45,
                     "description": "Detects classic OR 1=1 SQL injection"
@@ -49,7 +49,7 @@ def download_rules():
                     "id": 3,
                     "name": "SQL Injection - DROP TABLE",
                     "type": "sql_injection",
-                    "pattern": "drop\\s+table",
+                    "pattern": "drop\\\\s+table",
                     "enabled": True,
                     "score": 60,
                     "description": "Detects DROP TABLE SQL injection"
@@ -76,7 +76,7 @@ def download_rules():
                     "id": 6,
                     "name": "XSS - Event Handlers",
                     "type": "xss",
-                    "pattern": "on(load|error|click|mouseover)\\s*=",
+                    "pattern": "on(load|error|click|mouseover)\\\\s*=",
                     "enabled": True,
                     "score": 38,
                     "description": "Detects event handler XSS"
@@ -85,7 +85,7 @@ def download_rules():
                     "id": 7,
                     "name": "Command Injection - Basic",
                     "type": "command_injection",
-                    "pattern": "[\\;\\|&`\\$\\(\\)].*?(ls|cat|wget|curl|nc)",
+                    "pattern": "[\\\\;\\\\|&`\\\\$\\\\(\\\\)].*?(ls|cat|wget|curl|nc)",
                     "enabled": True,
                     "score": 60,
                     "description": "Detects basic command injection attempts"
@@ -94,7 +94,7 @@ def download_rules():
                     "id": 8,
                     "name": "Command Injection - Windows",
                     "type": "command_injection",
-                    "pattern": "(cmd\\.exe|powershell).*?[\\;\\|&]",
+                    "pattern": "(cmd\\\\.exe|powershell).*?[\\\\;\\\\|&]",
                     "enabled": True,
                     "score": 55,
                     "description": "Detects Windows command injection"
@@ -103,7 +103,7 @@ def download_rules():
                     "id": 9,
                     "name": "Path Traversal - Unix",
                     "type": "lfi",
-                    "pattern": "\\.\\.\\/.*?\\.\\.\\/.*?\\.\\.\/",
+                    "pattern": "\\\\.\\\\.\\\\/.*?\\\\.\\\\.\\\\/.*?\\\\.\\\\.\\\\/",
                     "enabled": True,
                     "score": 45,
                     "description": "Detects Unix path traversal"
@@ -112,7 +112,7 @@ def download_rules():
                     "id": 10,
                     "name": "Path Traversal - Windows",
                     "type": "lfi",
-                    "pattern": "\\.\\.\\\\.*?\\.\\.\\\\.*?\\.\\.\\\\",
+                    "pattern": "\\\\.\\\\.*?\\\\.\\\\.*?\\\\.\\\\",
                     "enabled": True,
                     "score": 45,
                     "description": "Detects Windows path traversal"
@@ -121,7 +121,7 @@ def download_rules():
                     "id": 11,
                     "name": "Remote File Inclusion",
                     "type": "rfi",
-                    "pattern": "https?:\\/\\/[^\\/\\s]+\\.",
+                    "pattern": "https?:\\\\/\\\\/[^\\\\/\\\\s]+\\\\.",
                     "enabled": True,
                     "score": 40,
                     "description": "Detects remote file inclusion"
@@ -130,7 +130,7 @@ def download_rules():
                     "id": 12,
                     "name": "CSRF Token Bypass",
                     "type": "csrf",
-                    "pattern": "csrf_token\\s*=\\s*['\"]?\\s*['\"]?",
+                    "pattern": "csrf_token\\\\s*=\\\\s*['\"]?\\\\s*['\"]?",
                     "enabled": True,
                     "score": 30,
                     "description": "Detects CSRF token bypass attempts"
@@ -144,11 +144,11 @@ def download_rules():
             "updated": datetime.now().isoformat(),
             "patterns": {
                 "malware_signatures": [
-                    "X5O!P%@AP\\[4\\\\PZX54\\(P\\^\\)7CC\\)7\\}\\$EICAR",
+                    "X5O!P%@AP\\\\[4\\\\\\\\PZX54\\\\(P\\\\^\\\\)7CC\\\\)7\\\\}\\\\$EICAR",
                     "TVqQAAMAAAAEAAAA//8AALgAAAAA",
-                    "\\x4d\\x5a",
-                    "PK\\x03\\x04",
-                    "Rar!\\x1a\\x07\\x00"
+                    "\\\\x4d\\\\x5a",
+                    "PK\\\\x03\\\\x04",
+                    "Rar!\\\\x1a\\\\x07\\\\x00"
                 ],
                 "crypto_mining": [
                     "coinhive",
@@ -161,27 +161,27 @@ def download_rules():
                     "difficulty"
                 ],
                 "suspicious_urls": [
-                    "bit\\.ly",
-                    "tinyurl\\.com",
-                    "t\\.co",
-                    "goo\\.gl",
-                    "ow\\.ly"
+                    "bit\\\\.ly",
+                    "tinyurl\\\\.com",
+                    "t\\\\.co",
+                    "goo\\\\.gl",
+                    "ow\\\\.ly"
                 ],
                 "data_exfiltration": [
                     "base64",
                     "data:image",
                     "data:text",
-                    "btoa\\(",
-                    "atob\\(",
-                    "eval\\("
+                    "btoa\\\\(",
+                    "atob\\\\(",
+                    "eval\\\\("
                 ],
                 "command_injection": [
-                    "system\\(",
-                    "exec\\(",
-                    "shell_exec\\(",
-                    "passthru\\(",
-                    "popen\\(",
-                    "proc_open\\("
+                    "system\\\\(",
+                    "exec\\\\(",
+                    "shell_exec\\\\(",
+                    "passthru\\\\(",
+                    "popen\\\\(",
+                    "proc_open\\\\("
                 ],
                 "script_injection": [
                     "<iframe",
@@ -189,7 +189,7 @@ def download_rules():
                     "<embed",
                     "<applet",
                     "vbscript:",
-                    "data:text\\/html"
+                    "data:text\\\\/html"
                 ]
             }
         }
