@@ -708,6 +708,44 @@ def stats_worker():
             
         time.sleep(30)  # Update every 30 seconds
 
+def process_network_traffic():
+    """Process network traffic for threat detection"""
+    try:
+        # Simulate network traffic processing
+        current_time = time.time()
+        
+        # Update IP statistics
+        for ip in ip_stats:
+            if current_time - ip_stats[ip]['last_seen'] > 300:  # 5 minutes timeout
+                continue
+            
+            # Basic threat scoring
+            if ip_stats[ip]['violations'] > config['general']['auto_block_threshold']:
+                if ip not in blocked_ips and ip not in whitelist:
+                    blocked_ips.add(ip)
+                    
+                    # Log blocked IP
+                    block_entry = {
+                        'timestamp': datetime.now().isoformat(),
+                        'ip': ip,
+                        'reason': 'threshold_exceeded',
+                        'violations': ip_stats[ip]['violations'],
+                        'threat_score': ip_stats[ip]['threat_score']
+                    }
+                    
+                    with open(BLOCKED_LOG, 'a') as f:
+                        f.write(json.dumps(block_entry) + '\n')
+                    
+                    logger.warning(f"Blocked IP {ip} due to {ip_stats[ip]['violations']} violations")
+        
+        # Update global statistics
+        stats['ips_blocked'] = len(blocked_ips)
+        
+        logger.debug(f"Traffic processed: {len(ip_stats)} IPs tracked, {len(blocked_ips)} blocked")
+        
+    except Exception as e:
+        logger.error(f"Error processing network traffic: {e}")
+
 def traffic_worker():
     """Network traffic processing worker thread"""
     while running:
@@ -777,10 +815,6 @@ def rules_update_worker():
             logger.error(f"Error in rules update worker: {e}")
             
         time.sleep(3600)  # Check every hour
-    """Handle shutdown signals"""
-    global running
-    logger.info(f"Received signal {signum}, shutting down...")
-    running = False
 
 def main():
     """Main WebGuard engine loop"""
