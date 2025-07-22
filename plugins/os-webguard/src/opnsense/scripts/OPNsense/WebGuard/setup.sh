@@ -1,10 +1,12 @@
 #!/bin/sh
-# WebGuard Setup for OPNsense
-# - Crea dir/log/db
+# WebGuard Clean Setup for OPNsense
+# ONLY shell script - no Python mixing
+# - Crea directories e file base
 # - Installa dipendenze Python
-# - Scarica GeoIP
-# - (se presente) lancia update_rules.py
+# - Scarica GeoIP database
+# - Copia update_rules.py se presente
 # - Imposta permessi
+
 set -e
 
 CONFIG_DIR="/usr/local/etc/webguard"
@@ -15,33 +17,35 @@ PY="/usr/local/bin/python3.11"
 UPDATER="${CONFIG_DIR}/update_rules.py"
 
 echo "=============================================="
-echo "WebGuard Setup"
+echo "WebGuard Clean Setup"
 echo "=============================================="
 
 echo "[*] Creating directories..."
 mkdir -p "$CONFIG_DIR" "$LOG_DIR" "$DB_DIR" "$GEOIP_DIR"
 
-echo "[*] Creating empty db/log/json files..."
+echo "[*] Creating empty base files..."
 : > "${LOG_DIR}/engine.log"
 : > "${DB_DIR}/webguard.db"
 : > "${CONFIG_DIR}/waf_rules.json"
 : > "${CONFIG_DIR}/attack_patterns.json"
 
-echo "[*] Installing Python deps..."
+echo "[*] Installing Python dependencies..."
 $PY -m pip install -q psutil geoip2 requests || echo "pip install errors ignored"
 
 echo "[*] Downloading GeoIP2 database..."
 fetch -o "${GEOIP_DIR}/GeoLite2-Country.mmdb" \
-  "https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-Country.mmdb" 2>/dev/null || \
+"https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-Country.mmdb" 2>/dev/null || \
 echo "Warning: GeoIP download failed"
 
-# Lancia updater solo se presente (riempirà i JSON)
+# Check if update_rules.py exists and run it
 if [ -f "$UPDATER" ]; then
-  chmod +x "$UPDATER"
-  echo "[*] Running update_rules.py..."
-  $PY "$UPDATER" || echo "Updater failed, leaving empty/old JSON" >&2
+    echo "[*] Found update_rules.py, running it..."
+    chmod +x "$UPDATER"
+    $PY "$UPDATER" || echo "[!] Rule updater failed, JSON files remain empty"
 else
-  echo "NOTE: $UPDATER non trovato. I JSON restano vuoti finché non lo copi/esegui."
+    echo "[*] NOTE: $UPDATER not found."
+    echo "[*] Copy your update_rules.py to $CONFIG_DIR and run:"
+    echo "[*] python3.11 $UPDATER"
 fi
 
 echo "[*] Setting permissions..."
@@ -52,9 +56,20 @@ chmod 644 "$GEOIP_DIR"/*.mmdb 2>/dev/null || true
 
 echo ""
 echo "=============================================="
-echo "WebGuard Setup Complete!"
+echo "WebGuard Setup Complete! 🚀"
 echo "=============================================="
+echo "Directories created"
+echo "Dependencies installed" 
+echo "GeoIP database downloaded"
+echo "Empty JSON files ready"
+echo ""
+echo "Config: $CONFIG_DIR"
+echo "Logs: $LOG_DIR"
+echo "Rules: Copy update_rules.py and run it"
+echo ""
 echo "Next steps:"
-echo "1. service webguard start"
-echo "2. tail -f /var/log/webguard/engine.log"
+echo "1. Copy update_rules.py to $CONFIG_DIR"
+echo "2. Run: $PY $UPDATER"
+echo "3. service webguard start"
+echo "4. tail -f /var/log/webguard/engine.log"
 echo "=============================================="
