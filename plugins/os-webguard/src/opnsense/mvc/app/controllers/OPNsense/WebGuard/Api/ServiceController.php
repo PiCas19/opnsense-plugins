@@ -88,24 +88,32 @@ class ServiceController extends ApiMutableServiceControllerBase
 
     public function blockIPAction()
     {
-        if (!$this->request->isPost()) { return ['status' => 'error', 'message' => 'POST required']; }
+        try {
+            if (!$this->request->isPost()) {
+                return ['status' => 'error', 'message' => 'POST required'];
+            }
 
-        $ip        = $this->request->getPost("ip");
-        $duration  = $this->request->getPost("duration", "3600");
-        $reason    = $this->request->getPost("reason", "Manual block");
-        $blockType = $this->request->getPost("block_type", "manual");
+            $ip        = trim($this->request->getPost("ip", "string", ""));
+            $duration  = (string)$this->request->getPost("duration", "int", 3600);
+            $reason    = $this->safeArg($this->request->getPost("reason", "string", "Manual block"));
+            $blockType = $this->safeArg($this->request->getPost("block_type", "string", "manual"));
 
-        if (empty($ip) || !filter_var($ip, FILTER_VALIDATE_IP)) {
-            return ['status' => 'error', 'message' => 'Invalid IP address'];
+            if ($ip === '' || !filter_var($ip, FILTER_VALIDATE_IP)) {
+                return ['status' => 'error', 'message' => 'Invalid IP address'];
+            }
+
+            $backend  = new Backend();
+            $out      = trim($backend->configdRun("webguard block_ip", [$ip, $duration, $reason, $blockType]));
+
+            if (strpos($out, 'OK:') === 0) {
+                return ['status' => 'ok', 'message' => 'IP blocked successfully'];
+            }
+            return ['status' => 'error', 'message' => $out];
+        } catch (\Throwable $e) {
+            return ['status' => 'error', 'message' => $e->getMessage()];
         }
-
-        $backend  = new Backend();
-        $response = $backend->configdRun("webguard block_ip", [$ip, $duration, $reason, $blockType]);
-
-        return (strpos($response, 'OK:') !== false)
-            ? ['status' => 'ok', 'message' => 'IP blocked successfully']
-            : ['status' => 'error', 'message' => trim($response)];
     }
+
 
     public function unblockIPAction()
     {
@@ -302,4 +310,10 @@ class ServiceController extends ApiMutableServiceControllerBase
             'expired_blocks'  => 0
         ]];
     }
+
+
+    private function safeArg($v) {
+        return preg_replace('/\s+/', '_', trim((string)$v));
+    }
+
 }
