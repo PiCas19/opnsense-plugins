@@ -6,7 +6,7 @@
 PATH="/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin:$PATH"
 export PATH
 
-PYTHON_BIN="/usr/local/bin/python3.11"
+PYTHON_BIN="python3.11"
 SCRIPTS_DIR="/usr/local/opnsense/scripts/OPNsense/WebGuard"
 LOG_DIR="/var/log/webguard"
 
