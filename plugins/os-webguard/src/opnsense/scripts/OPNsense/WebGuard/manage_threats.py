@@ -1,7 +1,3 @@
-# ==============================================================================
-# manage_threats.py - Threat management operations
-# ==============================================================================
-
 #!/usr/local/bin/python3.11
 
 """
@@ -19,19 +15,70 @@ from datetime import datetime
 
 DB_FILE = '/var/db/webguard/webguard.db'
 
+def init_database():
+    """Initialize database connection with auto-creation"""
+    try:
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(DB_FILE), exist_ok=True)
+        
+        conn = sqlite3.connect(DB_FILE)
+        
+        # Create tables if they don't exist
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS threats (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp INTEGER,
+                source_ip TEXT,
+                type TEXT,
+                severity TEXT,
+                description TEXT,
+                false_positive INTEGER DEFAULT 0,
+                payload TEXT,
+                method TEXT
+            )
+        ''')
+        
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS blocked_ips (
+                ip_address TEXT PRIMARY KEY,
+                block_type TEXT DEFAULT 'manual',
+                blocked_since INTEGER,
+                expires_at INTEGER,
+                reason TEXT,
+                violations INTEGER DEFAULT 1,
+                last_violation INTEGER
+            )
+        ''')
+        
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS whitelist (
+                ip_address TEXT PRIMARY KEY,
+                description TEXT,
+                added_at INTEGER,
+                expires_at INTEGER,
+                permanent INTEGER DEFAULT 1
+            )
+        ''')
+        
+        conn.commit()
+        return conn
+        
+    except Exception as e:
+        print(f"ERROR: Database initialization failed: {e}")
+        return None
+
 def mark_false_positive(threat_id, reason=''):
     """Mark a threat as false positive"""
-    if not os.path.exists(DB_FILE):
-        print("ERROR: Database not found")
-        return False
-    
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = init_database()
+        if not conn:
+            return False
         
         # Check if threat exists
         cursor = conn.execute('SELECT COUNT(*) FROM threats WHERE id = ?', (threat_id,))
         if cursor.fetchone()[0] == 0:
             print(f"ERROR: Threat {threat_id} not found")
+            conn.close()
             return False
         
         # Mark as false positive
@@ -51,20 +98,19 @@ def mark_false_positive(threat_id, reason=''):
         print(f"ERROR: Failed to mark false positive: {e}")
         return False
 
-def whitelist_ip_from_threat(threat_id, description='Added from threat', permanent=True):
+def whitelist_ip_from_threat(threat_id, description='Added from threat', permanent='1'):
     """Add IP to whitelist from threat"""
-    if not os.path.exists(DB_FILE):
-        print("ERROR: Database not found")
-        return False
-    
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = init_database()
+        if not conn:
+            return False
         
         # Get threat IP
         cursor = conn.execute('SELECT source_ip FROM threats WHERE id = ?', (threat_id,))
         row = cursor.fetchone()
         if not row:
             print(f"ERROR: Threat {threat_id} not found")
+            conn.close()
             return False
         
         ip_address = row[0]
@@ -75,7 +121,7 @@ def whitelist_ip_from_threat(threat_id, description='Added from threat', permane
             INSERT OR REPLACE INTO whitelist 
             (ip_address, description, added_at, expires_at, permanent)
             VALUES (?, ?, ?, ?, ?)
-        ''', (ip_address, description, current_time, None, 1 if permanent else 0))
+        ''', (ip_address, description, current_time, None, 1 if permanent == '1' else 0))
         
         conn.commit()
         conn.close()
@@ -89,30 +135,29 @@ def whitelist_ip_from_threat(threat_id, description='Added from threat', permane
 
 def block_ip_from_threat(threat_id, duration=3600, reason='Blocked from threat'):
     """Block IP from threat"""
-    if not os.path.exists(DB_FILE):
-        print("ERROR: Database not found")
-        return False
-    
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = init_database()
+        if not conn:
+            return False
         
         # Get threat IP
         cursor = conn.execute('SELECT source_ip FROM threats WHERE id = ?', (threat_id,))
         row = cursor.fetchone()
         if not row:
             print(f"ERROR: Threat {threat_id} not found")
+            conn.close()
             return False
         
         ip_address = row[0]
         current_time = int(time.time())
-        expires_at = current_time + duration if duration > 0 else None
+        expires_at = current_time + int(duration) if int(duration) > 0 else None
         
         # Add to blocked IPs
         conn.execute('''
             INSERT OR REPLACE INTO blocked_ips 
             (ip_address, block_type, blocked_since, expires_at, reason, violations, last_violation)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (ip_address, 'manual', current_time, expires_at, reason, 1, current_time))
+        ''', (ip_address, 'threat', current_time, expires_at, reason, 1, current_time))
         
         conn.commit()
         conn.close()
@@ -124,14 +169,12 @@ def block_ip_from_threat(threat_id, duration=3600, reason='Blocked from threat')
         print(f"ERROR: Failed to block IP: {e}")
         return False
 
-def create_rule_from_threat(threat_id, rule_name, rule_type='custom', enabled=True):
+def create_rule_from_threat(threat_id, rule_name, rule_type='custom', enabled='1'):
     """Create custom WAF rule from threat"""
-    if not os.path.exists(DB_FILE):
-        print("ERROR: Database not found")
-        return False
-    
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = init_database()
+        if not conn:
+            return False
         
         # Get threat details
         cursor = conn.execute('''
@@ -140,6 +183,7 @@ def create_rule_from_threat(threat_id, rule_name, rule_type='custom', enabled=Tr
         row = cursor.fetchone()
         if not row:
             print(f"ERROR: Threat {threat_id} not found")
+            conn.close()
             return False
         
         source_ip, payload, threat_type, method = row
@@ -157,7 +201,7 @@ def create_rule_from_threat(threat_id, rule_name, rule_type='custom', enabled=Tr
             'name': rule_name,
             'type': rule_type,
             'pattern': pattern,
-            'enabled': enabled,
+            'enabled': enabled == '1',
             'source_threat_id': threat_id,
             'created_at': datetime.now().isoformat()
         }
@@ -178,14 +222,12 @@ def create_rule_from_threat(threat_id, rule_name, rule_type='custom', enabled=Tr
 
 def clear_old_threats(days=30, severity='low'):
     """Clear old threats based on age and severity"""
-    if not os.path.exists(DB_FILE):
-        print("ERROR: Database not found")
-        return False
-    
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = init_database()
+        if not conn:
+            return False
         
-        cutoff_time = int(time.time() - (days * 86400))
+        cutoff_time = int(time.time() - (int(days) * 86400))
         
         # Get count before deletion
         cursor = conn.execute('''
@@ -214,6 +256,40 @@ def clear_old_threats(days=30, severity='low'):
         print(f"ERROR: Failed to clear old threats: {e}")
         return False
 
+def add_sample_threats():
+    """Add some sample threats for testing"""
+    try:
+        conn = init_database()
+        if not conn:
+            return False
+        
+        current_time = int(time.time())
+        
+        sample_threats = [
+            ('192.168.1.100', 'SQL Injection', 'high', 'SQL injection attempt detected', "' OR 1=1 --", 'POST'),
+            ('10.0.0.50', 'XSS Attack', 'medium', 'Cross-site scripting attempt', '<script>alert("xss")</script>', 'GET'),
+            ('172.16.0.25', 'Path Traversal', 'medium', 'Directory traversal attempt', '../../../etc/passwd', 'GET'),
+            ('203.0.113.100', 'Brute Force', 'low', 'Multiple failed login attempts', 'admin:password123', 'POST'),
+            ('198.51.100.200', 'Bot Activity', 'low', 'Suspicious bot behavior detected', 'User-Agent: BadBot/1.0', 'GET')
+        ]
+        
+        for source_ip, threat_type, severity, description, payload, method in sample_threats:
+            conn.execute('''
+                INSERT OR IGNORE INTO threats 
+                (timestamp, source_ip, type, severity, description, payload, method, false_positive)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (current_time - (len(sample_threats) * 3600), source_ip, threat_type, severity, description, payload, method, 0))
+        
+        conn.commit()
+        conn.close()
+        
+        print(f"OK: Added {len(sample_threats)} sample threats")
+        return True
+        
+    except Exception as e:
+        print(f"ERROR: Failed to add sample threats: {e}")
+        return False
+
 def main():
     if len(sys.argv) < 2:
         print("Usage: manage_threats.py <command> [args...]")
@@ -223,6 +299,7 @@ def main():
         print("  block_ip <threat_id> [duration] [reason]")
         print("  create_rule <threat_id> <rule_name> [rule_type] [enabled]")
         print("  clear_old <days> [severity]")
+        print("  add_samples")
         sys.exit(1)
     
     command = sys.argv[1]
@@ -244,7 +321,7 @@ def main():
         
         threat_id = int(sys.argv[2])
         description = sys.argv[3] if len(sys.argv) > 3 else 'Added from threat'
-        permanent = sys.argv[4].lower() in ['true', '1', 'yes'] if len(sys.argv) > 4 else True
+        permanent = sys.argv[4] if len(sys.argv) > 4 else '1'
         
         whitelist_ip_from_threat(threat_id, description, permanent)
         
@@ -254,7 +331,7 @@ def main():
             sys.exit(1)
         
         threat_id = int(sys.argv[2])
-        duration = int(sys.argv[3]) if len(sys.argv) > 3 else 3600
+        duration = sys.argv[3] if len(sys.argv) > 3 else '3600'
         reason = sys.argv[4] if len(sys.argv) > 4 else 'Blocked from threat'
         
         block_ip_from_threat(threat_id, duration, reason)
@@ -267,7 +344,7 @@ def main():
         threat_id = int(sys.argv[2])
         rule_name = sys.argv[3]
         rule_type = sys.argv[4] if len(sys.argv) > 4 else 'custom'
-        enabled = sys.argv[5].lower() in ['true', '1', 'yes'] if len(sys.argv) > 5 else True
+        enabled = sys.argv[5] if len(sys.argv) > 5 else '1'
         
         create_rule_from_threat(threat_id, rule_name, rule_type, enabled)
         
@@ -276,10 +353,13 @@ def main():
             print("ERROR: Days required")
             sys.exit(1)
         
-        days = int(sys.argv[2])
+        days = sys.argv[2]
         severity = sys.argv[3] if len(sys.argv) > 3 else 'low'
         
         clear_old_threats(days, severity)
+        
+    elif command == 'add_samples':
+        add_sample_threats()
         
     else:
         print(f"ERROR: Unknown command: {command}")

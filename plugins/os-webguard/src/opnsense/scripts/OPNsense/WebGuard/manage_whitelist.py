@@ -11,24 +11,42 @@ import json
 import sqlite3
 import os
 import time
-from ipaddress import ip_address, ip_network
 from datetime import datetime
 
 DB_FILE = '/var/db/webguard/webguard.db'
 
 def init_database():
-    """Initialize database connection"""
-    if not os.path.exists(DB_FILE):
-        print("ERROR: Database not found")
+    """Initialize database connection with auto-creation"""
+    try:
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(DB_FILE), exist_ok=True)
+        
+        conn = sqlite3.connect(DB_FILE)
+        
+        # Create tables if they don't exist
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS whitelist (
+                ip_address TEXT PRIMARY KEY,
+                description TEXT,
+                added_at INTEGER,
+                expires_at INTEGER,
+                permanent INTEGER DEFAULT 1
+            )
+        ''')
+        
+        conn.commit()
+        return conn
+        
+    except Exception as e:
+        print(f"ERROR: Database initialization failed: {e}")
         return None
-    
-    return sqlite3.connect(DB_FILE)
 
-def add_to_whitelist(ip_address_str, description='', permanent=True, expiry=None):
+def add_to_whitelist(ip_address_str, description='', permanent='1', expiry=''):
     """Add IP address to whitelist"""
     try:
-        # Validate IP address
-        ip_address(ip_address_str)
+        # Basic IP validation
+        import ipaddress
+        ipaddress.ip_address(ip_address_str)
         
         conn = init_database()
         if not conn:
@@ -37,18 +55,17 @@ def add_to_whitelist(ip_address_str, description='', permanent=True, expiry=None
         current_time = int(time.time())
         expires_at = None
         
-        if not permanent and expiry:
+        if permanent != '1' and expiry:
             try:
-                expires_at = int(datetime.fromisoformat(expiry).timestamp())
+                expires_at = int(datetime.fromisoformat(expiry.replace('Z', '')).timestamp())
             except:
-                print("ERROR: Invalid expiry date format")
-                return False
+                print("WARNING: Invalid expiry date format, setting as permanent")
         
         conn.execute('''
             INSERT OR REPLACE INTO whitelist 
             (ip_address, description, added_at, expires_at, permanent)
             VALUES (?, ?, ?, ?, ?)
-        ''', (ip_address_str, description, current_time, expires_at, 1 if permanent else 0))
+        ''', (ip_address_str, description, current_time, expires_at, 1 if permanent == '1' else 0))
         
         conn.commit()
         conn.close()
@@ -69,8 +86,9 @@ def remove_from_whitelist(ip_address_str, reason=''):
         
         cursor = conn.execute('SELECT COUNT(*) FROM whitelist WHERE ip_address = ?', (ip_address_str,))
         if cursor.fetchone()[0] == 0:
-            print(f"ERROR: {ip_address_str} not found in whitelist")
-            return False
+            print(f"WARNING: {ip_address_str} not found in whitelist")
+            conn.close()
+            return True  # Not an error if already removed
         
         conn.execute('DELETE FROM whitelist WHERE ip_address = ?', (ip_address_str,))
         conn.commit()
@@ -88,7 +106,7 @@ def list_whitelist(page=1, limit=50):
     try:
         conn = init_database()
         if not conn:
-            return {'error': 'Database not found'}
+            return {'error': 'Database initialization failed'}
         
         offset = (page - 1) * limit
         current_time = int(time.time())
@@ -109,9 +127,11 @@ def list_whitelist(page=1, limit=50):
         for row in cursor.fetchall():
             entry = {
                 'ip_address': row[0],
-                'description': row[1] or '',
-                'added_at': row[2],
+                'description': row[1] or 'Manual whitelist entry',
+                'added_at': row[2] or current_time,
+                'added_at_iso': datetime.fromtimestamp(row[2] or current_time).isoformat(),
                 'expires_at': row[3],
+                'expires_at_iso': datetime.fromtimestamp(row[3]).isoformat() if row[3] else None,
                 'permanent': bool(row[4]),
                 'expired': row[3] and row[3] <= current_time if row[3] else False
             }
@@ -122,7 +142,7 @@ def list_whitelist(page=1, limit=50):
             'total': total,
             'page': page,
             'limit': limit,
-            'total_pages': (total + limit - 1) // limit
+            'total_pages': max(1, (total + limit - 1) // limit) if total > 0 else 1
         }
         
         conn.close()
@@ -146,29 +166,9 @@ def check_whitelist(ip_address_str):
             WHERE ip_address = ? AND (expires_at IS NULL OR expires_at > ?)
         ''', (ip_address_str, current_time))
         
-        if cursor.fetchone()[0] > 0:
-            conn.close()
-            return True
-        
-        # Check network ranges (simplified - in practice would need more sophisticated matching)
-        cursor = conn.execute('''
-            SELECT ip_address FROM whitelist 
-            WHERE expires_at IS NULL OR expires_at > ?
-        ''', (current_time,))
-        
-        for row in cursor.fetchall():
-            whitelist_entry = row[0]
-            try:
-                # Check if it's a network range
-                if '/' in whitelist_entry:
-                    if ip_address(ip_address_str) in ip_network(whitelist_entry, strict=False):
-                        conn.close()
-                        return True
-            except:
-                continue
-        
+        result = cursor.fetchone()[0] > 0
         conn.close()
-        return False
+        return result
         
     except Exception as e:
         print(f"ERROR: Failed to check whitelist: {e}")
@@ -210,7 +210,7 @@ def cleanup_expired():
         print(f"ERROR: Failed to cleanup expired entries: {e}")
         return False
 
-def bulk_add(ip_list, description='Bulk import', permanent=True):
+def bulk_add(ip_list, description='Bulk import', permanent='1'):
     """Add multiple IPs to whitelist"""
     try:
         conn = init_database()
@@ -223,14 +223,15 @@ def bulk_add(ip_list, description='Bulk import', permanent=True):
         
         for ip_str in ips:
             try:
-                # Validate IP
-                ip_address(ip_str)
+                # Basic IP validation
+                import ipaddress
+                ipaddress.ip_address(ip_str)
                 
                 conn.execute('''
                     INSERT OR REPLACE INTO whitelist 
                     (ip_address, description, added_at, expires_at, permanent)
                     VALUES (?, ?, ?, ?, ?)
-                ''', (ip_str, description, current_time, None, 1 if permanent else 0))
+                ''', (ip_str, description, current_time, None, 1 if permanent == '1' else 0))
                 
                 added_count += 1
                 
@@ -323,8 +324,8 @@ def main():
         
         ip = sys.argv[2]
         description = sys.argv[3] if len(sys.argv) > 3 else ''
-        permanent = sys.argv[4].lower() in ['true', '1', 'yes'] if len(sys.argv) > 4 else True
-        expiry = sys.argv[5] if len(sys.argv) > 5 else None
+        permanent = sys.argv[4] if len(sys.argv) > 4 else '1'
+        expiry = sys.argv[5] if len(sys.argv) > 5 else ''
         
         add_to_whitelist(ip, description, permanent, expiry)
         
@@ -343,7 +344,7 @@ def main():
         limit = int(sys.argv[3]) if len(sys.argv) > 3 else 50
         
         result = list_whitelist(page, limit)
-        print(json.dumps(result))
+        print(json.dumps(result, indent=2))
         
     elif command == 'check':
         if len(sys.argv) < 3:
@@ -364,7 +365,7 @@ def main():
         
         ip_list = sys.argv[2]
         description = sys.argv[3] if len(sys.argv) > 3 else 'Bulk import'
-        permanent = sys.argv[4].lower() in ['true', '1', 'yes'] if len(sys.argv) > 4 else True
+        permanent = sys.argv[4] if len(sys.argv) > 4 else '1'
         
         bulk_add(ip_list, description, permanent)
         
@@ -373,12 +374,7 @@ def main():
         
         result = export_whitelist(format)
         if result:
-            filename = f"whitelist_export_{int(time.time())}.{format}"
-            print(json.dumps({
-                'data': result,
-                'filename': filename,
-                'format': format
-            }))
+            print(result)
         
     else:
         print(f"ERROR: Unknown command: {command}")
