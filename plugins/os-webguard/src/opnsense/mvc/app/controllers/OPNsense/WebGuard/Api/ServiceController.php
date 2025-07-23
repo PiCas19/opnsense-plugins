@@ -154,215 +154,439 @@ class ServiceController extends ApiMutableServiceControllerBase
     }
 
     /**
-     * Block an IP address using daemon
-     * @return array
-     */
-    public function blockIPAction()
-    {
-        if ($this->request->isPost()) {
-            $ip = $this->request->getPost('ip');
-            
-            if (filter_var($ip, FILTER_VALIDATE_IP)) {
-                $backend = new Backend();
-                $response = $backend->configdpRun("webguard", array("block_ip", $ip));
-                
-                return [
-                    "status" => trim($response) === "OK" ? "ok" : "failed",
-                    "response" => $response,
-                    "message" => trim($response) === "OK" ? "IP address $ip blocked successfully" : "Failed to block IP: " . $response
-                ];
-            } else {
-                return ["status" => "failed", "message" => "Invalid IP address format"];
-            }
-        }
-        return ["status" => "failed", "message" => "POST method required"];
-    }
-
-    /**
-     * Unblock an IP address using daemon
-     * @return array
-     */
-    public function unblockIPAction()
-    {
-        if ($this->request->isPost()) {
-            $ip = $this->request->getPost('ip');
-            
-            if (filter_var($ip, FILTER_VALIDATE_IP)) {
-                $backend = new Backend();
-                $response = $backend->configdpRun("webguard", array("unblock_ip", $ip));
-                
-                return [
-                    "status" => trim($response) === "OK" ? "ok" : "failed",
-                    "response" => $response,
-                    "message" => trim($response) === "OK" ? "IP address $ip unblocked successfully" : "Failed to unblock IP: " . $response
-                ];
-            } else {
-                return ["status" => "failed", "message" => "Invalid IP address format"];
-            }
-        }
-        return ["status" => "failed", "message" => "POST method required"];
-    }
-
-    /**
-     * Whitelist an IP address using daemon
-     * @return array
-     */
-    public function whitelistIPAction()
-    {
-        if ($this->request->isPost()) {
-            $ip = $this->request->getPost('ip');
-            
-            if (filter_var($ip, FILTER_VALIDATE_IP)) {
-                $backend = new Backend();
-                $response = $backend->configdpRun("webguard", array("whitelist_ip", $ip));
-                
-                return [
-                    "status" => trim($response) === "OK" ? "ok" : "failed",
-                    "response" => $response,
-                    "message" => trim($response) === "OK" ? "IP address $ip whitelisted successfully" : "Failed to whitelist IP: " . $response
-                ];
-            } else {
-                return ["status" => "failed", "message" => "Invalid IP address format"];
-            }
-        }
-        return ["status" => "failed", "message" => "POST method required"];
-    }
-
-    /**
-     * Clear WebGuard logs using daemon
-     * @return array
-     */
-    public function clearLogsAction()
-    {
-        if ($this->request->isPost()) {
-            $backend = new Backend();
-            $response = $backend->configdpRun("webguard", array("clear_logs"));
-            
-            return [
-                "status" => trim($response) === "OK" ? "ok" : "failed",
-                "response" => $response,
-                "message" => trim($response) === "OK" ? "Logs cleared successfully" : "Failed to clear logs"
-            ];
-        }
-        return ["status" => "failed", "message" => "POST method required"];
-    }
-
-    /**
      * List blocked IPs
      * @return array
      */
     public function listBlockedAction()
     {
         $backend = new Backend();
-        $response = $backend->configdpRun("webguard", array("list_blocked"));
+        $response = $backend->configdRun("webguard get_blocked_ips");
         
-        $ips = array_filter(explode("\n", trim($response)));
+        // Parse response and return structured data
+        $data = [];
+        $count = 0;
+        
+        if (!empty($response)) {
+            $lines = explode("\n", trim($response));
+            foreach ($lines as $line) {
+                if (!empty(trim($line))) {
+                    $parts = explode('|', $line);
+                    if (count($parts) >= 1) {
+                        $data[] = [
+                            'ip' => trim($parts[0]),
+                            'type' => isset($parts[1]) ? trim($parts[1]) : 'MANUAL',
+                            'blocked_since' => isset($parts[2]) ? trim($parts[2]) : date('Y-m-d H:i:s'),
+                            'expires' => isset($parts[3]) ? trim($parts[3]) : 'Never',
+                            'reason' => isset($parts[4]) ? trim($parts[4]) : 'Manual block',
+                            'violations' => isset($parts[5]) ? intval(trim($parts[5])) : 1
+                        ];
+                        $count++;
+                    }
+                }
+            }
+        }
         
         return [
-            "status" => "ok",
-            "data" => $ips,
-            "count" => count($ips),
-            "message" => "Getting blocked IP list"
+            'status' => 'ok',
+            'data' => $data,
+            'count' => $count
         ];
     }
 
     /**
-     * List whitelisted IPs
+     * List whitelist entries
      * @return array
      */
     public function listWhitelistAction()
     {
         $backend = new Backend();
-        $response = $backend->configdpRun("webguard", array("list_whitelist"));
+        $response = $backend->configdRun("webguard get_whitelist");
         
-        $ips = array_filter(explode("\n", trim($response)));
+        // Parse response and return structured data
+        $data = [];
+        $count = 0;
+        
+        if (!empty($response)) {
+            $lines = explode("\n", trim($response));
+            foreach ($lines as $line) {
+                if (!empty(trim($line))) {
+                    $parts = explode('|', $line);
+                    if (count($parts) >= 1) {
+                        $data[] = [
+                            'ip' => trim($parts[0]),
+                            'description' => isset($parts[1]) ? trim($parts[1]) : 'Manual whitelist entry',
+                            'added' => isset($parts[2]) ? trim($parts[2]) : date('Y-m-d H:i:s'),
+                            'expires' => isset($parts[3]) ? trim($parts[3]) : 'Never',
+                            'permanent' => isset($parts[4]) ? (trim($parts[4]) === '1') : true
+                        ];
+                        $count++;
+                    }
+                }
+            }
+        }
         
         return [
-            "status" => "ok",
-            "data" => $ips,
-            "count" => count($ips),
-            "message" => "Getting whitelist IP list"
+            'status' => 'ok',
+            'data' => $data,
+            'count' => $count
         ];
     }
 
     /**
-     * Show JSON data for blocked or whitelisted IPs
+     * Block IP address
      * @return array
      */
-    public function showJsonAction()
+    public function blockIPAction()
     {
-        $type = $this->request->getPost('type') ?: $this->request->getParam('type');
-        
-        if (!in_array($type, ['blocked', 'whitelist'])) {
-            return ["status" => "failed", "message" => "Type must be 'blocked' or 'whitelist'"];
+        if ($this->request->isPost()) {
+            $ip = $this->request->getPost("ip");
+            $duration = $this->request->getPost("duration", "3600");
+            $reason = $this->request->getPost("reason", "Manual block");
+            $blockType = $this->request->getPost("block_type", "temporary");
+            
+            if (empty($ip)) {
+                return ['status' => 'error', 'message' => 'IP address is required'];
+            }
+            
+            // Validate IP address
+            if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+                return ['status' => 'error', 'message' => 'Invalid IP address format'];
+            }
+            
+            $backend = new Backend();
+            $response = $backend->configdRun("webguard block_ip", [$ip, $duration, $reason, $blockType]);
+            
+            if (strpos($response, 'error') === false && strpos($response, 'failed') === false) {
+                return ['status' => 'ok', 'message' => 'IP blocked successfully'];
+            } else {
+                return ['status' => 'error', 'message' => $response];
+            }
         }
+        
+        return ['status' => 'error', 'message' => 'POST request required'];
+    }
+
+    /**
+     * Unblock IP address
+     * @return array
+     */
+    public function unblockIPAction()
+    {
+        if ($this->request->isPost()) {
+            $ip = $this->request->getPost("ip");
+            
+            if (empty($ip)) {
+                return ['status' => 'error', 'message' => 'IP address is required'];
+            }
+            
+            $backend = new Backend();
+            $response = $backend->configdRun("webguard unblock_ip", [$ip, "manual"]);
+            
+            if (strpos($response, 'error') === false && strpos($response, 'failed') === false) {
+                return ['status' => 'ok', 'message' => 'IP unblocked successfully'];
+            } else {
+                return ['status' => 'error', 'message' => $response];
+            }
+        }
+        
+        return ['status' => 'error', 'message' => 'POST request required'];
+    }
+
+    /**
+     * Bulk block IP addresses
+     * @return array
+     */
+    public function bulkBlockIPAction()
+    {
+        if ($this->request->isPost()) {
+            $ipList = $this->request->getPost("ip_list");
+            $duration = $this->request->getPost("duration", "3600");
+            $reason = $this->request->getPost("reason", "Bulk block");
+            $blockType = $this->request->getPost("block_type", "temporary");
+            
+            if (empty($ipList)) {
+                return ['status' => 'error', 'message' => 'IP list is required'];
+            }
+            
+            $backend = new Backend();
+            $response = $backend->configdRun("webguard bulk_block_ips", [$ipList, $duration, $reason, $blockType]);
+            
+            if (strpos($response, 'error') === false && strpos($response, 'failed') === false) {
+                return ['status' => 'ok', 'message' => 'IPs blocked successfully'];
+            } else {
+                return ['status' => 'error', 'message' => $response];
+            }
+        }
+        
+        return ['status' => 'error', 'message' => 'POST request required'];
+    }
+
+    /**
+     * Add IP to whitelist
+     * @return array
+     */
+    public function whitelistIPAction()
+    {
+        if ($this->request->isPost()) {
+            $ip = $this->request->getPost("ip_address");
+            $description = $this->request->getPost("description", "Manual whitelist");
+            $permanent = $this->request->getPost("permanent", "1");
+            $expiry = $this->request->getPost("expiry", "");
+            
+            if (empty($ip)) {
+                return ['status' => 'error', 'message' => 'IP address is required'];
+            }
+            
+            // Validate IP address or CIDR
+            if (!filter_var($ip, FILTER_VALIDATE_IP) && !$this->validateCIDR($ip)) {
+                return ['status' => 'error', 'message' => 'Invalid IP address or CIDR format'];
+            }
+            
+            $backend = new Backend();
+            $response = $backend->configdRun("webguard add_to_whitelist", [$ip, $description, $permanent, $expiry]);
+            
+            if (strpos($response, 'error') === false && strpos($response, 'failed') === false) {
+                return ['status' => 'ok', 'message' => 'IP whitelisted successfully'];
+            } else {
+                return ['status' => 'error', 'message' => $response];
+            }
+        }
+        
+        return ['status' => 'error', 'message' => 'POST request required'];
+    }
+
+    /**
+     * Bulk add IPs to whitelist
+     * @return array
+     */
+    public function bulkWhitelistIPAction()
+    {
+        if ($this->request->isPost()) {
+            $ipList = $this->request->getPost("ip_list");
+            $description = $this->request->getPost("description", "Bulk whitelist");
+            $permanent = $this->request->getPost("permanent", "1");
+            
+            if (empty($ipList)) {
+                return ['status' => 'error', 'message' => 'IP list is required'];
+            }
+            
+            // Process each IP in the list
+            $ips = explode("\n", $ipList);
+            $successful = 0;
+            $total = 0;
+            $backend = new Backend();
+            
+            foreach ($ips as $ip) {
+                $ip = trim($ip);
+                if (!empty($ip)) {
+                    $total++;
+                    if (filter_var($ip, FILTER_VALIDATE_IP) || $this->validateCIDR($ip)) {
+                        $response = $backend->configdRun("webguard add_to_whitelist", [$ip, $description, $permanent, ""]);
+                        if (strpos($response, 'error') === false && strpos($response, 'failed') === false) {
+                            $successful++;
+                        }
+                    }
+                }
+            }
+            
+            if ($successful > 0) {
+                return ['status' => 'ok', 'message' => "Successfully whitelisted {$successful}/{$total} IPs"];
+            } else {
+                return ['status' => 'error', 'message' => 'No IPs were whitelisted'];
+            }
+        }
+        
+        return ['status' => 'error', 'message' => 'POST request required'];
+    }
+
+    /**
+     * Remove IP from whitelist
+     * @return array
+     */
+    public function removeWhitelistAction()
+    {
+        if ($this->request->isPost()) {
+            $ip = $this->request->getPost("ip");
+            
+            if (empty($ip)) {
+                return ['status' => 'error', 'message' => 'IP address is required'];
+            }
+            
+            $backend = new Backend();
+            $response = $backend->configdRun("webguard remove_from_whitelist", [$ip, "manual"]);
+            
+            if (strpos($response, 'error') === false && strpos($response, 'failed') === false) {
+                return ['status' => 'ok', 'message' => 'IP removed from whitelist successfully'];
+            } else {
+                return ['status' => 'error', 'message' => $response];
+            }
+        }
+        
+        return ['status' => 'error', 'message' => 'POST request required'];
+    }
+
+    /**
+     * Clear expired blocks
+     * @return array
+     */
+    public function clearExpiredAction()
+    {
+        $backend = new Backend();
+        $response = $backend->configdRun("webguard clear_expired_blocks");
+        
+        if (strpos($response, 'error') === false && strpos($response, 'failed') === false) {
+            return ['status' => 'ok', 'message' => 'Expired blocks cleared successfully'];
+        } else {
+            return ['status' => 'error', 'message' => $response];
+        }
+    }
+
+    /**
+     * Import blocked IPs
+     * @return array
+     */
+    public function importBlockedAction()
+    {
+        if ($this->request->isPost()) {
+            // Handle file upload
+            $uploadedFiles = $this->request->getUploadedFiles();
+            
+            if (empty($uploadedFiles) || !isset($uploadedFiles['file'])) {
+                return ['status' => 'error', 'message' => 'No file uploaded'];
+            }
+            
+            $file = $uploadedFiles['file'];
+            $format = $this->request->getPost("format", "csv");
+            $mergeMode = $this->request->getPost("merge_mode", "add");
+            
+            // Save uploaded file temporarily
+            $tempFile = '/tmp/webguard_import_' . time() . '.' . $format;
+            $file->moveTo($tempFile);
+            
+            $backend = new Backend();
+            $response = $backend->configdRun("webguard import_blocked_ips", [$tempFile, $format, $mergeMode, "manual"]);
+            
+            // Clean up temp file
+            @unlink($tempFile);
+            
+            if (strpos($response, 'error') === false && strpos($response, 'failed') === false) {
+                return ['status' => 'ok', 'message' => 'Import completed successfully'];
+            } else {
+                return ['status' => 'error', 'message' => $response];
+            }
+        }
+        
+        return ['status' => 'error', 'message' => 'POST request required'];
+    }
+
+    /**
+     * Export blocked IPs
+     * @return array
+     */
+    public function exportBlockedAction()
+    {
+        $format = $this->request->get("format", "csv");
+        $includeExpired = $this->request->get("include_expired", "0");
+        $dateRange = $this->request->get("date_range", "all");
         
         $backend = new Backend();
-        $response = $backend->configdpRun("webguard", array("show_json", $type));
+        $response = $backend->configdRun("webguard export_blocked_ips", [$format, $includeExpired]);
         
-        // Try to decode JSON response
-        $data = json_decode($response, true);
-        if (json_last_error() === JSON_ERROR_NONE) {
-            return [
-                "status" => "ok",
-                "data" => $data,
-                "message" => "Getting $type IPs JSON data"
-            ];
+        if (!empty($response)) {
+            // Set appropriate headers for download
+            $filename = 'webguard_blocked_ips_' . date('Y-m-d_H-i-s') . '.' . $format;
+            
+            $this->response->setHeader('Content-Type', $this->getContentType($format));
+            $this->response->setHeader('Content-Disposition', 'attachment; filename="' . $filename . '"');
+            $this->response->setContent($response);
+            
+            return $this->response;
+        }
+        
+        return ['status' => 'error', 'message' => 'Export failed'];
+    }
+
+    /**
+     * Get blocking statistics
+     * @return array
+     */
+    public function getBlockingStatsAction()
+    {
+        $period = $this->request->get("period", "24h");
+        
+        $backend = new Backend();
+        $response = $backend->configdRun("webguard get_blocking_stats", [$period]);
+        
+        // Parse and return stats
+        $stats = [
+            'total_blocks' => 0,
+            'active_blocks' => 0,
+            'expired_blocks' => 0,
+            'manual_blocks' => 0,
+            'auto_blocks' => 0
+        ];
+        
+        if (!empty($response)) {
+            $lines = explode("\n", trim($response));
+            foreach ($lines as $line) {
+                if (strpos($line, ':') !== false) {
+                    list($key, $value) = explode(':', $line, 2);
+                    $stats[trim($key)] = intval(trim($value));
+                }
+            }
         }
         
         return [
-            "status" => "ok",
-            "response" => $response,
-            "message" => "Getting $type IPs JSON data"
+            'status' => 'ok',
+            'data' => $stats
         ];
     }
 
     /**
-     * Check IP status (blocked, whitelisted, or unknown)
-     * @return array
+     * Validate CIDR notation
+     * @param string $cidr
+     * @return bool
      */
-    public function checkIPStatusAction()
+    private function validateCIDR($cidr)
     {
-        $ip = $this->request->getPost('ip') ?: $this->request->getParam('ip');
-        
-        if (empty($ip)) {
-            return ["status" => "failed", "message" => "IP address is required"];
+        if (strpos($cidr, '/') === false) {
+            return false;
         }
+        
+        list($ip, $mask) = explode('/', $cidr, 2);
         
         if (!filter_var($ip, FILTER_VALIDATE_IP)) {
-            return ["status" => "failed", "message" => "Invalid IP address format"];
+            return false;
         }
         
-        $backend = new Backend();
-        
-        // Check blocked list
-        $blockedResponse = $backend->configdpRun("webguard", array("list_blocked"));
-        $blockedIPs = array_filter(explode("\n", trim($blockedResponse)));
-        
-        if (in_array($ip, $blockedIPs)) {
-            return [
-                "status" => "ok",
-                "ip_status" => "blocked",
-                "message" => "IP is in blocked list"
-            ];
+        $mask = intval($mask);
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            return ($mask >= 0 && $mask <= 32);
+        } elseif (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+            return ($mask >= 0 && $mask <= 128);
         }
         
-        // Check whitelist
-        $whitelistResponse = $backend->configdpRun("webguard", array("list_whitelist"));
-        $whitelistIPs = array_filter(explode("\n", trim($whitelistResponse)));
-        
-        if (in_array($ip, $whitelistIPs)) {
-            return [
-                "status" => "ok",
-                "ip_status" => "whitelisted",
-                "message" => "IP is in whitelist"
-            ];
-        }
-        
-        return [
-            "status" => "ok",
-            "ip_status" => "unknown",
-            "message" => "IP is not in any list"
-        ];
+        return false;
     }
+
+    /**
+     * Get content type for export format
+     * @param string $format
+     * @return string
+     */
+    private function getContentType($format)
+    {
+        switch ($format) {
+            case 'json':
+                return 'application/json';
+            case 'xml':
+                return 'application/xml';
+            case 'csv':
+                return 'text/csv';
+            case 'txt':
+            default:
+                return 'text/plain';
+        }
+    }
+    
 }
