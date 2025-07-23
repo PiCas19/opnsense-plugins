@@ -42,7 +42,7 @@ case "$1" in
         fi
         
         # Use the Python script
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_blocking.py" block "$IP" "$DURATION" "$REASON" "$BLOCK_TYPE" 2>&1)
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/menage_blocking.py" block "$IP" "$DURATION" "$REASON" "$BLOCK_TYPE" 2>&1)
         if [ $? -eq 0 ]; then
             log_action "Blocked IP: $IP (duration: $DURATION, reason: $REASON)"
             echo "OK: $IP blocked"
@@ -68,7 +68,7 @@ case "$1" in
         fi
         
         # Use the Python script
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_blocking.py" unblock "$IP" "$REASON" 2>&1)
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/menage_blocking.py" unblock "$IP" "$REASON" 2>&1)
         if [ $? -eq 0 ]; then
             log_action "Unblocked IP: $IP (reason: $REASON)"
             echo "OK: $IP unblocked"
@@ -96,7 +96,7 @@ case "$1" in
         fi
         
         # Use the Python script
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_whitelist.py" add "$IP" "$DESCRIPTION" "$PERMANENT" "$EXPIRY" 2>&1)
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/menage_whitelist.py" add "$IP" "$DESCRIPTION" "$PERMANENT" "$EXPIRY" 2>&1)
         if [ $? -eq 0 ]; then
             log_action "Whitelisted IP: $IP (description: $DESCRIPTION)"
             echo "OK: $IP whitelisted"
@@ -122,7 +122,7 @@ case "$1" in
         fi
         
         # Use the Python script
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_whitelist.py" remove "$IP" "$REASON" 2>&1)
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/menage_whitelist.py" remove "$IP" "$REASON" 2>&1)
         if [ $? -eq 0 ]; then
             log_action "Removed from whitelist: $IP (reason: $REASON)"
             echo "OK: $IP removed from whitelist"
@@ -138,7 +138,7 @@ case "$1" in
         LIMIT="${3:-50}"
         
         # Use the Python script and extract just the IPs for simple output
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_blocking.py" list "$PAGE" "$LIMIT" 2>&1)
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/menage_blocking.py" list "$PAGE" "$LIMIT" 2>&1)
         if [ $? -eq 0 ]; then
             # Extract IP addresses from JSON output for simple listing
             echo "$result" | grep -o '"ip_address": "[^"]*"' | cut -d'"' -f4 | sort
@@ -153,7 +153,7 @@ case "$1" in
         LIMIT="${3:-50}"
         
         # Use the Python script and extract just the IPs for simple output
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_whitelist.py" list "$PAGE" "$LIMIT" 2>&1)
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/menage_whitelist.py" list "$PAGE" "$LIMIT" 2>&1)
         if [ $? -eq 0 ]; then
             # Extract IP addresses from JSON output for simple listing
             echo "$result" | grep -o '"ip_address": "[^"]*"' | cut -d'"' -f4 | sort
@@ -168,12 +168,12 @@ case "$1" in
             blocked)
                 PAGE="${3:-1}"
                 LIMIT="${4:-50}"
-                $PYTHON_BIN "$SCRIPTS_DIR/manage_blocking.py" list "$PAGE" "$LIMIT"
+                $PYTHON_BIN "$SCRIPTS_DIR/menage_blocking.py" list "$PAGE" "$LIMIT"
                 ;;
             whitelist)
                 PAGE="${3:-1}"
                 LIMIT="${4:-50}"
-                $PYTHON_BIN "$SCRIPTS_DIR/manage_whitelist.py" list "$PAGE" "$LIMIT"
+                $PYTHON_BIN "$SCRIPTS_DIR/menage_whitelist.py" list "$PAGE" "$LIMIT"
                 ;;
             threats)
                 # If you have a get_threats.py script
@@ -203,7 +203,7 @@ case "$1" in
         fi
         
         # Use the Python script
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_whitelist.py" check "$IP" 2>&1)
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/menage_whitelist.py" check "$IP" 2>&1)
         if [ $? -eq 0 ]; then
             echo "$result"
         else
@@ -214,11 +214,11 @@ case "$1" in
         
     clear_expired)
         # Clear expired blocks
-        result_blocks=$($PYTHON_BIN "$SCRIPTS_DIR/manage_blocking.py" clear_expired 2>&1)
+        result_blocks=$($PYTHON_BIN "$SCRIPTS_DIR/menage_blocking.py" clear_expired 2>&1)
         blocks_status=$?
         
         # Clear expired whitelist entries
-        result_whitelist=$($PYTHON_BIN "$SCRIPTS_DIR/manage_whitelist.py" cleanup 2>&1)
+        result_whitelist=$($PYTHON_BIN "$SCRIPTS_DIR/menage_whitelist.py" cleanup 2>&1)
         whitelist_status=$?
         
         if [ $blocks_status -eq 0 ] && [ $whitelist_status -eq 0 ]; then
@@ -243,7 +243,7 @@ case "$1" in
         BLOCK_TYPE="${5:-manual}"
         
         # Use the Python script
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_blocking.py" bulk_block "$IP_LIST" "$DURATION" "$REASON" "$BLOCK_TYPE" 2>&1)
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/menage_blocking.py" bulk_block "$IP_LIST" "$DURATION" "$REASON" "$BLOCK_TYPE" 2>&1)
         if [ $? -eq 0 ]; then
             log_action "Bulk blocked IPs: $result"
             echo "$result"
@@ -268,7 +268,7 @@ case "$1" in
         FORMAT="${2:-json}"
         INCLUDE_EXPIRED="${3:-false}"
         
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_blocking.py" export "$FORMAT" "$INCLUDE_EXPIRED" 2>&1)
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/menage_blocking.py" export "$FORMAT" "$INCLUDE_EXPIRED" 2>&1)
         if [ $? -eq 0 ]; then
             echo "$result"
         else
@@ -280,7 +280,7 @@ case "$1" in
     export_whitelist)
         FORMAT="${2:-json}"
         
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_whitelist.py" export "$FORMAT" 2>&1)
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/menage_whitelist.py" export "$FORMAT" 2>&1)
         if [ $? -eq 0 ]; then
             echo "$result"
         else
@@ -299,7 +299,7 @@ case "$1" in
         REASON="${3:-Manual false positive}"
         
         # Use the Python script
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" false_positive "$THREAT_ID" "$REASON" 2>&1)
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/menage_threats.py" false_positive "$THREAT_ID" "$REASON" 2>&1)
         if [ $? -eq 0 ]; then
             log_action "Marked threat $THREAT_ID as false positive: $REASON"
             echo "OK: Threat $THREAT_ID marked as false positive"
@@ -320,7 +320,7 @@ case "$1" in
         DESCRIPTION="${3:-Added from threat}"
         PERMANENT="${4:-1}"
         
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" whitelist_ip "$THREAT_ID" "$DESCRIPTION" "$PERMANENT" 2>&1)
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/menage_threats.py" whitelist_ip "$THREAT_ID" "$DESCRIPTION" "$PERMANENT" 2>&1)
         if [ $? -eq 0 ]; then
             log_action "Whitelisted IP from threat $THREAT_ID"
             echo "$result"
@@ -341,7 +341,7 @@ case "$1" in
         DURATION="${3:-3600}"
         REASON="${4:-Blocked from threat}"
         
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" block_ip "$THREAT_ID" "$DURATION" "$REASON" 2>&1)
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/menage_threats.py" block_ip "$THREAT_ID" "$DURATION" "$REASON" 2>&1)
         if [ $? -eq 0 ]; then
             log_action "Blocked IP from threat $THREAT_ID"
             echo "$result"
@@ -363,7 +363,7 @@ case "$1" in
         RULE_TYPE="${4:-custom}"
         ENABLED="${5:-1}"
         
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" create_rule "$THREAT_ID" "$RULE_NAME" "$RULE_TYPE" "$ENABLED" 2>&1)
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/menage_threats.py" create_rule "$THREAT_ID" "$RULE_NAME" "$RULE_TYPE" "$ENABLED" 2>&1)
         if [ $? -eq 0 ]; then
             log_action "Created rule from threat $THREAT_ID"
             echo "$result"
@@ -383,7 +383,7 @@ case "$1" in
         DAYS="$2"
         SEVERITY="${3:-low}"
         
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" clear_old "$DAYS" "$SEVERITY" 2>&1)
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/menage_threats.py" clear_old "$DAYS" "$SEVERITY" 2>&1)
         if [ $? -eq 0 ]; then
             log_action "Cleared old threats: $result"
             echo "$result"
@@ -396,7 +396,7 @@ case "$1" in
         
     add_sample_threats)
         # Use the Python script to add sample data
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" add_samples 2>&1)
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/menage_threats.py" add_samples 2>&1)
         if [ $? -eq 0 ]; then
             log_action "Added sample threats for testing"
             echo "OK: Sample threats added"
@@ -427,7 +427,7 @@ case "$1" in
         ls -la "$SCRIPTS_DIR"/*.py 2>/dev/null || echo "No Python scripts found"
         echo ""
         echo "Testing database connection..."
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_blocking.py" list 1 1 2>&1)
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/menage_blocking.py" list 1 1 2>&1)
         if [ $? -eq 0 ]; then
             echo "Database connection: OK"
         else
@@ -454,7 +454,7 @@ case "$1" in
         echo "  check_whitelist <IP>"
         echo "  export_whitelist [format]"
         echo ""
-        echo "Threat Management:"
+        echo "Threat Menagement:"
         echo "  mark_false_positive <threat_id> [reason]"
         echo "  whitelist_from_threat <threat_id> [description] [permanent]"
         echo "  block_from_threat <threat_id> [duration] [reason]"
