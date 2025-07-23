@@ -62,7 +62,6 @@ CREATE TABLE IF NOT EXISTS threats (
     method TEXT
 );
 
--- Insert sample data for testing
 INSERT OR IGNORE INTO blocked_ips (ip_address, block_type, blocked_since, reason, violations, last_violation) 
 VALUES ('192.168.1.100', 'manual', strftime('%s', 'now'), 'Sample blocked IP', 1, strftime('%s', 'now'));
 
@@ -74,9 +73,24 @@ VALUES
     (strftime('%s', 'now') - 3600, '192.168.1.200', 'SQL Injection', 'high', 'SQL injection detected', "' OR 1=1 --", 'POST', 0),
     (strftime('%s', 'now') - 7200, '10.0.0.50', 'XSS Attack', 'medium', 'Cross-site scripting attempt', '<script>alert("xss")</script>', 'GET', 0),
     (strftime('%s', 'now') - 10800, '172.16.0.25', 'Path Traversal', 'medium', 'Directory traversal detected', '../../../etc/passwd', 'GET', 0);
-
-.exit
 EOF
+
+echo "[*] Verifying database creation..."
+if sqlite3 "$DB_FILE" "SELECT name FROM sqlite_master WHERE type='table';" | wc -l | grep -q "3"; then
+    echo "✅ Database tables created successfully"
+    echo "Tables: $(sqlite3 "$DB_FILE" "SELECT name FROM sqlite_master WHERE type='table';" | tr '\n' ' ')"
+else
+    echo "❌ Database creation failed, creating manually..."
+    # Fallback: create tables one by one
+    sqlite3 "$DB_FILE" "CREATE TABLE IF NOT EXISTS blocked_ips (ip_address TEXT PRIMARY KEY, block_type TEXT DEFAULT 'manual', blocked_since INTEGER, expires_at INTEGER, reason TEXT, violations INTEGER DEFAULT 1, last_violation INTEGER);"
+    sqlite3 "$DB_FILE" "CREATE TABLE IF NOT EXISTS whitelist (ip_address TEXT PRIMARY KEY, description TEXT, added_at INTEGER, expires_at INTEGER, permanent INTEGER DEFAULT 1);"
+    sqlite3 "$DB_FILE" "CREATE TABLE IF NOT EXISTS threats (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER, source_ip TEXT, type TEXT, severity TEXT, description TEXT, false_positive INTEGER DEFAULT 0, payload TEXT, method TEXT);"
+    
+    # Insert sample data
+    sqlite3 "$DB_FILE" "INSERT OR IGNORE INTO blocked_ips VALUES ('192.168.1.100', 'manual', $(date +%s), NULL, 'Sample blocked IP', 1, $(date +%s));"
+    sqlite3 "$DB_FILE" "INSERT OR IGNORE INTO whitelist VALUES ('192.168.1.1', 'Sample whitelist entry', $(date +%s), NULL, 1);"
+    sqlite3 "$DB_FILE" "INSERT OR IGNORE INTO threats VALUES (NULL, $(date +%s), '192.168.1.200', 'SQL Injection', 'high', 'SQL injection detected', \"' OR 1=1 --\", 'POST', 0);"
+fi
 
 echo "[*] Installing Python dependencies..."
 $PY -m pip install -q psutil geoip2 requests || echo "pip install errors ignored"
@@ -106,20 +120,20 @@ chmod 644 "$DB_FILE"
 
 echo ""
 echo "=============================================="
-echo "WebGuard Setup Complete! 🚀"
+echo "WebGuard Setup Complete!"
 echo "=============================================="
-echo "✅ Directories created"
-echo "✅ SQLite database created with tables"
-echo "✅ Sample data inserted"
-echo "✅ Dependencies installed"
-echo "✅ GeoIP database downloaded"
-echo "✅ Empty JSON files ready"
+echo "Directories created"
+echo "SQLite database created with tables"
+echo "Sample data inserted"
+echo "Dependencies installed"
+echo "GeoIP database downloaded"
+echo "Empty JSON files ready"
 echo ""
 echo "Config: $CONFIG_DIR"
 echo "Logs: $LOG_DIR"
 echo "Database: $DB_FILE"
 echo ""
-echo "🧪 Test the setup:"
+echo "Test the setup:"
 echo "sqlite3 $DB_FILE 'SELECT COUNT(*) FROM blocked_ips;'"
 echo "configctl webguard get_blocked_ips 1"
 echo "=============================================="
