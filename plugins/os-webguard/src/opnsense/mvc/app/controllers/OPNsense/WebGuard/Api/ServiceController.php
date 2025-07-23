@@ -152,7 +152,6 @@ class ServiceController extends ApiMutableServiceControllerBase
         }
         return ["status" => "failed", "message" => "POST method required"];
     }
-
     /**
      * List blocked IPs
      * @return array
@@ -160,36 +159,45 @@ class ServiceController extends ApiMutableServiceControllerBase
     public function listBlockedAction()
     {
         $backend = new Backend();
-        $response = $backend->configdRun("webguard get_blocked_ips");
+        $response = $backend->configdRun("webguard get_blocked_ips", ["1"]);
         
-        // Parse response and return structured data
-        $data = [];
-        $count = 0;
-        
+        // Parse JSON response from Python script
         if (!empty($response)) {
-            $lines = explode("\n", trim($response));
-            foreach ($lines as $line) {
-                if (!empty(trim($line))) {
-                    $parts = explode('|', $line);
-                    if (count($parts) >= 1) {
+            $decoded = json_decode($response, true);
+            if ($decoded && !isset($decoded['error'])) {
+                // Transform the response structure
+                $data = [];
+                if (isset($decoded['blocked_ips'])) {
+                    foreach ($decoded['blocked_ips'] as $item) {
                         $data[] = [
-                            'ip' => trim($parts[0]),
-                            'type' => isset($parts[1]) ? trim($parts[1]) : 'MANUAL',
-                            'blocked_since' => isset($parts[2]) ? trim($parts[2]) : date('Y-m-d H:i:s'),
-                            'expires' => isset($parts[3]) ? trim($parts[3]) : 'Never',
-                            'reason' => isset($parts[4]) ? trim($parts[4]) : 'Manual block',
-                            'violations' => isset($parts[5]) ? intval(trim($parts[5])) : 1
+                            'ip' => $item['ip_address'],
+                            'address' => $item['ip_address'], // Alias for compatibility
+                            'type' => strtoupper($item['block_type']),
+                            'block_type' => $item['block_type'],
+                            'blocked_since' => $item['blocked_since_iso'],
+                            'expires' => $item['expires_at_iso'] ?: 'Never',
+                            'expires_at' => $item['expires_at_iso'],
+                            'reason' => $item['reason'],
+                            'violations' => $item['violations'],
+                            'expired' => $item['expired'],
+                            'permanent' => $item['permanent']
                         ];
-                        $count++;
                     }
                 }
+                
+                return [
+                    'status' => 'ok',
+                    'data' => $data,
+                    'count' => count($data)
+                ];
             }
         }
         
         return [
-            'status' => 'ok',
-            'data' => $data,
-            'count' => $count
+            'status' => 'error',
+            'message' => 'Failed to retrieve blocked IPs',
+            'data' => [],
+            'count' => 0
         ];
     }
 
@@ -200,35 +208,42 @@ class ServiceController extends ApiMutableServiceControllerBase
     public function listWhitelistAction()
     {
         $backend = new Backend();
-        $response = $backend->configdRun("webguard get_whitelist");
+        $response = $backend->configdRun("webguard get_whitelist", ["1", "50"]);
         
-        // Parse response and return structured data
-        $data = [];
-        $count = 0;
-        
+        // Parse JSON response from Python script
         if (!empty($response)) {
-            $lines = explode("\n", trim($response));
-            foreach ($lines as $line) {
-                if (!empty(trim($line))) {
-                    $parts = explode('|', $line);
-                    if (count($parts) >= 1) {
+            $decoded = json_decode($response, true);
+            if ($decoded && !isset($decoded['error'])) {
+                // Transform the response structure
+                $data = [];
+                if (isset($decoded['whitelist'])) {
+                    foreach ($decoded['whitelist'] as $item) {
                         $data[] = [
-                            'ip' => trim($parts[0]),
-                            'description' => isset($parts[1]) ? trim($parts[1]) : 'Manual whitelist entry',
-                            'added' => isset($parts[2]) ? trim($parts[2]) : date('Y-m-d H:i:s'),
-                            'expires' => isset($parts[3]) ? trim($parts[3]) : 'Never',
-                            'permanent' => isset($parts[4]) ? (trim($parts[4]) === '1') : true
+                            'ip' => $item['ip_address'],
+                            'address' => $item['ip_address'], // Alias for compatibility
+                            'description' => $item['description'] ?: 'Manual whitelist entry',
+                            'added' => isset($item['added_at']) ? date('Y-m-d H:i:s', $item['added_at']) : date('Y-m-d H:i:s'),
+                            'expires' => $item['expires_at'] ? date('Y-m-d H:i:s', $item['expires_at']) : 'Never',
+                            'expires_at' => $item['expires_at'],
+                            'permanent' => $item['permanent'],
+                            'expired' => $item['expired']
                         ];
-                        $count++;
                     }
                 }
+                
+                return [
+                    'status' => 'ok',
+                    'data' => $data,
+                    'count' => count($data)
+                ];
             }
         }
         
         return [
-            'status' => 'ok',
-            'data' => $data,
-            'count' => $count
+            'status' => 'error',
+            'message' => 'Failed to retrieve whitelist',
+            'data' => [],
+            'count' => 0
         ];
     }
 
@@ -256,10 +271,10 @@ class ServiceController extends ApiMutableServiceControllerBase
             $backend = new Backend();
             $response = $backend->configdRun("webguard block_ip", [$ip, $duration, $reason, $blockType]);
             
-            if (strpos($response, 'error') === false && strpos($response, 'failed') === false) {
+            if (strpos($response, 'OK:') !== false || strpos($response, 'blocked') !== false) {
                 return ['status' => 'ok', 'message' => 'IP blocked successfully'];
             } else {
-                return ['status' => 'error', 'message' => $response];
+                return ['status' => 'error', 'message' => trim($response) ?: 'Block operation failed'];
             }
         }
         
@@ -282,10 +297,10 @@ class ServiceController extends ApiMutableServiceControllerBase
             $backend = new Backend();
             $response = $backend->configdRun("webguard unblock_ip", [$ip, "manual"]);
             
-            if (strpos($response, 'error') === false && strpos($response, 'failed') === false) {
+            if (strpos($response, 'OK:') !== false || strpos($response, 'unblocked') !== false) {
                 return ['status' => 'ok', 'message' => 'IP unblocked successfully'];
             } else {
-                return ['status' => 'error', 'message' => $response];
+                return ['status' => 'error', 'message' => trim($response) ?: 'Unblock operation failed'];
             }
         }
         
@@ -311,10 +326,10 @@ class ServiceController extends ApiMutableServiceControllerBase
             $backend = new Backend();
             $response = $backend->configdRun("webguard bulk_block_ips", [$ipList, $duration, $reason, $blockType]);
             
-            if (strpos($response, 'error') === false && strpos($response, 'failed') === false) {
+            if (strpos($response, 'OK:') !== false || strpos($response, 'blocked') !== false) {
                 return ['status' => 'ok', 'message' => 'IPs blocked successfully'];
             } else {
-                return ['status' => 'error', 'message' => $response];
+                return ['status' => 'error', 'message' => trim($response) ?: 'Bulk block operation failed'];
             }
         }
         
@@ -345,10 +360,10 @@ class ServiceController extends ApiMutableServiceControllerBase
             $backend = new Backend();
             $response = $backend->configdRun("webguard add_to_whitelist", [$ip, $description, $permanent, $expiry]);
             
-            if (strpos($response, 'error') === false && strpos($response, 'failed') === false) {
+            if (strpos($response, 'OK:') !== false || strpos($response, 'added') !== false) {
                 return ['status' => 'ok', 'message' => 'IP whitelisted successfully'];
             } else {
-                return ['status' => 'error', 'message' => $response];
+                return ['status' => 'error', 'message' => trim($response) ?: 'Whitelist operation failed'];
             }
         }
         
@@ -370,29 +385,21 @@ class ServiceController extends ApiMutableServiceControllerBase
                 return ['status' => 'error', 'message' => 'IP list is required'];
             }
             
-            // Process each IP in the list
-            $ips = explode("\n", $ipList);
-            $successful = 0;
-            $total = 0;
+            // For bulk operations, we'll use the bulk_add command from manage_whitelist.py
             $backend = new Backend();
             
-            foreach ($ips as $ip) {
-                $ip = trim($ip);
-                if (!empty($ip)) {
-                    $total++;
-                    if (filter_var($ip, FILTER_VALIDATE_IP) || $this->validateCIDR($ip)) {
-                        $response = $backend->configdRun("webguard add_to_whitelist", [$ip, $description, $permanent, ""]);
-                        if (strpos($response, 'error') === false && strpos($response, 'failed') === false) {
-                            $successful++;
-                        }
-                    }
-                }
-            }
+            // First, use the whitelist script directly with bulk_add command
+            $escapedIpList = escapeshellarg($ipList);
+            $escapedDescription = escapeshellarg($description);
+            $permanentFlag = ($permanent === '1') ? 'true' : 'false';
             
-            if ($successful > 0) {
-                return ['status' => 'ok', 'message' => "Successfully whitelisted {$successful}/{$total} IPs"];
+            $command = "/usr/local/opnsense/scripts/OPNsense/WebGuard/manage_whitelist.py bulk_add {$escapedIpList} {$escapedDescription} {$permanentFlag}";
+            $response = shell_exec($command . ' 2>&1');
+            
+            if (strpos($response, 'OK:') !== false || strpos($response, 'Added') !== false) {
+                return ['status' => 'ok', 'message' => 'IPs whitelisted successfully'];
             } else {
-                return ['status' => 'error', 'message' => 'No IPs were whitelisted'];
+                return ['status' => 'error', 'message' => trim($response) ?: 'Bulk whitelist operation failed'];
             }
         }
         
@@ -415,10 +422,10 @@ class ServiceController extends ApiMutableServiceControllerBase
             $backend = new Backend();
             $response = $backend->configdRun("webguard remove_from_whitelist", [$ip, "manual"]);
             
-            if (strpos($response, 'error') === false && strpos($response, 'failed') === false) {
+            if (strpos($response, 'OK:') !== false || strpos($response, 'removed') !== false) {
                 return ['status' => 'ok', 'message' => 'IP removed from whitelist successfully'];
             } else {
-                return ['status' => 'error', 'message' => $response];
+                return ['status' => 'error', 'message' => trim($response) ?: 'Remove operation failed'];
             }
         }
         
@@ -434,10 +441,10 @@ class ServiceController extends ApiMutableServiceControllerBase
         $backend = new Backend();
         $response = $backend->configdRun("webguard clear_expired_blocks");
         
-        if (strpos($response, 'error') === false && strpos($response, 'failed') === false) {
+        if (strpos($response, 'OK:') !== false || strpos($response, 'cleared') !== false || strpos($response, 'Removed') !== false) {
             return ['status' => 'ok', 'message' => 'Expired blocks cleared successfully'];
         } else {
-            return ['status' => 'error', 'message' => $response];
+            return ['status' => 'error', 'message' => trim($response) ?: 'Clear expired operation failed'];
         }
     }
 
@@ -587,6 +594,5 @@ class ServiceController extends ApiMutableServiceControllerBase
             default:
                 return 'text/plain';
         }
-    }
-    
+    }    
 }
