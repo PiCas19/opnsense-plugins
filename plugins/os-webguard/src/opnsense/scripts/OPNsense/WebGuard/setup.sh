@@ -31,65 +31,55 @@ echo "[*] Creating empty base files..."
 : > "${CONFIG_DIR}/attack_patterns.json"
 
 echo "[*] Creating SQLite database with tables..."
-sqlite3 "$DB_FILE" << 'EOF'
-CREATE TABLE IF NOT EXISTS blocked_ips (
-    ip_address TEXT PRIMARY KEY,
-    block_type TEXT DEFAULT 'manual',
-    blocked_since INTEGER,
-    expires_at INTEGER,
-    reason TEXT,
-    violations INTEGER DEFAULT 1,
-    last_violation INTEGER
-);
 
-CREATE TABLE IF NOT EXISTS whitelist (
-    ip_address TEXT PRIMARY KEY,
-    description TEXT,
-    added_at INTEGER,
-    expires_at INTEGER,
-    permanent INTEGER DEFAULT 1
-);
+# Remove existing database if it exists and is corrupted
+if [ -f "$DB_FILE" ]; then
+    rm -f "$DB_FILE"
+fi
 
-CREATE TABLE IF NOT EXISTS threats (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    timestamp INTEGER,
-    source_ip TEXT,
-    type TEXT,
-    severity TEXT,
-    description TEXT,
-    false_positive INTEGER DEFAULT 0,
-    payload TEXT,
-    method TEXT
-);
+# Create database and tables using separate commands
+echo "Creating blocked_ips table..."
+sqlite3 "$DB_FILE" "CREATE TABLE blocked_ips (ip_address TEXT PRIMARY KEY, block_type TEXT DEFAULT 'manual', blocked_since INTEGER, expires_at INTEGER, reason TEXT, violations INTEGER DEFAULT 1, last_violation INTEGER);"
 
-INSERT OR IGNORE INTO blocked_ips (ip_address, block_type, blocked_since, reason, violations, last_violation) 
-VALUES ('192.168.1.100', 'manual', strftime('%s', 'now'), 'Sample blocked IP', 1, strftime('%s', 'now'));
+echo "Creating whitelist table..."
+sqlite3 "$DB_FILE" "CREATE TABLE whitelist (ip_address TEXT PRIMARY KEY, description TEXT, added_at INTEGER, expires_at INTEGER, permanent INTEGER DEFAULT 1);"
 
-INSERT OR IGNORE INTO whitelist (ip_address, description, added_at, permanent) 
-VALUES ('192.168.1.1', 'Sample whitelist entry', strftime('%s', 'now'), 1);
+echo "Creating threats table..."  
+sqlite3 "$DB_FILE" "CREATE TABLE threats (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER, source_ip TEXT, type TEXT, severity TEXT, description TEXT, false_positive INTEGER DEFAULT 0, payload TEXT, method TEXT);"
 
-INSERT OR IGNORE INTO threats (timestamp, source_ip, type, severity, description, payload, method, false_positive)
-VALUES 
-    (strftime('%s', 'now') - 3600, '192.168.1.200', 'SQL Injection', 'high', 'SQL injection detected', "' OR 1=1 --", 'POST', 0),
-    (strftime('%s', 'now') - 7200, '10.0.0.50', 'XSS Attack', 'medium', 'Cross-site scripting attempt', '<script>alert("xss")</script>', 'GET', 0),
-    (strftime('%s', 'now') - 10800, '172.16.0.25', 'Path Traversal', 'medium', 'Directory traversal detected', '../../../etc/passwd', 'GET', 0);
-EOF
+# Insert sample data
+echo "Inserting sample data..."
+CURRENT_TIME=$(date +%s)
 
+sqlite3 "$DB_FILE" "INSERT INTO blocked_ips (ip_address, block_type, blocked_since, reason, violations, last_violation) VALUES ('192.168.1.100', 'manual', $CURRENT_TIME, 'Sample blocked IP', 1, $CURRENT_TIME);"
+
+sqlite3 "$DB_FILE" "INSERT INTO whitelist (ip_address, description, added_at, permanent) VALUES ('192.168.1.1', 'Sample whitelist entry', $CURRENT_TIME, 1);"
+
+sqlite3 "$DB_FILE" "INSERT INTO threats (timestamp, source_ip, type, severity, description, payload, method, false_positive) VALUES ($((CURRENT_TIME - 3600)), '192.168.1.200', 'SQL Injection', 'high', 'SQL injection detected', ''' OR 1=1 --', 'POST', 0);"
+
+sqlite3 "$DB_FILE" "INSERT INTO threats (timestamp, source_ip, type, severity, description, payload, method, false_positive) VALUES ($((CURRENT_TIME - 7200)), '10.0.0.50', 'XSS Attack', 'medium', 'Cross-site scripting attempt', '<script>alert(\"xss\")</script>', 'GET', 0);"
+
+sqlite3 "$DB_FILE" "INSERT INTO threats (timestamp, source_ip, type, severity, description, payload, method, false_positive) VALUES ($((CURRENT_TIME - 10800)), '172.16.0.25', 'Path Traversal', 'medium', 'Directory traversal detected', '../../../etc/passwd', 'GET', 0);"
+
+# Verify database creation
 echo "[*] Verifying database creation..."
-if sqlite3 "$DB_FILE" "SELECT name FROM sqlite_master WHERE type='table';" | wc -l | grep -q "3"; then
-    echo "✅ Database tables created successfully"
-    echo "Tables: $(sqlite3 "$DB_FILE" "SELECT name FROM sqlite_master WHERE type='table';" | tr '\n' ' ')"
-else
-    echo "❌ Database creation failed, creating manually..."
-    # Fallback: create tables one by one
-    sqlite3 "$DB_FILE" "CREATE TABLE IF NOT EXISTS blocked_ips (ip_address TEXT PRIMARY KEY, block_type TEXT DEFAULT 'manual', blocked_since INTEGER, expires_at INTEGER, reason TEXT, violations INTEGER DEFAULT 1, last_violation INTEGER);"
-    sqlite3 "$DB_FILE" "CREATE TABLE IF NOT EXISTS whitelist (ip_address TEXT PRIMARY KEY, description TEXT, added_at INTEGER, expires_at INTEGER, permanent INTEGER DEFAULT 1);"
-    sqlite3 "$DB_FILE" "CREATE TABLE IF NOT EXISTS threats (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER, source_ip TEXT, type TEXT, severity TEXT, description TEXT, false_positive INTEGER DEFAULT 0, payload TEXT, method TEXT);"
+TABLES=$(sqlite3 "$DB_FILE" ".tables" | wc -w)
+if [ "$TABLES" -eq 3 ]; then
+    echo "Database created successfully with $TABLES tables"
+    echo "Tables: $(sqlite3 "$DB_FILE" ".tables" | tr '\n' ' ')"
     
-    # Insert sample data
-    sqlite3 "$DB_FILE" "INSERT OR IGNORE INTO blocked_ips VALUES ('192.168.1.100', 'manual', $(date +%s), NULL, 'Sample blocked IP', 1, $(date +%s));"
-    sqlite3 "$DB_FILE" "INSERT OR IGNORE INTO whitelist VALUES ('192.168.1.1', 'Sample whitelist entry', $(date +%s), NULL, 1);"
-    sqlite3 "$DB_FILE" "INSERT OR IGNORE INTO threats VALUES (NULL, $(date +%s), '192.168.1.200', 'SQL Injection', 'high', 'SQL injection detected', \"' OR 1=1 --\", 'POST', 0);"
+    # Show record counts
+    BLOCKED_COUNT=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM blocked_ips;")
+    WHITELIST_COUNT=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM whitelist;") 
+    THREATS_COUNT=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM threats;")
+    
+    echo "Sample data inserted:"
+    echo "  - Blocked IPs: $BLOCKED_COUNT"
+    echo "  - Whitelist entries: $WHITELIST_COUNT" 
+    echo "  - Threats: $THREATS_COUNT"
+else
+    echo "Database creation failed - only $TABLES tables found"
+    exit 1
 fi
 
 echo "[*] Installing Python dependencies..."
