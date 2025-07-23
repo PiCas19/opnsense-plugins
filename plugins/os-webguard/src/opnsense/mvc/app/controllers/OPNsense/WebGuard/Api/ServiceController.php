@@ -42,7 +42,9 @@ class ServiceController extends ApiMutableServiceControllerBase
     {
         $page    = (int)$this->request->getQuery('page', 'int', 1);
         $backend = new Backend();
-        $out     = trim($backend->configdRun('webguard get_blocked_ips', [$page]));
+        
+        // FIX: Usa il comando show_json che funziona da CLI
+        $out     = trim($backend->configdRun('webguard show_json', ['blocked', (string)$page]));
 
         if ($out !== '') {
             $json = json_decode($out, true);
@@ -69,7 +71,9 @@ class ServiceController extends ApiMutableServiceControllerBase
         $page    = (int)$this->request->getQuery('page',  'int', 1);
         $limit   = (int)$this->request->getQuery('limit', 'int', 100);
         $backend = new Backend();
-        $out     = trim($backend->configdRun('webguard get_whitelist', [$page, $limit]));
+        
+        // FIX: Usa il comando show_json che funziona da CLI
+        $out     = trim($backend->configdRun('webguard show_json', ['whitelist', (string)$page, (string)$limit]));
 
         if ($out !== '') {
             $json = json_decode($out, true);
@@ -97,7 +101,7 @@ class ServiceController extends ApiMutableServiceControllerBase
 
         $ip        = trim($this->request->getPost('ip', 'string', ''));
         $duration  = (string)$this->request->getPost('duration', 'int', 3600);
-        $reason    = $this->argSafe($this->request->getPost('reason', 'string', 'Manual block'));
+        $reason    = $this->argSafe($this->request->getPost('reason', 'string', 'Manual_block'));
         $blockType = $this->argSafe($this->request->getPost('block_type', 'string', 'manual'));
 
         if ($ip === '' || !filter_var($ip, FILTER_VALIDATE_IP)) {
@@ -136,7 +140,7 @@ class ServiceController extends ApiMutableServiceControllerBase
         if (!$this->request->isPost()) { return ['status' => 'error', 'message' => 'POST required']; }
 
         $ip          = trim($this->request->getPost('ip', 'string', ''));
-        $description = $this->argSafe($this->request->getPost('description', 'string', 'Manual whitelist'));
+        $description = $this->argSafe($this->request->getPost('description', 'string', 'Manual_whitelist'));
         $permanent   = $this->request->getPost('permanent', 'string', '1');
 
         if ($ip === '' || !filter_var($ip, FILTER_VALIDATE_IP)) {
@@ -176,7 +180,7 @@ class ServiceController extends ApiMutableServiceControllerBase
 
         $ipList    = $this->request->getPost('ip_list', 'string', '');
         $duration  = (string)$this->request->getPost('duration', 'int', 3600);
-        $reason    = $this->argSafe($this->request->getPost('reason', 'string', 'Bulk block'));
+        $reason    = $this->argSafe($this->request->getPost('reason', 'string', 'Bulk_block'));
         $blockType = $this->argSafe($this->request->getPost('block_type', 'string', 'manual'));
 
         if ($ipList === '') { return ['status' => 'error', 'message' => 'IP list is required']; }
@@ -187,35 +191,14 @@ class ServiceController extends ApiMutableServiceControllerBase
 
         if (!$valid) { return ['status' => 'error', 'message' => 'No valid IP addresses']; }
 
+        // Convert to newline format for the script
+        $ipListFormatted = implode("\n", $valid);
+
         $backend = new Backend();
-        $out     = trim($backend->configdRun('webguard bulk_block_ips', [json_encode($valid), $duration, $reason, $blockType]));
+        $out     = trim($backend->configdRun('webguard bulk_block_ips', [$ipListFormatted, $duration, $reason, $blockType]));
 
         if (strpos($out, 'OK:') === 0) {
             return ['status' => 'ok', 'message' => count($valid).' IPs blocked', 'blocked_count' => count($valid), 'invalid_ips' => $invalid];
-        }
-        return ['status' => 'error', 'message' => $out];
-    }
-
-    public function bulkUnblockAction()
-    {
-        if (!$this->request->isPost()) { return ['status' => 'error', 'message' => 'POST required']; }
-
-        $ipList = $this->request->getPost('ip_list', 'string', '');
-        $reason = $this->argSafe($this->request->getPost('reason', 'string', 'Bulk unblock'));
-
-        if ($ipList === '') { return ['status' => 'error', 'message' => 'IP list is required']; }
-
-        $ips     = array_filter(array_map('trim', preg_split('/\r?\n/', $ipList)));
-        $valid   = array_values(array_filter($ips, fn($i) => filter_var($i, FILTER_VALIDATE_IP)));
-        $invalid = array_values(array_diff($ips, $valid));
-
-        if (!$valid) { return ['status' => 'error', 'message' => 'No valid IP addresses']; }
-
-        $backend = new Backend();
-        $out     = trim($backend->configdRun('webguard bulk_unblock_ips', [json_encode($valid), $reason]));
-
-        if (strpos($out, 'OK:') === 0) {
-            return ['status' => 'ok', 'message' => count($valid).' IPs unblocked', 'unblocked_count' => count($valid), 'invalid_ips' => $invalid];
         }
         return ['status' => 'error', 'message' => $out];
     }
@@ -228,8 +211,7 @@ class ServiceController extends ApiMutableServiceControllerBase
         $out     = trim($backend->configdRun('webguard clear_expired_blocks'));
 
         if (strpos($out, 'OK:') === 0) {
-            $n = (int)str_replace('OK:', '', $out);
-            return ['status' => 'ok', 'message' => 'Expired blocks cleared', 'cleared_count' => $n];
+            return ['status' => 'ok', 'message' => 'Expired blocks cleared'];
         }
         return ['status' => 'error', 'message' => $out];
     }
@@ -299,12 +281,34 @@ class ServiceController extends ApiMutableServiceControllerBase
                 return ['status' => 'ok', 'data' => $json];
             }
         }
+        
+        // Fallback: get basic counts from the data we can retrieve
+        $blockedOut = trim($backend->configdRun('webguard show_json', ['blocked', '1']));
+        $whitelistOut = trim($backend->configdRun('webguard show_json', ['whitelist', '1', '1000']));
+        
+        $blockedCount = 0;
+        $whitelistCount = 0;
+        
+        if ($blockedOut) {
+            $blockedJson = json_decode($blockedOut, true);
+            if (isset($blockedJson['total'])) {
+                $blockedCount = $blockedJson['total'];
+            }
+        }
+        
+        if ($whitelistOut) {
+            $whitelistJson = json_decode($whitelistOut, true);
+            if (isset($whitelistJson['total'])) {
+                $whitelistCount = $whitelistJson['total'];
+            }
+        }
+        
         return [
             'status' => 'ok',
             'data'   => [
-                'blocked_count'   => 0,
-                'whitelist_count' => 0,
-                'active_blocks'   => 0,
+                'blocked_count'   => $blockedCount,
+                'whitelist_count' => $whitelistCount,
+                'active_blocks'   => $blockedCount,
                 'expired_blocks'  => 0
             ]
         ];
@@ -324,13 +328,13 @@ class ServiceController extends ApiMutableServiceControllerBase
 
     private function argSafe(string $v): string
     {
-        // verso gli script
+        // Convert spaces to underscores for script compatibility
         return preg_replace('/\s+/', '_', trim($v));
     }
 
     private function viewSafe(string $v): string
     {
-        // verso la UI
+        // Convert underscores back to spaces for display
         return str_replace('_', ' ', $v);
     }
 
