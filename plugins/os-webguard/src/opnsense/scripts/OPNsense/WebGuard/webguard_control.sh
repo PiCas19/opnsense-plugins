@@ -24,16 +24,6 @@ validate_ip() {
     return $?
 }
 
-# Initialize JSON files
-init_json_files() {
-    if [ ! -f "$BLOCKED_IPS_FILE" ]; then
-        echo '{"blocked_ips": [], "last_updated": ""}' > "$BLOCKED_IPS_FILE"
-    fi
-    if [ ! -f "$WHITELIST_IPS_FILE" ]; then
-        echo '{"whitelisted_ips": [], "last_updated": ""}' > "$WHITELIST_IPS_FILE"
-    fi
-}
-
 case "$1" in
     block_ip)
         if [ -z "$2" ]; then
@@ -143,16 +133,6 @@ case "$1" in
         fi
         ;;
         
-    clear_logs)
-        for logfile in alerts.log threats.log detections.log engine.log stats.json control.log; do
-            if [ -f "$LOG_DIR/$logfile" ]; then
-                > "$LOG_DIR/$logfile"
-            fi
-        done
-        log_action "Logs cleared"
-        echo "OK: Logs cleared"
-        ;;
-        
     list_blocked)
         PAGE="${2:-1}"
         LIMIT="${3:-50}"
@@ -208,16 +188,6 @@ case "$1" in
                 exit 1
                 ;;
         esac
-        ;;
-        
-    clear_logs)
-        for logfile in alerts.log threats.log detections.log engine.log stats.json control.log; do
-            if [ -f "$LOG_DIR/$logfile" ]; then
-                > "$LOG_DIR/$logfile"
-            fi
-        done
-        log_action "Logs cleared"
-        echo "OK: Logs cleared"
         ;;
         
     check_whitelist)
@@ -284,38 +254,14 @@ case "$1" in
         fi
         ;;
         
-    mark_false_positive)
-        if [ -z "$2" ]; then
-            echo "ERROR: Threat ID required"
-            exit 1
-        fi
-        
-        THREAT_ID="$2"
-        REASON="${3:-Manual false positive}"
-        
-        # Use the Python script
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" false_positive "$THREAT_ID" "$REASON" 2>&1)
-        if [ $? -eq 0 ]; then
-            log_action "Marked threat $THREAT_ID as false positive: $REASON"
-            echo "OK: Threat $THREAT_ID marked as false positive"
-        else
-            log_action "Failed to mark false positive: $result"
-            echo "ERROR: $result"
-            exit 1
-        fi
-        ;;
-        
-    add_sample_threats)
-        # Use the Python script to add sample data
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" add_samples 2>&1)
-        if [ $? -eq 0 ]; then
-            log_action "Added sample threats for testing"
-            echo "OK: Sample threats added"
-        else
-            log_action "Failed to add sample threats: $result"
-            echo "ERROR: $result"
-            exit 1
-        fi
+    clear_logs)
+        for logfile in alerts.log threats.log detections.log engine.log stats.json control.log; do
+            if [ -f "$LOG_DIR/$logfile" ]; then
+                > "$LOG_DIR/$logfile"
+            fi
+        done
+        log_action "Logs cleared"
+        echo "OK: Logs cleared"
         ;;
         
     export_blocked)
@@ -339,6 +285,124 @@ case "$1" in
             echo "$result"
         else
             echo "ERROR: Failed to export whitelist"
+            exit 1
+        fi
+        ;;
+        
+    mark_false_positive)
+        if [ -z "$2" ]; then
+            echo "ERROR: Threat ID required"
+            exit 1
+        fi
+        
+        THREAT_ID="$2"
+        REASON="${3:-Manual false positive}"
+        
+        # Use the Python script
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" false_positive "$THREAT_ID" "$REASON" 2>&1)
+        if [ $? -eq 0 ]; then
+            log_action "Marked threat $THREAT_ID as false positive: $REASON"
+            echo "OK: Threat $THREAT_ID marked as false positive"
+        else
+            log_action "Failed to mark false positive: $result"
+            echo "ERROR: $result"
+            exit 1
+        fi
+        ;;
+
+    whitelist_from_threat)
+        if [ -z "$2" ]; then
+            echo "ERROR: Threat ID required"
+            exit 1
+        fi
+        
+        THREAT_ID="$2"
+        DESCRIPTION="${3:-Added from threat}"
+        PERMANENT="${4:-1}"
+        
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" whitelist_ip "$THREAT_ID" "$DESCRIPTION" "$PERMANENT" 2>&1)
+        if [ $? -eq 0 ]; then
+            log_action "Whitelisted IP from threat $THREAT_ID"
+            echo "$result"
+        else
+            log_action "Failed to whitelist from threat: $result"
+            echo "ERROR: $result"
+            exit 1
+        fi
+        ;;
+
+    block_from_threat)
+        if [ -z "$2" ]; then
+            echo "ERROR: Threat ID required"
+            exit 1
+        fi
+        
+        THREAT_ID="$2"
+        DURATION="${3:-3600}"
+        REASON="${4:-Blocked from threat}"
+        
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" block_ip "$THREAT_ID" "$DURATION" "$REASON" 2>&1)
+        if [ $? -eq 0 ]; then
+            log_action "Blocked IP from threat $THREAT_ID"
+            echo "$result"
+        else
+            log_action "Failed to block from threat: $result"
+            echo "ERROR: $result"
+            exit 1
+        fi
+        ;;
+
+    create_rule_from_threat)
+        if [ -z "$2" ] || [ -z "$3" ]; then
+            echo "ERROR: Threat ID and rule name required"
+            exit 1
+        fi
+        
+        THREAT_ID="$2"
+        RULE_NAME="$3"
+        RULE_TYPE="${4:-custom}"
+        ENABLED="${5:-1}"
+        
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" create_rule "$THREAT_ID" "$RULE_NAME" "$RULE_TYPE" "$ENABLED" 2>&1)
+        if [ $? -eq 0 ]; then
+            log_action "Created rule from threat $THREAT_ID"
+            echo "$result"
+        else
+            log_action "Failed to create rule from threat: $result"
+            echo "ERROR: $result"
+            exit 1
+        fi
+        ;;
+
+    clear_old_threats)
+        if [ -z "$2" ]; then
+            echo "ERROR: Days parameter required"
+            exit 1
+        fi
+        
+        DAYS="$2"
+        SEVERITY="${3:-low}"
+        
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" clear_old "$DAYS" "$SEVERITY" 2>&1)
+        if [ $? -eq 0 ]; then
+            log_action "Cleared old threats: $result"
+            echo "$result"
+        else
+            log_action "Failed to clear old threats: $result"
+            echo "ERROR: $result"
+            exit 1
+        fi
+        ;;
+        
+    add_sample_threats)
+        # Use the Python script to add sample data
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" add_samples 2>&1)
+        if [ $? -eq 0 ]; then
+            log_action "Added sample threats for testing"
+            echo "OK: Sample threats added"
+        else
+            log_action "Failed to add sample threats: $result"
+            echo "ERROR: $result"
             exit 1
         fi
         ;;
@@ -392,6 +456,10 @@ case "$1" in
         echo ""
         echo "Threat Management:"
         echo "  mark_false_positive <threat_id> [reason]"
+        echo "  whitelist_from_threat <threat_id> [description] [permanent]"
+        echo "  block_from_threat <threat_id> [duration] [reason]"
+        echo "  create_rule_from_threat <threat_id> <rule_name> [rule_type] [enabled]"
+        echo "  clear_old_threats <days> [severity]"
         echo "  add_sample_threats"
         echo ""
         echo "JSON Output:"
