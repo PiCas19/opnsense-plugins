@@ -223,10 +223,28 @@
                 <div class="col-md-6">
                     <div class="table-container">
                         <h3><i class="fa fa-upload"></i> {{ lang._('Import Blocked IPs') }}</h3>
-                        {% if formImportBlocked %}
-                            {{ partial("layout_partials/base_form", ['fields': formImportBlocked, 'id': 'frm_import_blocked']) }}
-                        {% endif %}
-                        <div class="form-actions" style="margin-top: 1rem;">
+                        <div class="form-group">
+                            <label for="importFile">{{ lang._('Import File') }}</label>
+                            <input type="file" class="form-control" id="importFile" accept=".csv,.json,.txt">
+                            <small class="help-block">{{ lang._('Select file to import blocked IPs from') }}</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="importFormat">{{ lang._('File Format') }}</label>
+                            <select class="form-control" id="importFormat">
+                                <option value="csv">CSV</option>
+                                <option value="json">JSON</option>
+                                <option value="txt">Plain Text</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="importMergeMode">{{ lang._('Merge Mode') }}</label>
+                            <select class="form-control" id="importMergeMode">
+                                <option value="add">Add New Only</option>
+                                <option value="replace">Replace All</option>
+                                <option value="update">Update Existing</option>
+                            </select>
+                        </div>
+                        <div class="form-actions">
                             <button class="btn btn-primary" id="importBlockedBtn">
                                 <i class="fa fa-upload"></i> {{ lang._('Import') }}
                             </button>
@@ -236,10 +254,33 @@
                 <div class="col-md-6">
                     <div class="table-container">
                         <h3><i class="fa fa-download"></i> {{ lang._('Export Blocked IPs') }}</h3>
-                        {% if formExportBlocked %}
-                            {{ partial("layout_partials/base_form", ['fields': formExportBlocked, 'id': 'frm_export_blocked']) }}
-                        {% endif %}
-                        <div class="form-actions" style="margin-top: 1rem;">
+                        <div class="form-group">
+                            <label for="exportFormat">{{ lang._('Export Format') }}</label>
+                            <select class="form-control" id="exportFormat">
+                                <option value="csv">CSV</option>
+                                <option value="json">JSON</option>
+                                <option value="xml">XML</option>
+                                <option value="txt">Plain Text</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <div class="checkbox">
+                                <label>
+                                    <input type="checkbox" id="exportIncludeExpired"> {{ lang._('Include Expired Entries') }}
+                                </label>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="exportDateRange">{{ lang._('Date Range') }}</label>
+                            <select class="form-control" id="exportDateRange">
+                                <option value="all">All Time</option>
+                                <option value="today">Today</option>
+                                <option value="week">Last Week</option>
+                                <option value="month">Last Month</option>
+                                <option value="custom">Custom Range</option>
+                            </select>
+                        </div>
+                        <div class="form-actions">
                             <button class="btn btn-primary" id="exportBlockedBtn">
                                 <i class="fa fa-download"></i> {{ lang._('Export') }}
                             </button>
@@ -262,9 +303,38 @@
                 <h4 class="modal-title">{{ lang._('Block IP Address') }}</h4>
             </div>
             <div class="modal-body">
-                {% if formBlockIp %}
-                    {{ partial("layout_partials/base_form", ['fields': formBlockIp, 'id': 'frm_block_ip']) }}
-                {% endif %}
+                <div class="form-group">
+                    <label for="blockIpAddress">{{ lang._('IP Address') }}</label>
+                    <input type="text" class="form-control" id="blockIpAddress" placeholder="192.168.1.100">
+                </div>
+                <div class="form-group">
+                    <label for="blockDuration">{{ lang._('Block Duration') }}</label>
+                    <select class="form-control" id="blockDuration">
+                        <option value="300">5 minutes</option>
+                        <option value="900">15 minutes</option>
+                        <option value="1800">30 minutes</option>
+                        <option value="3600">1 hour</option>
+                        <option value="7200">2 hours</option>
+                        <option value="21600">6 hours</option>
+                        <option value="43200">12 hours</option>
+                        <option value="86400">24 hours</option>
+                        <option value="604800">7 days</option>
+                        <option value="2592000">30 days</option>
+                        <option value="0">Permanent</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="blockReason">{{ lang._('Reason') }}</label>
+                    <input type="text" class="form-control" id="blockReason" placeholder="Manual block">
+                </div>
+                <div class="form-group">
+                    <label for="blockType">{{ lang._('Block Type') }}</label>
+                    <select class="form-control" id="blockType">
+                        <option value="temporary">Temporary</option>
+                        <option value="permanent">Permanent</option>
+                        <option value="progressive">Progressive</option>
+                    </select>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-default" data-dismiss="modal">{{ lang._('Cancel') }}</button>
@@ -287,9 +357,39 @@
                 <h4 class="modal-title">{{ lang._('Bulk Block IP Addresses') }}</h4>
             </div>
             <div class="modal-body">
-                {% if formBulkBlock %}
-                    {{ partial("layout_partials/base_form", ['fields': formBulkBlock, 'id': 'frm_bulk_block']) }}
-                {% endif %}
+                <div class="form-group">
+                    <label for="bulkBlockIpList">{{ lang._('IP Address List') }}</label>
+                    <textarea class="form-control" id="bulkBlockIpList" rows="8" placeholder="192.168.1.100&#10;10.0.0.50&#10;172.16.0.25"></textarea>
+                    <small class="help-block">{{ lang._('List of IP addresses to block (one per line, IPv4 or IPv6)') }}</small>
+                </div>
+                <div class="form-group">
+                    <label for="bulkBlockDuration">{{ lang._('Block Duration') }}</label>
+                    <select class="form-control" id="bulkBlockDuration">
+                        <option value="300">5 minutes</option>
+                        <option value="900">15 minutes</option>
+                        <option value="1800">30 minutes</option>
+                        <option value="3600">1 hour</option>
+                        <option value="7200">2 hours</option>
+                        <option value="21600">6 hours</option>
+                        <option value="43200">12 hours</option>
+                        <option value="86400">24 hours</option>
+                        <option value="604800">7 days</option>
+                        <option value="2592000">30 days</option>
+                        <option value="0">Permanent</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="bulkBlockReason">{{ lang._('Reason') }}</label>
+                    <input type="text" class="form-control" id="bulkBlockReason" placeholder="Bulk block operation">
+                </div>
+                <div class="form-group">
+                    <label for="bulkBlockType">{{ lang._('Block Type') }}</label>
+                    <select class="form-control" id="bulkBlockType">
+                        <option value="temporary">Temporary</option>
+                        <option value="permanent">Permanent</option>
+                        <option value="progressive">Progressive</option>
+                    </select>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-default" data-dismiss="modal">{{ lang._('Cancel') }}</button>
@@ -312,9 +412,26 @@
                 <h4 class="modal-title">{{ lang._('Add to Whitelist') }}</h4>
             </div>
             <div class="modal-body">
-                {% if formAddWhitelist %}
-                    {{ partial("layout_partials/base_form", ['fields': formAddWhitelist, 'id': 'frm_add_whitelist']) }}
-                {% endif %}
+                <div class="form-group">
+                    <label for="whitelistIpAddress">{{ lang._('IP Address/Network') }}</label>
+                    <input type="text" class="form-control" id="whitelistIpAddress" placeholder="192.168.1.100 or 192.168.1.0/24">
+                </div>
+                <div class="form-group">
+                    <label for="whitelistDescription">{{ lang._('Description') }}</label>
+                    <input type="text" class="form-control" id="whitelistDescription" placeholder="Manual whitelist entry">
+                </div>
+                <div class="form-group">
+                    <div class="checkbox">
+                        <label>
+                            <input type="checkbox" id="whitelistPermanent"> {{ lang._('Permanent Entry') }}
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="whitelistExpiry">{{ lang._('Expiry Date') }}</label>
+                    <input type="text" class="form-control" id="whitelistExpiry" placeholder="YYYY-MM-DD HH:MM">
+                    <small class="help-block">{{ lang._('Leave empty for permanent entry') }}</small>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-default" data-dismiss="modal">{{ lang._('Cancel') }}</button>
@@ -337,9 +454,22 @@
                 <h4 class="modal-title">{{ lang._('Bulk Add to Whitelist') }}</h4>
             </div>
             <div class="modal-body">
-                {% if formBulkWhitelist %}
-                    {{ partial("layout_partials/base_form", ['fields': formBulkWhitelist, 'id': 'frm_bulk_whitelist']) }}
-                {% endif %}
+                <div class="form-group">
+                    <label for="bulkWhitelistIpList">{{ lang._('IP/Network List') }}</label>
+                    <textarea class="form-control" id="bulkWhitelistIpList" rows="8" placeholder="192.168.1.100&#10;10.0.0.0/24&#10;172.16.0.25"></textarea>
+                    <small class="help-block">{{ lang._('List of IP addresses or networks to whitelist (one per line)') }}</small>
+                </div>
+                <div class="form-group">
+                    <label for="bulkWhitelistDescription">{{ lang._('Description') }}</label>
+                    <input type="text" class="form-control" id="bulkWhitelistDescription" placeholder="Bulk whitelist operation">
+                </div>
+                <div class="form-group">
+                    <div class="checkbox">
+                        <label>
+                            <input type="checkbox" id="bulkWhitelistPermanent"> {{ lang._('Permanent Entries') }}
+                        </label>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-default" data-dismiss="modal">{{ lang._('Cancel') }}</button>
@@ -356,6 +486,10 @@
 
 <script>
 $(document).ready(function() {
+    // Initialize charts variables
+    window.blockTimelineChart = null;
+    window.blockTypesChart = null;
+    
     // Initialize
     loadBlockingStats();
     loadBlockedIps();
@@ -389,14 +523,29 @@ $(document).ready(function() {
     
     // Clear modal forms when closed
     $('.modal').on('hidden.bs.modal', function () {
-        $(this).find('form')[0]?.reset();
+        $(this).find('input[type=text], textarea').val('');
+        $(this).find('input[type=checkbox]').prop('checked', false);
+        $(this).find('select').prop('selectedIndex', 0);
     });
     
     // Modal confirmations
     $('#confirmBlockIp').click(function() {
-        let formData = $("#frm_block_ip").serialize();
+        let ip = $('#blockIpAddress').val().trim();
+        let duration = $('#blockDuration').val();
+        let reason = $('#blockReason').val().trim();
+        let blockType = $('#blockType').val();
         
-        ajaxCall('/api/webguard/service/blockIP', formData, function(data) {
+        if (!ip) {
+            showNotification('{{ lang._("Please enter an IP address") }}', 'error');
+            return;
+        }
+        
+        ajaxCall('/api/webguard/service/blockIP', {
+            ip: ip,
+            duration: duration,
+            reason: reason,
+            block_type: blockType
+        }, function(data) {
             if (data.status === 'ok') {
                 $('#blockIpModal').modal('hide');
                 showNotification('{{ lang._("IP blocked successfully") }}', 'success');
@@ -409,9 +558,28 @@ $(document).ready(function() {
     });
     
     $('#confirmBulkBlock').click(function() {
-        let formData = $("#frm_bulk_block").serialize();
+        let ipList = $('#bulkBlockIpList').val().trim();
+        let duration = $('#bulkBlockDuration').val();
+        let reason = $('#bulkBlockReason').val().trim();
+        let blockType = $('#bulkBlockType').val();
         
-        ajaxCall('/api/webguard/service/bulkBlockIP', formData, function(data) {
+        if (!ipList) {
+            showNotification('{{ lang._("Please enter IP addresses") }}', 'error');
+            return;
+        }
+        
+        let ips = ipList.split('\n').filter(ip => ip.trim()).map(ip => ip.trim());
+        if (ips.length === 0) {
+            showNotification('{{ lang._("No valid IP addresses found") }}', 'error');
+            return;
+        }
+        
+        ajaxCall('/api/webguard/service/bulkBlockIP', {
+            ip_list: ips.join('\n'),
+            duration: duration,
+            reason: reason,
+            block_type: blockType
+        }, function(data) {
             if (data.status === 'ok') {
                 $('#bulkBlockModal').modal('hide');
                 showNotification('{{ lang._("IPs blocked successfully") }}', 'success');
@@ -424,9 +592,22 @@ $(document).ready(function() {
     });
     
     $('#confirmAddWhitelist').click(function() {
-        let formData = $("#frm_add_whitelist").serialize();
+        let ip = $('#whitelistIpAddress').val().trim();
+        let description = $('#whitelistDescription').val().trim();
+        let permanent = $('#whitelistPermanent').is(':checked');
+        let expiry = $('#whitelistExpiry').val().trim();
         
-        ajaxCall('/api/webguard/service/whitelistIP', formData, function(data) {
+        if (!ip) {
+            showNotification('{{ lang._("Please enter an IP address or network") }}', 'error');
+            return;
+        }
+        
+        ajaxCall('/api/webguard/service/whitelistIP', {
+            ip_address: ip,
+            description: description,
+            permanent: permanent ? '1' : '0',
+            expiry: expiry
+        }, function(data) {
             if (data.status === 'ok') {
                 $('#addWhitelistModal').modal('hide');
                 showNotification('{{ lang._("IP whitelisted successfully") }}', 'success');
@@ -438,9 +619,26 @@ $(document).ready(function() {
     });
     
     $('#confirmBulkWhitelist').click(function() {
-        let formData = $("#frm_bulk_whitelist").serialize();
+        let ipList = $('#bulkWhitelistIpList').val().trim();
+        let description = $('#bulkWhitelistDescription').val().trim();
+        let permanent = $('#bulkWhitelistPermanent').is(':checked');
         
-        ajaxCall('/api/webguard/service/bulkWhitelistIP', formData, function(data) {
+        if (!ipList) {
+            showNotification('{{ lang._("Please enter IP addresses or networks") }}', 'error');
+            return;
+        }
+        
+        let ips = ipList.split('\n').filter(ip => ip.trim()).map(ip => ip.trim());
+        if (ips.length === 0) {
+            showNotification('{{ lang._("No valid IP addresses found") }}', 'error');
+            return;
+        }
+        
+        ajaxCall('/api/webguard/service/bulkWhitelistIP', {
+            ip_list: ips.join('\n'),
+            description: description,
+            permanent: permanent ? '1' : '0'
+        }, function(data) {
             if (data.status === 'ok') {
                 $('#bulkWhitelistModal').modal('hide');
                 showNotification('{{ lang._("IPs whitelisted successfully") }}', 'success');
@@ -452,33 +650,54 @@ $(document).ready(function() {
     });
     
     $('#importBlockedBtn').click(function() {
-        let formData = $("#frm_import_blocked").serialize();
+        let file = $('#importFile')[0].files[0];
+        let format = $('#importFormat').val();
+        let mergeMode = $('#importMergeMode').val();
         
-        ajaxCall('/api/webguard/service/importBlocked', formData, function(data) {
-            if (data.status === 'ok') {
-                showNotification('{{ lang._("Import completed successfully") }}', 'success');
-                loadBlockingStats(); 
-                loadBlockedIps();
-            } else {
-                showNotification('{{ lang._("Import failed") }}: ' + (data.message || '{{ lang._("Unknown error") }}'), 'error');
+        if (!file) {
+            showNotification('{{ lang._("Please select a file") }}', 'error');
+            return;
+        }
+        
+        let formData = new FormData();
+        formData.append('file', file);
+        formData.append('format', format);
+        formData.append('merge_mode', mergeMode);
+        
+        $.ajax({
+            url: '/api/webguard/service/importBlocked',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(data) {
+                if (data.status === 'ok') {
+                    showNotification('{{ lang._("Import completed successfully") }}', 'success');
+                    loadBlockingStats(); 
+                    loadBlockedIps();
+                } else {
+                    showNotification('{{ lang._("Import failed") }}: ' + (data.message || '{{ lang._("Unknown error") }}'), 'error');
+                }
+            },
+            error: function() {
+                showNotification('{{ lang._("Import failed - connection error") }}', 'error');
             }
         });
     });
     
     $('#exportBlockedBtn').click(function() {
-        let formData = $("#frm_export_blocked").serialize();
+        let format = $('#exportFormat').val();
+        let includeExpired = $('#exportIncludeExpired').is(':checked');
+        let dateRange = $('#exportDateRange').val();
         
-        ajaxCall('/api/webguard/service/exportBlocked', formData, function(data) {
-            if (data.status === 'ok') {
-                // Trigger download
-                if (data.data && data.data.url) {
-                    window.location.href = data.data.url;
-                }
-                showNotification('{{ lang._("Export completed successfully") }}', 'success');
-            } else {
-                showNotification('{{ lang._("Export failed") }}: ' + (data.message || '{{ lang._("Unknown error") }}'), 'error');
-            }
+        let params = new URLSearchParams({
+            format: format,
+            include_expired: includeExpired ? '1' : '0',
+            date_range: dateRange
         });
+        
+        window.location.href = '/api/webguard/service/exportBlocked?' + params.toString();
+        showNotification('{{ lang._("Export started") }}', 'info');
     });
     
     $('#clearExpiredBtn').click(function() {
@@ -526,13 +745,27 @@ $(document).ready(function() {
     });
     
     function loadBlockingStats() {
-        ajaxGet('/api/webguard/service/listBlocked', {}, function(blockedData) {
-            $('#active-blocks').text(formatNumber(blockedData.count || 0));
-            $('#auto-blocks').text(formatNumber(Math.floor((blockedData.count || 0) * 0.7)));
-            $('#manual-blocks').text(formatNumber(Math.floor((blockedData.count || 0) * 0.3)));
+        ajaxGet('/api/webguard/service/listBlocked', {}, function(data) {
+            if (data && data.status === 'ok') {
+                $('#active-blocks').text(formatNumber(data.count || 0));
+                $('#auto-blocks').text(formatNumber(Math.floor((data.count || 0) * 0.7)));
+                $('#manual-blocks').text(formatNumber(Math.floor((data.count || 0) * 0.3)));
+                
+                // Update service status
+                $('#serviceStatus').removeClass('badge-secondary badge-success badge-danger')
+                    .addClass('badge-success').text('{{ lang._("Active") }}');
+            } else {
+                $('#active-blocks, #auto-blocks, #manual-blocks').text('--');
+                $('#serviceStatus').removeClass('badge-secondary badge-success badge-danger')
+                    .addClass('badge-danger').text('{{ lang._("Error") }}');
+            }
             
             ajaxGet('/api/webguard/service/listWhitelist', {}, function(whitelistData) {
-                $('#whitelist-entries').text(formatNumber(whitelistData.count || 0));
+                if (whitelistData && whitelistData.status === 'ok') {
+                    $('#whitelist-entries').text(formatNumber(whitelistData.count || 0));
+                } else {
+                    $('#whitelist-entries').text('--');
+                }
             });
         });
     }
@@ -542,25 +775,32 @@ $(document).ready(function() {
             let tbody = $('#blockedTable tbody');
             tbody.empty();
             
-            if (data.status === 'ok' && data.data && data.data.length > 0) {
-                data.data.forEach(function(ip) {
+            if (data && data.status === 'ok' && data.data && data.data.length > 0) {
+                data.data.forEach(function(item) {
+                    let ip = typeof item === 'string' ? item : (item.ip || item.address || item);
+                    let blockType = item.type || 'MANUAL';
+                    let blockedSince = item.blocked_since || new Date().toLocaleString();
+                    let expires = item.expires || '{{ lang._("Never") }}';
+                    let reason = item.reason || 'Manual block from admin';
+                    let violations = item.violations || 1;
+                    
                     let row = $('<tr>');
                     row.append('<td><input type="checkbox" class="blocked-checkbox" data-ip="' + ip + '"></td>');
                     row.append('<td>' + ip + '</td>');
-                    row.append('<td><span class="block-type-permanent">MANUAL</span></td>');
-                    row.append('<td>' + new Date().toLocaleString() + '</td>');
-                    row.append('<td><span class="expires-never">{{ lang._("Never") }}</span></td>');
-                    row.append('<td>Manual block from admin</td>');
-                    row.append('<td>1</td>');
+                    row.append('<td><span class="block-type-permanent">' + blockType + '</span></td>');
+                    row.append('<td>' + blockedSince + '</td>');
+                    row.append('<td><span class="expires-never">' + expires + '</span></td>');
+                    row.append('<td>' + reason + '</td>');
+                    row.append('<td>' + violations + '</td>');
                     
                     let actions = '<div class="btn-group btn-group-xs">';
-                    actions += '<button class="btn btn-warning btn-unblock" data-ip="' + ip + '"><i class="fa fa-unlock"></i></button>';
+                    actions += '<button class="btn btn-warning btn-unblock" data-ip="' + ip + '" title="{{ lang._("Unblock") }}"><i class="fa fa-unlock"></i></button>';
                     actions += '</div>';
                     row.append('<td>' + actions + '</td>');
                     
                     tbody.append(row);
                 });
-                $('#blockedCount').text(data.count || 0);
+                $('#blockedCount').text(data.count || data.data.length);
             } else {
                 tbody.append('<tr><td colspan="8" class="text-center">{{ lang._("No blocked IPs found") }}</td></tr>');
                 $('#blockedCount').text('0');
@@ -573,24 +813,30 @@ $(document).ready(function() {
             let tbody = $('#whitelistTable tbody');
             tbody.empty();
             
-            if (data.status === 'ok' && data.data && data.data.length > 0) {
-                data.data.forEach(function(ip) {
+            if (data && data.status === 'ok' && data.data && data.data.length > 0) {
+                data.data.forEach(function(item) {
+                    let ip = typeof item === 'string' ? item : (item.ip || item.address || item);
+                    let description = item.description || 'Manual whitelist entry';
+                    let added = item.added || new Date().toLocaleString();
+                    let expires = item.expires || '{{ lang._("Never") }}';
+                    let type = item.permanent ? '{{ lang._("Permanent") }}' : '{{ lang._("Temporary") }}';
+                    
                     let row = $('<tr>');
                     row.append('<td><input type="checkbox" class="whitelist-checkbox" data-ip="' + ip + '"></td>');
                     row.append('<td>' + ip + '</td>');
-                    row.append('<td>Manual whitelist entry</td>');
-                    row.append('<td>' + new Date().toLocaleString() + '</td>');
-                    row.append('<td>{{ lang._("Never") }}</td>');
-                    row.append('<td>{{ lang._("Permanent") }}</td>');
+                    row.append('<td>' + description + '</td>');
+                    row.append('<td>' + added + '</td>');
+                    row.append('<td>' + expires + '</td>');
+                    row.append('<td>' + type + '</td>');
                     
                     let actions = '<div class="btn-group btn-group-xs">';
-                    actions += '<button class="btn btn-danger btn-remove-whitelist" data-ip="' + ip + '"><i class="fa fa-times"></i></button>';
+                    actions += '<button class="btn btn-danger btn-remove-whitelist" data-ip="' + ip + '" title="{{ lang._("Remove") }}"><i class="fa fa-times"></i></button>';
                     actions += '</div>';
                     row.append('<td>' + actions + '</td>');
                     
                     tbody.append(row);
                 });
-                $('#whitelistCount').text(data.count || 0);
+                $('#whitelistCount').text(data.count || data.data.length);
             } else {
                 tbody.append('<tr><td colspan="7" class="text-center">{{ lang._("No whitelist entries found") }}</td></tr>');
                 $('#whitelistCount').text('0');
@@ -608,13 +854,13 @@ $(document).ready(function() {
         let labels = ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'];
         let data = [2, 8, 5, 12, 18, 15];
         
-        if (window.blockTimelineChart) {
+        if (window.blockTimelineChart && window.blockTimelineChart.data) {
             window.blockTimelineChart.data.labels = labels;
             window.blockTimelineChart.data.datasets[0].data = data;
             window.blockTimelineChart.update();
         }
         
-        if (window.blockTypesChart) {
+        if (window.blockTypesChart && window.blockTypesChart.data) {
             window.blockTypesChart.data.datasets[0].data = [15, 8, 3];
             window.blockTypesChart.update();
         }
@@ -639,54 +885,69 @@ $(document).ready(function() {
     }
     
     function initCharts() {
-        // Inizializza Chart.js
-        let ctx1 = document.getElementById('blockTimelineChart');
-        if (ctx1) {
-            window.blockTimelineChart = new Chart(ctx1.getContext('2d'), {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        label: '{{ lang._("Blocks") }}',
-                        data: [],
-                        borderColor: '#dd4b39',
-                        backgroundColor: 'rgba(221, 75, 57, 0.1)',
-                        tension: 0.1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true
-                        }
-                    }
-                }
-            });
+        // Verifica che Chart.js sia caricato
+        if (typeof Chart === 'undefined') {
+            console.error('Chart.js not loaded');
+            return;
         }
         
-        let ctx2 = document.getElementById('blockTypesChart');
-        if (ctx2) {
-            window.blockTypesChart = new Chart(ctx2.getContext('2d'), {
-                type: 'doughnut',
-                data: {
-                    labels: ['{{ lang._("Temporary") }}', '{{ lang._("Permanent") }}', '{{ lang._("Progressive") }}'],
-                    datasets: [{
-                        data: [0, 0, 0],
-                        backgroundColor: ['#f0ad4e', '#d9534f', '#5bc0de']
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
+        // Inizializza Chart.js per timeline
+        let ctx1 = document.getElementById('blockTimelineChart');
+        if (ctx1) {
+            try {
+                window.blockTimelineChart = new Chart(ctx1.getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: '{{ lang._("Blocks") }}',
+                            data: [],
+                            borderColor: '#dd4b39',
+                            backgroundColor: 'rgba(221, 75, 57, 0.1)',
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
                         }
                     }
-                }
-            });
+                });
+            } catch (e) {
+                console.error('Error initializing timeline chart:', e);
+            }
+        }
+        
+        // Inizializza Chart.js per block types
+        let ctx2 = document.getElementById('blockTypesChart');
+        if (ctx2) {
+            try {
+                window.blockTypesChart = new Chart(ctx2.getContext('2d'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['{{ lang._("Temporary") }}', '{{ lang._("Permanent") }}', '{{ lang._("Progressive") }}'],
+                        datasets: [{
+                            data: [0, 0, 0],
+                            backgroundColor: ['#f0ad4e', '#d9534f', '#5bc0de']
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom'
+                            }
+                        }
+                    }
+                });
+            } catch (e) {
+                console.error('Error initializing block types chart:', e);
+            }
         }
     }
     
@@ -695,7 +956,9 @@ $(document).ready(function() {
     }
     
     function showNotification(message, type) {
-        const alertClass = type === 'success' ? 'alert-success' : type === 'warning' ? 'alert-warning' : 'alert-danger';
+        const alertClass = type === 'success' ? 'alert-success' : 
+                          type === 'warning' ? 'alert-warning' : 
+                          type === 'info' ? 'alert-info' : 'alert-danger';
         const notification = $(`
             <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
                 ${message}
@@ -707,6 +970,35 @@ $(document).ready(function() {
         
         $('#notifications').append(notification);
         setTimeout(() => notification.alert('close'), 5000);
+    }
+    
+    // Helper functions for AJAX calls
+    function ajaxCall(url, data, callback) {
+        $.ajax({
+            url: url,
+            type: 'POST',
+            data: data,
+            dataType: 'json',
+            success: callback,
+            error: function(xhr, status, error) {
+                console.error('AJAX Error:', error);
+                showNotification('{{ lang._("Connection error") }}: ' + error, 'error');
+            }
+        });
+    }
+    
+    function ajaxGet(url, data, callback) {
+        $.ajax({
+            url: url,
+            type: 'GET',
+            data: data,
+            dataType: 'json',
+            success: callback,
+            error: function(xhr, status, error) {
+                console.error('AJAX Get Error:', error);
+                showNotification('{{ lang._("Connection error") }}: ' + error, 'error');
+            }
+        });
     }
 });
 </script>
@@ -811,5 +1103,12 @@ $(document).ready(function() {
     text-align: right;
     border-top: 1px solid #ddd;
     padding-top: 1rem;
+}
+
+.btn-group-xs > .btn, .btn-xs {
+    padding: 1px 5px;
+    font-size: 12px;
+    line-height: 1.5;
+    border-radius: 3px;
 }
 </style>
