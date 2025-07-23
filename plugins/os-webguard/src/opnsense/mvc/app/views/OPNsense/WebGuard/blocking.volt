@@ -343,13 +343,12 @@
 </div>
 
 <script>
-$(document).ready(function() {
-    // Initialize
+$(function() {
+
     loadStats();
     loadBlockedIps();
     loadWhitelist();
-    
-    // Auto-refresh every 30 seconds
+
     setInterval(function() {
         loadStats();
         if ($('#blocked-tab').hasClass('active')) {
@@ -358,18 +357,17 @@ $(document).ready(function() {
             loadWhitelist();
         }
     }, 30000);
-    
-    // Button handlers
+
+    /* Buttons */
     $('#add-block-btn').click(() => $('#block-ip-modal').modal('show'));
     $('#bulk-block-btn').click(() => $('#bulk-block-modal').modal('show'));
     $('#add-whitelist-btn').click(() => $('#add-whitelist-modal').modal('show'));
     $('#refresh-blocked-btn').click(() => { loadStats(); loadBlockedIps(); });
     $('#refresh-whitelist-btn').click(() => loadWhitelist());
-    
-    // Clear expired blocks
+
     $('#clear-expired-btn').click(function() {
         if (confirm('{{ lang._("Clear all expired blocks?") }}')) {
-            ajaxCall('/api/webguard/service/clearExpired', {}, function(data) {
+            ajaxPost('/api/webguard/service/clearExpired', {}, function(data) {
                 if (data.status === 'ok') {
                     showNotification('{{ lang._("Expired blocks cleared") }}', 'success');
                     loadStats();
@@ -380,24 +378,22 @@ $(document).ready(function() {
             });
         }
     });
-    
-    // Export handlers
+
     $('#export-blocked-btn').click(function() {
         let format = $('#export-format').val();
         window.location.href = '/api/webguard/service/exportBlocked?format=' + format;
         showNotification('{{ lang._("Export started") }}', 'info');
     });
-    
+
     $('#export-whitelist-btn').click(function() {
         let format = $('#export-format').val();
         window.location.href = '/api/webguard/service/exportWhitelist?format=' + format;
         showNotification('{{ lang._("Export started") }}', 'info');
     });
-    
-    // Add sample threats
+
     $('#add-sample-threats-btn').click(function() {
         if (confirm('{{ lang._("Add sample threat data for testing?") }}')) {
-            ajaxCall('/api/webguard/service/addSampleThreats', {}, function(data) {
+            ajaxPost('/api/webguard/service/addSampleThreats', {}, function(data) {
                 if (data.status === 'ok') {
                     showNotification('{{ lang._("Sample threats added") }}', 'success');
                 } else {
@@ -406,11 +402,10 @@ $(document).ready(function() {
             });
         }
     });
-    
-    // Clear logs
+
     $('#clear-logs-btn').click(function() {
         if (confirm('{{ lang._("Clear all WebGuard logs?") }}')) {
-            ajaxCall('/api/webguard/service/clearLogs', {}, function(data) {
+            ajaxPost('/api/webguard/service/clearLogs', {}, function(data) {
                 if (data.status === 'ok') {
                     showNotification('{{ lang._("Logs cleared") }}', 'success');
                 } else {
@@ -419,19 +414,16 @@ $(document).ready(function() {
             });
         }
     });
-    
-    // Modal confirmations
+
+    /* Modals confirm */
     $('#confirm-block-btn').click(function() {
-        let ip = $('#block-ip').val().trim();
+        let ip       = $('#block-ip').val().trim();
         let duration = $('#block-duration').val();
-        let reason = $('#block-reason').val().trim();
-        
-        if (!ip) {
-            showNotification('{{ lang._("Please enter an IP address") }}', 'error');
-            return;
-        }
-        
-        ajaxCall('/api/webguard/service/blockIP', {
+        let reason   = $('#block-reason').val().trim();
+
+        if (!ip) { showNotification('{{ lang._("Please enter an IP address") }}', 'error'); return; }
+
+        ajaxPost('/api/webguard/service/blockIP', {
             ip: ip,
             duration: duration,
             reason: reason,
@@ -440,26 +432,21 @@ $(document).ready(function() {
             if (data.status === 'ok') {
                 $('#block-ip-modal').modal('hide');
                 showNotification('{{ lang._("IP blocked successfully") }}', 'success');
-                loadStats();
-                loadBlockedIps();
-                clearForm('block-ip-form');
+                loadStats(); loadBlockedIps(); clearForm('block-ip-form');
             } else {
                 showNotification('{{ lang._("Failed to block IP") }}: ' + (data.message || ''), 'error');
             }
         });
     });
-    
+
     $('#confirm-bulk-block-btn').click(function() {
-        let ips = $('#bulk-block-ips').val().trim();
+        let ips      = $('#bulk-block-ips').val().trim();
         let duration = $('#bulk-block-duration').val();
-        let reason = $('#bulk-block-reason').val().trim();
-        
-        if (!ips) {
-            showNotification('{{ lang._("Please enter IP addresses") }}', 'error');
-            return;
-        }
-        
-        ajaxCall('/api/webguard/service/bulkBlock', {
+        let reason   = $('#bulk-block-reason').val().trim();
+
+        if (!ips) { showNotification('{{ lang._("Please enter IP addresses") }}', 'error'); return; }
+
+        ajaxPost('/api/webguard/service/bulkBlock', {
             ip_list: ips,
             duration: duration,
             reason: reason,
@@ -468,26 +455,21 @@ $(document).ready(function() {
             if (data.status === 'ok') {
                 $('#bulk-block-modal').modal('hide');
                 showNotification('{{ lang._("IPs blocked successfully") }}', 'success');
-                loadStats();
-                loadBlockedIps();
-                clearForm('bulk-block-form');
+                loadStats(); loadBlockedIps(); clearForm('bulk-block-form');
             } else {
                 showNotification('{{ lang._("Failed to bulk block IPs") }}: ' + (data.message || ''), 'error');
             }
         });
     });
-    
+
     $('#confirm-whitelist-btn').click(function() {
-        let ip = $('#whitelist-ip').val().trim();
-        let description = $('#whitelist-description').val().trim();
-        let permanent = $('#whitelist-permanent').is(':checked') ? '1' : '0';
-        
-        if (!ip) {
-            showNotification('{{ lang._("Please enter an IP address") }}', 'error');
-            return;
-        }
-        
-        ajaxCall('/api/webguard/service/addWhitelist', {
+        let ip         = $('#whitelist-ip').val().trim();
+        let description= $('#whitelist-description').val().trim();
+        let permanent  = $('#whitelist-permanent').is(':checked') ? '1' : '0';
+
+        if (!ip) { showNotification('{{ lang._("Please enter an IP address") }}', 'error'); return; }
+
+        ajaxPost('/api/webguard/service/addWhitelist', {
             ip: ip,
             description: description,
             permanent: permanent
@@ -495,86 +477,77 @@ $(document).ready(function() {
             if (data.status === 'ok') {
                 $('#add-whitelist-modal').modal('hide');
                 showNotification('{{ lang._("IP whitelisted successfully") }}', 'success');
-                loadStats();
-                loadWhitelist();
-                clearForm('add-whitelist-form');
+                loadStats(); loadWhitelist(); clearForm('add-whitelist-form');
             } else {
                 showNotification('{{ lang._("Failed to whitelist IP") }}: ' + (data.message || ''), 'error');
             }
         });
     });
-    
-    // Dynamic action handlers
+
+    /* Dynamic buttons */
     $(document).on('click', '.unblock-btn', function() {
         let ip = $(this).data('ip');
         if (confirm('{{ lang._("Unblock IP") }} ' + ip + '?')) {
-            ajaxCall('/api/webguard/service/unblockIP', {ip: ip}, function(data) {
+            ajaxPost('/api/webguard/service/unblockIP', {ip: ip}, function(data) {
                 if (data.status === 'ok') {
                     showNotification('{{ lang._("IP unblocked successfully") }}', 'success');
-                    loadStats();
-                    loadBlockedIps();
+                    loadStats(); loadBlockedIps();
                 } else {
                     showNotification('{{ lang._("Failed to unblock IP") }}: ' + (data.message || ''), 'error');
                 }
             });
         }
     });
-    
+
     $(document).on('click', '.remove-whitelist-btn', function() {
         let ip = $(this).data('ip');
         if (confirm('{{ lang._("Remove") }} ' + ip + ' {{ lang._("from whitelist") }}?')) {
-            ajaxCall('/api/webguard/service/removeWhitelist', {ip: ip}, function(data) {
+            ajaxPost('/api/webguard/service/removeWhitelist', {ip: ip}, function(data) {
                 if (data.status === 'ok') {
                     showNotification('{{ lang._("IP removed from whitelist") }}', 'success');
-                    loadStats();
-                    loadWhitelist();
+                    loadStats(); loadWhitelist();
                 } else {
                     showNotification('{{ lang._("Failed to remove IP from whitelist") }}: ' + (data.message || ''), 'error');
                 }
             });
         }
     });
-    
-    // Functions
+
+    /* Helpers */
+
     function loadStats() {
-        // Load service status
         ajaxGet('/api/webguard/service/status', {}, function(data) {
             if (data && data.status === 'ok') {
                 $('#service-status').text(data.running ? '{{ lang._("Running") }}' : '{{ lang._("Stopped") }}');
             }
         });
-        
-        // Load statistics
+
         ajaxGet('/api/webguard/service/getStats', {}, function(data) {
             if (data && data.status === 'ok' && data.data) {
-                $('#active-blocks').text(data.data.blocked_count || 0);
+                $('#active-blocks').text(data.data.blocked_count   || 0);
                 $('#whitelist-count').text(data.data.whitelist_count || 0);
-                $('#temp-blocks').text(data.data.active_blocks || 0);
+                $('#temp-blocks').text(data.data.active_blocks    || 0);
             }
         });
     }
-    
+
     function loadBlockedIps() {
         ajaxGet('/api/webguard/service/listBlocked', {}, function(data) {
-            let tbody = $('#blocked-table tbody');
-            tbody.empty();
-            
+            let tbody = $('#blocked-table tbody').empty();
+
             if (data && data.status === 'ok' && data.data) {
-                if (data.data.blocked_ips && data.data.blocked_ips.length > 0) {
-                    data.data.blocked_ips.forEach(function(item) {
+                const arr = data.data.blocked_ips || [];
+                if (arr.length) {
+                    arr.forEach(function(item) {
                         let row = $('<tr>');
                         row.append('<td>' + item.ip_address + '</td>');
-                        row.append('<td><span class="label label-' + 
-                                  (item.block_type === 'permanent' ? 'danger' : 'warning') + '">' + 
-                                  item.block_type.toUpperCase() + '</span></td>');
+                        row.append('<td><span class="label label-' +
+                            (item.block_type === 'permanent' ? 'danger' : 'warning') + '">' +
+                            (item.block_type || '').toUpperCase() + '</span></td>');
                         row.append('<td>' + formatDate(item.blocked_since_iso) + '</td>');
                         row.append('<td>' + (item.expires_at_iso ? formatDate(item.expires_at_iso) : '{{ lang._("Never") }}') + '</td>');
                         row.append('<td>' + (item.reason || 'Manual block') + '</td>');
-                        
-                        let actions = '<button class="btn btn-xs btn-warning unblock-btn" data-ip="' + item.ip_address + '">' +
-                                     '<i class="fa fa-unlock"></i> {{ lang._("Unblock") }}</button>';
-                        row.append('<td>' + actions + '</td>');
-                        
+                        row.append('<td><button class="btn btn-xs btn-warning unblock-btn" data-ip="' + item.ip_address + '"><i class="fa fa-unlock"></i> {{ lang._("Unblock") }}</button></td>');
                         tbody.append(row);
                     });
                 } else {
@@ -585,27 +558,22 @@ $(document).ready(function() {
             }
         });
     }
-    
+
     function loadWhitelist() {
         ajaxGet('/api/webguard/service/listWhitelist', {}, function(data) {
-            let tbody = $('#whitelist-table tbody');
-            tbody.empty();
-            
+            let tbody = $('#whitelist-table tbody').empty();
+
             if (data && data.status === 'ok' && data.data) {
-                if (data.data.whitelist && data.data.whitelist.length > 0) {
-                    data.data.whitelist.forEach(function(item) {
+                const arr = data.data.whitelist || [];
+                if (arr.length) {
+                    arr.forEach(function(item) {
                         let row = $('<tr>');
                         row.append('<td>' + item.ip_address + '</td>');
                         row.append('<td>' + (item.description || 'Manual entry') + '</td>');
                         row.append('<td>' + formatDate(item.added_at_iso) + '</td>');
-                        row.append('<td><span class="label label-' + 
-                                  (item.permanent ? 'success' : 'warning') + '">' +
-                                  (item.permanent ? '{{ lang._("Permanent") }}' : '{{ lang._("Temporary") }}') + '</span></td>');
-                        
-                        let actions = '<button class="btn btn-xs btn-danger remove-whitelist-btn" data-ip="' + item.ip_address + '">' +
-                                     '<i class="fa fa-times"></i> {{ lang._("Remove") }}</button>';
-                        row.append('<td>' + actions + '</td>');
-                        
+                        row.append('<td><span class="label label-' + (item.permanent ? 'success' : 'warning') + '">' +
+                            (item.permanent ? '{{ lang._("Permanent") }}' : '{{ lang._("Temporary") }}') + '</span></td>');
+                        row.append('<td><button class="btn btn-xs btn-danger remove-whitelist-btn" data-ip="' + item.ip_address + '"><i class="fa fa-times"></i> {{ lang._("Remove") }}</button></td>');
                         tbody.append(row);
                     });
                 } else {
@@ -616,64 +584,62 @@ $(document).ready(function() {
             }
         });
     }
-    
+
     function formatDate(dateString) {
         if (!dateString) return 'N/A';
-        try {
-            return new Date(dateString).toLocaleString();
-        } catch (e) {
-            return dateString;
-        }
+        try { return new Date(dateString).toLocaleString(); }
+        catch (e) { return dateString; }
     }
-    
+
     function clearForm(formId) {
         $('#' + formId + ' input[type="text"], #' + formId + ' textarea').val('');
         $('#' + formId + ' input[type="checkbox"]').prop('checked', false);
         $('#' + formId + ' select').prop('selectedIndex', 0);
     }
-    
+
     function showNotification(message, type) {
-        let alertClass = type === 'success' ? 'alert-success' : 
-                        type === 'warning' ? 'alert-warning' : 
-                        type === 'info' ? 'alert-info' : 'alert-danger';
-        
-        let notification = $('<div class="alert ' + alertClass + ' alert-dismissible" role="alert">' +
-                           '<button type="button" class="close" data-dismiss="alert">' +
-                           '<span>&times;</span></button>' + message + '</div>');
-        
+        const cls = type === 'success' ? 'alert-success' :
+                    type === 'warning' ? 'alert-warning' :
+                    type === 'info'    ? 'alert-info'    : 'alert-danger';
+
+        const notification = $('<div class="alert ' + cls + ' alert-dismissible" role="alert">' +
+            '<button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>' +
+            message + '</div>');
+
         $('body').append(notification);
         setTimeout(() => notification.alert('close'), 5000);
     }
-    
-    function ajaxCall(url, data, callback) {
+
+    function xhrError(xhr, status, error) {
+        console.error('AJAX Error:', error);
+        let msg = error || (xhr.responseText || '').toString();
+        showNotification('{{ lang._("Connection error") }}: ' + msg, 'error');
+    }
+
+    function ajaxPost(url, data, cb) {
         $.ajax({
             url: url,
             type: 'POST',
             data: data,
             dataType: 'json',
-            success: callback,
-            error: function(xhr, status, error) {
-                console.error('AJAX Error:', error);
-                showNotification('{{ lang._("Connection error") }}: ' + error, 'error');
-            }
+            success: cb,
+            error: xhrError
         });
     }
-    
-    function ajaxGet(url, data, callback) {
+
+    function ajaxGet(url, data, cb) {
         $.ajax({
             url: url,
             type: 'GET',
             data: data,
             dataType: 'json',
-            success: callback,
-            error: function(xhr, status, error) {
-                console.error('AJAX Get Error:', error);
-                showNotification('{{ lang._("Connection error") }}: ' + error, 'error');
-            }
+            success: cb,
+            error: xhrError
         });
     }
 });
 </script>
+
 
 <style>
 .info-box {
