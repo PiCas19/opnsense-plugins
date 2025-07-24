@@ -812,23 +812,47 @@ $(function() {
         });
     });
 
+    // EXPORT BUTTONS - FIXED VERSION
     $('#export-blocked-btn').click(function() {
-        let format = $('#export-format').val();
-        window.location.href = '/api/webguard/service/exportBlocked?format=' + format;
-        showNotification('{{ lang._("Export started") }}', 'info');
+        const btn = $(this);
+        const format = $('#export-format').val();
+        
+        setButtonLoading(btn, true);
+        
+        ajaxGet('/api/webguard/service/exportBlocked', { format: format }, function(data) {
+            setButtonLoading(btn, false);
+            
+            if (data.status === 'ok') {
+                downloadFile(data.data, data.filename, data.content_type);
+                showNotification('{{ lang._("Blocked IPs exported successfully") }}', 'success');
+            } else {
+                showNotification('{{ lang._("Failed to export blocked IPs") }}: ' + (data.message || ''), 'error');
+            }
+        });
     });
 
     $('#export-whitelist-btn').click(function() {
-        let format = $('#export-format').val();
-        window.location.href = '/api/webguard/service/exportWhitelist?format=' + format;
-        showNotification('{{ lang._("Export started") }}', 'info');
+        const btn = $(this);
+        const format = $('#export-format').val();
+        
+        setButtonLoading(btn, true);
+        
+        ajaxGet('/api/webguard/service/exportWhitelist', { format: format }, function(data) {
+            setButtonLoading(btn, false);
+            
+            if (data.status === 'ok') {
+                downloadFile(data.data, data.filename, data.content_type);
+                showNotification('{{ lang._("Whitelist exported successfully") }}', 'success');
+            } else {
+                showNotification('{{ lang._("Failed to export whitelist") }}: ' + (data.message || ''), 'error');
+            }
+        });
     });
 
     $('#add-sample-threats-btn').click(function() {
         const btn = $(this);
         setButtonLoading(btn, true);
         ajaxPost('/api/webguard/service/addSampleThreats', {}, function(data) {
-            // Riabilita il bottone
             setButtonLoading(btn, false);
             if (data.status === 'ok') {
                 showNotification('{{ lang._("Sample threats added") }}', 'success');
@@ -838,7 +862,6 @@ $(function() {
             }
         });
     });
-
 
     $('#clear-logs-btn').click(function() {
         setButtonLoading($(this), true);
@@ -1010,7 +1033,6 @@ $(function() {
         });
     });
 
-
     $(document).on('click', '.whitelist-threat-btn', function() {
         const ip = $(this).data('ip');
         ajaxPost('/api/webguard/service/addWhitelist', {
@@ -1028,9 +1050,8 @@ $(function() {
         });
     });
 
-
     // Functions
-   function loadStats() {
+    function loadStats() {
         ajaxGet('/api/webguard/service/status', {}, function(data) {
             if (data && data.status === 'ok') {
                 $('#service-status').text(
@@ -1042,18 +1063,14 @@ $(function() {
         ajaxGet('/api/webguard/service/getStats', {}, function(data) {
             if (data && data.status === 'ok' && data.data) {
                 let s = data.data;
-                // Se esiste "ips_blocked", lo usiamo, altrimenti fallback
                 $('#active-blocks').text(s.ips_blocked != null 
                     ? s.ips_blocked 
                     : (s.blocked_count || 0)
                 );
-                // Se esiste "threats_blocked", lo usiamo come "temp-blocks"
                 $('#temp-blocks').text(s.threats_blocked != null 
                     ? s.threats_blocked 
                     : (s.temp_blocks || 0)
                 );
-                // Se esiste "requests_analyzed" puoi mostrarlo in un nuovo badge,
-                // altrimenti teniamo il contatore whitelist
                 $('#whitelist-count').text(s.whitelist_count != null 
                     ? s.whitelist_count 
                     : 0
@@ -1061,6 +1078,7 @@ $(function() {
             }
         });
     }
+
     function loadBlockedIps() {
         ajaxGet('/api/webguard/service/listBlocked', {}, function(data) {
             let tbody = $('#blocked-table tbody').empty();
@@ -1223,6 +1241,31 @@ $(function() {
         return icons[type] || 'info-circle';
     }
 
+    // DOWNLOAD FILE FUNCTION - NEW
+    function downloadFile(data, filename, contentType) {
+        try {
+            // Crea un blob con i dati
+            const blob = new Blob([data], { type: contentType });
+            
+            // Crea un link temporaneo per il download
+            const link = document.createElement('a');
+            link.href = window.URL.createObjectURL(blob);
+            link.download = filename;
+            
+            // Aggiungi il link al DOM, clicca e rimuovi
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            // Pulisci l'URL del blob
+            window.URL.revokeObjectURL(link.href);
+        } catch (error) {
+            console.error('Download error:', error);
+            showNotification('{{ lang._("Download failed") }}', 'error');
+        }
+    }
+
+    // AJAX FUNCTIONS - IMPROVED
     function ajaxPost(url, data, callback) {
         $.ajax({
             url: url,
@@ -1232,10 +1275,21 @@ $(function() {
             success: callback,
             error: function(xhr, status, error) {
                 console.error('AJAX Error:', error);
-                var msg = error || '{{ lang._("Connection error") }}';
-                if (xhr.responseJSON && xhr.responseJSON.message) {
-                    msg = xhr.responseJSON.message;
+                console.error('Response:', xhr.responseText);
+                
+                let msg = error || '{{ lang._("Connection error") }}';
+                
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response && response.message) {
+                        msg = response.message;
+                    }
+                } catch (e) {
+                    if (xhr.responseText && xhr.responseText.length < 200) {
+                        msg = xhr.responseText;
+                    }
                 }
+                
                 showNotification('{{ lang._("Error") }}: ' + msg, 'error');
             }
         });
@@ -1250,10 +1304,21 @@ $(function() {
             success: callback,
             error: function(xhr, status, error) {
                 console.error('AJAX Error:', error);
-                var msg = error || '{{ lang._("Connection error") }}';
-                if (xhr.responseJSON && xhr.responseJSON.message) {
-                    msg = xhr.responseJSON.message;
+                console.error('Response:', xhr.responseText);
+                
+                let msg = error || '{{ lang._("Connection error") }}';
+                
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response && response.message) {
+                        msg = response.message;
+                    }
+                } catch (e) {
+                    if (xhr.responseText && xhr.responseText.length < 200) {
+                        msg = xhr.responseText;
+                    }
                 }
+                
                 showNotification('{{ lang._("Error loading data") }}: ' + msg, 'error');
             }
         });
