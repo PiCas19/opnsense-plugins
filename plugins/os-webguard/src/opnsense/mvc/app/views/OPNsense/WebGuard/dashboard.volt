@@ -287,7 +287,7 @@ $(document).ready(function() {
         }
     }
 
-    function loadRecentThreatsFromStats() {
+   function loadRecentThreatsFromStats() {
         // Fetch recent threats via dedicated API endpoint
         ajaxCall('/api/webguard/threats/getRecent', {}, function(response) {
             const tbody = $('#threatTableBody');
@@ -303,10 +303,10 @@ $(document).ready(function() {
                             <td><span class="badge ${severityClass}">${threat.severity}</span></td>
                             <td>${threat.url}</td>
                             <td>
-                                <button class="btn btn-sm btn-primary" onclick="viewThreatDetails('${threat.id}')">
+                                <button class="btn btn-sm btn-primary view-threat-btn" data-threat-id="${threat.id}">
                                     <i class="fa fa-eye"></i>
                                 </button>
-                                <button class="btn btn-sm btn-danger" onclick="blockSource('${threat.source_ip}')">
+                                <button class="btn btn-sm btn-danger block-source-btn" data-source-ip="${threat.source_ip}">
                                     <i class="fa fa-ban"></i>
                                 </button>
                             </td>
@@ -314,6 +314,26 @@ $(document).ready(function() {
                     `);
                     tbody.append(row);
                 });
+                
+                // Aggiungi event listeners per i nuovi pulsanti
+                $('.view-threat-btn').click(function() {
+                    const threatId = $(this).data('threat-id');
+                    window.open('/ui/webguard/threats/detail/' + threatId, '_blank');
+                });
+                
+                $('.block-source-btn').click(function() {
+                    const sourceIP = $(this).data('source-ip');
+                    if (confirm(`{{ lang._("Are you sure you want to block IP") }} ${sourceIP}?`)) {
+                        ajaxCall("/api/webguard/settings/blockIP", {ip: sourceIP}, function(data) {
+                            if (data.result === 'ok' || data.status === 'ok') {
+                                showNotification(`{{ lang._("IP") }} ${sourceIP} {{ lang._("blocked successfully") }}`, 'success');
+                            } else {
+                                showNotification(`{{ lang._("Failed to block IP") }}: ${data.message || '{{ lang._("Unknown error") }}'}`, 'error');
+                            }
+                        });
+                    }
+                });
+                
             } else {
                 tbody.append(`
                     <tr>
@@ -332,6 +352,7 @@ $(document).ready(function() {
             if (response.status === 'ok' && response.recent_threats && response.recent_threats.length) {
                 const feed = $('#threatFeed');
                 response.recent_threats.forEach(function(threat) {
+                    console.log('Processing threat:', threat);
                     const item = $(`
                         <div class="threat-feed-item ${threat.severity}">
                             <div class="threat-feed-time">${formatTimeFromISO(threat.timestamp)}</div>
