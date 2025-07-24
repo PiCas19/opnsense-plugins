@@ -83,8 +83,8 @@ class ServiceController extends ApiMutableServiceControllerBase
     {
         $backend = new Backend();
         
-        // COMANDO ESATTO DAL CONFIGD: get_stats
-        $statsOut = trim($backend->configdRun('webguard get_stats', ['']));
+        // USA configdpRun per i comandi applicativi
+        $statsOut = trim($backend->configdpRun('webguard', ['get_stats', '']));
         
         if ($statsOut && $statsOut !== '') {
             $stats = json_decode($statsOut, true);
@@ -94,8 +94,8 @@ class ServiceController extends ApiMutableServiceControllerBase
         }
         
         // Fallback: get counts manually
-        $blockedOut = trim($backend->configdRun('webguard get_blocked_ips', ['1']));
-        $whitelistOut = trim($backend->configdRun('webguard get_whitelist', ['1', '100']));
+        $blockedOut = trim($backend->configdpRun('webguard', ['get_blocked_ips', '1']));
+        $whitelistOut = trim($backend->configdpRun('webguard', ['get_whitelist', '1', '100']));
         
         $blockedCount = 0;
         $whitelistCount = 0;
@@ -138,7 +138,7 @@ class ServiceController extends ApiMutableServiceControllerBase
         $page = max(1, (int)$this->request->getQuery('page', 'int', 1));
         
         $backend = new Backend();
-        $out = trim($backend->configdRun('webguard get_blocked_ips', [(string)$page]));
+        $out = trim($backend->configdpRun('webguard', ['get_blocked_ips', (string)$page]));
 
         if ($out && $out !== '') {
             $data = json_decode($out, true);
@@ -181,7 +181,8 @@ class ServiceController extends ApiMutableServiceControllerBase
         }
 
         $backend = new Backend();
-        $out = trim($backend->configdRun('webguard block_ip', [
+        $out = trim($backend->configdpRun('webguard', [
+            'block_ip', 
             $ip, 
             (string)$duration, 
             $reason, 
@@ -208,7 +209,7 @@ class ServiceController extends ApiMutableServiceControllerBase
         }
 
         $backend = new Backend();
-        $out = trim($backend->configdRun('webguard unblock_ip', [$ip]));
+        $out = trim($backend->configdpRun('webguard', ['unblock_ip', $ip]));
 
         if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
             return ['status' => 'ok', 'message' => 'IP unblocked successfully'];
@@ -243,7 +244,8 @@ class ServiceController extends ApiMutableServiceControllerBase
         $ipListFormatted = implode("\n", $valid);
 
         $backend = new Backend();
-        $out = trim($backend->configdRun('webguard bulk_block_ips', [
+        $out = trim($backend->configdpRun('webguard', [
+            'bulk_block_ips',
             $ipListFormatted, 
             (string)$duration, 
             $reason, 
@@ -270,7 +272,7 @@ class ServiceController extends ApiMutableServiceControllerBase
         $limit = max(1, min(1000, (int)$this->request->getQuery('limit', 'int', 100)));
         
         $backend = new Backend();
-        $out = trim($backend->configdRun('webguard get_whitelist', [(string)$page, (string)$limit]));
+        $out = trim($backend->configdpRun('webguard', ['get_whitelist', (string)$page, (string)$limit]));
 
         if ($out && $out !== '') {
             $data = json_decode($out, true);
@@ -308,7 +310,7 @@ class ServiceController extends ApiMutableServiceControllerBase
         }
 
         $backend = new Backend();
-        $out = trim($backend->configdRun('webguard add_to_whitelist', [$ip, $description, $permanent]));
+        $out = trim($backend->configdpRun('webguard', ['add_to_whitelist', $ip, $description, $permanent]));
 
         if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
             return ['status' => 'ok', 'message' => 'IP whitelisted successfully'];
@@ -330,7 +332,7 @@ class ServiceController extends ApiMutableServiceControllerBase
         }
 
         $backend = new Backend();
-        $out = trim($backend->configdRun('webguard remove_from_whitelist', [$ip]));
+        $out = trim($backend->configdpRun('webguard', ['remove_from_whitelist', $ip]));
 
         if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
             return ['status' => 'ok', 'message' => 'IP removed from whitelist successfully'];
@@ -348,7 +350,7 @@ class ServiceController extends ApiMutableServiceControllerBase
         }
 
         $backend = new Backend();
-        $out = trim($backend->configdRun('webguard check_whitelist', [$ip]));
+        $out = trim($backend->configdpRun('webguard', ['check_whitelist', $ip]));
 
         return [
             'status' => 'ok',
@@ -364,7 +366,7 @@ class ServiceController extends ApiMutableServiceControllerBase
         $page = max(1, (int)$this->request->getQuery('page', 'int', 1));
         
         $backend = new Backend();
-        $out = trim($backend->configdRun('webguard get_threats', [(string)$page]));
+        $out = trim($backend->configdpRun('webguard', ['get_threats', (string)$page]));
         
         if ($out && $out !== '') {
             $threats = json_decode($out, true);
@@ -385,7 +387,7 @@ class ServiceController extends ApiMutableServiceControllerBase
         }
 
         $backend = new Backend();
-        $out = trim($backend->configdRun('webguard get_threat_detail', [$threatId]));
+        $out = trim($backend->configdpRun('webguard', ['get_threat_detail', $threatId]));
         
         if ($out && $out !== '') {
             $detail = json_decode($out, true);
@@ -402,7 +404,7 @@ class ServiceController extends ApiMutableServiceControllerBase
         $period = trim($this->request->getQuery('period', 'string', '24h'));
         
         $backend = new Backend();
-        $out = trim($backend->configdRun('webguard get_threat_stats', [$period]));
+        $out = trim($backend->configdpRun('webguard', ['get_threat_stats', $period]));
         
         if ($out && $out !== '') {
             $stats = json_decode($out, true);
@@ -412,341 +414,6 @@ class ServiceController extends ApiMutableServiceControllerBase
         }
         
         return ['status' => 'error', 'message' => 'Failed to retrieve threat stats', 'data' => []];
-    }
-
-    /* ===== MAINTENANCE ACTIONS ===== */
-
-    public function clearExpiredAction()
-    {
-        if (!$this->request->isPost()) {
-            return ['status' => 'error', 'message' => 'POST required'];
-        }
-
-        $backend = new Backend();
-        $out = trim($backend->configdRun('webguard clear_expired_blocks'));
-
-        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
-            return ['status' => 'ok', 'message' => 'Expired blocks cleared'];
-        }
-        
-        return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
-    }
-
-    public function clearLogsAction()
-    {
-        if (!$this->request->isPost()) {
-            return ['status' => 'error', 'message' => 'POST required'];
-        }
-
-        $backend = new Backend();
-        $out = trim($backend->configdRun('webguard clear_logs'));
-
-        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
-            return ['status' => 'ok', 'message' => 'Logs cleared successfully'];
-        }
-        
-        return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
-    }
-
-    public function addSampleThreatsAction()
-    {
-        if (!$this->request->isPost()) {
-            return ['status' => 'error', 'message' => 'POST required'];
-        }
-
-        $backend = new Backend();
-        $out = trim($backend->configdRun('webguard add_sample_threats'));
-
-        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
-            return ['status' => 'ok', 'message' => 'Sample threats added successfully'];
-        }
-        
-        return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
-    }
-
-    public function updateRulesAction()
-    {
-        if (!$this->request->isPost()) {
-            return ['status' => 'error', 'message' => 'POST required'];
-        }
-
-        $backend = new Backend();
-        $out = trim($backend->configdRun('webguard update_rules'));
-
-        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
-            return ['status' => 'ok', 'message' => 'Rules updated successfully'];
-        }
-        
-        return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
-    }
-
-    /* ===== EXPORT ACTIONS ===== */
-
-    public function exportBlockedAction()
-    {
-        $format = $this->request->get('format', 'string', 'json');
-
-        if (!in_array($format, ['json', 'csv', 'txt'])) {
-            $format = 'json';
-        }
-
-        $backend = new Backend();
-        $out = $backend->configdRun('webguard export_blocked_ips', [$format]);
-
-        if (empty($out)) {
-            return ['status' => 'error', 'message' => 'Export failed - no data returned'];
-        }
-
-        $this->sendDownload('webguard_blocked_', $format, $out);
-        return $this->response;
-    }
-
-    public function exportWhitelistAction()
-    {
-        $format = $this->request->get('format', 'string', 'json');
-
-        if (!in_array($format, ['json', 'csv', 'txt'])) {
-            $format = 'json';
-        }
-
-        $backend = new Backend();
-        $out = $backend->configdRun('webguard export_whitelist', [$format]);
-
-        if (empty($out)) {
-            return ['status' => 'error', 'message' => 'Export failed - no data returned'];
-        }
-
-        $this->sendDownload('webguard_whitelist_', $format, $out);
-        return $this->response;
-    }
-
-    public function exportThreatsAction()
-    {
-        $format = $this->request->get('format', 'string', 'json');
-
-        if (!in_array($format, ['json', 'csv', 'txt'])) {
-            $format = 'json';
-        }
-
-        $backend = new Backend();
-        $out = $backend->configdRun('webguard export_threats', [$format]);
-
-        if (empty($out)) {
-            return ['status' => 'error', 'message' => 'Export failed - no data returned'];
-        }
-
-        $this->sendDownload('webguard_threats_', $format, $out);
-        return $this->response;
-    }
-
-    /* ===== ADVANCED ACTIONS ===== */
-
-    public function markFalsePositiveAction()
-    {
-        if (!$this->request->isPost()) {
-            return ['status' => 'error', 'message' => 'POST required'];
-        }
-
-        $threatId = trim($this->request->getPost('threat_id', 'string', ''));
-        $reason = $this->argSafe($this->request->getPost('reason', 'string', 'False_positive'));
-
-        if (empty($threatId)) {
-            return ['status' => 'error', 'message' => 'Threat ID required'];
-        }
-
-        $backend = new Backend();
-        $out = trim($backend->configdRun('webguard mark_false_positive', [$threatId, $reason]));
-
-        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
-            return ['status' => 'ok', 'message' => 'Threat marked as false positive'];
-        }
-        
-        return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
-    }
-
-    public function whitelistFromThreatAction()
-    {
-        if (!$this->request->isPost()) {
-            return ['status' => 'error', 'message' => 'POST required'];
-        }
-
-        $ip = trim($this->request->getPost('ip', 'string', ''));
-        $threatId = trim($this->request->getPost('threat_id', 'string', ''));
-        $reason = $this->argSafe($this->request->getPost('reason', 'string', 'Whitelisted_from_threat'));
-
-        if (!$this->validateIP($ip)) {
-            return ['status' => 'error', 'message' => 'Invalid IP address'];
-        }
-
-        $backend = new Backend();
-        $out = trim($backend->configdRun('webguard whitelist_ip_from_threat', [$ip, $threatId, $reason]));
-
-        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
-            return ['status' => 'ok', 'message' => 'IP whitelisted from threat'];
-        }
-        
-        return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
-    }
-
-    public function blockFromThreatAction()
-    {
-        if (!$this->request->isPost()) {
-            return ['status' => 'error', 'message' => 'POST required'];
-        }
-
-        $ip = trim($this->request->getPost('ip', 'string', ''));
-        $threatId = trim($this->request->getPost('threat_id', 'string', ''));
-        $duration = (int)$this->request->getPost('duration', 'int', 3600);
-
-        if (!$this->validateIP($ip)) {
-            return ['status' => 'error', 'message' => 'Invalid IP address'];
-        }
-
-        $backend = new Backend();
-        $out = trim($backend->configdRun('webguard block_ip_from_threat', [$ip, $threatId, (string)$duration]));
-
-        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
-            return ['status' => 'ok', 'message' => 'IP blocked from threat'];
-        }
-        
-        return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
-    }
-
-    public function createRuleFromThreatAction()
-    {
-        if (!$this->request->isPost()) {
-            return ['status' => 'error', 'message' => 'POST required'];
-        }
-
-        $threatId = trim($this->request->getPost('threat_id', 'string', ''));
-        $ruleType = trim($this->request->getPost('rule_type', 'string', 'block'));
-        $pattern = trim($this->request->getPost('pattern', 'string', ''));
-        $description = $this->argSafe($this->request->getPost('description', 'string', 'Rule_from_threat'));
-
-        if (empty($threatId)) {
-            return ['status' => 'error', 'message' => 'Threat ID required'];
-        }
-
-        $backend = new Backend();
-        $out = trim($backend->configdRun('webguard create_rule_from_threat', [$threatId, $ruleType, $pattern, $description]));
-
-        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
-            return ['status' => 'ok', 'message' => 'Rule created from threat'];
-        }
-        
-        return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
-    }
-
-    public function clearOldThreatsAction()
-    {
-        if (!$this->request->isPost()) {
-            return ['status' => 'error', 'message' => 'POST required'];
-        }
-
-        $days = (int)$this->request->getPost('days', 'int', 30);
-        $severity = trim($this->request->getPost('severity', 'string', 'low'));
-
-        $backend = new Backend();
-        $out = trim($backend->configdRun('webguard clear_old_threats', [(string)$days, $severity]));
-
-        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
-            return ['status' => 'ok', 'message' => 'Old threats cleared'];
-        }
-        
-        return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
-    }
-
-    /* ===== STATS AND ANALYTICS ===== */
-
-    public function getGeoStatsAction()
-    {
-        $period = trim($this->request->getQuery('period', 'string', '24h'));
-        
-        $backend = new Backend();
-        $out = trim($backend->configdRun('webguard get_geo_stats', [$period]));
-        
-        if ($out && $out !== '') {
-            $stats = json_decode($out, true);
-            if (is_array($stats)) {
-                return ['status' => 'ok', 'data' => $stats];
-            }
-        }
-        
-        return ['status' => 'error', 'message' => 'Failed to retrieve geo stats', 'data' => []];
-    }
-
-    public function getAttackPatternsAction()
-    {
-        $period = trim($this->request->getQuery('period', 'string', '24h'));
-        $limit = max(1, min(100, (int)$this->request->getQuery('limit', 'int', 20)));
-        
-        $backend = new Backend();
-        $out = trim($backend->configdRun('webguard get_attack_patterns', [$period, (string)$limit]));
-        
-        if ($out && $out !== '') {
-            $patterns = json_decode($out, true);
-            if (is_array($patterns)) {
-                return ['status' => 'ok', 'data' => $patterns];
-            }
-        }
-        
-        return ['status' => 'error', 'message' => 'Failed to retrieve attack patterns', 'data' => []];
-    }
-
-    public function getBlockingStatsAction()
-    {
-        $period = trim($this->request->getQuery('period', 'string', '24h'));
-        
-        $backend = new Backend();
-        $out = trim($backend->configdRun('webguard get_blocking_stats', [$period]));
-        
-        if ($out && $out !== '') {
-            $stats = json_decode($out, true);
-            if (is_array($stats)) {
-                return ['status' => 'ok', 'data' => $stats];
-            }
-        }
-        
-        return ['status' => 'error', 'message' => 'Failed to retrieve blocking stats', 'data' => []];
-    }
-
-    public function getIpHistoryAction()
-    {
-        $ip = trim($this->request->getQuery('ip', 'string', ''));
-        
-        if (!$this->validateIP($ip)) {
-            return ['status' => 'error', 'message' => 'Invalid IP address'];
-        }
-
-        $backend = new Backend();
-        $out = trim($backend->configdRun('webguard get_ip_history', [$ip]));
-        
-        if ($out && $out !== '') {
-            $history = json_decode($out, true);
-            if (is_array($history)) {
-                return ['status' => 'ok', 'data' => $history];
-            }
-        }
-        
-        return ['status' => 'error', 'message' => 'Failed to retrieve IP history', 'data' => []];
-    }
-
-    public function getThreatFeedAction()
-    {
-        $feedName = trim($this->request->getQuery('feed', 'string', 'default'));
-        $limit = max(1, min(1000, (int)$this->request->getQuery('limit', 'int', 100)));
-        
-        $backend = new Backend();
-        $out = trim($backend->configdRun('webguard get_threat_feed', [$feedName, (string)$limit]));
-        
-        if ($out && $out !== '') {
-            $feed = json_decode($out, true);
-            if (is_array($feed)) {
-                return ['status' => 'ok', 'data' => $feed];
-            }
-        }
-        
-        return ['status' => 'error', 'message' => 'Failed to retrieve threat feed', 'data' => []];
     }
 
     /* ===== TESTING AND VALIDATION ===== */
@@ -761,7 +428,7 @@ class ServiceController extends ApiMutableServiceControllerBase
         }
 
         $backend = new Backend();
-        $out = trim($backend->configdRun('webguard test_rules', [$ruleSet, $testData]));
+        $out = trim($backend->configdpRun('webguard', ['test_rules', $ruleSet, $testData]));
         
         if ($out && $out !== '') {
             $results = json_decode($out, true);
@@ -785,7 +452,7 @@ class ServiceController extends ApiMutableServiceControllerBase
                      (strpos($status, 'active') !== false);
 
         // Get basic stats
-        $statsOut = trim($backend->configdRun('webguard get_stats', ['']));
+        $statsOut = trim($backend->configdpRun('webguard', ['get_stats', '']));
         $stats = [];
         
         if ($statsOut && $statsOut !== '') {
@@ -837,19 +504,19 @@ class ServiceController extends ApiMutableServiceControllerBase
 
             switch ($operation) {
                 case 'unblock':
-                    $out = trim($backend->configdRun('webguard unblock_ip', [$ip]));
+                    $out = trim($backend->configdpRun('webguard', ['unblock_ip', $ip]));
                     $success = (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false);
                     break;
 
                 case 'whitelist':
                     $description = $this->argSafe($target['description'] ?? 'Bulk_whitelist');
                     $permanent = $target['permanent'] ?? '1';
-                    $out = trim($backend->configdRun('webguard add_to_whitelist', [$ip, $description, $permanent]));
+                    $out = trim($backend->configdpRun('webguard', ['add_to_whitelist', $ip, $description, $permanent]));
                     $success = (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false);
                     break;
 
                 case 'remove_whitelist':
-                    $out = trim($backend->configdRun('webguard remove_from_whitelist', [$ip]));
+                    $out = trim($backend->configdpRun('webguard', ['remove_from_whitelist', $ip]));
                     $success = (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false);
                     break;
 
@@ -895,7 +562,7 @@ class ServiceController extends ApiMutableServiceControllerBase
 
         // Search in blocked IPs
         if ($type === 'all' || $type === 'blocked') {
-            $blockedOut = trim($backend->configdRun('webguard get_blocked_ips', ['1']));
+            $blockedOut = trim($backend->configdpRun('webguard', ['get_blocked_ips', '1']));
             if ($blockedOut) {
                 $blockedData = json_decode($blockedOut, true);
                 if (isset($blockedData['blocked_ips'])) {
@@ -914,7 +581,7 @@ class ServiceController extends ApiMutableServiceControllerBase
 
         // Search in whitelist
         if ($type === 'all' || $type === 'whitelist') {
-            $whitelistOut = trim($backend->configdRun('webguard get_whitelist', ['1', '100']));
+            $whitelistOut = trim($backend->configdpRun('webguard', ['get_whitelist', '1', '100']));
             if ($whitelistOut) {
                 $whitelistData = json_decode($whitelistOut, true);
                 if (isset($whitelistData['whitelist'])) {
@@ -933,7 +600,7 @@ class ServiceController extends ApiMutableServiceControllerBase
 
         // Search in threats
         if ($type === 'all' || $type === 'threats') {
-            $threatsOut = trim($backend->configdRun('webguard get_threats', ['1']));
+            $threatsOut = trim($backend->configdpRun('webguard', ['get_threats', '1']));
             if ($threatsOut) {
                 $threatsData = json_decode($threatsOut, true);
                 if (isset($threatsData['threats'])) {
@@ -972,7 +639,7 @@ class ServiceController extends ApiMutableServiceControllerBase
         
         // Check if scripts are accessible
         $scriptsOk = true;
-        $testOut = trim($backend->configdRun('webguard get_stats', ['']));
+        $testOut = trim($backend->configdpRun('webguard', ['get_stats', '']));
         if (empty($testOut) || strpos($testOut, 'error') !== false) {
             $scriptsOk = false;
         }
@@ -980,8 +647,8 @@ class ServiceController extends ApiMutableServiceControllerBase
         // Check basic functionality
         $functionalityOk = true;
         try {
-            $blockedTest = trim($backend->configdRun('webguard get_blocked_ips', ['1']));
-            $whitelistTest = trim($backend->configdRun('webguard get_whitelist', ['1', '1']));
+            $blockedTest = trim($backend->configdpRun('webguard', ['get_blocked_ips', '1']));
+            $whitelistTest = trim($backend->configdpRun('webguard', ['get_whitelist', '1', '1']));
             
             if (empty($blockedTest) && empty($whitelistTest)) {
                 $functionalityOk = false;
@@ -1079,7 +746,7 @@ class ServiceController extends ApiMutableServiceControllerBase
         ];
 
         // Get stats if available
-        $statsOut = trim($backend->configdRun('webguard get_stats', ['']));
+        $statsOut = trim($backend->configdpRun('webguard', ['get_stats', '']));
         if ($statsOut) {
             $stats = json_decode($statsOut, true);
             if (is_array($stats)) {
@@ -1111,7 +778,7 @@ class ServiceController extends ApiMutableServiceControllerBase
 
         switch ($action) {
             case 'clear_all_blocks':
-                $out = trim($backend->configdRun('webguard clear_expired_blocks'));
+                $out = trim($backend->configdpRun('webguard', ['clear_expired_blocks']));
                 $results['clear_blocks'] = $out;
                 break;
 
@@ -1121,12 +788,12 @@ class ServiceController extends ApiMutableServiceControllerBase
                 break;
 
             case 'clear_all_logs':
-                $out = trim($backend->configdRun('webguard clear_logs'));
+                $out = trim($backend->configdpRun('webguard', ['clear_logs']));
                 $results['clear_logs'] = $out;
                 break;
 
             case 'reset_config':
-                $exportOut = trim($backend->configdRun('webguard export_config', ['']));
+                $exportOut = trim($backend->configdpRun('webguard', ['export_config', '']));
                 $restartOut = trim($backend->configdRun('webguard restart'));
                 $results['export_config'] = $exportOut;
                 $results['restart'] = $restartOut;
@@ -1145,12 +812,355 @@ class ServiceController extends ApiMutableServiceControllerBase
         ];
     }
 
+    /* ===== MAINTENANCE ACTIONS ===== */
+
+    public function clearExpiredAction()
+    {
+        if (!$this->request->isPost()) {
+            return ['status' => 'error', 'message' => 'POST required'];
+        }
+
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['clear_expired_blocks']));
+
+        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
+            return ['status' => 'ok', 'message' => 'Expired blocks cleared'];
+        }
+        
+        return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
+    }
+
+    public function clearLogsAction()
+    {
+        if (!$this->request->isPost()) {
+            return ['status' => 'error', 'message' => 'POST required'];
+        }
+
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['clear_logs']));
+
+        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
+            return ['status' => 'ok', 'message' => 'Logs cleared successfully'];
+        }
+        
+        return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
+    }
+
+    public function addSampleThreatsAction()
+    {
+        if (!$this->request->isPost()) {
+            return ['status' => 'error', 'message' => 'POST required'];
+        }
+
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['add_sample_threats']));
+
+        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
+            return ['status' => 'ok', 'message' => 'Sample threats added successfully'];
+        }
+        
+        return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
+    }
+
+    public function updateRulesAction()
+    {
+        if (!$this->request->isPost()) {
+            return ['status' => 'error', 'message' => 'POST required'];
+        }
+
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['update_rules']));
+
+        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
+            return ['status' => 'ok', 'message' => 'Rules updated successfully'];
+        }
+        
+        return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
+    }
+
+    /* ===== EXPORT ACTIONS ===== */
+
+    public function exportBlockedAction()
+    {
+        $format = $this->request->get('format', 'string', 'json');
+
+        if (!in_array($format, ['json', 'csv', 'txt'])) {
+            $format = 'json';
+        }
+
+        $backend = new Backend();
+        $out = $backend->configdpRun('webguard', ['export_blocked_ips', $format]);
+
+        if (empty($out)) {
+            return ['status' => 'error', 'message' => 'Export failed - no data returned'];
+        }
+
+        $this->sendDownload('webguard_blocked_', $format, $out);
+        return $this->response;
+    }
+
+    public function exportWhitelistAction()
+    {
+        $format = $this->request->get('format', 'string', 'json');
+
+        if (!in_array($format, ['json', 'csv', 'txt'])) {
+            $format = 'json';
+        }
+
+        $backend = new Backend();
+        $out = $backend->configdpRun('webguard', ['export_whitelist', $format]);
+
+        if (empty($out)) {
+            return ['status' => 'error', 'message' => 'Export failed - no data returned'];
+        }
+
+        $this->sendDownload('webguard_whitelist_', $format, $out);
+        return $this->response;
+    }
+
+    public function exportThreatsAction()
+    {
+        $format = $this->request->get('format', 'string', 'json');
+
+        if (!in_array($format, ['json', 'csv', 'txt'])) {
+            $format = 'json';
+        }
+
+        $backend = new Backend();
+        $out = $backend->configdpRun('webguard', ['export_threats', $format]);
+
+        if (empty($out)) {
+            return ['status' => 'error', 'message' => 'Export failed - no data returned'];
+        }
+
+        $this->sendDownload('webguard_threats_', $format, $out);
+        return $this->response;
+    }
+
+    /* ===== ADVANCED ACTIONS ===== */
+
+    public function markFalsePositiveAction()
+    {
+        if (!$this->request->isPost()) {
+            return ['status' => 'error', 'message' => 'POST required'];
+        }
+
+        $threatId = trim($this->request->getPost('threat_id', 'string', ''));
+        $reason = $this->argSafe($this->request->getPost('reason', 'string', 'False_positive'));
+
+        if (empty($threatId)) {
+            return ['status' => 'error', 'message' => 'Threat ID required'];
+        }
+
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['mark_false_positive', $threatId, $reason]));
+
+        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
+            return ['status' => 'ok', 'message' => 'Threat marked as false positive'];
+        }
+        
+        return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
+    }
+
+    public function whitelistFromThreatAction()
+    {
+        if (!$this->request->isPost()) {
+            return ['status' => 'error', 'message' => 'POST required'];
+        }
+
+        $ip = trim($this->request->getPost('ip', 'string', ''));
+        $threatId = trim($this->request->getPost('threat_id', 'string', ''));
+        $reason = $this->argSafe($this->request->getPost('reason', 'string', 'Whitelisted_from_threat'));
+
+        if (!$this->validateIP($ip)) {
+            return ['status' => 'error', 'message' => 'Invalid IP address'];
+        }
+
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['whitelist_ip_from_threat', $ip, $threatId, $reason]));
+
+        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
+            return ['status' => 'ok', 'message' => 'IP whitelisted from threat'];
+        }
+        
+        return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
+    }
+
+    public function blockFromThreatAction()
+    {
+        if (!$this->request->isPost()) {
+            return ['status' => 'error', 'message' => 'POST required'];
+        }
+
+        $ip = trim($this->request->getPost('ip', 'string', ''));
+        $threatId = trim($this->request->getPost('threat_id', 'string', ''));
+        $duration = (int)$this->request->getPost('duration', 'int', 3600);
+
+        if (!$this->validateIP($ip)) {
+            return ['status' => 'error', 'message' => 'Invalid IP address'];
+        }
+
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['block_ip_from_threat', $ip, $threatId, (string)$duration]));
+
+        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
+            return ['status' => 'ok', 'message' => 'IP blocked from threat'];
+        }
+        
+        return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
+    }
+
+    public function createRuleFromThreatAction()
+    {
+        if (!$this->request->isPost()) {
+            return ['status' => 'error', 'message' => 'POST required'];
+        }
+
+        $threatId = trim($this->request->getPost('threat_id', 'string', ''));
+        $ruleType = trim($this->request->getPost('rule_type', 'string', 'block'));
+        $pattern = trim($this->request->getPost('pattern', 'string', ''));
+        $description = $this->argSafe($this->request->getPost('description', 'string', 'Rule_from_threat'));
+
+        if (empty($threatId)) {
+            return ['status' => 'error', 'message' => 'Threat ID required'];
+        }
+
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['create_rule_from_threat', $threatId, $ruleType, $pattern, $description]));
+
+        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
+            return ['status' => 'ok', 'message' => 'Rule created from threat'];
+        }
+        
+        return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
+    }
+
+    public function clearOldThreatsAction()
+    {
+        if (!$this->request->isPost()) {
+            return ['status' => 'error', 'message' => 'POST required'];
+        }
+
+        $days = (int)$this->request->getPost('days', 'int', 30);
+        $severity = trim($this->request->getPost('severity', 'string', 'low'));
+
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['clear_old_threats', (string)$days, $severity]));
+
+        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
+            return ['status' => 'ok', 'message' => 'Old threats cleared'];
+        }
+        
+        return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
+    }
+
+    /* ===== STATS AND ANALYTICS ===== */
+
+    public function getGeoStatsAction()
+    {
+        $period = trim($this->request->getQuery('period', 'string', '24h'));
+        
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['get_geo_stats', $period]));
+        
+        if ($out && $out !== '') {
+            $stats = json_decode($out, true);
+            if (is_array($stats)) {
+                return ['status' => 'ok', 'data' => $stats];
+            }
+        }
+        
+        return ['status' => 'error', 'message' => 'Failed to retrieve geo stats', 'data' => []];
+    }
+
+    public function getAttackPatternsAction()
+    {
+        $period = trim($this->request->getQuery('period', 'string', '24h'));
+        $limit = max(1, min(100, (int)$this->request->getQuery('limit', 'int', 20)));
+        
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['get_attack_patterns', $period, (string)$limit]));
+        
+        if ($out && $out !== '') {
+            $patterns = json_decode($out, true);
+            if (is_array($patterns)) {
+                return ['status' => 'ok', 'data' => $patterns];
+            }
+        }
+        
+        return ['status' => 'error', 'message' => 'Failed to retrieve attack patterns', 'data' => []];
+    }
+
+    public function getBlockingStatsAction()
+    {
+        $period = trim($this->request->getQuery('period', 'string', '24h'));
+        
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['get_blocking_stats', $period]));
+        
+        if ($out && $out !== '') {
+            $stats = json_decode($out, true);
+            if (is_array($stats)) {
+                return ['status' => 'ok', 'data' => $stats];
+            }
+        }
+        
+        return ['status' => 'error', 'message' => 'Failed to retrieve blocking stats', 'data' => []];
+    }
+
+    public function getIpHistoryAction()
+    {
+        $ip = trim($this->request->getQuery('ip', 'string', ''));
+        
+        if (!$this->validateIP($ip)) {
+            return ['status' => 'error', 'message' => 'Invalid IP address'];
+        }
+
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['get_ip_history', $ip]));
+        
+        if ($out && $out !== '') {
+            $history = json_decode($out, true);
+            if (is_array($history)) {
+                return ['status' => 'ok', 'data' => $history];
+            }
+        }
+        
+        return ['status' => 'error', 'message' => 'Failed to retrieve IP history', 'data' => []];
+    }
+
+    public function getThreatFeedAction()
+    {
+        $feedName = trim($this->request->getQuery('feed', 'string', 'default'));
+        $limit = max(1, min(1000, (int)$this->request->getQuery('limit', 'int', 100)));
+        
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['get_threat_feed', $feedName, (string)$limit]));
+        
+        if ($out && $out !== '') {
+            $feed = json_decode($out, true);
+            if (is_array($feed)) {
+                return ['status' => 'ok', 'data' => $feed];
+            }
+        }
+        
+        return ['status' => 'error', 'message' => 'Failed to retrieve threat feed', 'data' => []];
+    }
+
     /* ===== HELPER METHODS ===== */
 
     private function svcCmd(string $cmd): array
     {
         $backend = new Backend();
-        $response = $backend->configdRun("webguard {$cmd}");
+        
+        // Per i comandi di servizio (start/stop/restart) usa configdRun
+        // perché questi sono gestiti dal sistema di servizi OPNsense
+        if (in_array($cmd, ['start', 'stop', 'restart', 'status'])) {
+            $response = $backend->configdRun("webguard {$cmd}");
+        } else {
+            // Per tutti gli altri comandi usa configdpRun
+            $response = $backend->configdpRun('webguard', [$cmd]);
+        }
         
         $success = (strpos($response, 'OK:') === 0) || 
                    (strpos($response, 'Success') !== false) ||
