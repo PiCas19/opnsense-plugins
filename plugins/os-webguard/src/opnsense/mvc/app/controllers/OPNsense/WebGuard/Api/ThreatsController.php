@@ -53,41 +53,68 @@ class ThreatsController extends ApiControllerBase
         ];
     }
 
+     /**
+     * New API endpoint: recent threats list
+     * @return array
+     */
     public function getRecentAction()
     {
-        if (!$this->request->isGet()) {
-            return ['status' => 'error', 'message' => 'GET required'];
+        // accept both GET and POST from dashboard ajaxCall
+        if (!($this->request->isGet() || $this->request->isPost())) {
+            return ['status' => 'error', 'message' => 'GET or POST required'];
         }
+        // fetch limit from query or post
         $limit = max(1, (int)$this->request->getQuery('limit', 'int', 10));
-        $backend = new Backend();
-        $out = trim($backend->configdpRun('webguard', ['get_recent_threats', (string)$limit]));
+        if ($this->request->isPost()) {
+            $limit = max(1, (int)$this->request->getPost('limit', 'int', $limit));
+        }
 
-        if ($out !== '') {
+        $backend = new Backend();
+        $out     = trim($backend->configdpRun('webguard', ['get_recent_threats', (string)$limit]));
+
+        if (!empty($out)) {
             $data = json_decode($out, true);
             if (is_array($data) && isset($data['recent'])) {
-                return ['status' => 'ok', 'recent' => $data['recent']];
+                // rename to recent_threats to match dashboard JS
+                return ['status' => 'ok', 'recent_threats' => $data['recent']];
             }
         }
-        return ['status' => 'ok', 'recent' => []];
+        return ['status' => 'ok', 'recent_threats' => []];
     }
 
+    /**
+     * New API endpoint: real-time threat feed
+     * @return array
+     */
     public function getFeedAction()
     {
-        if (!$this->request->isGet()) {
-            return ['status' => 'error', 'message' => 'GET required'];
+        // accept both GET and POST from dashboard ajaxCall
+        if (!($this->request->isGet() || $this->request->isPost())) {
+            return ['status' => 'error', 'message' => 'GET or POST required'];
         }
+        // fetch sinceId and limit from query or post
         $sinceId = (int)$this->request->getQuery('sinceId', 'int', 0);
         $limit   = max(1, (int)$this->request->getQuery('limit', 'int', 50));
-        $backend = new Backend();
-        $out = trim($backend->configdpRun('webguard', ['get_threat_feed', (string)$sinceId, (string)$limit]));
+        if ($this->request->isPost()) {
+            $sinceId = (int)$this->request->getPost('sinceId', 'int', $sinceId);
+            $limit   = max(1, (int)$this->request->getPost('limit', 'int', $limit));
+        }
 
-        if ($out !== '') {
+        $backend = new Backend();
+        $out     = trim($backend->configdpRun('webguard', ['get_threat_feed', (string)$sinceId, (string)$limit]));
+
+        if (!empty($out)) {
             $data = json_decode($out, true);
             if (is_array($data) && isset($data['feed'])) {
-                return ['status' => 'ok', 'feed' => $data['feed'], 'lastId' => $data['lastId'] ?? $sinceId];
+                // rename to recent_threats and last_id for dashboard JS
+                return [
+                    'status'         => 'ok',
+                    'recent_threats' => $data['feed'],
+                    'last_id'        => isset($data['lastId']) ? $data['lastId'] : $sinceId
+                ];
             }
         }
-        return ['status' => 'ok', 'feed' => [], 'lastId' => $sinceId];
+        return ['status' => 'ok', 'recent_threats' => [], 'last_id' => $sinceId];
     }
 
     /**
