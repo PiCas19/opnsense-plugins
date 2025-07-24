@@ -1030,22 +1030,37 @@ $(function() {
 
 
     // Functions
-    function loadStats() {
+   function loadStats() {
         ajaxGet('/api/webguard/service/status', {}, function(data) {
             if (data && data.status === 'ok') {
-                $('#service-status').text(data.running ? '{{ lang._("Running") }}' : '{{ lang._("Stopped") }}');
+                $('#service-status').text(
+                data.running ? '{{ lang._("Running") }}' : '{{ lang._("Stopped") }}'
+                );
             }
         });
 
         ajaxGet('/api/webguard/service/getStats', {}, function(data) {
             if (data && data.status === 'ok' && data.data) {
-                $('#active-blocks').text(data.data.blocked_count || 0);
-                $('#whitelist-count').text(data.data.whitelist_count || 0);
-                $('#temp-blocks').text(data.data.temp_blocks || 0);
+                let s = data.data;
+                // Se esiste "ips_blocked", lo usiamo, altrimenti fallback
+                $('#active-blocks').text(s.ips_blocked != null 
+                    ? s.ips_blocked 
+                    : (s.blocked_count || 0)
+                );
+                // Se esiste "threats_blocked", lo usiamo come "temp-blocks"
+                $('#temp-blocks').text(s.threats_blocked != null 
+                    ? s.threats_blocked 
+                    : (s.temp_blocks || 0)
+                );
+                // Se esiste "requests_analyzed" puoi mostrarlo in un nuovo badge,
+                // altrimenti teniamo il contatore whitelist
+                $('#whitelist-count').text(s.whitelist_count != null 
+                    ? s.whitelist_count 
+                    : 0
+                );
             }
         });
     }
-
     function loadBlockedIps() {
         ajaxGet('/api/webguard/service/listBlocked', {}, function(data) {
             let tbody = $('#blocked-table tbody').empty();
