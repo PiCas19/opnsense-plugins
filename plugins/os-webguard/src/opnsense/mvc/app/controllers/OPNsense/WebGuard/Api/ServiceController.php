@@ -896,7 +896,7 @@ class ServiceController extends ApiMutableServiceControllerBase
         return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
     }
 
-    /* ===== EXPORT ACTIONS ===== */
+    /* ===== EXPORT ACTIONS (FIXED) ===== */
 
     public function exportBlockedAction()
     {
@@ -907,14 +907,27 @@ class ServiceController extends ApiMutableServiceControllerBase
         }
 
         $backend = new Backend();
-        $out = $backend->configdpRun('webguard', ['export_blocked_ips', $format]);
+        $out = trim($backend->configdpRun('webguard', ['export_blocked_ips', $format]));
 
         if (empty($out)) {
             return ['status' => 'error', 'message' => 'Export failed - no data returned'];
         }
 
-        $this->sendDownload('webguard_blocked_', $format, $out);
-        return $this->response;
+        // Restituisci i dati per il download via JavaScript invece di usare sendDownload
+        $filename = 'webguard_blocked_' . date('Y-m-d_H-i-s') . '.' . $format;
+        
+        $contentTypes = [
+            'json' => 'application/json',
+            'csv' => 'text/csv',
+            'txt' => 'text/plain'
+        ];
+        
+        return [
+            'status' => 'ok',
+            'filename' => $filename,
+            'content_type' => $contentTypes[$format] ?? 'application/octet-stream',
+            'data' => $out
+        ];
     }
 
     public function exportWhitelistAction()
@@ -926,33 +939,26 @@ class ServiceController extends ApiMutableServiceControllerBase
         }
 
         $backend = new Backend();
-        $out = $backend->configdpRun('webguard', ['export_whitelist', $format]);
+        $out = trim($backend->configdpRun('webguard', ['export_whitelist', $format]));
 
         if (empty($out)) {
             return ['status' => 'error', 'message' => 'Export failed - no data returned'];
         }
 
-        $this->sendDownload('webguard_whitelist_', $format, $out);
-        return $this->response;
-    }
-
-    public function exportThreatsAction()
-    {
-        $format = $this->request->get('format', 'string', 'json');
-
-        if (!in_array($format, ['json', 'csv', 'txt'])) {
-            $format = 'json';
-        }
-
-        $backend = new Backend();
-        $out = $backend->configdpRun('webguard', ['export_threats', $format]);
-
-        if (empty($out)) {
-            return ['status' => 'error', 'message' => 'Export failed - no data returned'];
-        }
-
-        $this->sendDownload('webguard_threats_', $format, $out);
-        return $this->response;
+        $filename = 'webguard_whitelist_' . date('Y-m-d_H-i-s') . '.' . $format;
+        
+        $contentTypes = [
+            'json' => 'application/json',
+            'csv' => 'text/csv',
+            'txt' => 'text/plain'
+        ];
+        
+        return [
+            'status' => 'ok',
+            'filename' => $filename,
+            'content_type' => $contentTypes[$format] ?? 'application/octet-stream',
+            'data' => $out
+        ];
     }
 
     /* ===== ADVANCED ACTIONS ===== */
@@ -1218,23 +1224,5 @@ class ServiceController extends ApiMutableServiceControllerBase
             $message = substr($message, 6);
         }
         return empty($message) ? 'Operation failed' : $message;
-    }
-
-    private function sendDownload(string $prefix, string $format, string $body): void
-    {
-        $filename = $prefix . date('Y-m-d_H-i-s') . '.' . $format;
-        
-        $contentTypes = [
-            'json' => 'application/json',
-            'csv' => 'text/csv',
-            'txt' => 'text/plain'
-        ];
-        
-        $contentType = $contentTypes[$format] ?? 'application/octet-stream';
-
-        $this->response->setHeader('Content-Type', $contentType);
-        $this->response->setHeader('Content-Disposition', 'attachment; filename="' . $filename . '"');
-        $this->response->setHeader('Content-Length', strlen($body));
-        $this->response->setContent($body);
     }
 }
