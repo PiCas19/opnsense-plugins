@@ -53,6 +53,43 @@ class ThreatsController extends ApiControllerBase
         ];
     }
 
+    public function getRecentAction()
+    {
+        if (!$this->request->isGet()) {
+            return ['status' => 'error', 'message' => 'GET required'];
+        }
+        $limit = max(1, (int)$this->request->getQuery('limit', 'int', 10));
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['get_recent_threats', (string)$limit]));
+
+        if ($out !== '') {
+            $data = json_decode($out, true);
+            if (is_array($data) && isset($data['recent'])) {
+                return ['status' => 'ok', 'recent' => $data['recent']];
+            }
+        }
+        return ['status' => 'ok', 'recent' => []];
+    }
+
+    public function getFeedAction()
+    {
+        if (!$this->request->isGet()) {
+            return ['status' => 'error', 'message' => 'GET required'];
+        }
+        $sinceId = (int)$this->request->getQuery('sinceId', 'int', 0);
+        $limit   = max(1, (int)$this->request->getQuery('limit', 'int', 50));
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['get_threat_feed', (string)$sinceId, (string)$limit]));
+
+        if ($out !== '') {
+            $data = json_decode($out, true);
+            if (is_array($data) && isset($data['feed'])) {
+                return ['status' => 'ok', 'feed' => $data['feed'], 'lastId' => $data['lastId'] ?? $sinceId];
+            }
+        }
+        return ['status' => 'ok', 'feed' => [], 'lastId' => $sinceId];
+    }
+
     /**
      * Get threat details by ID
      * @param string $id
