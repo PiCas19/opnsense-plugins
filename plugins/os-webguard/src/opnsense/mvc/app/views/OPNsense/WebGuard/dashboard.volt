@@ -171,6 +171,63 @@
                     </button>
                 </div>
             </div>
+            <div class="col-md-4">
+                <!-- Quick Navigation -->
+                <div class="quick-nav-controls">
+                    <h3>{{ lang._('Threat Analysis') }}</h3>
+                    <div class="nav-grid">
+                        <a href="/ui/webguard/threats" class="nav-item">
+                            <div class="nav-icon">
+                                <i class="fa fa-list"></i>
+                            </div>
+                            <div class="nav-content">
+                                <div class="nav-title">{{ lang._('All Threats') }}</div>
+                                <div class="nav-desc">{{ lang._('View complete threat list') }}</div>
+                            </div>
+                        </a>
+                        
+                        <a href="/ui/webguard/threats/stats" class="nav-item">
+                            <div class="nav-icon">
+                                <i class="fa fa-bar-chart"></i>
+                            </div>
+                            <div class="nav-content">
+                                <div class="nav-title">{{ lang._('Statistics') }}</div>
+                                <div class="nav-desc">{{ lang._('Detailed threat analytics') }}</div>
+                            </div>
+                        </a>
+                        
+                        <a href="/ui/webguard/threats/feed" class="nav-item">
+                            <div class="nav-icon">
+                                <i class="fa fa-rss"></i>
+                            </div>
+                            <div class="nav-content">
+                                <div class="nav-title">{{ lang._('Live Feed') }}</div>
+                                <div class="nav-desc">{{ lang._('Real-time threat monitoring') }}</div>
+                            </div>
+                        </a>
+                        
+                        <a href="/ui/webguard/threats/geo" class="nav-item">
+                            <div class="nav-icon">
+                                <i class="fa fa-globe"></i>
+                            </div>
+                            <div class="nav-content">
+                                <div class="nav-title">{{ lang._('Geographic') }}</div>
+                                <div class="nav-desc">{{ lang._('Geographic threat analysis') }}</div>
+                            </div>
+                        </a>
+                        
+                        <a href="/ui/webguard/threats/patterns" class="nav-item">
+                            <div class="nav-icon">
+                                <i class="fa fa-search"></i>
+                            </div>
+                            <div class="nav-content">
+                                <div class="nav-title">{{ lang._('Patterns') }}</div>
+                                <div class="nav-desc">{{ lang._('Attack pattern analysis') }}</div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -356,7 +413,7 @@ $(document).ready(function() {
                     const item = $(`
                         <div class="threat-feed-item ${threat.severity}">
                             <div class="threat-feed-time">${formatTimeFromISO(threat.timestamp)}</div>
-                            <strong>${threat.type}</strong> from ${threat.source_ip} → ${threat.url}
+                            <strong>${threat.type}</strong> from ${threat.source_ip} → ${threat.description}
                         </div>
                     `);
                     feed.prepend(item);
