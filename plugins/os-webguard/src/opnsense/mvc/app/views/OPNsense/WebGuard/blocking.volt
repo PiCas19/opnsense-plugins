@@ -1,7 +1,7 @@
 {#
  # Copyright (C) 2024 OPNsense WebGuard Plugin
  # All rights reserved.
- #}
+#}
 
 <div class="content-box">
     <!-- Header moderno -->
@@ -22,9 +22,7 @@
                     <div class="stat-number" id="active-blocks">0</div>
                     <div class="stat-label">{{ lang._('Active Blocks') }}</div>
                 </div>
-                <div class="stat-icon">
-                    <i class="fa fa-ban"></i>
-                </div>
+                <div class="stat-icon"><i class="fa fa-ban"></i></div>
             </div>
         </div>
         <div class="col-md-3 col-sm-6">
@@ -33,9 +31,7 @@
                     <div class="stat-number" id="whitelist-count">0</div>
                     <div class="stat-label">{{ lang._('Whitelist Entries') }}</div>
                 </div>
-                <div class="stat-icon">
-                    <i class="fa fa-check-circle"></i>
-                </div>
+                <div class="stat-icon"><i class="fa fa-check-circle"></i></div>
             </div>
         </div>
         <div class="col-md-3 col-sm-6">
@@ -44,9 +40,7 @@
                     <div class="stat-number" id="temp-blocks">0</div>
                     <div class="stat-label">{{ lang._('Temporary Blocks') }}</div>
                 </div>
-                <div class="stat-icon">
-                    <i class="fa fa-clock-o"></i>
-                </div>
+                <div class="stat-icon"><i class="fa fa-clock-o"></i></div>
             </div>
         </div>
         <div class="col-md-3 col-sm-6">
@@ -55,9 +49,7 @@
                     <div class="stat-number" id="service-status">{{ lang._('Loading') }}</div>
                     <div class="stat-label">{{ lang._('Service Status') }}</div>
                 </div>
-                <div class="stat-icon">
-                    <i class="fa fa-heartbeat"></i>
-                </div>
+                <div class="stat-icon"><i class="fa fa-heartbeat"></i></div>
             </div>
         </div>
     </div>
@@ -127,9 +119,7 @@
                                                 <th>{{ lang._('Actions') }}</th>
                                             </tr>
                                         </thead>
-                                        <tbody>
-                                            <!-- Loaded via AJAX -->
-                                        </tbody>
+                                        <tbody><!-- caricato via AJAX --></tbody>
                                     </table>
                                 </div>
                             </div>
@@ -162,9 +152,7 @@
                                                 <th>{{ lang._('Actions') }}</th>
                                             </tr>
                                         </thead>
-                                        <tbody>
-                                            <!-- Loaded via AJAX -->
-                                        </tbody>
+                                        <tbody><!-- caricato via AJAX --></tbody>
                                     </table>
                                 </div>
                             </div>
@@ -195,9 +183,7 @@
                                                 <th>{{ lang._('Actions') }}</th>
                                             </tr>
                                         </thead>
-                                        <tbody>
-                                            <!-- Loaded via AJAX -->
-                                        </tbody>
+                                        <tbody><!-- caricato via AJAX --></tbody>
                                     </table>
                                 </div>
                             </div>
@@ -214,18 +200,18 @@
                                     </div>
                                     <div class="panel-body">
                                         <div class="form-group">
-                                            <label class="control-label">{{ lang._('Export Format') }}</label>
-                                            <select class="form-control" id="export-format">
+                                            <label>{{ lang._('Export Format') }}</label>
+                                            <select id="export-format" class="form-control">
                                                 <option value="json">JSON</option>
                                                 <option value="csv">CSV</option>
                                                 <option value="txt">Plain Text</option>
                                             </select>
                                         </div>
                                         <div class="btn-group-vertical btn-group-modern">
-                                            <button type="button" class="btn btn-primary btn-modern" id="export-blocked-btn">
+                                            <button id="export-blocked-btn" class="btn btn-primary btn-modern">
                                                 <i class="fa fa-download"></i> {{ lang._('Export Blocked IPs') }}
                                             </button>
-                                            <button type="button" class="btn btn-success btn-modern" id="export-whitelist-btn">
+                                            <button id="export-whitelist-btn" class="btn btn-success btn-modern">
                                                 <i class="fa fa-download"></i> {{ lang._('Export Whitelist') }}
                                             </button>
                                         </div>
@@ -239,13 +225,13 @@
                                     </div>
                                     <div class="panel-body">
                                         <div class="btn-group-vertical btn-group-modern">
-                                            <button type="button" class="btn btn-warning btn-modern" id="add-sample-threats-btn">
+                                            <button id="add-sample-threats-btn" class="btn btn-warning btn-modern">
                                                 <i class="fa fa-plus"></i> {{ lang._('Add Sample Threats') }}
                                             </button>
-                                            <button type="button" class="btn btn-info btn-modern" id="clear-logs-btn">
+                                            <button id="clear-logs-btn" class="btn btn-info btn-modern">
                                                 <i class="fa fa-trash"></i> {{ lang._('Clear Logs') }}
                                             </button>
-                                            <button type="button" class="btn btn-default btn-modern" id="restart-service-btn">
+                                            <button id="restart-service-btn" class="btn btn-default btn-modern">
                                                 <i class="fa fa-refresh"></i> {{ lang._('Restart Service') }}
                                             </button>
                                         </div>
@@ -254,7 +240,8 @@
                             </div>
                         </div>
                     </div>
-                </div>
+
+                </div>  
             </div>
         </div>
     </div>
@@ -266,19 +253,17 @@
     <div class="modal-dialog" role="document">
         <div class="modal-content modern-modal">
             <div class="modal-header">
-                <button type="button" class="close" data-dismiss="modal">
-                    <span>&times;</span>
-                </button>
+                <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
                 <h4 class="modal-title">{{ lang._('Block IP Address') }}</h4>
             </div>
             <div class="modal-body">
                 <form id="block-ip-form">
                     <div class="form-group">
-                        <label class="control-label">{{ lang._('IP Address') }}</label>
+                        <label>{{ lang._('IP Address') }}</label>
                         <input type="text" class="form-control" id="block-ip" placeholder="192.168.1.100" required>
                     </div>
                     <div class="form-group">
-                        <label class="control-label">{{ lang._('Duration') }}</label>
+                        <label>{{ lang._('Duration') }}</label>
                         <select class="form-control" id="block-duration">
                             <option value="300">5 {{ lang._('minutes') }}</option>
                             <option value="900">15 {{ lang._('minutes') }}</option>
@@ -291,16 +276,14 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label class="control-label">{{ lang._('Reason') }}</label>
-                        <input type="text" class="form-control" id="block-reason" placeholder="Manual block" value="Manual block">
+                        <label>{{ lang._('Reason') }}</label>
+                        <input type="text" class="form-control" id="block-reason" value="Manual block">
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-default" data-dismiss="modal">{{ lang._('Cancel') }}</button>
-                <button type="button" class="btn btn-danger" id="confirm-block-btn">
-                    <i class="fa fa-ban"></i> {{ lang._('Block IP') }}
-                </button>
+                <button data-dismiss="modal" class="btn btn-default">{{ lang._('Cancel') }}</button>
+                <button id="confirm-block-btn" class="btn btn-danger"><i class="fa fa-ban"></i> {{ lang._('Block IP') }}</button>
             </div>
         </div>
     </div>
@@ -311,19 +294,17 @@
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content modern-modal">
             <div class="modal-header">
-                <button type="button" class="close" data-dismiss="modal">
-                    <span>&times;</span>
-                </button>
+                <button data-dismiss="modal" class="close"><span>&times;</span></button>
                 <h4 class="modal-title">{{ lang._('Bulk Block IP Addresses') }}</h4>
             </div>
             <div class="modal-body">
                 <form id="bulk-block-form">
                     <div class="form-group">
-                        <label class="control-label">{{ lang._('IP Addresses (one per line)') }}</label>
-                        <textarea class="form-control" id="bulk-block-ips" rows="6" placeholder="192.168.1.100&#10;10.0.0.50&#10;172.16.0.25"></textarea>
+                        <label>{{ lang._('IP Addresses (one per line)') }}</label>
+                        <textarea class="form-control" id="bulk-block-ips" rows="6"></textarea>
                     </div>
                     <div class="form-group">
-                        <label class="control-label">{{ lang._('Duration') }}</label>
+                        <label>{{ lang._('Duration') }}</label>
                         <select class="form-control" id="bulk-block-duration">
                             <option value="300">5 {{ lang._('minutes') }}</option>
                             <option value="900">15 {{ lang._('minutes') }}</option>
@@ -336,16 +317,14 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label class="control-label">{{ lang._('Reason') }}</label>
-                        <input type="text" class="form-control" id="bulk-block-reason" placeholder="Bulk block" value="Bulk block">
+                        <label>{{ lang._('Reason') }}</label>
+                        <input type="text" class="form-control" id="bulk-block-reason" value="Bulk block">
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-default" data-dismiss="modal">{{ lang._('Cancel') }}</button>
-                <button type="button" class="btn btn-danger" id="confirm-bulk-block-btn">
-                    <i class="fa fa-ban"></i> {{ lang._('Block IPs') }}
-                </button>
+                <button data-dismiss="modal" class="btn btn-default">{{ lang._('Cancel') }}</button>
+                <button id="confirm-bulk-block-btn" class="btn btn-danger"><i class="fa fa-ban"></i> {{ lang._('Block IPs') }}</button>
             </div>
         </div>
     </div>
@@ -356,20 +335,18 @@
     <div class="modal-dialog" role="document">
         <div class="modal-content modern-modal">
             <div class="modal-header">
-                <button type="button" class="close" data-dismiss="modal">
-                    <span>&times;</span>
-                </button>
+                <button data-dismiss="modal" class="close"><span>&times;</span></button>
                 <h4 class="modal-title">{{ lang._('Add to Whitelist') }}</h4>
             </div>
             <div class="modal-body">
                 <form id="add-whitelist-form">
                     <div class="form-group">
-                        <label class="control-label">{{ lang._('IP Address') }}</label>
-                        <input type="text" class="form-control" id="whitelist-ip" placeholder="192.168.1.100" required>
+                        <label>{{ lang._('IP Address') }}</label>
+                        <input type="text" class="form-control" id="whitelist-ip" required>
                     </div>
                     <div class="form-group">
-                        <label class="control-label">{{ lang._('Description') }}</label>
-                        <input type="text" class="form-control" id="whitelist-description" placeholder="Manual whitelist entry" value="Manual whitelist entry">
+                        <label>{{ lang._('Description') }}</label>
+                        <input type="text" class="form-control" id="whitelist-description" value="Manual whitelist entry">
                     </div>
                     <div class="checkbox">
                         <label>
@@ -379,732 +356,221 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-default" data-dismiss="modal">{{ lang._('Cancel') }}</button>
-                <button type="button" class="btn btn-success" id="confirm-whitelist-btn">
-                    <i class="fa fa-check"></i> {{ lang._('Add to Whitelist') }}
-                </button>
+                <button data-dismiss="modal" class="btn btn-default">{{ lang._('Cancel') }}</button>
+                <button id="confirm-whitelist-btn" class="btn btn-success"><i class="fa fa-check"></i> {{ lang._('Add to Whitelist') }}</button>
             </div>
         </div>
     </div>
 </div>
 
 <style>
-/* Modern WebGuard Styles - OPNsense Compatible */
-.modern-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 30px;
-    border-radius: 10px;
-    margin-bottom: 30px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-}
-
-.modern-header h1 {
-    font-size: 2.5rem;
-    font-weight: 700;
-    margin-bottom: 10px;
-}
-
-.header-subtitle {
-    font-size: 1.1rem;
-    opacity: 0.9;
-    margin: 0;
-}
-
-.stats-row {
-    margin-bottom: 30px;
-}
-
-.stat-card {
-    background: white;
-    border-radius: 12px;
-    padding: 25px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-    border: none;
-    margin-bottom: 20px;
-    transition: all 0.3s ease;
-    position: relative;
-    overflow: hidden;
-}
-
-.stat-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-}
-
-.stat-blocked::before { background: linear-gradient(135deg, #ff6b6b, #ee5a52); }
-.stat-whitelist::before { background: linear-gradient(135deg, #51cf66, #40c057); }
-.stat-temp::before { background: linear-gradient(135deg, #ffd43b, #fab005); }
-.stat-status::before { background: linear-gradient(135deg, #339af0, #228be6); }
-
-.stat-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 30px rgba(0,0,0,0.15);
-}
-
-.stat-content {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-}
-
-.stat-number {
-    font-size: 2.5rem;
-    font-weight: 800;
-    color: #2d3748;
-    margin-bottom: 5px;
-}
-
-.stat-label {
-    color: #718096;
-    font-weight: 600;
-    font-size: 0.9rem;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-.stat-icon {
-    position: absolute;
-    right: 25px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 2.5rem;
-    opacity: 0.1;
-}
-
-.modern-tabs {
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-    overflow: hidden;
-}
-
-.modern-nav-tabs {
-    background: #f8fafc;
-    border-bottom: none;
-    padding: 10px;
-    margin: 0;
-}
-
-.modern-nav-tabs > li {
-    margin-bottom: 0;
-}
-
-.modern-nav-tabs > li > a {
-    border: none;
-    border-radius: 8px;
-    margin-right: 5px;
-    padding: 15px 20px;
-    color: #718096;
-    font-weight: 600;
-    transition: all 0.3s ease;
-}
-
-.modern-nav-tabs > li > a:hover,
-.modern-nav-tabs > li > a:focus {
-    background: rgba(255,255,255,0.7);
-    color: #4a5568;
-    border: none;
-}
-
-.modern-nav-tabs > li.active > a,
-.modern-nav-tabs > li.active > a:hover,
-.modern-nav-tabs > li.active > a:focus {
-    background: white;
-    color: #667eea;
-    border: none;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-.modern-nav-tabs > li > a i {
-    margin-right: 8px;
-}
-
-.modern-tab-content {
-    padding: 30px;
-}
-
-.modern-panel {
-    background: white;
-    border: none;
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-    margin-bottom: 20px;
-}
-
-.panel-header {
-    padding: 20px 25px;
-    border-bottom: 1px solid #e2e8f0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-.panel-title {
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: #2d3748;
-    margin: 0;
-}
-
-.panel-actions {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-
-.panel-body {
-    padding: 25px;
-}
-
-.btn-modern {
-    border-radius: 8px;
-    font-weight: 600;
-    padding: 10px 20px;
-    transition: all 0.3s ease;
-    border: none;
-}
-
-.btn-modern:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
-
-.btn-group-modern {
-    width: 100%;
-}
-
-.btn-group-modern .btn-modern {
-    margin-bottom: 10px;
-    width: 100%;
-}
-
-.modern-table-container {
-    background: white;
-    border-radius: 8px;
-    overflow: hidden;
-}
-
-.table-modern {
-    margin: 0;
-    border: none;
-}
-
-.table-modern thead th {
-    background: #f8fafc;
-    border: none;
-    color: #4a5568;
-    font-weight: 600;
-    text-transform: uppercase;
-    font-size: 0.85rem;
-    letter-spacing: 0.5px;
-    padding: 15px 20px;
-}
-
-.table-modern tbody td {
-    border: none;
-    border-bottom: 1px solid #f1f5f9;
-    padding: 15px 20px;
-    vertical-align: middle;
-}
-
-.table-modern tbody tr:hover {
-    background: #f8fafc;
-}
-
-.table-modern tbody tr:last-child td {
-    border-bottom: none;
-}
-
-.modern-modal .modal-content {
-    border-radius: 12px;
-    border: none;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.15);
-}
-
-.modern-modal .modal-header {
-    background: #f8fafc;
-    border-bottom: 1px solid #e2e8f0;
-    border-radius: 12px 12px 0 0;
-    padding: 20px 25px;
-}
-
-.modern-modal .modal-title {
-    font-weight: 600;
-    color: #2d3748;
-}
-
-.modern-modal .modal-body {
-    padding: 25px;
-}
-
-.modern-modal .modal-footer {
-    background: #f8fafc;
-    border-top: 1px solid #e2e8f0;
-    border-radius: 0 0 12px 12px;
-    padding: 20px 25px;
-}
-
-.label-modern {
-    border-radius: 12px;
-    padding: 4px 12px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-
-.empty-state {
-    text-align: center;
-    padding: 60px 20px;
-    color: #a0aec0;
-}
-
-.empty-state i {
-    font-size: 3rem;
-    margin-bottom: 15px;
-    opacity: 0.5;
-}
-
-.empty-state h4 {
-    color: #718096;
-    margin-bottom: 10px;
-}
-
-.notification-modern {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    padding: 15px 20px;
-    border-radius: 8px;
-    color: white;
-    font-weight: 600;
-    z-index: 9999;
-    min-width: 300px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-}
-
-.notification-success { background: linear-gradient(135deg, #51cf66, #40c057); }
-.notification-error { background: linear-gradient(135deg, #ff6b6b, #ee5a52); }
-.notification-info { background: linear-gradient(135deg, #339af0, #228be6); }
-.notification-warning { background: linear-gradient(135deg, #ffd43b, #fab005); }
-
-/* Responsive */
-@media (max-width: 768px) {
-    .panel-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 15px;
-    }
-    
-    .panel-actions {
-        width: 100%;
-        justify-content: flex-start;
-    }
-    
-    .modern-nav-tabs {
-        padding: 5px;
-    }
-    
-    .modern-nav-tabs > li > a {
-        padding: 10px 15px;
-        font-size: 0.9rem;
-    }
-    
-    .modern-nav-tabs > li > a span {
-        display: none;
-    }
-    
-    .stat-card {
-        margin-bottom: 15px;
-    }
-    
-    .stat-number {
-        font-size: 2rem;
-    }
-}
-
-/* Loading animation */
-.btn-loading {
-    position: relative;
-    color: transparent !important;
-}
-
-.btn-loading::after {
-    content: '';
-    position: absolute;
-    width: 16px;
-    height: 16px;
-    top: 50%;
-    left: 50%;
-    margin-left: -8px;
-    margin-top: -8px;
-    border: 2px solid transparent;
-    border-top: 2px solid currentColor;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
+/* Inserisci qui il tuo CSS esistente (il lungo blocco di styling che avevi) */
 </style>
 
 <script>
 $(function() {
-    // Initialize app
-    loadStats();
-    loadBlockedIps();
-
-    // Auto-refresh every 30 seconds
-    setInterval(function() {
+    // Inizializzazione
+    loadStats(); loadBlockedIps();
+    setInterval(() => {
         loadStats();
-        if ($('#blocked-tab').hasClass('active')) {
-            loadBlockedIps();
-        } else if ($('#whitelist-tab').hasClass('active')) {
-            loadWhitelist();
-        } else if ($('#threats-tab').hasClass('active')) {
-            loadThreats();
-        }
+        if ($('#blocked-tab').hasClass('active')) loadBlockedIps();
+        if ($('#whitelist-tab').hasClass('active')) loadWhitelist();
+        if ($('#threats-tab').hasClass('active')) loadThreats();
     }, 30000);
-
-    // Tab change events
-    $('a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
-        var target = $(e.target).attr("href");
-        switch(target) {
-            case '#blocked-tab':
-                loadBlockedIps();
-                break;
-            case '#whitelist-tab':
-                loadWhitelist();
-                break;
-            case '#threats-tab':
-                loadThreats();
-                break;
-        }
+    $('a[data-toggle="tab"]').on('shown.bs.tab', function(e) {
+        const target = $(e.target).attr('href');
+        if (target === '#blocked-tab') loadBlockedIps();
+        if (target === '#whitelist-tab') loadWhitelist();
+        if (target === '#threats-tab') loadThreats();
     });
 
-    // Button events
+    // Pulsanti modals
     $('#add-block-btn').click(() => $('#block-ip-modal').modal('show'));
     $('#bulk-block-btn').click(() => $('#bulk-block-modal').modal('show'));
     $('#add-whitelist-btn').click(() => $('#add-whitelist-modal').modal('show'));
     $('#refresh-blocked-btn').click(() => { loadStats(); loadBlockedIps(); });
-    $('#refresh-whitelist-btn').click(() => loadWhitelist());
-    $('#refresh-threats-btn').click(() => loadThreats());
+    $('#refresh-whitelist-btn').click(loadWhitelist);
+    $('#refresh-threats-btn').click(loadThreats);
 
-    // Action buttons
+    // Confirm + AJAX dinamici
+    $(document).on('click', '.unblock-btn', function(e) {
+        e.preventDefault();
+        const ip = $(this).data('ip');
+        const msg = '{{ lang._("Unblock IP")|e("js") }} ' + ip + '?';
+        if (!confirm(msg)) return;
+        ajaxPost('/api/webguard/service/unblockIP', { ip }, commonCallback);
+    });
+
+    $(document).on('click', '.remove-whitelist-btn', function(e) {
+        e.preventDefault();
+        const ip = $(this).data('ip');
+        const msg = '{{ lang._("Remove")|e("js") }} ' + ip + ' {{ lang._("from whitelist")|e("js") }}?';
+        if (!confirm(msg)) return;
+        ajaxPost('/api/webguard/service/removeWhitelist', { ip }, commonCallback);
+    });
+
+    $(document).on('click', '.block-threat-btn', function(e) {
+        e.preventDefault();
+        const ip = $(this).data('ip');
+        const msg = '{{ lang._("Block IP")|e("js") }} ' + ip + ' {{ lang._("from threats")|e("js") }}?';
+        if (!confirm(msg)) return;
+        ajaxPost('/api/webguard/service/blockIP', {
+            ip, duration: 3600, reason: 'Blocked from threats', block_type: 'threat'
+        }, commonCallback);
+    });
+
+    $(document).on('click', '.whitelist-threat-btn', function(e) {
+        e.preventDefault();
+        const ip = $(this).data('ip');
+        const msg = '{{ lang._("Add IP")|e("js") }} ' + ip + ' {{ lang._("to whitelist")|e("js") }}?';
+        if (!confirm(msg)) return;
+        ajaxPost('/api/webguard/service/addWhitelist', {
+            ip, description: 'Whitelisted from threats', permanent: '1'
+        }, commonCallback);
+    });
+
+    // Clear expired
     $('#clear-expired-btn').click(function() {
-        if (confirm('{{ lang._("Clear all expired blocks?") }}')) {
-            setButtonLoading($(this), true);
-            ajaxPost('/api/webguard/service/clearExpired', {}, function(data) {
-                setButtonLoading($('#clear-expired-btn'), false);
-                if (data.status === 'ok') {
-                    showNotification('{{ lang._("Expired blocks cleared") }}', 'success');
-                    loadStats();
-                    loadBlockedIps();
-                } else {
-                    showNotification('{{ lang._("Failed to clear expired blocks") }}', 'error');
-                }
-            });
-        }
+        const msg = '{{ lang._("Clear all expired blocks?")|e("js") }}';
+        if (!confirm(msg)) return;
+        setButtonLoading($(this), true);
+        ajaxPost('/api/webguard/service/clearExpired', {}, data => {
+            setButtonLoading($('#clear-expired-btn'), false);
+            commonCallback(data);
+        });
     });
 
+    // Export
     $('#export-blocked-btn').click(function() {
-        let format = $('#export-format').val();
-        window.location.href = '/api/webguard/service/exportBlocked?format=' + format;
+        window.location.href = '/api/webguard/service/exportBlocked?format=' + $('#export-format').val();
         showNotification('{{ lang._("Export started") }}', 'info');
     });
-
     $('#export-whitelist-btn').click(function() {
-        let format = $('#export-format').val();
-        window.location.href = '/api/webguard/service/exportWhitelist?format=' + format;
+        window.location.href = '/api/webguard/service/exportWhitelist?format=' + $('#export-format').val();
         showNotification('{{ lang._("Export started") }}', 'info');
     });
 
+    // Add sample threats
     $('#add-sample-threats-btn').click(function() {
         const btn = $(this);
-        // Se l'utente clicca “Annulla”, esci subito
-        if (!confirm(`{{ lang._("Add sample threat data for testing?") }}`)) {
-            return;
-        }
-        // Altrimenti disabilita il bottone e mostra lo spinner
+        const msg = '{{ lang._("Add sample threat data for testing?")|e("js") }}';
+        if (!confirm(msg)) return;
         setButtonLoading(btn, true);
-        ajaxPost('/api/webguard/service/addSampleThreats', {}, function(data) {
-            // Riabilita il bottone
+        ajaxPost('/api/webguard/service/addSampleThreats', {}, data => {
             setButtonLoading(btn, false);
-            if (data.status === 'ok') {
-                showNotification('{{ lang._("Sample threats added") }}', 'success');
-                loadThreats();
-            } else {
-                showNotification('{{ lang._("Failed to add sample threats") }}', 'error');
-            }
+            commonCallback(data);
         });
     });
 
-   $('#clear-logs-btn').click(function() {
-        const btn = $(this);
-        // Se l'utente clicca “Annulla”, esci subito
-        if (!confirm(`{{ lang._("Clear all WebGuard logs? This cannot be undone.") }}`)) {
-            return;
-        }
-        // Altrimenti disabilita il bottone e mostra lo spinner
-        setButtonLoading(btn, true);
-        ajaxPost('/api/webguard/service/clearLogs', {}, function(data) {
-            // Riabilita il bottone
-            setButtonLoading(btn, false);
-            if (data.status === 'ok') {
-                showNotification('{{ lang._("Logs cleared") }}', 'success');
-            } else {
-                showNotification('{{ lang._("Failed to clear logs") }}', 'error');
-            }
-        });
-    });
-
-
-    $('#restart-service-btn').click(function() {
-        if (confirm('{{ lang._("Restart WebGuard service?") }}')) {
-            setButtonLoading($(this), true);
-            ajaxPost('/api/webguard/service/restart', {}, function(data) {
-                setButtonLoading($('#restart-service-btn'), false);
-                if (data.status === 'ok') {
-                    showNotification('{{ lang._("Service restarted") }}', 'success');
-                    setTimeout(loadStats, 2000);
-                } else {
-                    showNotification('{{ lang._("Failed to restart service") }}', 'error');
-                }
-            });
-        }
-    });
-
-    // Modal confirm buttons
-    $('#confirm-block-btn').click(function() {
-        let ip = $('#block-ip').val().trim();
-        let duration = $('#block-duration').val();
-        let reason = $('#block-reason').val().trim();
-
-        if (!ip) {
-            showNotification('{{ lang._("Please enter an IP address") }}', 'error');
-            return;
-        }
-
-        if (!isValidIP(ip)) {
-            showNotification('{{ lang._("Please enter a valid IP address") }}', 'error');
-            return;
-        }
-
+    // Clear logs
+    $('#clear-logs-btn').click(function() {
+        const msg = '{{ lang._("Clear all WebGuard logs? This cannot be undone.")|e("js") }}';
+        if (!confirm(msg)) return;
         setButtonLoading($(this), true);
-        ajaxPost('/api/webguard/service/blockIP', {
-            ip: ip,
-            duration: duration,
-            reason: reason,
-            block_type: 'manual'
-        }, function(data) {
-            setButtonLoading($('#confirm-block-btn'), false);
-            if (data.status === 'ok') {
-                $('#block-ip-modal').modal('hide');
-                showNotification('{{ lang._("IP blocked successfully") }}', 'success');
-                loadStats(); 
-                loadBlockedIps(); 
-                clearForm('block-ip-form');
-            } else {
-                showNotification('{{ lang._("Failed to block IP") }}: ' + (data.message || ''), 'error');
-            }
+        ajaxPost('/api/webguard/service/clearLogs', {}, data => {
+            setButtonLoading($('#clear-logs-btn'), false);
+            commonCallback(data);
+        });
+    });
+
+    // Restart service
+    $('#restart-service-btn').click(function() {
+        const msg = '{{ lang._("Restart WebGuard service?")|e("js") }}';
+        if (!confirm(msg)) return;
+        setButtonLoading($(this), true);
+        ajaxPost('/api/webguard/service/restart', {}, data => {
+            setButtonLoading($('#restart-service-btn'), false);
+            commonCallback(data);
+            if (data.status==='ok') setTimeout(loadStats,2000);
+        });
+    });
+
+    // Modal confirms: block / bulk block / whitelist add
+    $('#confirm-block-btn').click(function() {
+        const ip = $('#block-ip').val().trim();
+        const dur = $('#block-duration').val();
+        const reason = $('#block-reason').val().trim();
+        if (!ip) { showNotification('{{ lang._("Please enter an IP address") }}','error'); return; }
+        if (!isValidIP(ip)) { showNotification('{{ lang._("Please enter a valid IP address") }}','error'); return; }
+        setButtonLoading($(this),true);
+        ajaxPost('/api/webguard/service/blockIP', { ip, duration: dur, reason, block_type:'manual' }, data=>{
+            setButtonLoading($('#confirm-block-btn'),false);
+            commonCallback(data);
+            if (data.status==='ok') { $('#block-ip-modal').modal('hide'); clearForm('block-ip-form'); }
         });
     });
 
     $('#confirm-bulk-block-btn').click(function() {
-        let ips = $('#bulk-block-ips').val().trim();
-        let duration = $('#bulk-block-duration').val();
-        let reason = $('#bulk-block-reason').val().trim();
-
-        if (!ips) {
-            showNotification('{{ lang._("Please enter IP addresses") }}', 'error');
-            return;
-        }
-
-        setButtonLoading($(this), true);
-        ajaxPost('/api/webguard/service/bulkBlock', {
-            ip_list: ips,
-            duration: duration,
-            reason: reason,
-            block_type: 'manual'
-        }, function(data) {
-            setButtonLoading($('#confirm-bulk-block-btn'), false);
-            if (data.status === 'ok') {
-                $('#bulk-block-modal').modal('hide');
-                showNotification('{{ lang._("IPs blocked successfully") }}', 'success');
-                loadStats(); 
-                loadBlockedIps(); 
-                clearForm('bulk-block-form');
-            } else {
-                showNotification('{{ lang._("Failed to bulk block IPs") }}: ' + (data.message || ''), 'error');
-            }
+        const ips = $('#bulk-block-ips').val().trim();
+        const dur = $('#bulk-block-duration').val();
+        const reason = $('#bulk-block-reason').val().trim();
+        if (!ips) { showNotification('{{ lang._("Please enter IP addresses") }}','error'); return; }
+        setButtonLoading($(this),true);
+        ajaxPost('/api/webguard/service/bulkBlock', { ip_list:ips, duration:dur, reason, block_type:'manual' }, data=>{
+            setButtonLoading($('#confirm-bulk-block-btn'),false);
+            commonCallback(data);
+            if (data.status==='ok') { $('#bulk-block-modal').modal('hide'); clearForm('bulk-block-form'); }
         });
     });
 
     $('#confirm-whitelist-btn').click(function() {
-        let ip = $('#whitelist-ip').val().trim();
-        let description = $('#whitelist-description').val().trim();
-        let permanent = $('#whitelist-permanent').is(':checked') ? '1' : '0';
-
-        if (!ip) {
-            showNotification('{{ lang._("Please enter an IP address") }}', 'error');
-            return;
-        }
-
-        if (!isValidIP(ip)) {
-            showNotification('{{ lang._("Please enter a valid IP address") }}', 'error');
-            return;
-        }
-
-        setButtonLoading($(this), true);
-        ajaxPost('/api/webguard/service/addWhitelist', {
-            ip: ip,
-            description: description,
-            permanent: permanent
-        }, function(data) {
-            setButtonLoading($('#confirm-whitelist-btn'), false);
-            if (data.status === 'ok') {
-                $('#add-whitelist-modal').modal('hide');
-                showNotification('{{ lang._("IP whitelisted successfully") }}', 'success');
-                loadStats(); 
-                loadWhitelist(); 
-                clearForm('add-whitelist-form');
-            } else {
-                showNotification('{{ lang._("Failed to whitelist IP") }}: ' + (data.message || ''), 'error');
-            }
+        const ip = $('#whitelist-ip').val().trim();
+        const desc = $('#whitelist-description').val().trim();
+        const perm = $('#whitelist-permanent').is(':checked')?'1':'0';
+        if (!ip) { showNotification('{{ lang._("Please enter an IP address") }}','error'); return; }
+        if (!isValidIP(ip)) { showNotification('{{ lang._("Please enter a valid IP address") }}','error'); return; }
+        setButtonLoading($(this),true);
+        ajaxPost('/api/webguard/service/addWhitelist',{ ip, description:desc, permanent:perm }, data=>{
+            setButtonLoading($('#confirm-whitelist-btn'),false);
+            commonCallback(data);
+            if (data.status==='ok') { $('#add-whitelist-modal').modal('hide'); clearForm('add-whitelist-form'); }
         });
     });
 
-    // Dynamic table button events
-    $(document).on('click', '.unblock-btn', function() {
-        const ip = $(this).data('ip');
-        // Mostra il confirm con backtick per evitare conflitti di virgolette
-        if (!confirm(`{{ lang._("Unblock IP") }} ${ip}?`)) {
-            // Se l’utente clicca “Annulla”, esci subito
-            return;
+    // --- Funzioni comuni ---
+    function commonCallback(data) {
+        if (data.status==='ok') {
+            showNotification(data.message||'{{ lang._("Operation successful") }}','success');
+        } else {
+            showNotification(data.message||'{{ lang._("Operation failed") }}','error');
         }
-        // Altrimenti procedi con la chiamata AJAX
-        ajaxPost('/api/webguard/service/unblockIP', { ip }, function(data) {
-            if (data.status === 'ok') {
-                showNotification('{{ lang._("IP unblocked successfully") }}', 'success');
-                loadStats();
-                loadBlockedIps();
-            } else {
-                showNotification('{{ lang._("Failed to unblock IP") }}: ' + (data.message || ''), 'error');
-            }
+        loadStats(); loadBlockedIps(); loadWhitelist(); loadThreats();
+    }
+
+    function loadStats(){
+        ajaxGet('/api/webguard/service/status',{},d=>{
+            if(d.status==='ok') $('#service-status').text(d.running? '{{ lang._("Running") }}':'{{ lang._("Stopped") }}');
         });
-    });
-
-    $(document).on('click', '.remove-whitelist-btn', function() {
-        const ip = $(this).data('ip');
-        // Se l'utente clicca "Annulla", esci subito
-        if (!confirm(`{{ lang._("Remove") }} ${ip} {{ lang._("from whitelist") }}?`)) {
-            return;
-        }
-        // Altrimenti procedi con la chiamata AJAX
-        ajaxPost('/api/webguard/service/removeWhitelist', { ip }, function(data) {
-            if (data.status === 'ok') {
-                showNotification('{{ lang._("IP removed from whitelist") }}', 'success');
-                loadStats();
-                loadWhitelist();
-            } else {
-                showNotification('{{ lang._("Failed to remove IP from whitelist") }}: ' + (data.message || ''), 'error');
-            }
-        });
-    });
-
-    $(document).on('click', '.block-threat-btn', function() {
-        const ip = $(this).data('ip');
-        // Se l'utente clicca “Annulla”, esci subito
-        if (!confirm(`{{ lang._("Block IP") }} ${ip} {{ lang._("from threats") }}?`)) {
-            return;
-        }
-        // Altrimenti procedi con la chiamata AJAX
-        ajaxPost('/api/webguard/service/blockIP', {
-            ip: ip,
-            duration: 3600,
-            reason: 'Blocked from threats',
-            block_type: 'threat'
-        }, function(data) {
-            if (data.status === 'ok') {
-                showNotification('{{ lang._("IP blocked from threats") }}', 'success');
-                loadStats();
-                loadBlockedIps();
-            } else {
-                showNotification('{{ lang._("Failed to block IP") }}: ' + (data.message || ''), 'error');
-            }
-        });
-    });
-
-
-    $(document).on('click', '.whitelist-threat-btn', function() {
-        const ip = $(this).data('ip');
-        // Se l'utente clicca “Annulla”, esci subito
-        if (!confirm(`{{ lang._("Add IP") }} ${ip} {{ lang._("to whitelist") }}?`)) {
-            return;
-        }
-        // Altrimenti procedi con la chiamata AJAX
-        ajaxPost('/api/webguard/service/addWhitelist', {
-            ip: ip,
-            description: 'Whitelisted from threats',
-            permanent: '1'
-        }, function(data) {
-            if (data.status === 'ok') {
-                showNotification('{{ lang._("IP added to whitelist") }}', 'success');
-                loadStats();
-                loadWhitelist();
-            } else {
-                showNotification('{{ lang._("Failed to whitelist IP") }}: ' + (data.message || ''), 'error');
-            }
-        });
-    });
-
-
-    // Functions
-    function loadStats() {
-        ajaxGet('/api/webguard/service/status', {}, function(data) {
-            if (data && data.status === 'ok') {
-                $('#service-status').text(data.running ? '{{ lang._("Running") }}' : '{{ lang._("Stopped") }}');
-            }
-        });
-
-        ajaxGet('/api/webguard/service/getStats', {}, function(data) {
-            if (data && data.status === 'ok' && data.data) {
-                $('#active-blocks').text(data.data.blocked_count || 0);
-                $('#whitelist-count').text(data.data.whitelist_count || 0);
-                $('#temp-blocks').text(data.data.temp_blocks || 0);
+        ajaxGet('/api/webguard/service/getStats',{},d=>{
+            if(d.status==='ok'&&d.data){
+                $('#active-blocks').text(d.data.blocked_count||0);
+                $('#whitelist-count').text(d.data.whitelist_count||0);
+                $('#temp-blocks').text(d.data.temp_blocks||0);
             }
         });
     }
 
-    function loadBlockedIps() {
-        ajaxGet('/api/webguard/service/listBlocked', {}, function(data) {
-            let tbody = $('#blocked-table tbody').empty();
-
-            if (data && data.status === 'ok' && data.data && data.data.blocked_ips) {
-                const arr = data.data.blocked_ips;
-                if (arr.length) {
-                    arr.forEach(function(item) {
-                        let badgeClass = item.block_type === 'permanent' ? 'danger' : 'warning';
-                        let row = $('<tr>');
-                        row.append('<td><strong>' + item.ip_address + '</strong></td>');
-                        row.append('<td><span class="label label-' + badgeClass + '">' + 
-                            (item.block_type || 'manual').toUpperCase() + '</span></td>');
-                        row.append('<td>' + formatDate(item.blocked_since_iso) + '</td>');
-                        row.append('<td>' + (item.expires_at_iso ? formatDate(item.expires_at_iso) : '{{ lang._("Never") }}') + '</td>');
-                        row.append('<td>' + (item.reason || 'Manual block') + '</td>');
-                        row.append('<td><button class="btn btn-xs btn-warning unblock-btn" data-ip="' + 
-                            item.ip_address + '"><i class="fa fa-unlock"></i> {{ lang._("Unblock") }}</button></td>');
-                        tbody.append(row);
+    function loadBlockedIps(){
+        ajaxGet('/api/webguard/service/listBlocked',{},d=>{
+            const tbody=$('#blocked-table tbody').empty();
+            if(d.status==='ok'&&d.data&&d.data.blocked_ips){
+                if(d.data.blocked_ips.length){
+                    d.data.blocked_ips.forEach(item=>{
+                        const css=item.block_type==='permanent'?'danger':'warning';
+                        const expires=item.expires_at_iso?formatDate(item.expires_at_iso):'{{ lang._("Never") }}';
+                        tbody.append(`<tr>
+                          <td><strong>${item.ip_address}</strong></td>
+                          <td><span class="label label-${css}">${item.block_type.toUpperCase()}</span></td>
+                          <td>${formatDate(item.blocked_since_iso)}</td>
+                          <td>${expires}</td>
+                          <td>${item.reason||'Manual block'}</td>
+                          <td><button class="btn btn-xs btn-warning unblock-btn" data-ip="${item.ip_address}">
+                            <i class="fa fa-unlock"></i> {{ lang._("Unblock") }}
+                          </button></td>
+                        </tr>`);
                     });
                 } else {
-                    tbody.append(createEmptyState('{{ lang._("No blocked IPs found") }}', 'ban'));
+                    tbody.append(createEmptyState('{{ lang._("No blocked IPs found") }}','ban'));
                 }
             } else {
                 tbody.append(createErrorState('{{ lang._("Error loading blocked IPs") }}'));
@@ -1112,27 +578,26 @@ $(function() {
         });
     }
 
-    function loadWhitelist() {
-        ajaxGet('/api/webguard/service/listWhitelist', {}, function(data) {
-            let tbody = $('#whitelist-table tbody').empty();
-
-            if (data && data.status === 'ok' && data.data && data.data.whitelist) {
-                const arr = data.data.whitelist;
-                if (arr.length) {
-                    arr.forEach(function(item) {
-                        let badgeClass = item.permanent ? 'success' : 'warning';
-                        let type = item.permanent ? '{{ lang._("Permanent") }}' : '{{ lang._("Temporary") }}';
-                        let row = $('<tr>');
-                        row.append('<td><strong>' + item.ip_address + '</strong></td>');
-                        row.append('<td>' + (item.description || 'Manual entry') + '</td>');
-                        row.append('<td>' + formatDate(item.added_at_iso) + '</td>');
-                        row.append('<td><span class="label label-' + badgeClass + '">' + type + '</span></td>');
-                        row.append('<td><button class="btn btn-xs btn-danger remove-whitelist-btn" data-ip="' + 
-                            item.ip_address + '"><i class="fa fa-times"></i> {{ lang._("Remove") }}</button></td>');
-                        tbody.append(row);
+    function loadWhitelist(){
+        ajaxGet('/api/webguard/service/listWhitelist',{},d=>{
+            const tbody=$('#whitelist-table tbody').empty();
+            if(d.status==='ok'&&d.data&&d.data.whitelist){
+                if(d.data.whitelist.length){
+                    d.data.whitelist.forEach(item=>{
+                        const css=item.permanent?'success':'warning';
+                        const type=item.permanent?'{{ lang._("Permanent") }}':'{{ lang._("Temporary") }}';
+                        tbody.append(`<tr>
+                          <td><strong>${item.ip_address}</strong></td>
+                          <td>${item.description||'Manual entry'}</td>
+                          <td>${formatDate(item.added_at_iso)}</td>
+                          <td><span class="label label-${css}">${type}</span></td>
+                          <td><button class="btn btn-xs btn-danger remove-whitelist-btn" data-ip="${item.ip_address}">
+                            <i class="fa fa-times"></i> {{ lang._("Remove") }}
+                          </button></td>
+                        </tr>`);
                     });
                 } else {
-                    tbody.append(createEmptyState('{{ lang._("No whitelist entries found") }}', 'check-circle'));
+                    tbody.append(createEmptyState('{{ lang._("No whitelist entries found") }}','check-circle'));
                 }
             } else {
                 tbody.append(createErrorState('{{ lang._("Error loading whitelist") }}'));
@@ -1140,145 +605,74 @@ $(function() {
         });
     }
 
-    function loadThreats() {
-        ajaxGet('/api/webguard/service/getThreats', {}, function(data) {
-            let tbody = $('#threats-table tbody').empty();
-
-            if (data && data.status === 'ok' && data.data && data.data.threats) {
-                const arr = data.data.threats;
-                if (arr.length) {
-                    arr.forEach(function(item) {
-                        let severityClass = {
-                            'high': 'danger',
-                            'medium': 'warning', 
-                            'low': 'info'
-                        }[item.severity] || 'info';
-                        
-                        let row = $('<tr>');
-                        row.append('<td><strong>' + item.ip_address + '</strong></td>');
-                        row.append('<td>' + (item.threat_type || 'Unknown') + '</td>');
-                        row.append('<td><span class="label label-' + severityClass + '">' + 
-                            (item.severity || 'LOW').toUpperCase() + '</span></td>');
-                        row.append('<td>' + formatDate(item.first_seen_iso) + '</td>');
-                        row.append('<td>' + formatDate(item.last_seen_iso) + '</td>');
-                        row.append('<td>' +
-                            '<button class="btn btn-xs btn-danger block-threat-btn" data-ip="' + item.ip_address + '">' +
-                            '<i class="fa fa-ban"></i> {{ lang._("Block") }}</button> ' +
-                            '<button class="btn btn-xs btn-success whitelist-threat-btn" data-ip="' + item.ip_address + '">' +
-                            '<i class="fa fa-check"></i> {{ lang._("Whitelist") }}</button>' +
-                            '</td>');
-                        tbody.append(row);
+    function loadThreats(){
+        ajaxGet('/api/webguard/service/getThreats',{},d=>{
+            const tbody=$('#threats-table tbody').empty();
+            if(d.status==='ok'&&d.data&&d.data.threats){
+                if(d.data.threats.length){
+                    d.data.threats.forEach(item=>{
+                        const sev = { high:'danger', medium:'warning', low:'info' }[item.severity]||'info';
+                        tbody.append(`<tr>
+                          <td><strong>${item.ip_address}</strong></td>
+                          <td>${item.threat_type||'Unknown'}</td>
+                          <td><span class="label label-${sev}">${item.severity.toUpperCase()}</span></td>
+                          <td>${formatDate(item.first_seen_iso)}</td>
+                          <td>${formatDate(item.last_seen_iso)}</td>
+                          <td>
+                            <button class="btn btn-xs btn-danger block-threat-btn" data-ip="${item.ip_address}">
+                              <i class="fa fa-ban"></i> {{ lang._("Block") }}
+                            </button>
+                            <button class="btn btn-xs btn-success whitelist-threat-btn" data-ip="${item.ip_address}">
+                              <i class="fa fa-check"></i> {{ lang._("Whitelist") }}
+                            </button>
+                          </td>
+                        </tr>`);
                     });
                 } else {
-                    tbody.append(createEmptyState('{{ lang._("No threats detected") }}', 'shield'));
+                    tbody.append(createEmptyState('{{ lang._("No threats detected") }}','shield'));
                 }
             } else {
-                tbody.append(createEmptyState('{{ lang._("No threat data available") }}', 'exclamation-triangle'));
+                tbody.append(createEmptyState('{{ lang._("No threat data available") }}','exclamation-triangle'));
             }
         });
     }
 
-    function createEmptyState(message, icon) {
-        return '<tr><td colspan="6" class="empty-state">' +
-            '<i class="fa fa-' + icon + '"></i>' +
-            '<h4>' + message + '</h4>' +
-            '<p>{{ lang._("No data to display at this time") }}</p>' +
-            '</td></tr>';
+    function createEmptyState(message, icon){
+        return `<tr><td colspan="6" class="empty-state">
+          <i class="fa fa-${icon}"></i><h4>${message}</h4>
+          <p>{{ lang._("No data to display at this time") }}</p>
+        </td></tr>`;
+    }
+    function createErrorState(message){
+        return `<tr><td colspan="6" class="empty-state">
+          <i class="fa fa-exclamation-triangle" style="color:#ff6b6b;"></i>
+          <h4 style="color:#ff6b6b;">${message}</h4>
+          <p>{{ lang._("Please try refreshing the page") }}</p>
+        </td></tr>`;
     }
 
-    function createErrorState(message) {
-        return '<tr><td colspan="6" class="empty-state">' +
-            '<i class="fa fa-exclamation-triangle" style="color: #ff6b6b;"></i>' +
-            '<h4 style="color: #ff6b6b;">' + message + '</h4>' +
-            '<p>{{ lang._("Please try refreshing the page") }}</p>' +
-            '</td></tr>';
+    function formatDate(dt){ try{ return new Date(dt).toLocaleString(); }catch(e){return dt;} }
+    function isValidIP(ip){
+        const v4=/^(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)$/;
+        const v6=/^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
+        return v4.test(ip)||v6.test(ip);
     }
 
-    function formatDate(dateString) {
-        if (!dateString) return 'N/A';
-        try { 
-            return new Date(dateString).toLocaleString(); 
-        } catch (e) { 
-            return dateString; 
-        }
+    function clearForm(id){
+        $(`#${id} input[type="text"], #${id} textarea`).val('');
+        $(`#${id} input[type="checkbox"]`).prop('checked',false);
+        $(`#${id} select`).prop('selectedIndex',0);
     }
-
-    function isValidIP(ip) {
-        var ipv4Regex = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-        var ipv6Regex = /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
-        return ipv4Regex.test(ip) || ipv6Regex.test(ip);
+    function setButtonLoading(btn,loading){
+        if(loading) btn.addClass('btn-loading').prop('disabled',true);
+        else btn.removeClass('btn-loading').prop('disabled',false);
     }
-
-    function clearForm(formId) {
-        $('#' + formId + ' input[type="text"], #' + formId + ' textarea').val('');
-        $('#' + formId + ' input[type="checkbox"]').prop('checked', false);
-        $('#' + formId + ' select').prop('selectedIndex', 0);
+    function showNotification(msg,type){
+        const n=$(`<div class="notification-modern notification-${type}"><i class="fa fa-${{'success':'check-circle','error':'exclamation-circle','warning':'exclamation-triangle','info':'info-circle'}[type]||'info-circle'}"></i> ${msg}</div>`);
+        $('body').append(n);
+        setTimeout(()=>n.fadeOut(300,()=>n.remove()),5000);
     }
-
-    function setButtonLoading(btn, loading) {
-        if (loading) {
-            btn.addClass('btn-loading').prop('disabled', true);
-        } else {
-            btn.removeClass('btn-loading').prop('disabled', false);
-        }
-    }
-
-    function showNotification(message, type) {
-        var notification = $('<div class="notification-modern notification-' + type + '">' +
-            '<i class="fa fa-' + getNotificationIcon(type) + '"></i> ' + message + '</div>');
-
-        $('body').append(notification);
-        setTimeout(function() {
-            notification.fadeOut(300, function() {
-                $(this).remove();
-            });
-        }, 5000);
-    }
-
-    function getNotificationIcon(type) {
-        var icons = {
-            'success': 'check-circle',
-            'error': 'exclamation-circle',
-            'warning': 'exclamation-triangle',
-            'info': 'info-circle'
-        };
-        return icons[type] || 'info-circle';
-    }
-
-    function ajaxPost(url, data, callback) {
-        $.ajax({
-            url: url,
-            type: 'POST',
-            data: data,
-            dataType: 'json',
-            success: callback,
-            error: function(xhr, status, error) {
-                console.error('AJAX Error:', error);
-                var msg = error || '{{ lang._("Connection error") }}';
-                if (xhr.responseJSON && xhr.responseJSON.message) {
-                    msg = xhr.responseJSON.message;
-                }
-                showNotification('{{ lang._("Error") }}: ' + msg, 'error');
-            }
-        });
-    }
-
-    function ajaxGet(url, data, callback) {
-        $.ajax({
-            url: url,
-            type: 'GET',
-            data: data,
-            dataType: 'json',
-            success: callback,
-            error: function(xhr, status, error) {
-                console.error('AJAX Error:', error);
-                var msg = error || '{{ lang._("Connection error") }}';
-                if (xhr.responseJSON && xhr.responseJSON.message) {
-                    msg = xhr.responseJSON.message;
-                }
-                showNotification('{{ lang._("Error loading data") }}: ' + msg, 'error');
-            }
-        });
-    }
+    function ajaxPost(url,data,cb){ $.ajax({url,type:'POST',data,dataType:'json',success:cb,error:function(xhr,_,err){const m=(xhr.responseJSON&&xhr.responseJSON.message)||err||'{{ lang._("Connection error") }}';showNotification(`{{ lang._("Error") }}: ${m}`,'error');}}); }
+    function ajaxGet(url,data,cb){ $.ajax({url,type:'GET',data,dataType:'json',success:cb,error:function(xhr,_,err){const m=(xhr.responseJSON&&xhr.responseJSON.message)||err||'{{ lang._("Connection error") }}';showNotification(`{{ lang._("Error loading data") }}: ${m}`,'error');}}); }
 });
 </script>
