@@ -1,7 +1,29 @@
 <?php
+
 /*
  * Copyright (C) 2024 OPNsense WebGuard Plugin
  * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
+ * OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
  */
 
 namespace OPNsense\WebGuard\Api;
@@ -21,6 +43,7 @@ class ThreatsController extends ApiControllerBase
      */
     public function getAction()
     {
+        $result = array();
         if ($this->request->isGet()) {
             $page = $this->request->getQuery('page', 'int', 1);
             $limit = $this->request->getQuery('limit', 'int', 100);
@@ -30,35 +53,34 @@ class ThreatsController extends ApiControllerBase
             $endDate = $this->request->getQuery('end_date', 'string', '');
             $sourceIp = $this->request->getQuery('source_ip', 'string', '');
 
-            // Create a filter object to pass as single parameter
-            $filters = [
+            $filters = array(
                 'page' => $page,
                 'limit' => $limit,
                 'severity' => $severity,
                 'type' => $type,
-                'source_ip' => $sourceIp,
                 'start_date' => $startDate,
-                'end_date' => $endDate
-            ];
+                'end_date' => $endDate,
+                'source_ip' => $sourceIp
+            );
 
             $backend = new Backend();
-            // Pass filters as JSON string since configd accepts only one parameter
-            $out = trim($backend->configdpRun('webguard', ['get_threats', json_encode($filters)]));
+            $response = $backend->configdRun("webguard get_threats", array(json_encode($filters)));
             
-            if ($out && $out !== '') {
-                $threats = json_decode($out, true);
-                if (is_array($threats)) {
-                    return $threats;
+            if (!empty($response)) {
+                $threats = json_decode($response, true);
+                if ($threats !== null) {
+                    $result = $threats;
+                } else {
+                    $result = array(
+                        'threats' => array(),
+                        'total' => 0,
+                        'page' => $page,
+                        'limit' => $limit
+                    );
                 }
             }
         }
-        
-        return [
-            'threats' => [],
-            'total' => 0,
-            'page' => 1,
-            'limit' => 100
-        ];
+        return $result;
     }
 
     /**
@@ -68,22 +90,28 @@ class ThreatsController extends ApiControllerBase
      */
     public function getDetailAction($id = null)
     {
+        $result = array("result" => "failed");
         if ($this->request->isGet() && !empty($id)) {
             $backend = new Backend();
-            $out = trim($backend->configdpRun('webguard', ['get_threat_detail', $id]));
+            $response = $backend->configdRun("webguard get_threat_detail", array($id));
             
-            if ($out && $out !== '') {
-                $threat = json_decode($out, true);
-                if (is_array($threat)) {
-                    return [
+            if (!empty($response)) {
+                $threat = json_decode($response, true);
+                if ($threat !== null) {
+                    $result = array(
                         "result" => "ok",
                         "threat" => $threat
-                    ];
+                    );
+                } else {
+                    $result["message"] = "Threat not found";
                 }
+            } else {
+                $result["message"] = "Threat not found";
             }
+        } else {
+            $result["message"] = "Invalid threat ID";
         }
-        
-        return ["result" => "failed", "message" => "Threat not found"];
+        return $result;
     }
 
     /**
@@ -92,29 +120,29 @@ class ThreatsController extends ApiControllerBase
      */
     public function getStatsAction()
     {
+        $result = array();
         if ($this->request->isGet()) {
             $period = $this->request->getQuery('period', 'string', '24h');
             
             $backend = new Backend();
-            $out = trim($backend->configdpRun('webguard', ['get_threat_stats', $period]));
+            $response = $backend->configdRun("webguard get_threat_stats", array($period));
             
-            if ($out && $out !== '') {
-                $stats = json_decode($out, true);
-                if (is_array($stats)) {
-                    return $stats;
+            if (!empty($response)) {
+                $stats = json_decode($response, true);
+                if ($stats !== null) {
+                    $result = $stats;
+                } else {
+                    $result = array(
+                        'total_threats' => 0,
+                        'threats_by_type' => array(),
+                        'threats_by_severity' => array(),
+                        'top_source_ips' => array(),
+                        'threat_timeline' => array()
+                    );
                 }
             }
         }
-        
-        return [
-            'total_threats' => 0,
-            'threats_24h' => 0,
-            'blocked_today' => 0,
-            'threats_by_type' => [],
-            'threats_by_severity' => [],
-            'top_source_ips' => [],
-            'threat_timeline' => []
-        ];
+        return $result;
     }
 
     /**
@@ -123,25 +151,27 @@ class ThreatsController extends ApiControllerBase
      */
     public function getFeedAction()
     {
+        $result = array();
         if ($this->request->isGet()) {
             $lastId = $this->request->getQuery('last_id', 'int', 0);
             $limit = $this->request->getQuery('limit', 'int', 50);
             
             $backend = new Backend();
-            $out = trim($backend->configdpRun('webguard', ['get_threat_feed', (string)$lastId, (string)$limit]));
+            $response = $backend->configdRun("webguard get_threat_feed", array($lastId, $limit));
             
-            if ($out && $out !== '') {
-                $feed = json_decode($out, true);
-                if (is_array($feed)) {
-                    return $feed;
+            if (!empty($response)) {
+                $feed = json_decode($response, true);
+                if ($feed !== null) {
+                    $result = $feed;
+                } else {
+                    $result = array(
+                        'threats' => array(),
+                        'last_id' => $lastId
+                    );
                 }
             }
         }
-        
-        return [
-            'threats' => [],
-            'last_id' => 0
-        ];
+        return $result;
     }
 
     /**
@@ -151,21 +181,25 @@ class ThreatsController extends ApiControllerBase
      */
     public function markFalsePositiveAction($id = null)
     {
+        $result = array("result" => "failed");
         if ($this->request->isPost() && !empty($id)) {
             $comment = $this->request->getPost('comment', 'string', '');
             
             $backend = new Backend();
-            $out = trim($backend->configdpRun('webguard', ['mark_false_positive', $id, $comment]));
+            $response = $backend->configdRun("webguard mark_false_positive", array($id, $comment));
             
-            if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
-                return [
+            if (strpos($response, "OK") !== false) {
+                $result = array(
                     "result" => "ok",
                     "message" => "Threat marked as false positive"
-                ];
+                );
+            } else {
+                $result["message"] = "Failed to mark threat as false positive";
             }
+        } else {
+            $result["message"] = "Invalid threat ID";
         }
-        
-        return ["result" => "failed", "message" => "Failed to mark threat as false positive"];
+        return $result;
     }
 
     /**
@@ -175,22 +209,26 @@ class ThreatsController extends ApiControllerBase
      */
     public function whitelistIpAction($id = null)
     {
+        $result = array("result" => "failed");
         if ($this->request->isPost() && !empty($id)) {
-            $permanent = $this->request->getPost('permanent', 'string', 'true');
+            $permanent = $this->request->getPost('permanent', 'boolean', false);
             $comment = $this->request->getPost('comment', 'string', '');
             
             $backend = new Backend();
-            $out = trim($backend->configdpRun('webguard', ['whitelist_ip_from_threat', $id, $permanent, $comment]));
+            $response = $backend->configdRun("webguard whitelist_ip_from_threat", array($id, $permanent, $comment));
             
-            if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
-                return [
+            if (strpos($response, "OK") !== false) {
+                $result = array(
                     "result" => "ok",
                     "message" => "IP added to whitelist"
-                ];
+                );
+            } else {
+                $result["message"] = "Failed to add IP to whitelist";
             }
+        } else {
+            $result["message"] = "Invalid threat ID";
         }
-        
-        return ["result" => "failed", "message" => "Failed to add IP to whitelist"];
+        return $result;
     }
 
     /**
@@ -200,22 +238,26 @@ class ThreatsController extends ApiControllerBase
      */
     public function blockIpAction($id = null)
     {
+        $result = array("result" => "failed");
         if ($this->request->isPost() && !empty($id)) {
             $duration = $this->request->getPost('duration', 'int', 3600);
             $comment = $this->request->getPost('comment', 'string', '');
             
             $backend = new Backend();
-            $out = trim($backend->configdpRun('webguard', ['block_ip_from_threat', $id, (string)$duration, $comment]));
+            $response = $backend->configdRun("webguard block_ip_from_threat", array($id, $duration, $comment));
             
-            if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
-                return [
+            if (strpos($response, "OK") !== false) {
+                $result = array(
                     "result" => "ok",
                     "message" => "IP blocked successfully"
-                ];
+                );
+            } else {
+                $result["message"] = "Failed to block IP";
             }
+        } else {
+            $result["message"] = "Invalid threat ID";
         }
-        
-        return ["result" => "failed", "message" => "Failed to block IP"];
+        return $result;
     }
 
     /**
@@ -225,6 +267,7 @@ class ThreatsController extends ApiControllerBase
      */
     public function createRuleAction($id = null)
     {
+        $result = array("result" => "failed");
         if ($this->request->isPost() && !empty($id)) {
             $ruleName = $this->request->getPost('rule_name', 'string', '');
             $ruleDescription = $this->request->getPost('rule_description', 'string', '');
@@ -232,26 +275,24 @@ class ThreatsController extends ApiControllerBase
             
             if (!empty($ruleName)) {
                 $backend = new Backend();
-                $out = trim($backend->configdpRun('webguard', [
-                    'create_rule_from_threat', 
-                    $id, 
-                    $ruleName, 
-                    $ruleDescription, 
-                    $action
-                ]));
+                $response = $backend->configdRun("webguard create_rule_from_threat", 
+                    array($id, $ruleName, $ruleDescription, $action));
                 
-                if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
-                    return [
+                if (strpos($response, "OK") !== false) {
+                    $result = array(
                         "result" => "ok",
                         "message" => "Custom rule created successfully"
-                    ];
+                    );
+                } else {
+                    $result["message"] = "Failed to create custom rule";
                 }
             } else {
-                return ["result" => "failed", "message" => "Rule name is required"];
+                $result["message"] = "Rule name is required";
             }
+        } else {
+            $result["message"] = "Invalid threat ID";
         }
-        
-        return ["result" => "failed", "message" => "Failed to create custom rule"];
+        return $result;
     }
 
     /**
@@ -260,6 +301,7 @@ class ThreatsController extends ApiControllerBase
      */
     public function exportAction()
     {
+        $result = array("result" => "failed");
         if ($this->request->isGet()) {
             $format = $this->request->getQuery('format', 'string', 'json');
             $startDate = $this->request->getQuery('start_date', 'string', '');
@@ -267,31 +309,34 @@ class ThreatsController extends ApiControllerBase
             $severity = $this->request->getQuery('severity', 'string', '');
             $type = $this->request->getQuery('type', 'string', '');
 
-            // Create export parameters object
-            $params = [
+            $filters = array(
                 'format' => $format,
                 'start_date' => $startDate,
                 'end_date' => $endDate,
                 'severity' => $severity,
                 'type' => $type
-            ];
+            );
 
             $backend = new Backend();
-            $out = trim($backend->configdpRun('webguard', ['export_threats', json_encode($params)]));
+            $response = $backend->configdRun("webguard export_threats", array(json_encode($filters)));
             
-            if ($out && $out !== '') {
-                $filename = 'webguard_threats_' . date('Y-m-d_H-i-s') . '.' . $format;
-                
-                return [
-                    "result" => "ok",
-                    "data" => $out,
-                    "filename" => $filename,
-                    "format" => $format
-                ];
+            if (!empty($response)) {
+                $export = json_decode($response, true);
+                if ($export !== null && isset($export['data'])) {
+                    $result = array(
+                        "result" => "ok",
+                        "data" => $export['data'],
+                        "filename" => $export['filename'],
+                        "format" => $format
+                    );
+                } else {
+                    $result["message"] = "Failed to export threats data";
+                }
+            } else {
+                $result["message"] = "No data to export";
             }
         }
-        
-        return ["result" => "failed", "message" => "No data to export"];
+        return $result;
     }
 
     /**
@@ -300,25 +345,27 @@ class ThreatsController extends ApiControllerBase
      */
     public function getGeoStatsAction()
     {
+        $result = array();
         if ($this->request->isGet()) {
             $period = $this->request->getQuery('period', 'string', '24h');
             
             $backend = new Backend();
-            $out = trim($backend->configdpRun('webguard', ['get_geo_stats', $period]));
+            $response = $backend->configdRun("webguard get_geo_stats", array($period));
             
-            if ($out && $out !== '') {
-                $geoStats = json_decode($out, true);
-                if (is_array($geoStats)) {
-                    return $geoStats;
+            if (!empty($response)) {
+                $geoStats = json_decode($response, true);
+                if ($geoStats !== null) {
+                    $result = $geoStats;
+                } else {
+                    $result = array(
+                        'countries' => array(),
+                        'total_countries' => 0,
+                        'top_countries' => array()
+                    );
                 }
             }
         }
-        
-        return [
-            'countries' => [],
-            'total_countries' => 0,
-            'top_countries' => []
-        ];
+        return $result;
     }
 
     /**
@@ -327,26 +374,28 @@ class ThreatsController extends ApiControllerBase
      */
     public function getPatternsAction()
     {
+        $result = array();
         if ($this->request->isGet()) {
             $period = $this->request->getQuery('period', 'string', '7d');
             $patternType = $this->request->getQuery('pattern_type', 'string', 'all');
             
             $backend = new Backend();
-            $out = trim($backend->configdpRun('webguard', ['get_attack_patterns', $period, $patternType]));
+            $response = $backend->configdRun("webguard get_attack_patterns", array($period, $patternType));
             
-            if ($out && $out !== '') {
-                $patterns = json_decode($out, true);
-                if (is_array($patterns)) {
-                    return $patterns;
+            if (!empty($response)) {
+                $patterns = json_decode($response, true);
+                if ($patterns !== null) {
+                    $result = $patterns;
+                } else {
+                    $result = array(
+                        'patterns' => array(),
+                        'trending_attacks' => array(),
+                        'attack_sequences' => array()
+                    );
                 }
             }
         }
-        
-        return [
-            'patterns' => [],
-            'trending_attacks' => [],
-            'attack_sequences' => []
-        ];
+        return $result;
     }
 
     /**
@@ -355,26 +404,28 @@ class ThreatsController extends ApiControllerBase
      */
     public function clearOldAction()
     {
+        $result = array("result" => "failed");
         if ($this->request->isPost()) {
             $daysOld = $this->request->getPost('days_old', 'int', 30);
-            $keepCritical = $this->request->getPost('keep_critical', 'string', 'true');
+            $keepCritical = $this->request->getPost('keep_critical', 'boolean', true);
             
             if ($daysOld > 0) {
                 $backend = new Backend();
-                $out = trim($backend->configdpRun('webguard', ['clear_old_threats', (string)$daysOld, $keepCritical]));
+                $response = $backend->configdRun("webguard clear_old_threats", array($daysOld, $keepCritical));
                 
-                if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
-                    return [
+                if (strpos($response, "OK") !== false) {
+                    $result = array(
                         "result" => "ok",
                         "message" => "Old threats cleared successfully"
-                    ];
+                    );
+                } else {
+                    $result["message"] = "Failed to clear old threats";
                 }
             } else {
-                return ["result" => "failed", "message" => "Invalid days_old parameter"];
+                $result["message"] = "Invalid days_old parameter";
             }
         }
-        
-        return ["result" => "failed", "message" => "Failed to clear old threats"];
+        return $result;
     }
 
     /**
@@ -383,30 +434,30 @@ class ThreatsController extends ApiControllerBase
      */
     public function getTimelineAction()
     {
+        $result = array("status" => "ok");
         if ($this->request->isGet()) {
             $period = $this->request->getQuery('period', 'string', '24h');
             
             $backend = new Backend();
-            $out = trim($backend->configdpRun('webguard', ['get_threat_timeline', $period]));
+            $response = $backend->configdRun("webguard get_threat_timeline", array($period));
             
-            if ($out && $out !== '') {
-                $timeline = json_decode($out, true);
-                if (is_array($timeline)) {
-                    return [
-                        'status' => 'ok',
-                        'timeline' => $timeline,
-                        'period' => $period
-                    ];
+            if (!empty($response)) {
+                $timeline = json_decode($response, true);
+                if ($timeline !== null) {
+                    $result['timeline'] = $timeline;
+                    $result['period'] = $period;
+                } else {
+                    // Generate fallback timeline data
+                    $result['timeline'] = $this->generateFallbackTimeline($period);
+                    $result['period'] = $period;
                 }
+            } else {
+                // Generate fallback timeline data
+                $result['timeline'] = $this->generateFallbackTimeline($period);
+                $result['period'] = $period;
             }
         }
-        
-        // Generate fallback timeline data
-        return [
-            'status' => 'ok',
-            'timeline' => $this->generateFallbackTimeline($this->request->getQuery('period', 'string', '24h')),
-            'period' => $this->request->getQuery('period', 'string', '24h')
-        ];
+        return $result;
     }
 
     /**
