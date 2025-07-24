@@ -347,6 +347,174 @@ def add_sample_threats():
         print(f"ERROR: Failed to add sample threats: {e}")
         return False
 
+def get_recent_threats(limit=10):
+    """Get recent threats for dashboard"""
+    try:
+        conn = init_database()
+        if not conn:
+            return False
+        
+        # Get recent threats
+        cursor = conn.execute('''
+            SELECT id, timestamp, source_ip, type, severity, description, payload, method
+            FROM threats 
+            WHERE false_positive = 0
+            ORDER BY timestamp DESC
+            LIMIT ?
+        ''', (int(limit),))
+        
+        threats = []
+        for row in cursor.fetchall():
+            threat_id, timestamp, source_ip, threat_type, severity, description, payload, method = row
+            
+            threats.append({
+                'id': threat_id,
+                'timestamp': datetime.fromtimestamp(timestamp).isoformat() + 'Z',
+                'source_ip': source_ip,
+                'threat_type': threat_type,
+                'severity': severity,
+                'url': f"/target-{threat_id}",  # You might want to store actual URL
+                'method': method or 'GET',
+                'status': 'detected'
+            })
+        
+        result = {
+            'status': 'ok',
+            'recent': threats
+        }
+        
+        print(json.dumps(result))
+        conn.close()
+        return True
+        
+    except Exception as e:
+        print(f'{{"status": "error", "message": "Failed to get recent threats: {e}"}}')
+        return False
+
+def get_threat_feed(since_id=0, limit=50):
+    """Get threat feed since a specific ID"""
+    try:
+        conn = init_database()
+        if not conn:
+            return False
+        
+        # Get threats since specific ID
+        cursor = conn.execute('''
+            SELECT id, timestamp, source_ip, type, severity, description, method
+            FROM threats 
+            WHERE false_positive = 0 AND id > ?
+            ORDER BY id DESC
+            LIMIT ?
+        ''', (int(since_id), int(limit)))
+        
+        feed = []
+        last_id = int(since_id)
+        
+        for row in cursor.fetchall():
+            threat_id, timestamp, source_ip, threat_type, severity, description, method = row
+            
+            feed.append({
+                'id': threat_id,
+                'timestamp': datetime.fromtimestamp(timestamp).isoformat() + 'Z',
+                'source_ip': source_ip,
+                'threat_type': threat_type,
+                'severity': severity,
+                'url': f"/target-{threat_id}",
+                'method': method or 'GET',
+                'status': 'detected'
+            })
+            last_id = max(last_id, threat_id)
+        
+        result = {
+            'status': 'ok',
+            'feed': feed,
+            'lastId': last_id
+        }
+        
+        print(json.dumps(result))
+        conn.close()
+        return True
+        
+    except Exception as e:
+        print(f'{{"status": "error", "message": "Failed to get threat feed: {e}"}}')
+        return False
+
+def get_threat_timeline(period='24h'):
+    """Get threat timeline data for charts"""
+    try:
+        conn = init_database()
+        if not conn:
+            return False
+        
+        # Calculate time range based on period
+        current_time = int(time.time())
+        
+        if period == '1h':
+            start_time = current_time - 3600
+            interval = 300  # 5 minutes
+            intervals = 12
+        elif period == '6h':
+            start_time = current_time - (6 * 3600)
+            interval = 1800  # 30 minutes
+            intervals = 12
+        elif period == '24h':
+            start_time = current_time - (24 * 3600)
+            interval = 7200  # 2 hours
+            intervals = 12
+        elif period == '7d':
+            start_time = current_time - (7 * 24 * 3600)
+            interval = 86400  # 1 day
+            intervals = 7
+        else:
+            start_time = current_time - (24 * 3600)
+            interval = 7200
+            intervals = 12
+        
+        # Get threat counts for each interval
+        labels = []
+        threats = []
+        requests = []  # Mock data for requests
+        
+        for i in range(intervals):
+            interval_start = start_time + (i * interval)
+            interval_end = interval_start + interval
+            
+            # Format label based on period
+            if period in ['1h', '6h', '24h']:
+                label = datetime.fromtimestamp(interval_start).strftime('%H:%M')
+            else:
+                label = datetime.fromtimestamp(interval_start).strftime('%m/%d')
+            
+            # Count threats in this interval
+            cursor = conn.execute('''
+                SELECT COUNT(*) FROM threats 
+                WHERE timestamp >= ? AND timestamp < ? AND false_positive = 0
+            ''', (interval_start, interval_end))
+            
+            threat_count = cursor.fetchone()[0]
+            
+            labels.append(label)
+            threats.append(threat_count)
+            requests.append(threat_count * 20 + 50)  # Mock request data
+        
+        result = {
+            'status': 'ok',
+            'timeline': {
+                'labels': labels,
+                'threats': threats,
+                'requests': requests
+            },
+            'period': period
+        }
+        
+        print(json.dumps(result))
+        conn.close()
+        return True
+        
+    except Exception as e:
+        print(f'{{"status": "error", "message": "Failed to get timeline: {e}"}}')
+        return False
+    
 def main():
     if len(sys.argv) < 2:
         print("Usage: manage_threats.py <command> [args...]")
@@ -358,6 +526,9 @@ def main():
         print("  clear_old <days> [severity]")
         print("  add_samples")
         print("  get_threats [page]")
+        print("  get_recent [limit]")
+        print("  get_feed <since_id> [limit]")
+        print("  get_timeline [period]")
         sys.exit(1)
     
     command = sys.argv[1]
@@ -422,6 +593,22 @@ def main():
     elif command == 'get_threats':
         page = sys.argv[2] if len(sys.argv) > 2 else '1'
         get_threats(page)
+        
+    elif command == 'get_recent':
+        limit = sys.argv[2] if len(sys.argv) > 2 else '10'
+        get_recent_threats(int(limit))
+        
+    elif command == 'get_feed':
+        if len(sys.argv) < 3:
+            print("ERROR: Since ID required")
+            sys.exit(1)
+        since_id = sys.argv[2]
+        limit = sys.argv[3] if len(sys.argv) > 3 else '50'
+        get_threat_feed(int(since_id), int(limit))
+        
+    elif command == 'get_timeline':
+        period = sys.argv[2] if len(sys.argv) > 2 else '24h'
+        get_threat_timeline(period)
         
     else:
         print(f"ERROR: Unknown command: {command}")

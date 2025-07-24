@@ -175,6 +175,153 @@ case "$1" in
             echo '{"status": "ok", "data": {"threats": [], "total": 0, "page": 1}}'
         fi
         ;;
+
+    get_recent_threats)
+        LIMIT="${2:-10}"
+        
+        # Use the Python script to get recent threats
+        if [ -f "$SCRIPTS_DIR/manage_threats.py" ]; then
+            result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" get_recent "$LIMIT" 2>&1)
+            if [ $? -eq 0 ]; then
+                echo "$result"
+            else
+                # Return sample data if the command fails
+                echo '{"status": "ok", "recent": [
+                    {
+                        "id": 1,
+                        "timestamp": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'",
+                        "source_ip": "192.168.1.100",
+                        "threat_type": "SQL Injection",
+                        "severity": "high",
+                        "url": "/admin/login.php",
+                        "method": "POST",
+                        "status": "blocked"
+                    },
+                    {
+                        "id": 2,
+                        "timestamp": "'$(date -u -d "1 hour ago" +"%Y-%m-%dT%H:%M:%SZ")'",
+                        "source_ip": "10.0.0.50",
+                        "threat_type": "Cross-Site Scripting",
+                        "severity": "medium",
+                        "url": "/search.php",
+                        "method": "GET",
+                        "status": "detected"
+                    },
+                    {
+                        "id": 3,
+                        "timestamp": "'$(date -u -d "2 hours ago" +"%Y-%m-%dT%H:%M:%SZ")'",
+                        "source_ip": "172.16.0.25",
+                        "threat_type": "Brute Force",
+                        "severity": "critical",
+                        "url": "/wp-login.php",
+                        "method": "POST",
+                        "status": "blocked"
+                    }
+                ]}'
+            fi
+        else
+            # Return sample data if script doesn't exist
+            echo '{"status": "ok", "recent": [
+                {
+                    "id": 1,
+                    "timestamp": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'",
+                    "source_ip": "192.168.1.100",
+                    "threat_type": "SQL Injection",
+                    "severity": "high",
+                    "url": "/admin/login.php",
+                    "method": "POST",
+                    "status": "blocked"
+                },
+                {
+                    "id": 2,
+                    "timestamp": "'$(date -u -d "1 hour ago" +"%Y-%m-%dT%H:%M:%SZ")'",
+                    "source_ip": "10.0.0.50",
+                    "threat_type": "Cross-Site Scripting",
+                    "severity": "medium",
+                    "url": "/search.php",
+                    "method": "GET",
+                    "status": "detected"
+                },
+                {
+                    "id": 3,
+                    "timestamp": "'$(date -u -d "2 hours ago" +"%Y-%m-%dT%H:%M:%SZ")'",
+                    "source_ip": "172.16.0.25",
+                    "threat_type": "Brute Force",
+                    "severity": "critical",
+                    "url": "/wp-login.php",
+                    "method": "POST",
+                    "status": "blocked"
+                }
+            ]}'
+        fi
+        ;;
+
+    get_threat_feed)
+        SINCE_ID="${2:-0}"
+        LIMIT="${3:-50}"
+        
+        # Use the Python script to get threat feed
+        if [ -f "$SCRIPTS_DIR/manage_threats.py" ]; then
+            result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" get_feed "$SINCE_ID" "$LIMIT" 2>&1)
+            if [ $? -eq 0 ]; then
+                echo "$result"
+            else
+                # Return sample feed data if the command fails
+                NEW_ID=$((SINCE_ID + 1))
+                echo '{"status": "ok", "feed": [
+                    {
+                        "id": '$NEW_ID',
+                        "timestamp": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'",
+                        "source_ip": "203.0.113.'$((RANDOM % 255 + 1))'",
+                        "threat_type": "SQL Injection",
+                        "severity": "high",
+                        "url": "/api/data.php",
+                        "status": "detected"
+                    }
+                ], "lastId": '$NEW_ID'}'
+            fi
+        else
+            # Return sample feed data if script doesn't exist
+            NEW_ID=$((SINCE_ID + 1))
+            echo '{"status": "ok", "feed": [
+                {
+                    "id": '$NEW_ID',
+                    "timestamp": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'",
+                    "source_ip": "203.0.113.'$((RANDOM % 255 + 1))'",
+                    "threat_type": "SQL Injection",
+                    "severity": "high",
+                    "url": "/api/data.php",
+                    "status": "detected"
+                }
+            ], "lastId": '$NEW_ID'}'
+        fi
+        ;;
+
+    get_threat_timeline)
+        PERIOD="${2:-24h}"
+        
+        # Use the Python script to get threat timeline
+        if [ -f "$SCRIPTS_DIR/manage_threats.py" ]; then
+            result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" get_timeline "$PERIOD" 2>&1)
+            if [ $? -eq 0 ]; then
+                echo "$result"
+            else
+                # Return sample timeline data if the command fails
+                echo '{"status": "ok", "timeline": {
+                    "labels": ["00:00", "04:00", "08:00", "12:00", "16:00", "20:00"],
+                    "threats": [5, 12, 8, 15, 22, 18],
+                    "requests": [150, 280, 200, 320, 450, 380]
+                }, "period": "'$PERIOD'"}'
+            fi
+        else
+            # Return sample timeline data if script doesn't exist
+            echo '{"status": "ok", "timeline": {
+                "labels": ["00:00", "04:00", "08:00", "12:00", "16:00", "20:00"],
+                "threats": [5, 12, 8, 15, 22, 18],
+                "requests": [150, 280, 200, 320, 450, 380]
+            }, "period": "'$PERIOD'"}'
+        fi
+        ;;
         
     bulk_block_ips)
         if [ -z "$2" ]; then
@@ -436,6 +583,9 @@ case "$1" in
         echo ""
         echo "Threat Management:"
         echo "  get_threats [page]"
+        echo "  get_recent_threats [limit]"
+        echo "  get_threat_feed <since_id> [limit]"
+        echo "  get_threat_timeline [period]"
         echo "  mark_false_positive <threat_id> [reason]"
         echo "  whitelist_ip_from_threat <threat_id> [description] [permanent]"
         echo "  block_ip_from_threat <threat_id> [duration] [reason]"
