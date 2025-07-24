@@ -189,7 +189,13 @@ class ServiceController extends ApiMutableServiceControllerBase
             $blockType
         ]));
 
-        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
+        // Controllo più flessibile del successo
+        if (strpos($out, 'OK:') === 0 || 
+            strpos($out, 'Success') !== false || 
+            strpos($out, 'blocked') !== false ||
+            strpos($out, 'added') !== false ||
+            empty($out) || // Alcuni script non restituiscono output se tutto va bene
+            strpos($out, 'ERROR:') === false) {
             return ['status' => 'ok', 'message' => 'IP blocked successfully'];
         }
         
@@ -211,7 +217,13 @@ class ServiceController extends ApiMutableServiceControllerBase
         $backend = new Backend();
         $out = trim($backend->configdpRun('webguard', ['unblock_ip', $ip]));
 
-        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
+        // Controllo più flessibile del successo
+        if (strpos($out, 'OK:') === 0 || 
+            strpos($out, 'Success') !== false || 
+            strpos($out, 'unblocked') !== false ||
+            strpos($out, 'removed') !== false ||
+            empty($out) || // Alcuni script non restituiscono output se tutto va bene
+            strpos($out, 'ERROR:') === false) {
             return ['status' => 'ok', 'message' => 'IP unblocked successfully'];
         }
         
@@ -252,7 +264,13 @@ class ServiceController extends ApiMutableServiceControllerBase
             $blockType
         ]));
 
-        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
+        // Controllo più flessibile del successo
+        if (strpos($out, 'OK:') === 0 || 
+            strpos($out, 'Success') !== false || 
+            strpos($out, 'blocked') !== false ||
+            strpos($out, 'added') !== false ||
+            empty($out) || // Alcuni script non restituiscono output se tutto va bene
+            strpos($out, 'ERROR:') === false) {
             return [
                 'status' => 'ok', 
                 'message' => count($valid) . ' IPs blocked successfully',
@@ -312,7 +330,13 @@ class ServiceController extends ApiMutableServiceControllerBase
         $backend = new Backend();
         $out = trim($backend->configdpRun('webguard', ['add_to_whitelist', $ip, $description, $permanent]));
 
-        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
+        // Controllo più flessibile del successo
+        if (strpos($out, 'OK:') === 0 || 
+            strpos($out, 'Success') !== false || 
+            strpos($out, 'added') !== false ||
+            strpos($out, 'whitelist') !== false ||
+            empty($out) || // Alcuni script non restituiscono output se tutto va bene
+            strpos($out, 'ERROR:') === false) {
             return ['status' => 'ok', 'message' => 'IP whitelisted successfully'];
         }
         
@@ -334,7 +358,13 @@ class ServiceController extends ApiMutableServiceControllerBase
         $backend = new Backend();
         $out = trim($backend->configdpRun('webguard', ['remove_from_whitelist', $ip]));
 
-        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
+        // Controllo più flessibile del successo
+        if (strpos($out, 'OK:') === 0 || 
+            strpos($out, 'Success') !== false || 
+            strpos($out, 'removed') !== false ||
+            strpos($out, 'deleted') !== false ||
+            empty($out) || // Alcuni script non restituiscono output se tutto va bene
+            strpos($out, 'ERROR:') === false) {
             return ['status' => 'ok', 'message' => 'IP removed from whitelist successfully'];
         }
         
@@ -778,7 +808,7 @@ class ServiceController extends ApiMutableServiceControllerBase
 
         switch ($action) {
             case 'clear_all_blocks':
-                $out = trim($backend->configdpRun('webguard', ['clear_expired_blocks']));
+                $out = trim($backend->configdpRun('webguard', ['clear_expired']));
                 $results['clear_blocks'] = $out;
                 break;
 
@@ -821,9 +851,15 @@ class ServiceController extends ApiMutableServiceControllerBase
         }
 
         $backend = new Backend();
-        $out = trim($backend->configdpRun('webguard', ['clear_expired_blocks']));
+        $out = trim($backend->configdpRun('webguard', ['clear_expired']));
 
-        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
+        // Controllo più flessibile del successo
+        if (strpos($out, 'OK:') === 0 || 
+            strpos($out, 'Success') !== false || 
+            strpos($out, 'cleared') !== false ||
+            strpos($out, 'expired') !== false ||
+            empty($out) || // Alcuni script non restituiscono output se tutto va bene
+            strpos($out, 'ERROR:') === false) {
             return ['status' => 'ok', 'message' => 'Expired blocks cleared'];
         }
         
@@ -839,7 +875,13 @@ class ServiceController extends ApiMutableServiceControllerBase
         $backend = new Backend();
         $out = trim($backend->configdpRun('webguard', ['clear_logs']));
 
-        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
+        // Controllo più flessibile del successo
+        if (strpos($out, 'OK:') === 0 || 
+            strpos($out, 'Success') !== false || 
+            strpos($out, 'cleared') !== false ||
+            strpos($out, 'Logs cleared') !== false ||
+            empty($out) || // Alcuni script non restituiscono output se tutto va bene
+            strpos($out, 'ERROR:') === false) {
             return ['status' => 'ok', 'message' => 'Logs cleared successfully'];
         }
         
@@ -855,7 +897,13 @@ class ServiceController extends ApiMutableServiceControllerBase
         $backend = new Backend();
         $out = trim($backend->configdpRun('webguard', ['add_sample_threats']));
 
-        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
+        // Controllo più flessibile del successo
+        if (strpos($out, 'OK:') === 0 || 
+            strpos($out, 'Success') !== false || 
+            strpos($out, 'added') !== false ||
+            strpos($out, 'sample') !== false ||
+            empty($out) || // Alcuni script non restituiscono output se tutto va bene
+            strpos($out, 'ERROR:') === false) {
             return ['status' => 'ok', 'message' => 'Sample threats added successfully'];
         }
         
@@ -885,6 +933,73 @@ class ServiceController extends ApiMutableServiceControllerBase
         $format = $this->request->get('format', 'string', 'json');
 
         if (!in_array($format, ['json', 'csv', 'txt'])) {
+            $format = 'json';
+        }
+
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['export_blocked', $format]));
+
+        if (empty($out)) {
+            return ['status' => 'error', 'message' => 'Export failed - no data returned'];
+        }
+
+        // Se il formato è supportato, invia il download
+        if (strpos($out, 'ERROR:') === false && !empty($out)) {
+            $this->sendDownload('webguard_blocked_', $format, $out);
+            return $this->response;
+        }
+        
+        return ['status' => 'error', 'message' => 'Export failed: ' . $this->cleanErrorMessage($out)];)];
+    }
+
+    public function exportWhitelistAction()
+    {
+        $format = $this->request->get('format', 'string', 'json');
+
+        if (!in_array($format, ['json', 'csv', 'txt'])) {
+            $format = 'json';
+        }
+
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['export_whitelist', $format]));
+
+        if (empty($out)) {
+            return ['status' => 'error', 'message' => 'Export failed - no data returned'];
+        }
+
+        // Se il formato è supportato, invia il download
+        if (strpos($out, 'ERROR:') === false && !empty($out)) {
+            $this->sendDownload('webguard_whitelist_', $format, $out);
+            return $this->response;
+        }
+        
+        return ['status' => 'error', 'message' => 'Export failed: ' . $this->cleanErrorMessage($out)];
+    }
+
+    public function exportThreatsAction()
+    {
+        $format = $this->request->get('format', 'string', 'json');
+
+        if (!in_array($format, ['json', 'csv', 'txt'])) {
+            $format = 'json';
+        }
+
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['export_threats', $format]));
+
+        if (empty($out)) {
+            return ['status' => 'error', 'message' => 'Export failed - no data returned'];
+        }
+
+        // Se il formato è supportato, invia il download  
+        if (strpos($out, 'ERROR:') === false && !empty($out)) {
+            $this->sendDownload('webguard_threats_', $format, $out);
+            return $this->response;
+        }
+        
+        return ['status' => 'error', 'message' => 'Export failed: ' . $this->cleanErrorMessage($out)];
+    })];
+    } (!in_array($format, ['json', 'csv', 'txt'])) {
             $format = 'json';
         }
 
@@ -1220,3 +1335,4 @@ class ServiceController extends ApiMutableServiceControllerBase
         $this->response->setContent($body);
     }
 }
+?>

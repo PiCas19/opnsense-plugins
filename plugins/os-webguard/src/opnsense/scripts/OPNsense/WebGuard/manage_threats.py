@@ -67,6 +67,63 @@ def init_database():
         print(f"ERROR: Database initialization failed: {e}")
         return None
 
+def get_threats(page=1):
+    """Get threats with pagination"""
+    try:
+        conn = init_database()
+        if not conn:
+            return False
+        
+        limit = 50
+        offset = (int(page) - 1) * limit
+        
+        # Get total count
+        cursor = conn.execute('SELECT COUNT(*) FROM threats WHERE false_positive = 0')
+        total = cursor.fetchone()[0]
+        
+        # Get threats with pagination
+        cursor = conn.execute('''
+            SELECT id, timestamp, source_ip, type, severity, description, payload, method
+            FROM threats 
+            WHERE false_positive = 0
+            ORDER BY timestamp DESC
+            LIMIT ? OFFSET ?
+        ''', (limit, offset))
+        
+        threats = []
+        for row in cursor.fetchall():
+            threat_id, timestamp, source_ip, threat_type, severity, description, payload, method = row
+            
+            threats.append({
+                'id': threat_id,
+                'ip_address': source_ip,
+                'threat_type': threat_type,
+                'severity': severity,
+                'description': description,
+                'payload': payload,
+                'method': method,
+                'first_seen': timestamp,
+                'first_seen_iso': datetime.fromtimestamp(timestamp).isoformat(),
+                'last_seen': timestamp,
+                'last_seen_iso': datetime.fromtimestamp(timestamp).isoformat()
+            })
+        
+        result = {
+            'threats': threats,
+            'total': total,
+            'page': int(page),
+            'limit': limit,
+            'pages': (total + limit - 1) // limit
+        }
+        
+        print(json.dumps(result, indent=2))
+        conn.close()
+        return True
+        
+    except Exception as e:
+        print(f"ERROR: Failed to get threats: {e}")
+        return False
+
 def mark_false_positive(threat_id, reason=''):
     """Mark a threat as false positive"""
     try:
@@ -300,6 +357,7 @@ def main():
         print("  create_rule <threat_id> <rule_name> [rule_type] [enabled]")
         print("  clear_old <days> [severity]")
         print("  add_samples")
+        print("  get_threats [page]")
         sys.exit(1)
     
     command = sys.argv[1]
@@ -360,6 +418,10 @@ def main():
         
     elif command == 'add_samples':
         add_sample_threats()
+        
+    elif command == 'get_threats':
+        page = sys.argv[2] if len(sys.argv) > 2 else '1'
+        get_threats(page)
         
     else:
         print(f"ERROR: Unknown command: {command}")
