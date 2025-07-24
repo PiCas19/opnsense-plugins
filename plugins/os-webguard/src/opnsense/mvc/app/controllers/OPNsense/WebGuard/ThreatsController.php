@@ -82,7 +82,7 @@ class ThreatsController extends IndexController
             $this->view->title = gettext("Threat Details");
         }
         
-        $this->view->pick('OPNsense/WebGuard/threat_detail');
+        $this->view->pick('OPNsense/WebGuard/threat_details');
     }
     
     /**
