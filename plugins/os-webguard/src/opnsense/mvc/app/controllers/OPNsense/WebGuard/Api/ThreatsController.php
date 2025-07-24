@@ -155,41 +155,7 @@ class ThreatsController extends ApiControllerBase
             'threat_timeline' => []
         ];
     }
-
-    /**
-     * Get real-time threat feed
-     * @return array
-     */
-    public function getFeedAction()
-    {
-        if ($this->request->isGet()) {
-            $lastId = $this->request->getQuery('last_id', 'int', 0);
-            $limit = $this->request->getQuery('limit', 'int', 50);
-            
-            $backend = new Backend();
-            $out = trim($backend->configdpRun('webguard', ['get_threat_feed', (string)$lastId, (string)$limit]));
-            
-            if ($out && $out !== '') {
-                $feed = json_decode($out, true);
-                if (is_array($feed)) {
-                    return $feed;
-                }
-            }
-            
-            // FALLBACK: Genera feed di esempio
-            return [
-                'threats' => $this->generateSampleFeedData($limit),
-                'last_id' => $lastId + rand(1, 5),
-                'fallback' => true
-            ];
-        }
-        
-        return [
-            'threats' => [],
-            'last_id' => 0
-        ];
-    }
-
+    
     /**
      * Mark threat as false positive
      * @param string $id
