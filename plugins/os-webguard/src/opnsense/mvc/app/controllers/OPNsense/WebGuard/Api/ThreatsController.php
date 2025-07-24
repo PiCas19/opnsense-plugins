@@ -22,32 +22,35 @@ class ThreatsController extends ApiControllerBase
      */
     public function getAction()
     {
-        if ($this->request->isGet()) {
-            $page = max(1, (int)$this->request->getQuery('page', 'int', 1));
-            
-            $backend = new Backend();
-            $out = trim($backend->configdpRun('webguard', ['get_threats', (string)$page]));
-            
-            if ($out && $out !== '') {
-                $threats = json_decode($out, true);
-                if (is_array($threats)) {
-                    // STESSA IDENTICA STRUTTURA DEL SERVICE CONTROLLER
-                    return ['status' => 'ok', 'data' => $threats];
-                }
-            }
-            
-            // FALLBACK: Usa la stessa struttura del ServiceController
-            return [
-                'status' => 'ok',
-                'data' => [
-                    'threats' => $this->generateSampleThreatsForService(),
-                    'total' => 5,
-                    'page' => $page
-                ]
-            ];
+        if (!$this->request->isGet()) {
+            return ['status' => 'error', 'message' => 'GET required'];
         }
-        
-        return ['status' => 'error', 'message' => 'Failed to retrieve threats', 'data' => []];
+        $page = max(1, (int)$this->request->getQuery('page', 'int', 1));
+        $limit = max(1, (int)$this->request->getQuery('limit', 'int', 50));
+
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['get_threats', (string)$page]));
+
+        if ($out !== '') {
+            $data = json_decode($out, true);
+            if (is_array($data) && isset($data['threats'])) {
+                // Return the structure the UI expects
+                return [
+                    'status' => 'ok',
+                    'threats' => $data['threats'],
+                    'total'   => isset($data['total']) ? (int)$data['total'] : count($data['threats']),
+                    'page'    => $page
+                ];
+            }
+        }
+
+        // Fallback: empty list
+        return [
+            'status'  => 'ok',
+            'threats' => [],
+            'total'   => 0,
+            'page'    => $page
+        ];
     }
 
     /**
