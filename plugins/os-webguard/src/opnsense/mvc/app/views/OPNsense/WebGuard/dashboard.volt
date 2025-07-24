@@ -288,14 +288,12 @@ $(document).ready(function() {
     }
 
     function loadRecentThreatsFromStats() {
-        // Get threats from the main stats call
-        ajaxCall('/api/webguard/settings/stats', {}, function(data) {
+        // Fetch recent threats via dedicated API endpoint
+        ajaxCall('/api/webguard/threats/getRecent', {}, function(response) {
             const tbody = $('#threatTableBody');
             tbody.empty();
-            
-            if (data.status === 'ok' && data.data && data.data.recent_threats && data.data.recent_threats.length > 0) {
-                const threats = data.data.recent_threats.slice(0, 10); // Get first 10
-                threats.forEach(function(threat) {
+            if (response.status === 'ok' && response.recent_threats.length > 0) {
+                response.recent_threats.slice(0, 10).forEach(function(threat) {
                     const severityClass = getSeverityClass(threat.severity);
                     const row = $(`
                         <tr>
@@ -329,30 +327,26 @@ $(document).ready(function() {
     }
 
     function loadThreatFeedFromStats() {
-        // Simulate real-time feed from stats data
-        if (Math.random() < 0.3) { // 30% chance to show new "threat"
-            ajaxCall('/api/webguard/settings/stats', {}, function(data) {
-                if (data.status === 'ok' && data.data && data.data.recent_threats) {
-                    const threats = data.data.recent_threats.slice(0, 3); // Get first 3
-                    const feed = $('#threatFeed');
-                    
-                    threats.forEach(function(threat) {
-                        const item = $(`
-                            <div class="threat-feed-item ${threat.severity}">
-                                <div class="threat-feed-time">${formatTimeFromISO(threat.timestamp)}</div>
-                                <strong>${threat.threat_type}</strong> from ${threat.source_ip} → ${threat.url}
-                            </div>
-                        `);
-                        
-                        feed.prepend(item);
-                    });
-                    
-                    // Keep only last 50 items
-                    feed.children().slice(50).remove();
-                }
-            });
-        }
+        // Use dedicated feed API endpoint
+        ajaxCall('/api/webguard/threats/getFeed', {sinceId: lastThreatId}, function(response) {
+            if (response.status === 'ok' && response.recent_threats && response.recent_threats.length) {
+                const feed = $('#threatFeed');
+                response.recent_threats.forEach(function(threat) {
+                    const item = $(`
+                        <div class="threat-feed-item ${threat.severity}">
+                            <div class="threat-feed-time">${formatTimeFromISO(threat.timestamp)}</div>
+                            <strong>${threat.threat_type}</strong> from ${threat.source_ip} → ${threat.url}
+                        </div>
+                    `);
+                    feed.prepend(item);
+                });
+                lastThreatId = response.last_id;
+                // Keep only last 50 items
+                feed.children().slice(50).remove();
+            }
+        });
     }
+
 
     function initCharts() {
         // Initialize Threat Distribution Chart
