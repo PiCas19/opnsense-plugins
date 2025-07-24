@@ -30,17 +30,20 @@ class ThreatsController extends ApiControllerBase
             $endDate = $this->request->getQuery('end_date', 'string', '');
             $sourceIp = $this->request->getQuery('source_ip', 'string', '');
 
+            // Create a filter object to pass as single parameter
+            $filters = [
+                'page' => $page,
+                'limit' => $limit,
+                'severity' => $severity,
+                'type' => $type,
+                'source_ip' => $sourceIp,
+                'start_date' => $startDate,
+                'end_date' => $endDate
+            ];
+
             $backend = new Backend();
-            $out = trim($backend->configdpRun('webguard', [
-                'get_threats', 
-                (string)$page, 
-                (string)$limit,
-                $severity,
-                $type,
-                $sourceIp,
-                $startDate,
-                $endDate
-            ]));
+            // Pass filters as JSON string since configd accepts only one parameter
+            $out = trim($backend->configdpRun('webguard', ['get_threats', json_encode($filters)]));
             
             if ($out && $out !== '') {
                 $threats = json_decode($out, true);
@@ -264,15 +267,17 @@ class ThreatsController extends ApiControllerBase
             $severity = $this->request->getQuery('severity', 'string', '');
             $type = $this->request->getQuery('type', 'string', '');
 
+            // Create export parameters object
+            $params = [
+                'format' => $format,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'severity' => $severity,
+                'type' => $type
+            ];
+
             $backend = new Backend();
-            $out = trim($backend->configdpRun('webguard', [
-                'export_threats',
-                $format,
-                $startDate,
-                $endDate,
-                $severity,
-                $type
-            ]));
+            $out = trim($backend->configdpRun('webguard', ['export_threats', json_encode($params)]));
             
             if ($out && $out !== '') {
                 $filename = 'webguard_threats_' . date('Y-m-d_H-i-s') . '.' . $format;
