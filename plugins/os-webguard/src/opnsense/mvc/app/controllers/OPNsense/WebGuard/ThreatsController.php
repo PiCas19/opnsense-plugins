@@ -100,7 +100,7 @@ class ThreatsController extends IndexController
             
             // Aggiungi configurazioni specifiche per le statistiche
             $this->view->statisticsEnabled = $this->isStatisticsEnabled($mdlWebGuard);
-            $this->view->retentionDays = $this->getLogRetentionDays($mdlWebGuard);
+            $this->view->retentionDays = 30; // Valore fisso dato che non è nel modello
             
         } catch (\Exception $e) {
             error_log("WebGuard Threat Stats MVC Error: " . $e->getMessage());
@@ -132,7 +132,7 @@ class ThreatsController extends IndexController
             
             // Configurazioni per il feed in tempo reale
             $this->view->realTimeFeed = $this->isRealTimeFeedEnabled($mdlWebGuard);
-            $this->view->updateInterval = $this->getFeedUpdateInterval($mdlWebGuard);
+            $this->view->updateInterval = 5000; // 5 secondi fisso
             
         } catch (\Exception $e) {
             error_log("WebGuard Threat Feed MVC Error: " . $e->getMessage());
@@ -141,7 +141,7 @@ class ThreatsController extends IndexController
             $this->view->isEnabled = false;
             $this->view->currentMode = 'learning';
             $this->view->realTimeFeed = false;
-            $this->view->updateInterval = 5000; // 5 secondi di default
+            $this->view->updateInterval = 5000;
             $this->view->error = $e->getMessage();
             $this->view->title = gettext("Real-time Threat Feed");
         }
@@ -164,8 +164,8 @@ class ThreatsController extends IndexController
             $this->view->title = gettext("Geographic Threat Analysis");
             
             // Configurazioni geografiche
-            $this->view->geoDatabase = $this->isGeoDatabaseAvailable($mdlWebGuard);
-            $this->view->blockedCountries = $this->getBlockedCountries($mdlWebGuard);
+            $this->view->geoDatabase = $this->isGeoDatabaseAvailable();
+            $this->view->blockedCountries = []; // Lista vuota dato che non è nel modello
             
         } catch (\Exception $e) {
             error_log("WebGuard Geo Analysis MVC Error: " . $e->getMessage());
@@ -196,10 +196,10 @@ class ThreatsController extends IndexController
             $this->view->currentMode = (string)$mdlWebGuard->general->mode;
             $this->view->title = gettext("Attack Pattern Analysis");
             
-            // Configurazioni per l'analisi dei pattern
+            // Configurazioni per l'analisi dei pattern (usando le proprietà reali del modello)
             $this->view->behavioralEnabled = $this->isBehavioralEnabled($mdlWebGuard);
             $this->view->patternAnalysis = $this->isPatternAnalysisEnabled($mdlWebGuard);
-            $this->view->machineLearning = $this->isMachineLearningEnabled($mdlWebGuard);
+            $this->view->machineLearning = false; // Non presente nel modello
             
         } catch (\Exception $e) {
             error_log("WebGuard Attack Patterns MVC Error: " . $e->getMessage());
@@ -217,7 +217,7 @@ class ThreatsController extends IndexController
         $this->view->pick('OPNsense/WebGuard/attack_patterns');
     }
     
-    /* ===== METODI HELPER PRIVATI ===== */
+    /* ===== METODI HELPER PRIVATI CORRETTI ===== */
     
     /**
      * Verifica se il rilevamento delle minacce è abilitato
@@ -238,9 +238,8 @@ class ThreatsController extends IndexController
     private function isBehavioralEnabled($model)
     {
         try {
-            // Adatta questo al tuo modello WebGuard
-            return isset($model->behavioral) && 
-                   (string)$model->behavioral->anomaly_detection === '1';
+            // Usa la proprietà reale del modello
+            return (string)$model->behavioral->anomaly_detection === '1';
         } catch (\Exception $e) {
             return false;
         }
@@ -252,8 +251,8 @@ class ThreatsController extends IndexController
     private function isStatisticsEnabled($model)
     {
         try {
-            return (string)$model->general->enabled === '1' && 
-                   (string)$model->general->logging === '1';
+            // Semplificato: se WebGuard è abilitato, le statistiche sono disponibili
+            return (string)$model->general->enabled === '1';
         } catch (\Exception $e) {
             return false;
         }
@@ -265,8 +264,9 @@ class ThreatsController extends IndexController
     private function isRealTimeFeedEnabled($model)
     {
         try {
+            // Semplificato: se WebGuard è abilitato e non in learning mode
             return (string)$model->general->enabled === '1' && 
-                   (string)$model->general->real_time_monitoring === '1';
+                   (string)$model->general->mode !== 'learning';
         } catch (\Exception $e) {
             return false;
         }
@@ -278,8 +278,8 @@ class ThreatsController extends IndexController
     private function isGeoBlockingEnabled($model)
     {
         try {
-            return isset($model->general->geo_blocking) && 
-                   (string)$model->general->geo_blocking === '1';
+            // Usa la proprietà reale del modello
+            return (string)$model->general->geo_blocking === '1';
         } catch (\Exception $e) {
             return false;
         }
@@ -291,21 +291,8 @@ class ThreatsController extends IndexController
     private function isPatternAnalysisEnabled($model)
     {
         try {
-            return isset($model->behavioral->pattern_analysis) && 
-                   (string)$model->behavioral->pattern_analysis === '1';
-        } catch (\Exception $e) {
-            return false;
-        }
-    }
-    
-    /**
-     * Verifica se il machine learning è abilitato
-     */
-    private function isMachineLearningEnabled($model)
-    {
-        try {
-            return isset($model->behavioral->machine_learning) && 
-                   (string)$model->behavioral->machine_learning === '1';
+            // Usa la proprietà reale del modello
+            return (string)$model->behavioral->traffic_pattern_analysis === '1';
         } catch (\Exception $e) {
             return false;
         }
@@ -314,7 +301,7 @@ class ThreatsController extends IndexController
     /**
      * Verifica se il database geografico è disponibile
      */
-    private function isGeoDatabaseAvailable($model)
+    private function isGeoDatabaseAvailable()
     {
         try {
             // Controlla se il file del database GeoIP esiste
@@ -322,52 +309,6 @@ class ThreatsController extends IndexController
             return file_exists($geoDbPath);
         } catch (\Exception $e) {
             return false;
-        }
-    }
-    
-    /**
-     * Ottiene i giorni di retention dei log
-     */
-    private function getLogRetentionDays($model)
-    {
-        try {
-            if (isset($model->general->log_retention_days)) {
-                return (int)(string)$model->general->log_retention_days;
-            }
-            return 30; // Default
-        } catch (\Exception $e) {
-            return 30;
-        }
-    }
-    
-    /**
-     * Ottiene l'intervallo di aggiornamento del feed
-     */
-    private function getFeedUpdateInterval($model)
-    {
-        try {
-            if (isset($model->general->feed_update_interval)) {
-                return (int)(string)$model->general->feed_update_interval * 1000; // Converti in ms
-            }
-            return 5000; // 5 secondi di default
-        } catch (\Exception $e) {
-            return 5000;
-        }
-    }
-    
-    /**
-     * Ottiene la lista dei paesi bloccati
-     */
-    private function getBlockedCountries($model)
-    {
-        try {
-            if (isset($model->geo_blocking->blocked_countries)) {
-                $countries = (string)$model->geo_blocking->blocked_countries;
-                return !empty($countries) ? explode(',', $countries) : [];
-            }
-            return [];
-        } catch (\Exception $e) {
-            return [];
         }
     }
 }
