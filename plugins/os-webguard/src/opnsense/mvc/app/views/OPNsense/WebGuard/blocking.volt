@@ -827,33 +827,44 @@ $(function() {
     });
 
     $('#add-sample-threats-btn').click(function() {
-        if (confirm('{{ lang._("Add sample threat data for testing?") }}')) {
-            setButtonLoading($(this), true);
-            ajaxPost('/api/webguard/service/addSampleThreats', {}, function(data) {
-                setButtonLoading($('#add-sample-threats-btn'), false);
-                if (data.status === 'ok') {
-                    showNotification('{{ lang._("Sample threats added") }}', 'success');
-                    loadThreats();
-                } else {
-                    showNotification('{{ lang._("Failed to add sample threats") }}', 'error');
-                }
-            });
+        const btn = $(this);
+        // Se l'utente clicca “Annulla”, esci subito
+        if (!confirm(`{{ lang._("Add sample threat data for testing?") }}`)) {
+            return;
         }
+        // Altrimenti disabilita il bottone e mostra lo spinner
+        setButtonLoading(btn, true);
+        ajaxPost('/api/webguard/service/addSampleThreats', {}, function(data) {
+            // Riabilita il bottone
+            setButtonLoading(btn, false);
+            if (data.status === 'ok') {
+                showNotification('{{ lang._("Sample threats added") }}', 'success');
+                loadThreats();
+            } else {
+                showNotification('{{ lang._("Failed to add sample threats") }}', 'error');
+            }
+        });
     });
 
-    $('#clear-logs-btn').click(function() {
-        if (confirm('{{ lang._("Clear all WebGuard logs? This cannot be undone.") }}')) {
-            setButtonLoading($(this), true);
-            ajaxPost('/api/webguard/service/clearLogs', {}, function(data) {
-                setButtonLoading($('#clear-logs-btn'), false);
-                if (data.status === 'ok') {
-                    showNotification('{{ lang._("Logs cleared") }}', 'success');
-                } else {
-                    showNotification('{{ lang._("Failed to clear logs") }}', 'error');
-                }
-            });
+   $('#clear-logs-btn').click(function() {
+        const btn = $(this);
+        // Se l'utente clicca “Annulla”, esci subito
+        if (!confirm(`{{ lang._("Clear all WebGuard logs? This cannot be undone.") }}`)) {
+            return;
         }
+        // Altrimenti disabilita il bottone e mostra lo spinner
+        setButtonLoading(btn, true);
+        ajaxPost('/api/webguard/service/clearLogs', {}, function(data) {
+            // Riabilita il bottone
+            setButtonLoading(btn, false);
+            if (data.status === 'ok') {
+                showNotification('{{ lang._("Logs cleared") }}', 'success');
+            } else {
+                showNotification('{{ lang._("Failed to clear logs") }}', 'error');
+            }
+        });
     });
+
 
     $('#restart-service-btn').click(function() {
         if (confirm('{{ lang._("Restart WebGuard service?") }}')) {
@@ -972,73 +983,88 @@ $(function() {
 
     // Dynamic table button events
     $(document).on('click', '.unblock-btn', function() {
-        let ip = $(this).data('ip');
-        if (confirm('{{ lang._("Unblock IP") }} ' + ip + '?')) {
-            ajaxPost('/api/webguard/service/unblockIP', {ip: ip}, function(data) {
-                if (data.status === 'ok') {
-                    showNotification('{{ lang._("IP unblocked successfully") }}', 'success');
-                    loadStats(); 
-                    loadBlockedIps();
-                } else {
-                    showNotification('{{ lang._("Failed to unblock IP") }}: ' + (data.message || ''), 'error');
-                }
-            });
+        const ip = $(this).data('ip');
+        // Mostra il confirm con backtick per evitare conflitti di virgolette
+        if (!confirm(`{{ lang._("Unblock IP") }} ${ip}?`)) {
+            // Se l’utente clicca “Annulla”, esci subito
+            return;
         }
+        // Altrimenti procedi con la chiamata AJAX
+        ajaxPost('/api/webguard/service/unblockIP', { ip }, function(data) {
+            if (data.status === 'ok') {
+                showNotification('{{ lang._("IP unblocked successfully") }}', 'success');
+                loadStats();
+                loadBlockedIps();
+            } else {
+                showNotification('{{ lang._("Failed to unblock IP") }}: ' + (data.message || ''), 'error');
+            }
+        });
     });
 
     $(document).on('click', '.remove-whitelist-btn', function() {
-        let ip = $(this).data('ip');
-        if (confirm('{{ lang._("Remove") }} ' + ip + ' {{ lang._("from whitelist") }}?')) {
-            ajaxPost('/api/webguard/service/removeWhitelist', {ip: ip}, function(data) {
-                if (data.status === 'ok') {
-                    showNotification('{{ lang._("IP removed from whitelist") }}', 'success');
-                    loadStats(); 
-                    loadWhitelist();
-                } else {
-                    showNotification('{{ lang._("Failed to remove IP from whitelist") }}: ' + (data.message || ''), 'error');
-                }
-            });
+        const ip = $(this).data('ip');
+        // Se l'utente clicca "Annulla", esci subito
+        if (!confirm(`{{ lang._("Remove") }} ${ip} {{ lang._("from whitelist") }}?`)) {
+            return;
         }
+        // Altrimenti procedi con la chiamata AJAX
+        ajaxPost('/api/webguard/service/removeWhitelist', { ip }, function(data) {
+            if (data.status === 'ok') {
+                showNotification('{{ lang._("IP removed from whitelist") }}', 'success');
+                loadStats();
+                loadWhitelist();
+            } else {
+                showNotification('{{ lang._("Failed to remove IP from whitelist") }}: ' + (data.message || ''), 'error');
+            }
+        });
     });
 
     $(document).on('click', '.block-threat-btn', function() {
-        let ip = $(this).data('ip');
-        if (confirm('{{ lang._("Block IP") }} ' + ip + ' {{ lang._("from threats") }}?')) {
-            ajaxPost('/api/webguard/service/blockIP', {
-                ip: ip,
-                duration: 3600,
-                reason: 'Blocked from threats',
-                block_type: 'threat'
-            }, function(data) {
-                if (data.status === 'ok') {
-                    showNotification('{{ lang._("IP blocked from threats") }}', 'success');
-                    loadStats(); 
-                    loadBlockedIps();
-                } else {
-                    showNotification('{{ lang._("Failed to block IP") }}: ' + (data.message || ''), 'error');
-                }
-            });
+        const ip = $(this).data('ip');
+        // Se l'utente clicca “Annulla”, esci subito
+        if (!confirm(`{{ lang._("Block IP") }} ${ip} {{ lang._("from threats") }}?`)) {
+            return;
         }
+        // Altrimenti procedi con la chiamata AJAX
+        ajaxPost('/api/webguard/service/blockIP', {
+            ip: ip,
+            duration: 3600,
+            reason: 'Blocked from threats',
+            block_type: 'threat'
+        }, function(data) {
+            if (data.status === 'ok') {
+                showNotification('{{ lang._("IP blocked from threats") }}', 'success');
+                loadStats();
+                loadBlockedIps();
+            } else {
+                showNotification('{{ lang._("Failed to block IP") }}: ' + (data.message || ''), 'error');
+            }
+        });
     });
 
+
     $(document).on('click', '.whitelist-threat-btn', function() {
-        let ip = $(this).data('ip');
-        if (confirm('{{ lang._("Add IP") }} ' + ip + ' {{ lang._("to whitelist") }}?')) {
-            ajaxPost('/api/webguard/service/addWhitelist', {
-                ip: ip,
-                description: 'Whitelisted from threats',
-                permanent: '1'
-            }, function(data) {
-                if (data.status === 'ok') {
-                    showNotification('{{ lang._("IP added to whitelist") }}', 'success');
-                    loadStats(); 
-                    loadWhitelist();
-                } else {
-                    showNotification('{{ lang._("Failed to whitelist IP") }}: ' + (data.message || ''), 'error');
-                }
-            });
+        const ip = $(this).data('ip');
+        // Se l'utente clicca “Annulla”, esci subito
+        if (!confirm(`{{ lang._("Add IP") }} ${ip} {{ lang._("to whitelist") }}?`)) {
+            return;
         }
+        // Altrimenti procedi con la chiamata AJAX
+        ajaxPost('/api/webguard/service/addWhitelist', {
+            ip: ip,
+            description: 'Whitelisted from threats',
+            permanent: '1'
+        }, function(data) {
+            if (data.status === 'ok') {
+                showNotification('{{ lang._("IP added to whitelist") }}', 'success');
+                loadStats();
+                loadWhitelist();
+            } else {
+                showNotification('{{ lang._("Failed to whitelist IP") }}: ' + (data.message || ''), 'error');
+            }
+        });
     });
+
 
     // Functions
     function loadStats() {
