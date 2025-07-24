@@ -176,16 +176,6 @@
                 <div class="quick-nav-controls">
                     <h3>{{ lang._('Threat Analysis') }}</h3>
                     <div class="nav-grid">
-                        <a href="/ui/webguard/threats" class="nav-item">
-                            <div class="nav-icon">
-                                <i class="fa fa-list"></i>
-                            </div>
-                            <div class="nav-content">
-                                <div class="nav-title">{{ lang._('All Threats') }}</div>
-                                <div class="nav-desc">{{ lang._('View complete threat list') }}</div>
-                            </div>
-                        </a>
-                        
                         <a href="/ui/webguard/threats/stats" class="nav-item">
                             <div class="nav-icon">
                                 <i class="fa fa-bar-chart"></i>
