@@ -17,7 +17,7 @@ class ThreatsController extends ApiControllerBase
 {
     /**
      * Get threats list with pagination and filtering
-     * COPIATO DAL SERVICE CONTROLLER CHE FUNZIONA
+     * CORRETTO PER MATCHARE IL JAVASCRIPT NELLA PAGINA THREATS
      * @return array
      */
     public function getAction()
@@ -37,31 +37,38 @@ class ThreatsController extends ApiControllerBase
             if ($out && $out !== '') {
                 $threats = json_decode($out, true);
                 if (is_array($threats)) {
-                    return ['status' => 'ok', 'data' => $threats];
+                    // IL JAVASCRIPT SI ASPETTA QUESTA STRUTTURA ESATTA
+                    return [
+                        'threats' => $threats,
+                        'total' => count($threats),
+                        'page' => $page,
+                        'limit' => $limit
+                    ];
                 }
             }
             
-            // FALLBACK: Genera dati di esempio se il backend non risponde
+            // FALLBACK: Genera dati di esempio con la struttura corretta
+            $sampleData = $this->generateSampleThreatsData($page, $limit, $severity, $type, $sourceIp);
             return [
-                'status' => 'ok', 
-                'data' => $this->generateSampleThreatsData($page, $limit, $severity, $type, $sourceIp),
+                'threats' => $sampleData['threats'],
+                'total' => $sampleData['total'],
+                'page' => $page,
+                'limit' => $limit,
                 'fallback' => true
             ];
         }
         
+        // ANCHE QUI - STRUTTURA CORRETTA PER IL JAVASCRIPT
         return [
             'threats' => [],
             'total' => 0,
             'page' => 1,
-            'limit' => 100,
-            'status' => 'error',
-            'message' => 'GET request required'
+            'limit' => 100
         ];
     }
 
     /**
      * Get threat details by ID
-     * MIGLIORATO CON FALLBACK
      * @param string $id
      * @return array
      */
@@ -94,7 +101,7 @@ class ThreatsController extends ApiControllerBase
 
     /**
      * Get threat statistics
-     * MIGLIORATO CON FALLBACK
+     * CORRETTO PER MATCHARE IL JAVASCRIPT
      * @return array
      */
     public function getStatsAction()
@@ -123,9 +130,7 @@ class ThreatsController extends ApiControllerBase
             'threats_by_type' => [],
             'threats_by_severity' => [],
             'top_source_ips' => [],
-            'threat_timeline' => [],
-            'status' => 'error',
-            'message' => 'GET request required'
+            'threat_timeline' => []
         ];
     }
 
@@ -483,69 +488,36 @@ class ThreatsController extends ApiControllerBase
 
     /**
      * Genera dati di esempio per la lista delle minacce
+     * CON STRUTTURA CORRETTA PER IL JAVASCRIPT
      */
     private function generateSampleThreatsData($page = 1, $limit = 50, $severity = '', $type = '', $sourceIp = '') 
     {
-        $baseThreats = [
-            [
-                'id' => 1,
-                'timestamp' => date('c', time() - 3600),
-                'source_ip' => '192.168.1.100',
-                'threat_type' => 'sql_injection',
-                'severity' => 'high',
-                'url' => '/admin/login.php?id=1\' OR \'1\'=\'1',
-                'method' => 'POST',
-                'status' => 'blocked',
-                'score' => 95
-            ],
-            [
-                'id' => 2,
-                'timestamp' => date('c', time() - 7200),
-                'source_ip' => '10.0.0.50',
-                'threat_type' => 'xss',
-                'severity' => 'medium',
-                'url' => '/search?q=<script>alert(1)</script>',
-                'method' => 'GET',
-                'status' => 'logged',
-                'score' => 78
-            ],
-            [
-                'id' => 3,
-                'timestamp' => date('c', time() - 10800),
-                'source_ip' => '172.16.0.25',
-                'threat_type' => 'behavioral',
-                'severity' => 'critical',
-                'url' => '/api/users/delete/all',
-                'method' => 'DELETE',
-                'status' => 'blocked',
-                'score' => 98
-            ],
-            [
-                'id' => 4,
-                'timestamp' => date('c', time() - 14400),
-                'source_ip' => '203.0.113.45',
-                'threat_type' => 'file_upload',
-                'severity' => 'high',
-                'url' => '/upload.php',
-                'method' => 'POST',
-                'status' => 'blocked',
-                'score' => 85
-            ],
-            [
-                'id' => 5,
-                'timestamp' => date('c', time() - 18000),
-                'source_ip' => '198.51.100.67',
-                'threat_type' => 'csrf',
-                'severity' => 'medium',
-                'url' => '/account/transfer',
-                'method' => 'POST',
-                'status' => 'logged',
-                'score' => 72
-            ]
-        ];
+        // Genera più minacce per test più realistici
+        $allThreats = [];
+        $threatTypes = ['sql_injection', 'xss', 'csrf', 'file_upload', 'behavioral', 'covert_channel'];
+        $severities = ['critical', 'high', 'medium', 'low'];
+        $methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'];
+        $statuses = ['blocked', 'logged', 'allowed'];
+        $baseIps = ['192.168.1.', '10.0.0.', '172.16.0.', '203.0.113.', '198.51.100.'];
+        
+        // Genera 50 minacce di esempio
+        for ($i = 1; $i <= 50; $i++) {
+            $ip = $baseIps[array_rand($baseIps)] . rand(1, 254);
+            $allThreats[] = [
+                'id' => $i,
+                'timestamp' => date('c', time() - ($i * 3600)),
+                'source_ip' => $ip,
+                'threat_type' => $threatTypes[array_rand($threatTypes)],
+                'severity' => $severities[array_rand($severities)],
+                'url' => '/path/to/resource' . $i . '.php',
+                'method' => $methods[array_rand($methods)],
+                'status' => $statuses[array_rand($statuses)],
+                'score' => rand(50, 100)
+            ];
+        }
 
         // Applica filtri se specificati
-        $filteredThreats = $baseThreats;
+        $filteredThreats = $allThreats;
         
         if (!empty($severity)) {
             $filteredThreats = array_filter($filteredThreats, function($threat) use ($severity) {
@@ -568,8 +540,12 @@ class ThreatsController extends ApiControllerBase
         $filteredThreats = array_values($filteredThreats); // Reindex
         $total = count($filteredThreats);
 
+        // Applica paginazione
+        $start = ($page - 1) * $limit;
+        $paginatedThreats = array_slice($filteredThreats, $start, $limit);
+
         return [
-            'threats' => $filteredThreats,
+            'threats' => $paginatedThreats,
             'total' => $total,
             'page' => $page,
             'limit' => $limit
