@@ -93,8 +93,8 @@ def get_threat_detail(threat_id):
         conn = sqlite3.connect(DB_FILE)
         
         cursor = conn.execute('''
-            SELECT id, timestamp, source_ip, target, method, type, severity, status, 
-                   score, payload, request_headers, rule_matched, description, false_positive
+            SELECT id, timestamp, source_ip, method, type, severity, description,
+                   false_positive, payload
             FROM threats 
             WHERE id = ?
         ''', (threat_id,))
@@ -109,20 +109,15 @@ def get_threat_detail(threat_id):
             'timestamp': row[1],
             'timestamp_iso': datetime.fromtimestamp(row[1]).isoformat(),
             'source_ip': row[2],
-            'target': row[3],
-            'method': row[4],
-            'type': row[5],
-            'severity': row[6],
-            'status': row[7],
-            'score': row[8],
-            'payload': row[9],
-            'request_headers': row[10],
-            'rule_matched': row[11],
-            'description': row[12],
-            'false_positive': bool(row[13])
+            'method': row[3],
+            'type': row[4],
+            'severity': row[5],
+            'description': row[6],
+            'false_positive': bool(row[7]),
+            'payload': row[8],
         }
         
-        # Get related threats from same IP
+        # Get related threats from same IP in last 24h
         cursor = conn.execute('''
             SELECT COUNT(*) FROM threats 
             WHERE source_ip = ? AND timestamp >= ?
@@ -135,6 +130,7 @@ def get_threat_detail(threat_id):
         
     except Exception as e:
         return {'error': f'Failed to get threat detail: {e}'}
+
 
 def get_threat_feed(feed_type='recent', limit=50):
     """Get threat feed data"""
