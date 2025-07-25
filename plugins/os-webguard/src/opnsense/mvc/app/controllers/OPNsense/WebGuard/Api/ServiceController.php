@@ -839,7 +839,8 @@ class ServiceController extends ApiMutableServiceControllerBase
         }
 
         $backend = new Backend();
-        $out = trim($backend->configdpRun('webguard', ['clear_expired_blocks']));
+        // COMANDO CORRETTO: clear_expired (non clear_expired_blocks)
+        $out = trim($backend->configdpRun('webguard', ['clear_expired']));
 
         if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
             return ['status' => 'ok', 'message' => 'Expired blocks cleared'];
@@ -907,7 +908,8 @@ class ServiceController extends ApiMutableServiceControllerBase
         }
 
         $backend = new Backend();
-        $out = trim($backend->configdpRun('webguard', ['export_blocked_ips', $format]));
+        // COMANDO CORRETTO: export_blocked (non export_blocked_ips)
+        $out = trim($backend->configdpRun('webguard', ['export_blocked', $format]));
 
         if (empty($out)) {
             return ['status' => 'error', 'message' => 'Export failed - no data returned'];

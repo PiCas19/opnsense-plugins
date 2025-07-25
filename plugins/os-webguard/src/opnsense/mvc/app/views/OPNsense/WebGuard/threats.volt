@@ -711,12 +711,23 @@ $(document).ready(function() {
         loadThreats();
     }, 30000);
     
+    // Add clear filters button
+    addClearFiltersButton();
+    
     // Filter controls
     $('#applyFilters').click(function() {
+        console.log('Applying filters...');
+        console.log('Filter values:', {
+            severity: $('#severityFilter').val(),
+            type: $('#typeFilter').val(),
+            source_ip: $('#sourceIpFilter').val(),
+            start_date: $('#startDateFilter').val(),
+            end_date: $('#endDateFilter').val()
+        });
         currentPage = 1;
         loadThreats();
     });
-    
+
     $('#pageSize').change(function() {
         pageSize = $(this).val();
         currentPage = 1;
@@ -794,15 +805,14 @@ $(document).ready(function() {
         });
     });
     
+    // Modal actions
     $('#markFalsePositive').click(function() {
-        console.log('Marking threat with ID:', currentThreatId);
         if (!currentThreatId) {
             showNotification('{{ lang._("No threat selected.") }}', 'error');
             return;
         }
         const btn = $(this);
         setButtonLoading(btn, true);
-        // Valori hardcoded di default
         const comment = 'Marked as false positive from threat';
         ajaxPost('/api/webguard/threats/markFalsePositive/' + currentThreatId, { comment: comment }, function(data) {
             setButtonLoading(btn, false);
@@ -816,16 +826,13 @@ $(document).ready(function() {
         });
     });
 
-    // Whitelist IP
     $('#whitelistIp').click(function() {
-        console.log('Whitelisting threat with ID:', currentThreatId);
         if (!currentThreatId) {
             showNotification('{{ lang._("No threat selected.") }}', 'error');
             return;
         }
         const btn = $(this);
         setButtonLoading(btn, true);
-        // Valori hardcoded di default
         const description = 'Manual whitelist entry';
         const comment = 'Whitelisted from threat';
         ajaxPost('/api/webguard/threats/whitelistIp/' + currentThreatId, { description: description, comment: comment }, function(data) {
@@ -840,16 +847,13 @@ $(document).ready(function() {
         });
     });
     
-    // Block IP
     $('#blockIp').click(function() {
-        console.log('Blocking threat with ID:', currentThreatId);
         if (!currentThreatId) {
             showNotification('{{ lang._("No threat selected.") }}', 'error');
             return;
         }
         const btn = $(this);
         setButtonLoading(btn, true);
-        // Valori hardcoded di default
         const duration = 3600; // 1 ora di default
         const comment = 'Blocked from threat';
         ajaxPost('/api/webguard/threats/blockIp/' + currentThreatId, { duration: duration, comment: comment }, function(data) {
@@ -863,170 +867,6 @@ $(document).ready(function() {
             }
         });
     });
-    
-    function loadThreatStats() {
-        console.log('Loading threat stats...');
-        ajaxGet('/api/webguard/threats/getStats', {period: '24h'}, function(data) {
-            console.log('Threat stats response:', data);
-            
-            const totalThreats = data.total_threats || 0;
-            const threats24h = data.threats_24h || 0;
-            const blockedToday = data.blocked_today || 0;
-            
-            $('#total-threats').text(formatNumber(totalThreats));
-            $('#threats-24h').text(formatNumber(threats24h));
-            $('#blocked-today').text(formatNumber(blockedToday));
-            
-            if (totalThreats > 0 && blockedToday >= 0) {
-                const rate = Math.round((blockedToday / totalThreats) * 100);
-                $('#detection-rate').text(rate + '%');
-            } else {
-                $('#detection-rate').text('0%');
-            }
-        });
-    }
-    
-    function loadThreats() {
-        console.log('Loading threats...');
-        const params = {
-            page: currentPage,
-            limit: pageSize,
-            severity: $('#severityFilter').val(),
-            type: $('#typeFilter').val(),
-            source_ip: $('#sourceIpFilter').val(),
-            start_date: $('#startDateFilter').val(),
-            end_date: $('#endDateFilter').val()
-        };
-        
-        console.log('Request params:', params);
-        
-        ajaxGet('/api/webguard/threats/getAllThreats', params, function(data) {
-            console.log('Threats response:', data);
-            const tbody = $('#threatsTable tbody');
-            tbody.empty();
-            
-            // Handle the response structure from your backend
-            const threats = data.threats || [];
-            const total = data.total || threats.length;
-            
-            if (threats && threats.length > 0) {
-                console.log('Found', threats.length, 'threats');
-                threats.forEach(function(threat) {
-                    const row = $('<tr>');
-                    
-                    // Use the correct field names from your backend response
-                    const timestamp = threat.first_seen || threat.timestamp || threat.last_seen;
-                    const sourceIp = threat.ip_address || threat.source_ip;
-                    const threatType = threat.threat_type || threat.type;
-                    const severity = threat.severity || 'low';
-                    const target = threat.url || threat.target || threat.description || '-';
-                    const method = threat.method || 'GET';
-                    const status = threat.status || 'logged';
-                    const threatId = threat.id || threat.threat_id;
-                    
-                    row.append('<td>' + formatTimestamp(timestamp) + '</td>');
-                    row.append('<td><strong>' + sourceIp + '</strong></td>');
-                    row.append('<td>' + threatType + '</td>');
-                    row.append('<td><span class="severity-' + severity + '">' + severity.toUpperCase() + '</span></td>');
-                    row.append('<td>' + target + '</td>');
-                    row.append('<td>' + method + '</td>');
-                    row.append('<td><span class="status-' + status + '">' + status.toUpperCase() + '</span></td>');
-                    
-                    const actions = '<div class="btn-group btn-group-xs">' +
-                        '<button class="btn btn-default btn-view-threat" data-id="' + threatId + '">' +
-                        '<i class="fa fa-eye"></i></button>' +
-                        '</div>';
-                    row.append('<td>' + actions + '</td>');
-                    
-                    tbody.append(row);
-                });
-                
-                // Update threat count
-                $('#threatCount').text(total);
-                
-                // Update pagination info
-                const start = ((currentPage - 1) * pageSize) + 1;
-                const end = Math.min(currentPage * pageSize, total);
-                $('#paginationInfo').text(`Showing ${start}-${end} of ${total} threats`);
-                
-                // Generate pagination
-                generatePagination(total);
-            } else {
-                console.log('No threats found or empty response');
-                
-                // Show empty state
-                tbody.append(createEmptyState('{{ lang._("No threats found") }}', 'exclamation-triangle'));
-                $('#threatCount').text('0');
-                $('#paginationInfo').text('No threats found');
-            }
-        });
-    }
-    
-    // Funzione per aggiungere threats di esempio durante il debug
-    function addSampleThreats(tbody) {
-        const sampleThreats = [
-            {
-                timestamp: Math.floor(Date.now() / 1000) - 3600,
-                source_ip: '192.168.1.100',
-                type: 'sql_injection',
-                severity: 'high',
-                target: '/admin/login.php',
-                method: 'POST',
-                status: 'blocked',
-                id: 1
-            },
-            {
-                timestamp: Math.floor(Date.now() / 1000) - 7200,
-                source_ip: '10.0.0.50',
-                type: 'xss',
-                severity: 'medium',
-                target: '/search?q=<script>',
-                method: 'GET',
-                status: 'logged',
-                id: 2
-            },
-            {
-                timestamp: Math.floor(Date.now() / 1000) - 10800,
-                source_ip: '172.16.0.25',
-                type: 'behavioral',
-                severity: 'critical',
-                target: '/api/users',
-                method: 'DELETE',
-                status: 'blocked',
-                id: 3
-            }
-        ];
-        
-        console.log('Adding sample threats:', sampleThreats);
-        
-        sampleThreats.forEach(function(threat) {
-            const row = $('<tr>');
-            row.append('<td>' + formatTimestamp(threat.timestamp) + '</td>');
-            row.append('<td><strong>' + threat.source_ip + '</strong></td>');
-            row.append('<td>' + threat.type + '</td>');
-            row.append('<td><span class="severity-' + threat.severity + '">' + threat.severity.toUpperCase() + '</span></td>');
-            row.append('<td>' + threat.target + '</td>');
-            row.append('<td>' + threat.method + '</td>');
-            row.append('<td><span class="status-' + threat.status + '">' + threat.status.toUpperCase() + '</span></td>');
-            
-            const actions = '<div class="btn-group btn-group-xs">' +
-                '<button class="btn btn-default btn-view-threat" data-id="' + threat.id + '">' +
-                '<i class="fa fa-eye"></i></button>' +
-                '</div>';
-            row.append('<td>' + actions + '</td>');
-            
-            tbody.append(row);
-        });
-        
-        $('#threatCount').text(sampleThreats.length + ' (sample)');
-        $('#paginationInfo').text('Showing sample data - check console for API responses');
-        
-        // Update sample stats
-        $('#total-threats').text('3');
-        $('#threats-24h').text('3');
-        $('#blocked-today').text('2');
-        $('#detection-rate').text('67%');
-    }
     
     // View threat details
     $(document).on('click', '.btn-view-threat', function() {
@@ -1084,6 +924,154 @@ $(document).ready(function() {
             }
         });
     });
+
+    // Pagination click handler
+    $(document).on('click', '.pagination a', function(e) {
+        e.preventDefault();
+        const page = $(this).data('page');
+        if (page && page !== currentPage) {
+            currentPage = page;
+            loadThreats();
+        }
+    });
+
+    // MIGLIORAMENTO: Filtri in tempo reale per IP
+    $('#sourceIpFilter').on('input', function() {
+        clearTimeout(window.ipFilterTimeout);
+        window.ipFilterTimeout = setTimeout(function() {
+            if ($('#sourceIpFilter').val().length === 0 || $('#sourceIpFilter').val().length >= 3) {
+                currentPage = 1;
+                loadThreats();
+            }
+        }, 500);
+    });
+
+    // MIGLIORAMENTO: Auto-apply quando si cambiano date
+    $('#startDateFilter, #endDateFilter').change(function() {
+        console.log('Date filter changed, auto-applying...');
+        currentPage = 1;
+        loadThreats();
+    });
+    
+    // Functions
+    function loadThreatStats() {
+        console.log('Loading threat stats...');
+        ajaxGet('/api/webguard/threats/getStats', {period: '24h'}, function(data) {
+            console.log('Threat stats response:', data);
+            
+            const totalThreats = data.total_threats || 0;
+            const threats24h = data.threats_24h || 0;
+            const blockedToday = data.blocked_today || 0;
+            
+            $('#total-threats').text(formatNumber(totalThreats));
+            $('#threats-24h').text(formatNumber(threats24h));
+            $('#blocked-today').text(formatNumber(blockedToday));
+            
+            if (totalThreats > 0 && blockedToday >= 0) {
+                const rate = Math.round((blockedToday / totalThreats) * 100);
+                $('#detection-rate').text(rate + '%');
+            } else {
+                $('#detection-rate').text('0%');
+            }
+        });
+    }
+
+    function addClearFiltersButton() {
+        if ($('#clearFilters').length === 0) {
+            const clearBtn = $('<button class="btn btn-default btn-modern" id="clearFilters">' +
+                '<i class="fa fa-times"></i> {{ lang._("Clear") }}</button>');
+            
+            $('#applyFilters').after(clearBtn);
+            
+            $('#clearFilters').click(function() {
+                console.log('Clearing filters...');
+                $('#severityFilter').val('');
+                $('#typeFilter').val('');
+                $('#sourceIpFilter').val('');
+                $('#startDateFilter').val('');
+                $('#endDateFilter').val('');
+                currentPage = 1;
+                loadThreats();
+            });
+        }
+    }
+    
+    function loadThreats() {
+        console.log('Loading threats...');
+        
+        const params = {
+            page: currentPage,
+            limit: pageSize,
+            severity: $('#severityFilter').val() || '',
+            type: $('#typeFilter').val() || '',
+            source_ip: $('#sourceIpFilter').val() || '',
+            start_date: $('#startDateFilter').val() || '',
+            end_date: $('#endDateFilter').val() || ''
+        };
+        
+        // Rimuovi parametri vuoti
+        Object.keys(params).forEach(key => {
+            if (params[key] === '' || params[key] === null || params[key] === undefined) {
+                delete params[key];
+            }
+        });
+        
+        console.log('Request params:', params);
+        
+        ajaxGet('/api/webguard/threats/getAllThreats', params, function(data) {
+            console.log('Threats response:', data);
+            const tbody = $('#threatsTable tbody');
+            tbody.empty();
+            
+            const threats = data.threats || [];
+            const total = data.total || threats.length;
+            
+            if (threats && threats.length > 0) {
+                console.log('Found', threats.length, 'threats');
+                threats.forEach(function(threat) {
+                    const row = $('<tr>');
+                    
+                    const timestamp = threat.first_seen || threat.timestamp || threat.last_seen;
+                    const sourceIp = threat.ip_address || threat.source_ip;
+                    const threatType = threat.threat_type || threat.type;
+                    const severity = threat.severity || 'low';
+                    const target = threat.url || threat.target || threat.description || '-';
+                    const method = threat.method || 'GET';
+                    const status = threat.status || 'logged';
+                    const threatId = threat.id || threat.threat_id;
+                    
+                    row.append('<td>' + formatTimestamp(timestamp) + '</td>');
+                    row.append('<td><strong>' + sourceIp + '</strong></td>');
+                    row.append('<td>' + threatType + '</td>');
+                    row.append('<td><span class="severity-' + severity + '">' + severity.toUpperCase() + '</span></td>');
+                    row.append('<td>' + target + '</td>');
+                    row.append('<td>' + method + '</td>');
+                    row.append('<td><span class="status-' + status + '">' + status.toUpperCase() + '</span></td>');
+                    
+                    const actions = '<div class="btn-group btn-group-xs">' +
+                        '<button class="btn btn-default btn-view-threat" data-id="' + threatId + '">' +
+                        '<i class="fa fa-eye"></i></button>' +
+                        '</div>';
+                    row.append('<td>' + actions + '</td>');
+                    
+                    tbody.append(row);
+                });
+                
+                $('#threatCount').text(total);
+                
+                const start = ((currentPage - 1) * pageSize) + 1;
+                const end = Math.min(currentPage * pageSize, total);
+                $('#paginationInfo').text(`Showing ${start}-${end} of ${total} threats`);
+                
+                generatePagination(total);
+            } else {
+                console.log('No threats found or empty response');
+                tbody.append(createEmptyState('{{ lang._("No threats found") }}', 'exclamation-triangle'));
+                $('#threatCount').text('0');
+                $('#paginationInfo').text('No threats found');
+            }
+        });
+    }
     
     function generatePagination(total) {
         const totalPages = Math.ceil(total / pageSize);
@@ -1095,12 +1083,10 @@ $(document).ready(function() {
         const nav = $('<nav><ul class="pagination pagination-sm"></ul></nav>');
         const ul = nav.find('ul');
         
-        // Previous
         if (currentPage > 1) {
             ul.append('<li><a href="#" data-page="' + (currentPage - 1) + '">&laquo;</a></li>');
         }
         
-        // Pages
         const start = Math.max(1, currentPage - 2);
         const end = Math.min(totalPages, currentPage + 2);
         
@@ -1112,23 +1098,12 @@ $(document).ready(function() {
             ul.append(li);
         }
         
-        // Next
         if (currentPage < totalPages) {
             ul.append('<li><a href="#" data-page="' + (currentPage + 1) + '">&raquo;</a></li>');
         }
         
         pagination.append(nav);
     }
-    
-    // Pagination click handler
-    $(document).on('click', '.pagination a', function(e) {
-        e.preventDefault();
-        const page = $(this).data('page');
-        if (page && page !== currentPage) {
-            currentPage = page;
-            loadThreats();
-        }
-    });
     
     function createEmptyState(message, icon) {
         return '<tr><td colspan="8" class="empty-state">' +
@@ -1145,7 +1120,6 @@ $(document).ready(function() {
     function formatTimestamp(timestamp) {
         if (!timestamp) return 'N/A';
         
-        // Handle both Unix timestamp and ISO string
         let date;
         if (typeof timestamp === 'string') {
             date = new Date(timestamp);
@@ -1165,7 +1139,6 @@ $(document).ready(function() {
     }
     
     function showNotification(message, type) {
-        // Use the same notification system as the main template
         const notification = $('<div class="alert alert-' + (type === 'error' ? 'danger' : type) + ' alert-dismissible" style="position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px;">' +
             '<button type="button" class="close" data-dismiss="alert">&times;</button>' +
             '<i class="fa fa-' + getNotificationIcon(type) + '"></i> ' + message + '</div>');
@@ -1268,7 +1241,7 @@ $(document).ready(function() {
                     }
                 }
                 
-                // Se è l'endpoint threats, prova con dati di fallback
+                // Fallback per gli endpoint threats
                 if (url.includes('/api/webguard/threats/')) {
                     console.log('API endpoint failed, using fallback data');
                     if (url.includes('/getStats')) {

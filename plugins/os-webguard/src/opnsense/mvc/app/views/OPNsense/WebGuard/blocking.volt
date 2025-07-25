@@ -428,30 +428,6 @@
         </div>
     </div>
 </div>
-
-<!-- False Positive Detail Modal -->
-<div class="modal fade" id="false-positive-detail-modal" tabindex="-1" role="dialog">
-    <div class="modal-dialog modal-lg" role="document">
-        <div class="modal-content modern-modal">
-            <div class="modal-header">
-                <button type="button" class="close" data-dismiss="modal">
-                    <span>×</span>
-                </button>
-                <h4 class="modal-title">{{ lang._('False Positive Details') }}</h4>
-            </div>
-            <div class="modal-body" id="false-positive-detail-content">
-                <!-- Populated by JavaScript -->
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-default" data-dismiss="modal">{{ lang._('Close') }}</button>
-                <button type="button" class="btn btn-info btn-modern" id="unmark-false-positive-btn">
-                    <i class="fa fa-undo"></i> {{ lang._('Unmark False Positive') }}
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <style>
 /* Modern WebGuard Styles - OPNsense Compatible */
 .modern-header {
@@ -1136,53 +1112,6 @@ $(function() {
         });
     });
 
-    $(document).on('click', '.view-false-positive-btn', function() {
-        const threatId = $(this).data('threat-id');
-        
-        // OPZIONE 1: Trova il threat dai dati già caricati (più efficiente)
-        // Cerca il threat nell'array già caricato nella tabella
-        const threatRow = $(this).closest('tr');
-        const threat = {
-            id: threatId,
-            ip_address: threatRow.find('td:eq(0) strong').text(),
-            threat_type: threatRow.find('td:eq(1)').text(),
-            severity: threatRow.find('td:eq(2) .label').text().toLowerCase(),
-            first_seen_iso: threatRow.find('td:eq(3)').text(),
-            // Potresti dover aggiungere altri campi se necessario
-            description: "SQL injection detected [FALSE POSITIVE: Marked as false positive from threat]",
-            payload: "OR 1=1 --"
-        };
-        
-        // Costruisci l'HTML del modale
-        let html = '<div class="threat-detail-section">';
-        html += '<h5>{{ lang._("Basic Information") }}</h5>';
-        html += '<div class="row">';
-        html += '<div class="col-md-6"><strong>{{ lang._("IP Address") }}:</strong> ' + (threat.ip_address || '-') + '</div>';
-        html += '<div class="col-md-6"><strong>{{ lang._("Threat Type") }}:</strong> ' + (threat.threat_type || '-') + '</div>';
-        html += '<div class="col-md-6"><strong>{{ lang._("Severity") }}:</strong> <span class="label label-' + 
-            (threat.severity === 'high' ? 'danger' : threat.severity === 'medium' ? 'warning' : 'info') + '">' + 
-            (threat.severity || 'LOW').toUpperCase() + '</span></div>';
-        html += '<div class="col-md-6"><strong>{{ lang._("First Seen") }}:</strong> ' + threat.first_seen_iso + '</div>';
-        html += '<div class="col-md-6"><strong>{{ lang._("Last Seen") }}:</strong> ' + (threat.last_seen_iso || threat.first_seen_iso) + '</div>';
-        html += '<div class="col-md-6"><strong>{{ lang._("Reason") }}:</strong> ' + 
-            (threat.description && threat.description.match(/\[FALSE POSITIVE: (.*?)\]/) ? 
-            threat.description.match(/\[FALSE POSITIVE: (.*?)\]/)[1] : 'No reason') + '</div>';
-        html += '</div></div>';
-        
-        if (threat.payload) {
-            html += '<div class="threat-detail-section">';
-            html += '<h5>{{ lang._("Payload") }}</h5>';
-            html += '<pre>' + threat.payload + '</pre>';
-            html += '</div>';
-        }
-        
-        // Imposta il threat ID per il pulsante unmark
-        $('#unmark-false-positive-btn').data('threat-id', threatId);
-        
-        $('#false-positive-detail-content').html(html);
-        $('#false-positive-detail-modal').modal('show');
-    });
-
 
     $(document).on('click', '.unmark-false-positive-btn', function() {
         const threatId = $(this).data('threat-id');
@@ -1351,8 +1280,6 @@ $(function() {
                         row.append('<td>' +
                             '<button class="btn btn-xs btn-danger unmark-false-positive-btn" data-threat-id="' + item.id + '">' +
                             '<i class="fa fa-undo"></i> {{ lang._("Unmark") }}</button> ' +
-                            '<button class="btn btn-xs btn-info view-false-positive-btn" data-threat-id="' + item.id + '">' +
-                            '<i class="fa fa-eye"></i> {{ lang._("View") }}</button>' +
                             '</td>');
                         tbody.append(row);
                     });
