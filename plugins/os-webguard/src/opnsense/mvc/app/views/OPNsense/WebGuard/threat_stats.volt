@@ -129,114 +129,70 @@ $(document).ready(function() {
     let severityChart = null;
     let timelineChart = null;
     let currentPeriod = '24h';
-    
+
     // Initialize
     loadStatsData();
     initCharts();
-    
+
     // Period selector
     $('#periodSelect').change(function() {
         currentPeriod = $(this).val();
         loadStatsData();
         updateCharts();
     });
-    
+
     function loadStatsData() {
-        ajaxCall('/api/webguard/threats/getStats', {period: currentPeriod}, function(data) {
-            if (data) {
+        ajaxCall('/api/webguard/threats/getStats', { period: currentPeriod }, function(data) {
+            if (data && data.status === 'ok') {
                 updateSummaryCards(data);
                 updateTopIPs(data.top_source_ips || {});
-                updateAttackPatterns(data);
+                updateAttackPatterns(data.patterns || {});
             } else {
-                // Use sample data when API fails
-                loadSampleData();
+                // No data or error: show empty state
+                updateSummaryCards({});
+                updateTopIPs({});
+                updateAttackPatterns({});
             }
+        }).fail(function(xhr, status, error) {
+            console.error('Failed to load stats:', error);
+            // Show empty state on failure
+            updateSummaryCards({});
+            updateTopIPs({});
+            updateAttackPatterns({});
         });
     }
-    
-    function loadSampleData() {
-        // Sample data for demonstration
-        const sampleData = {
-            total_threats: 127,
-            blocked_today: 89,
-            top_source_ips: {
-                '192.168.1.100': 15,
-                '10.0.0.25': 12,
-                '172.16.0.8': 9,
-                '203.0.113.45': 7,
-                '198.51.100.12': 6
-            },
-            patterns: {
-                sql_injection_patterns: {
-                    'union_select': 8,
-                    'drop_table': 5,
-                    'or_1_1': 12
-                },
-                xss_patterns: {
-                    'script_tag': 6,
-                    'javascript_alert': 4,
-                    'iframe_injection': 3
-                }
-            }
-        };
-        
-        updateSummaryCards(sampleData);
-        updateTopIPs(sampleData.top_source_ips);
-        updateAttackPatterns(sampleData);
-    }
-    
+
     function updateSummaryCards(data) {
-        $('#totalThreats').text(formatNumber(data.total_threats || 127));
-        $('#blockedThreats').text(formatNumber(data.blocked_today || 89));
-        $('#detectedThreats').text(formatNumber((data.total_threats || 127) - (data.blocked_today || 89)));
-        $('#uniqueIPs').text(formatNumber(Object.keys(data.top_source_ips || {}).length || 5));
+        $('#totalThreats').text(formatNumber(data.total_threats || 0));
+        $('#blockedThreats').text(formatNumber(data.blocked_today || 0));
+        $('#detectedThreats').text(formatNumber((data.total_threats || 0) - (data.blocked_today || 0)));
+        $('#uniqueIPs').text(formatNumber(Object.keys(data.top_source_ips || {}).length));
     }
-    
+
     function updateTopIPs(topIPs) {
         const tbody = $('#topIPsTable');
         tbody.empty();
-        
-        // Use sample data if no real data
-        if (!topIPs || Object.keys(topIPs).length === 0) {
-            topIPs = {
-                '192.168.1.100': 15,
-                '10.0.0.25': 12,
-                '172.16.0.8': 9,
-                '203.0.113.45': 7,
-                '198.51.100.12': 6
-            };
+        if (Object.keys(topIPs).length === 0) {
+            tbody.append('<tr><td colspan="3" class="text-center text-muted">{{ lang._("No data available") }}</td></tr>');
+            return;
         }
-        
-        Object.entries(topIPs).slice(0, 10).forEach(([ip, count]) => {
+        Object.entries(topIPs).slice(0, 10).forEach(([ip, value]) => {
+            // Handle both object (with count and last_seen) and simple count
+            const count = typeof value === 'object' ? (value.count || 1) : value;
+            const lastSeen = typeof value === 'object' && value.last_seen ? formatTime(value.last_seen) : '{{ lang._("Recently") }}';
             tbody.append(`
                 <tr>
                     <td><code>${ip}</code></td>
                     <td><span class="badge badge-danger">${count}</span></td>
-                    <td>{{ lang._('Recently') }}</td>
+                    <td>${lastSeen}</td>
                 </tr>
             `);
         });
     }
-    
-    function updateAttackPatterns(data) {
-        const patterns = data.patterns || {};
+
+    function updateAttackPatterns(patterns) {
         let html = '';
-        
-        // Use sample data if no patterns available
-        if (!patterns.sql_injection_patterns && !patterns.xss_patterns) {
-            patterns.sql_injection_patterns = {
-                'union_select': 8,
-                'drop_table': 5,
-                'or_1_1': 12
-            };
-            patterns.xss_patterns = {
-                'script_tag': 6,
-                'javascript_alert': 4,
-                'iframe_injection': 3
-            };
-        }
-        
-        if (patterns.sql_injection_patterns) {
+        if (patterns.sql_injection_patterns && Object.keys(patterns.sql_injection_patterns).length) {
             html += '<h5><i class="fa fa-database text-danger"></i> {{ lang._("SQL Injection Patterns") }}</h5>';
             html += '<ul class="pattern-list">';
             Object.entries(patterns.sql_injection_patterns).forEach(([pattern, count]) => {
@@ -244,8 +200,7 @@ $(document).ready(function() {
             });
             html += '</ul>';
         }
-        
-        if (patterns.xss_patterns) {
+        if (patterns.xss_patterns && Object.keys(patterns.xss_patterns).length) {
             html += '<h5><i class="fa fa-code text-warning"></i> {{ lang._("XSS Patterns") }}</h5>';
             html += '<ul class="pattern-list">';
             Object.entries(patterns.xss_patterns).forEach(([pattern, count]) => {
@@ -253,19 +208,18 @@ $(document).ready(function() {
             });
             html += '</ul>';
         }
-        
-        $('#attackPatterns').html(html || '<p class="text-muted">{{ lang._("No patterns detected") }}</p>');
+        $('#attackPatterns').html(html || '<p class="text-center text-muted">{{ lang._("No patterns detected") }}</p>');
     }
-    
+
     function initCharts() {
         // Threat Type Chart
         const ctx1 = document.getElementById('threatTypeChart').getContext('2d');
         threatTypeChart = new Chart(ctx1, {
             type: 'doughnut',
             data: {
-                labels: ['SQL Injection', 'XSS', 'Directory Traversal', 'Malware', 'Brute Force'],
+                labels: [],
                 datasets: [{
-                    data: [25, 18, 15, 12, 30],
+                    data: [],
                     backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40']
                 }]
             },
@@ -273,17 +227,14 @@ $(document).ready(function() {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { 
+                    legend: {
                         position: 'bottom',
-                        labels: {
-                            padding: 15,
-                            usePointStyle: true
-                        }
+                        labels: { padding: 15, usePointStyle: true }
                     }
                 }
             }
         });
-        
+
         // Severity Chart
         const ctx2 = document.getElementById('severityChart').getContext('2d');
         severityChart = new Chart(ctx2, {
@@ -292,46 +243,32 @@ $(document).ready(function() {
                 labels: ['Critical', 'High', 'Medium', 'Low'],
                 datasets: [{
                     label: 'Threats',
-                    data: [12, 25, 35, 28],
+                    data: [0, 0, 0, 0],
                     backgroundColor: ['#dc3545', '#ffc107', '#17a2b8', '#28a745']
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false }
-                },
+                plugins: { legend: { display: false } },
                 scales: {
-                    y: { 
+                    y: {
                         beginAtZero: true,
-                        ticks: {
-                            stepSize: 5
-                        }
+                        ticks: { stepSize: 5 }
                     }
                 }
             }
         });
-        
-        // Timeline Chart - Generate sample timeline data
-        const now = new Date();
-        const labels = [];
-        const timelineData = [];
-        
-        for (let i = 23; i >= 0; i--) {
-            const time = new Date(now.getTime() - (i * 60 * 60 * 1000));
-            labels.push(time.getHours() + ':00');
-            timelineData.push(Math.floor(Math.random() * 15) + 1);
-        }
-        
+
+        // Timeline Chart
         const ctx3 = document.getElementById('timelineChart').getContext('2d');
         timelineChart = new Chart(ctx3, {
             type: 'line',
             data: {
-                labels: labels,
+                labels: [],
                 datasets: [{
                     label: 'Threats',
-                    data: timelineData,
+                    data: [],
                     borderColor: '#dc3545',
                     backgroundColor: 'rgba(220, 53, 69, 0.1)',
                     tension: 0.4,
@@ -342,41 +279,31 @@ $(document).ready(function() {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: {
-                        display: true,
-                        position: 'top'
-                    }
+                    legend: { display: true, position: 'top' }
                 },
                 scales: {
-                    y: { 
+                    y: {
                         beginAtZero: true,
-                        ticks: {
-                            stepSize: 2
-                        }
+                        ticks: { stepSize: 2 }
                     },
-                    x: {
-                        ticks: {
-                            maxTicksLimit: 12
-                        }
-                    }
+                    x: { ticks: { maxTicksLimit: 12 } }
                 }
             }
         });
-        
+
         updateCharts();
     }
-    
+
     function updateCharts() {
-        // Update threat type chart
-        ajaxCall('/api/webguard/threats/getStats', {period: currentPeriod}, function(data) {
-            if (data && data.threats_by_type && threatTypeChart) {
-                threatTypeChart.data.labels = Object.keys(data.threats_by_type);
-                threatTypeChart.data.datasets[0].data = Object.values(data.threats_by_type);
+        ajaxCall('/api/webguard/threats/getStats', { period: currentPeriod }, function(data) {
+            if (data && data.status === 'ok' && threatTypeChart) {
+                const threatsByType = data.threats_by_type || {};
+                threatTypeChart.data.labels = Object.keys(threatsByType);
+                threatTypeChart.data.datasets[0].data = Object.values(threatsByType);
                 threatTypeChart.update();
             }
-            
-            if (data && data.threats_by_severity && severityChart) {
-                const severityData = data.threats_by_severity;
+            if (data && data.status === 'ok' && severityChart) {
+                const severityData = data.threats_by_severity || {};
                 severityChart.data.datasets[0].data = [
                     severityData.critical || 0,
                     severityData.high || 0,
@@ -385,20 +312,48 @@ $(document).ready(function() {
                 ];
                 severityChart.update();
             }
+        }).fail(function(xhr, status, error) {
+            console.error('Failed to update stats charts:', error);
+            // Clear charts on failure
+            if (threatTypeChart) {
+                threatTypeChart.data.labels = [];
+                threatTypeChart.data.datasets[0].data = [];
+                threatTypeChart.update();
+            }
+            if (severityChart) {
+                severityChart.data.datasets[0].data = [0, 0, 0, 0];
+                severityChart.update();
+            }
         });
-        
-        // Update timeline
-        ajaxCall('/api/webguard/threats/getTimeline', {period: currentPeriod}, function(data) {
+
+        ajaxCall('/api/webguard/threats/getTimeline', { period: currentPeriod }, function(data) {
             if (data && data.status === 'ok' && data.timeline && timelineChart) {
-                timelineChart.data.labels = data.timeline.labels;
-                timelineChart.data.datasets[0].data = data.timeline.threats;
+                timelineChart.data.labels = data.timeline.labels || [];
+                timelineChart.data.datasets[0].data = data.timeline.threats || [];
+                timelineChart.update();
+            }
+        }).fail(function(xhr, status, error) {
+            console.error('Failed to update timeline chart:', error);
+            if (timelineChart) {
+                timelineChart.data.labels = [];
+                timelineChart.data.datasets[0].data = [];
                 timelineChart.update();
             }
         });
     }
-    
+
     function formatNumber(num) {
         return new Intl.NumberFormat().format(num);
+    }
+
+    function formatTime(timestamp) {
+        if (!timestamp) return '--';
+        try {
+            const date = typeof timestamp === 'string' ? new Date(timestamp) : new Date(timestamp * 1000);
+            return date.toLocaleTimeString();
+        } catch (e) {
+            return '--';
+        }
     }
 });
 </script>
