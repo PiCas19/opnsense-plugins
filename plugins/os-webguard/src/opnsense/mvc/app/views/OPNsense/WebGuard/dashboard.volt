@@ -613,7 +613,9 @@ $(document).ready(function() {
     }
 
     function getSeverityClass(severity) {
-        switch(severity.toLowerCase()) {
+        if (!severity || typeof severity !== 'string') return 'badge-secondary';
+
+        switch (severity.toLowerCase()) {
             case 'critical': return 'badge-danger';
             case 'high': return 'badge-warning';
             case 'medium': return 'badge-info';
@@ -621,7 +623,7 @@ $(document).ready(function() {
             default: return 'badge-secondary';
         }
     }
-
+    
     function formatNumber(num) {
         return new Intl.NumberFormat().format(num);
     }
