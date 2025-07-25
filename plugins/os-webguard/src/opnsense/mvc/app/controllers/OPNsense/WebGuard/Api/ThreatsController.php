@@ -207,6 +207,19 @@ class ThreatsController extends ApiControllerBase
         return ["result" => "failed", "message" => "Failed to mark threat as false positive"];
     }
 
+    public function unmarkFalsePositiveAction($id = null)
+    {
+        if ($this->request->isPost() && !empty($id)) {
+            $comment = $this->request->getPost('comment', 'string', '');
+            $backend = new Backend();
+            $out = trim($backend->configdpRun('webguard', ['unmark_false_positive', $id, $comment]));
+            if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false || empty($out)) {
+                return ['status' => 'ok', 'message' => 'Threat unmarked as false positive'];
+            }
+        }
+        return ['status' => 'failed', 'message' => 'Failed to unmark threat as false positive'];
+    }
+
     /**
      * Add IP to whitelist from threat
      * @param string $id
@@ -497,6 +510,28 @@ class ThreatsController extends ApiControllerBase
             'period' => $this->request->getQuery('period', 'string', '24h'),
             'fallback' => true
         ];
+    }
+
+    public function getFalsePositivesAction()
+    {
+        if (!$this->request->isGet()) {
+            return ['status' => 'error', 'message' => 'GET required'];
+        }
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['get_threats', '1']));
+        if ($out !== '') {
+            $data = json_decode($out, true);
+            if (is_array($data) && isset($data['threats'])) {
+                $threats = array_filter($data['threats'], function($threat) {
+                    return isset($threat['false_positive']) && $threat['false_positive'] == 1;
+                });
+                return [
+                    'status' => 'ok',
+                    'data' => ['threats' => array_values($threats)]
+                ];
+            }
+        }
+        return ['status' => 'ok', 'data' => ['threats' => []]];
     }
 
     /* ===== METODI HELPER PER DATI DI ESEMPIO ===== */
