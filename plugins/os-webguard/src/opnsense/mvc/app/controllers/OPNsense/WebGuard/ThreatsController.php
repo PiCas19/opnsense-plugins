@@ -125,37 +125,33 @@ class ThreatsController extends IndexController
         try {
             $mdlWebGuard = new WebGuard();
 
-            $this->view->webguardModel = $mdlWebGuard;
-            $this->view->isEnabled = (string)$mdlWebGuard->general->enabled === '1';
-            $this->view->currentMode = (string)$mdlWebGuard->general->mode;
-            $this->view->geoBlocking = $this->isGeoBlockingEnabled($mdlWebGuard);
-            $this->view->title = gettext("Geographic Threat Analysis");
-
-            // Configurazioni geografiche
-            $this->view->geoDatabase = $this->isGeoDatabaseAvailable();
-            $this->view->blockedCountries = []; // Lista vuota dato che non è nel modello
-
-            // ✅ Aggiunta della Content-Security-Policy per permettere le tile di OpenStreetMap
-            $this->view->headMeta()->appendHttpEquiv(
-                'Content-Security-Policy',
-                "default-src 'self'; img-src 'self' data: blob: https://*.tile.openstreetmap.org;"
-            );
+            // Imposta i parametri della vista
+            $this->view->webguardModel    = $mdlWebGuard;
+            $this->view->isEnabled        = (string)$mdlWebGuard->general->enabled === '1';
+            $this->view->currentMode      = (string)$mdlWebGuard->general->mode;
+            $this->view->geoBlocking      = $this->isGeoBlockingEnabled($mdlWebGuard);
+            $this->view->geoDatabase      = $this->isGeoDatabaseAvailable();
+            $this->view->blockedCountries = [];  // Da aggiornare se vuoi integrarli dal backend
+            $this->view->title            = gettext("Geographic Threat Analysis");
 
         } catch (\Exception $e) {
             error_log("WebGuard Geo Analysis MVC Error: " . $e->getMessage());
 
-            $this->view->webguardModel = null;
-            $this->view->isEnabled = false;
-            $this->view->currentMode = 'learning';
-            $this->view->geoBlocking = false;
-            $this->view->geoDatabase = false;
+            // In caso di errore, imposta fallback sicuri
+            $this->view->webguardModel    = null;
+            $this->view->isEnabled        = false;
+            $this->view->currentMode      = 'learning';
+            $this->view->geoBlocking      = false;
+            $this->view->geoDatabase      = false;
             $this->view->blockedCountries = [];
-            $this->view->error = $e->getMessage();
-            $this->view->title = gettext("Geographic Threat Analysis");
+            $this->view->error            = $e->getMessage();
+            $this->view->title            = gettext("Geographic Threat Analysis");
         }
 
+        // Seleziona la vista associata
         $this->view->pick('OPNsense/WebGuard/threat_geo');
     }
+
 
     
     /**
