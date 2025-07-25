@@ -802,8 +802,8 @@ $(document).ready(function() {
         }
         const btn = $(this);
         setButtonLoading(btn, true);
-        const comment = prompt('{{ lang._("Optional comment:") }}');
-        if (comment === null) return;
+        // Valori hardcoded di default
+        const comment = 'Marked as false positive from threat';
         ajaxPost('/api/webguard/threats/markFalsePositive/' + currentThreatId, { comment: comment }, function(data) {
             setButtonLoading(btn, false);
             if (data.result === 'ok') {
@@ -816,7 +816,7 @@ $(document).ready(function() {
         });
     });
 
-    // Whitelist IP (aggiungiamo permanent come opzione)
+    // Whitelist IP
     $('#whitelistIp').click(function() {
         console.log('Whitelisting threat with ID:', currentThreatId);
         if (!currentThreatId) {
@@ -825,9 +825,9 @@ $(document).ready(function() {
         }
         const btn = $(this);
         setButtonLoading(btn, true);
-        const permanent = confirm('{{ lang._("Make this whitelist entry permanent?") }}') ? 'true' : 'false';
-        const comment = prompt('{{ lang._("Optional comment:") }}');
-        if (comment === null) return;
+        // Valori hardcoded di default
+        const permanent = 'true';
+        const comment = 'Whitelisted from threat';
         ajaxPost('/api/webguard/threats/whitelistIp/' + currentThreatId, { permanent: permanent, comment: comment }, function(data) {
             setButtonLoading(btn, false);
             if (data.result === 'ok') {
@@ -840,7 +840,7 @@ $(document).ready(function() {
         });
     });
 
-    // Block IP (aggiungiamo duration come input)
+    // Block IP
     $('#blockIp').click(function() {
         console.log('Blocking threat with ID:', currentThreatId);
         if (!currentThreatId) {
@@ -849,11 +849,10 @@ $(document).ready(function() {
         }
         const btn = $(this);
         setButtonLoading(btn, true);
-        const duration = prompt('{{ lang._("Duration in seconds (e.g., 3600 for 1 hour):") }}', '3600');
-        if (duration === null) return;
-        const comment = prompt('{{ lang._("Optional comment:") }}');
-        if (comment === null) return;
-        ajaxPost('/api/webguard/threats/blockIp/' + currentThreatId, { duration: parseInt(duration), comment: comment }, function(data) {
+        // Valori hardcoded di default
+        const duration = 3600; // 1 ora di default
+        const comment = 'Blocked from threat';
+        ajaxPost('/api/webguard/threats/blockIp/' + currentThreatId, { duration: duration, comment: comment }, function(data) {
             setButtonLoading(btn, false);
             if (data.result === 'ok') {
                 $('#threatDetailModal').modal('hide');
