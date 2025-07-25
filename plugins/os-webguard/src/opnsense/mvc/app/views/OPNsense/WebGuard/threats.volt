@@ -900,7 +900,7 @@ $(document).ready(function() {
         
         console.log('Request params:', params);
         
-        ajaxGet('/api/webguard/threats/get', params, function(data) {
+        ajaxGet('/api/webguard/threats/getAll', params, function(data) {
             console.log('Threats response:', data);
             const tbody = $('#threatsTable tbody');
             tbody.empty();

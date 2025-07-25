@@ -176,6 +176,38 @@ case "$1" in
         fi
         ;;
 
+    get_threat_all)
+        PAGE="${2:-1}"
+        
+        # Use the Python script to get all threats
+        if [ -f "$SCRIPTS_DIR/manage_threats.py" ]; then
+            result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" get_threat_all "$PAGE" 2>&1)
+            if [ $? -eq 0 ]; then
+                echo "$result"
+            else
+                echo '{"status": "error", "message": "Failed to retrieve all threats", "data": {"threats": []}}'
+            fi
+        else
+            echo '{"status": "ok", "data": {"threats": [], "total": 0, "page": 1}}'
+        fi
+        ;;
+
+    get_threat_false_positive)
+        PAGE="${2:-1}"
+        
+        # Use the Python script to get false positive threats
+        if [ -f "$SCRIPTS_DIR/manage_threats.py" ]; then
+            result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" get_threat_false_positive "$PAGE" 2>&1)
+            if [ $? -eq 0 ]; then
+                echo "$result"
+            else
+                echo '{"status": "error", "message": "Failed to retrieve false positive threats", "data": {"threats": []}}'
+            fi
+        else
+            echo '{"status": "ok", "data": {"threats": [], "total": 0, "page": 1}}'
+        fi
+        ;;
+
     get_recent_threats)
         LIMIT="${2:-10}"
         
@@ -185,74 +217,10 @@ case "$1" in
             if [ $? -eq 0 ]; then
                 echo "$result"
             else
-                # Return sample data if the command fails
-                echo '{"status": "ok", "recent": [
-                    {
-                        "id": 1,
-                        "timestamp": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'",
-                        "source_ip": "192.168.1.100",
-                        "threat_type": "SQL Injection",
-                        "severity": "high",
-                        "url": "/admin/login.php",
-                        "method": "POST",
-                        "status": "blocked"
-                    },
-                    {
-                        "id": 2,
-                        "timestamp": "'$(date -u -d "1 hour ago" +"%Y-%m-%dT%H:%M:%SZ")'",
-                        "source_ip": "10.0.0.50",
-                        "threat_type": "Cross-Site Scripting",
-                        "severity": "medium",
-                        "url": "/search.php",
-                        "method": "GET",
-                        "status": "detected"
-                    },
-                    {
-                        "id": 3,
-                        "timestamp": "'$(date -u -d "2 hours ago" +"%Y-%m-%dT%H:%M:%SZ")'",
-                        "source_ip": "172.16.0.25",
-                        "threat_type": "Brute Force",
-                        "severity": "critical",
-                        "url": "/wp-login.php",
-                        "method": "POST",
-                        "status": "blocked"
-                    }
-                ]}'
+                echo '{"status": "ok", "recent": []}'
             fi
         else
-            # Return sample data if script doesn't exist
-            echo '{"status": "ok", "recent": [
-                {
-                    "id": 1,
-                    "timestamp": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'",
-                    "source_ip": "192.168.1.100",
-                    "threat_type": "SQL Injection",
-                    "severity": "high",
-                    "url": "/admin/login.php",
-                    "method": "POST",
-                    "status": "blocked"
-                },
-                {
-                    "id": 2,
-                    "timestamp": "'$(date -u -d "1 hour ago" +"%Y-%m-%dT%H:%M:%SZ")'",
-                    "source_ip": "10.0.0.50",
-                    "threat_type": "Cross-Site Scripting",
-                    "severity": "medium",
-                    "url": "/search.php",
-                    "method": "GET",
-                    "status": "detected"
-                },
-                {
-                    "id": 3,
-                    "timestamp": "'$(date -u -d "2 hours ago" +"%Y-%m-%dT%H:%M:%SZ")'",
-                    "source_ip": "172.16.0.25",
-                    "threat_type": "Brute Force",
-                    "severity": "critical",
-                    "url": "/wp-login.php",
-                    "method": "POST",
-                    "status": "blocked"
-                }
-            ]}'
+            echo '{"status": "ok", "recent": []}'
         fi
         ;;
 
@@ -266,34 +234,10 @@ case "$1" in
             if [ $? -eq 0 ]; then
                 echo "$result"
             else
-                # Return sample feed data if the command fails
-                NEW_ID=$((SINCE_ID + 1))
-                echo '{"status": "ok", "feed": [
-                    {
-                        "id": '$NEW_ID',
-                        "timestamp": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'",
-                        "source_ip": "203.0.113.'$((RANDOM % 255 + 1))'",
-                        "threat_type": "SQL Injection",
-                        "severity": "high",
-                        "url": "/api/data.php",
-                        "status": "detected"
-                    }
-                ], "lastId": '$NEW_ID'}'
+                echo '{"status": "ok", "feed": [], "lastId": 0}'
             fi
         else
-            # Return sample feed data if script doesn't exist
-            NEW_ID=$((SINCE_ID + 1))
-            echo '{"status": "ok", "feed": [
-                {
-                    "id": '$NEW_ID',
-                    "timestamp": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'",
-                    "source_ip": "203.0.113.'$((RANDOM % 255 + 1))'",
-                    "threat_type": "SQL Injection",
-                    "severity": "high",
-                    "url": "/api/data.php",
-                    "status": "detected"
-                }
-            ], "lastId": '$NEW_ID'}'
+            echo '{"status": "ok", "feed": [], "lastId": 0}'
         fi
         ;;
 
@@ -306,20 +250,10 @@ case "$1" in
             if [ $? -eq 0 ]; then
                 echo "$result"
             else
-                # Return sample timeline data if the command fails
-                echo '{"status": "ok", "timeline": {
-                    "labels": ["00:00", "04:00", "08:00", "12:00", "16:00", "20:00"],
-                    "threats": [5, 12, 8, 15, 22, 18],
-                    "requests": [150, 280, 200, 320, 450, 380]
-                }, "period": "'$PERIOD'"}'
+                echo '{"status": "ok", "timeline": {"labels": [], "threats": [], "requests": []}, "period": "'$PERIOD'"}'
             fi
         else
-            # Return sample timeline data if script doesn't exist
-            echo '{"status": "ok", "timeline": {
-                "labels": ["00:00", "04:00", "08:00", "12:00", "16:00", "20:00"],
-                "threats": [5, 12, 8, 15, 22, 18],
-                "requests": [150, 280, 200, 320, 450, 380]
-            }, "period": "'$PERIOD'"}'
+            echo '{"status": "ok", "timeline": {"labels": [], "threats": [], "requests": []}, "period": "'$PERIOD'"}'
         fi
         ;;
         
@@ -449,6 +383,27 @@ case "$1" in
         fi
         ;;
 
+    unmark_false_positive)
+        if [ -z "$2" ]; then
+            echo "ERROR: Threat ID required"
+            exit 1
+        fi
+        
+        THREAT_ID="$2"
+        REASON="${3:-Manual unmark false positive}"
+        
+        # Use the Python script
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" unmark_false_positive "$THREAT_ID" "$REASON" 2>&1)
+        if [ $? -eq 0 ]; then
+            log_action "Unmarked threat $THREAT_ID as false positive: $REASON"
+            echo "OK: Threat $THREAT_ID unmarked as false positive"
+        else
+            log_action "Failed to unmark false positive: $result"
+            echo "ERROR: $result"
+            exit 1
+        fi
+        ;;
+
     whitelist_ip_from_threat)
         if [ -z "$2" ]; then
             echo "ERROR: Threat ID required"
@@ -538,7 +493,6 @@ case "$1" in
         if [ -f "$SCRIPTS_DIR/get_stats.py" ]; then
             $PYTHON_BIN "$SCRIPTS_DIR/get_stats.py" "${2:-}"
         else
-            # Return basic stats from database
             echo '{"message": "WebGuard statistics", "status": "ok", "blocked_count": 0, "whitelist_count": 0, "active_blocks": 0, "temp_blocks": 0}'
         fi
         ;;
@@ -583,10 +537,13 @@ case "$1" in
         echo ""
         echo "Threat Management:"
         echo "  get_threats [page]"
+        echo "  get_threat_all [page]"
+        echo "  get_threat_false_positive [page]"
         echo "  get_recent_threats [limit]"
         echo "  get_threat_feed <since_id> [limit]"
         echo "  get_threat_timeline [period]"
         echo "  mark_false_positive <threat_id> [reason]"
+        echo "  unmark_false_positive <threat_id> [reason]"
         echo "  whitelist_ip_from_threat <threat_id> [description] [permanent]"
         echo "  block_ip_from_threat <threat_id> [duration] [reason]"
         echo "  create_rule_from_threat <threat_id> <rule_name> [rule_type] [enabled]"
