@@ -14,6 +14,9 @@
                         <option value="7d">{{ lang._('Last 7 Days') }}</option>
                         <option value="30d">{{ lang._('Last 30 Days') }}</option>
                     </select>
+                    <button id="refreshBtn" class="btn btn-primary" style="margin-left: 10px;">
+                        <i class="fa fa-refresh"></i> {{ lang._('Refresh') }}
+                    </button>
                 </div>
             </div>
         </div>
@@ -73,12 +76,18 @@
             <div class="chart-card">
                 <h3>{{ lang._('Threats by Type') }}</h3>
                 <canvas id="threatTypeChart"></canvas>
+                <div id="threatTypeNoData" class="no-data-message" style="display: none;">
+                    <p class="text-muted">{{ lang._('No threat data available') }}</p>
+                </div>
             </div>
         </div>
         <div class="col-md-6">
             <div class="chart-card">
                 <h3>{{ lang._('Severity Distribution') }}</h3>
                 <canvas id="severityChart"></canvas>
+                <div id="severityNoData" class="no-data-message" style="display: none;">
+                    <p class="text-muted">{{ lang._('No severity data available') }}</p>
+                </div>
             </div>
         </div>
     </div>
@@ -88,6 +97,9 @@
             <div class="chart-card">
                 <h3>{{ lang._('Threat Timeline') }}</h3>
                 <canvas id="timelineChart"></canvas>
+                <div id="timelineNoData" class="no-data-message" style="display: none;">
+                    <p class="text-muted">{{ lang._('No timeline data available') }}</p>
+                </div>
             </div>
         </div>
     </div>
@@ -97,18 +109,24 @@
         <div class="col-md-6">
             <div class="table-card">
                 <h3>{{ lang._('Top Source IPs') }}</h3>
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>{{ lang._('IP Address') }}</th>
-                            <th>{{ lang._('Threats') }}</th>
-                            <th>{{ lang._('Last Seen') }}</th>
-                        </tr>
-                    </thead>
-                    <tbody id="topIPsTable">
-                        <!-- Dynamic content -->
-                    </tbody>
-                </table>
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>{{ lang._('IP Address') }}</th>
+                                <th>{{ lang._('Threats') }}</th>
+                                <th>{{ lang._('Country') }}</th>
+                                <th>{{ lang._('Last Seen') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="topIPsTable">
+                            <!-- Dynamic content -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="topIPsNoData" class="no-data-message" style="display: none;">
+                    <p class="text-muted">{{ lang._('No IP data available') }}</p>
+                </div>
             </div>
         </div>
         <div class="col-md-6">
@@ -116,6 +134,9 @@
                 <h3>{{ lang._('Attack Patterns') }}</h3>
                 <div id="attackPatterns">
                     <!-- Dynamic content -->
+                </div>
+                <div id="patternsNoData" class="no-data-message" style="display: none;">
+                    <p class="text-muted">{{ lang._('No attack patterns detected') }}</p>
                 </div>
             </div>
         </div>
@@ -129,13 +150,14 @@ $(document).ready(function() {
     let severityChart = null;
     let timelineChart = null;
     let currentPeriod = '24h';
+    let refreshInterval = null;
     
     // Initialize
     loadStatsData();
     initCharts();
     
-    // Auto-refresh every 30 seconds
-    setInterval(function() {
+    // Auto refresh every 30 seconds
+    refreshInterval = setInterval(function() {
         loadStatsData();
         updateCharts();
     }, 30000);
@@ -143,93 +165,139 @@ $(document).ready(function() {
     // Period selector
     $('#periodSelect').change(function() {
         currentPeriod = $(this).val();
-        console.log('Period changed to:', currentPeriod);
         loadStatsData();
         updateCharts();
+    });
+    
+    // Manual refresh button
+    $('#refreshBtn').click(function() {
+        $(this).find('i').addClass('fa-spin');
+        loadStatsData();
+        updateCharts();
+        setTimeout(() => {
+            $(this).find('i').removeClass('fa-spin');
+        }, 1000);
     });
     
     function loadStatsData() {
         console.log('Loading stats data for period:', currentPeriod);
         
-        ajaxGet('/api/webguard/threats/getStats', {period: currentPeriod}, function(data) {
-            console.log('Stats data received:', data);
+        ajaxCall('/api/webguard/threats/getStats', {period: currentPeriod}, function(data, status) {
+            console.log('Stats API response:', data, 'Status:', status);
             
-            if (data) {
+            if (data && status === 'success') {
                 updateSummaryCards(data);
                 updateTopIPs(data.top_source_ips || {});
                 updateAttackPatterns(data);
+            } else {
+                console.error('Failed to load stats data:', status);
+                // Show error state or fallback data
+                showErrorState();
             }
         });
     }
     
     function updateSummaryCards(data) {
-        console.log('Updating summary cards with:', data);
+        $('#totalThreats').text(formatNumber(data.total_threats || 0));
+        $('#blockedThreats').text(formatNumber(data.blocked_threats || data.blocked_today || 0));
         
-        const totalThreats = data.total_threats || 0;
-        const blockedThreats = data.blocked_today || data.blocked_threats || 0;
-        const detectedThreats = totalThreats - blockedThreats;
+        const detected = (data.total_threats || 0) - (data.blocked_threats || data.blocked_today || 0);
+        $('#detectedThreats').text(formatNumber(Math.max(0, detected)));
+        
         const uniqueIPs = Object.keys(data.top_source_ips || {}).length;
-        
-        $('#totalThreats').text(formatNumber(totalThreats));
-        $('#blockedThreats').text(formatNumber(blockedThreats));
-        $('#detectedThreats').text(formatNumber(detectedThreats));
         $('#uniqueIPs').text(formatNumber(uniqueIPs));
-        
-        console.log('Summary cards updated:', {totalThreats, blockedThreats, detectedThreats, uniqueIPs});
     }
     
     function updateTopIPs(topIPs) {
-        console.log('Updating top IPs:', topIPs);
-        
         const tbody = $('#topIPsTable');
         tbody.empty();
         
-        if (Object.keys(topIPs).length === 0) {
-            tbody.append('<tr><td colspan="3" class="text-center text-muted">{{ lang._("No data available") }}</td></tr>');
+        if (!topIPs || Object.keys(topIPs).length === 0) {
+            $('#topIPsNoData').show();
             return;
         }
         
-        Object.entries(topIPs).slice(0, 10).forEach(([ip, count]) => {
-            tbody.append(`
-                <tr>
-                    <td><code>${ip}</code></td>
-                    <td><span class="badge badge-danger">${count}</span></td>
-                    <td>{{ lang._('Recently') }}</td>
-                </tr>
-            `);
+        $('#topIPsNoData').hide();
+        
+        // Sort IPs by threat count and take top 10
+        const sortedIPs = Object.entries(topIPs)
+            .sort(([,a], [,b]) => (b.count || b) - (a.count || a))
+            .slice(0, 10);
+        
+        sortedIPs.forEach(([ip, data]) => {
+            const count = typeof data === 'object' ? data.count : data;
+            const country = typeof data === 'object' ? data.country : 'Unknown';
+            const lastSeen = typeof data === 'object' ? formatTimestamp(data.last_seen) : '{{ lang._("Recently") }}';
+            
+            // Validate IP format
+            if (isValidIP(ip)) {
+                tbody.append(`
+                    <tr>
+                        <td><code>${escapeHtml(ip)}</code></td>
+                        <td><span class="badge badge-danger">${formatNumber(count)}</span></td>
+                        <td>${escapeHtml(country)}</td>
+                        <td>${lastSeen}</td>
+                    </tr>
+                `);
+            }
         });
+        
+        if (tbody.children().length === 0) {
+            $('#topIPsNoData').show();
+        }
     }
     
     function updateAttackPatterns(data) {
-        console.log('Updating attack patterns:', data);
-        
         const patterns = data.patterns || {};
         let html = '';
+        let hasPatterns = false;
         
-        if (patterns.sql_injection_patterns) {
-            html += '<h5>{{ lang._("SQL Injection Patterns") }}</h5>';
+        // SQL Injection patterns
+        if (patterns.sql_injection_patterns && Object.keys(patterns.sql_injection_patterns).length > 0) {
+            html += '<div class="pattern-section">';
+            html += '<h5><i class="fa fa-database text-danger"></i> {{ lang._("SQL Injection Patterns") }}</h5>';
             html += '<ul class="pattern-list">';
             Object.entries(patterns.sql_injection_patterns).forEach(([pattern, count]) => {
-                html += `<li>${pattern.replace('_', ' ')}: <strong>${count}</strong></li>`;
+                html += `<li>${escapeHtml(pattern.replace(/_/g, ' '))}: <strong>${formatNumber(count)}</strong></li>`;
             });
-            html += '</ul>';
+            html += '</ul></div>';
+            hasPatterns = true;
         }
         
-        if (patterns.xss_patterns) {
-            html += '<h5>{{ lang._("XSS Patterns") }}</h5>';
+        // XSS patterns
+        if (patterns.xss_patterns && Object.keys(patterns.xss_patterns).length > 0) {
+            html += '<div class="pattern-section">';
+            html += '<h5><i class="fa fa-code text-warning"></i> {{ lang._("XSS Patterns") }}</h5>';
             html += '<ul class="pattern-list">';
             Object.entries(patterns.xss_patterns).forEach(([pattern, count]) => {
-                html += `<li>${pattern.replace('_', ' ')}: <strong>${count}</strong></li>`;
+                html += `<li>${escapeHtml(pattern.replace(/_/g, ' '))}: <strong>${formatNumber(count)}</strong></li>`;
             });
-            html += '</ul>';
+            html += '</ul></div>';
+            hasPatterns = true;
         }
         
-        $('#attackPatterns').html(html || '<p class="text-muted">{{ lang._("No patterns detected") }}</p>');
+        // Directory traversal patterns
+        if (patterns.directory_traversal_patterns && Object.keys(patterns.directory_traversal_patterns).length > 0) {
+            html += '<div class="pattern-section">';
+            html += '<h5><i class="fa fa-folder-open text-info"></i> {{ lang._("Directory Traversal") }}</h5>';
+            html += '<ul class="pattern-list">';
+            Object.entries(patterns.directory_traversal_patterns).forEach(([pattern, count]) => {
+                html += `<li>${escapeHtml(pattern.replace(/_/g, ' '))}: <strong>${formatNumber(count)}</strong></li>`;
+            });
+            html += '</ul></div>';
+            hasPatterns = true;
+        }
+        
+        if (hasPatterns) {
+            $('#attackPatterns').html(html);
+            $('#patternsNoData').hide();
+        } else {
+            $('#attackPatterns').empty();
+            $('#patternsNoData').show();
+        }
     }
     
     function initCharts() {
-        console.log('Initializing charts...');
-        
         // Threat Type Chart
         const ctx1 = document.getElementById('threatTypeChart').getContext('2d');
         threatTypeChart = new Chart(ctx1, {
@@ -238,14 +306,20 @@ $(document).ready(function() {
                 labels: [],
                 datasets: [{
                     data: [],
-                    backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40']
+                    backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#FF6384', '#36A2EB']
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { position: 'bottom' }
+                    legend: { 
+                        position: 'bottom',
+                        labels: {
+                            padding: 20,
+                            usePointStyle: true
+                        }
+                    }
                 }
             }
         });
@@ -269,7 +343,12 @@ $(document).ready(function() {
                     legend: { display: false }
                 },
                 scales: {
-                    y: { beginAtZero: true }
+                    y: { 
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
                 }
             }
         });
@@ -285,166 +364,142 @@ $(document).ready(function() {
                     data: [],
                     borderColor: '#dc3545',
                     backgroundColor: 'rgba(220, 53, 69, 0.1)',
-                    tension: 0.4
+                    tension: 0.4,
+                    fill: true
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    }
+                },
                 scales: {
-                    y: { beginAtZero: true }
+                    y: { 
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            maxTicksLimit: 10
+                        }
+                    }
                 }
             }
         });
         
-        console.log('Charts initialized');
         updateCharts();
     }
     
     function updateCharts() {
-        console.log('Updating charts...');
+        console.log('Updating charts for period:', currentPeriod);
         
-        // Update threat type chart
-        ajaxGet('/api/webguard/threats/getStats', {period: currentPeriod}, function(data) {
-            console.log('Chart data received:', data);
-            
-            if (data.threats_by_type && threatTypeChart) {
-                console.log('Updating threat type chart:', data.threats_by_type);
-                threatTypeChart.data.labels = Object.keys(data.threats_by_type);
-                threatTypeChart.data.datasets[0].data = Object.values(data.threats_by_type);
-                threatTypeChart.update();
-            }
-            
-            if (data.threats_by_severity && severityChart) {
-                console.log('Updating severity chart:', data.threats_by_severity);
-                const severityData = data.threats_by_severity;
-                severityChart.data.datasets[0].data = [
-                    severityData.critical || 0,
-                    severityData.high || 0,
-                    severityData.medium || 0,
-                    severityData.low || 0
-                ];
-                severityChart.update();
+        // Update threat type and severity charts
+        ajaxCall('/api/webguard/threats/getStats', {period: currentPeriod}, function(data, status) {
+            if (data && status === 'success') {
+                // Threat type chart
+                if (data.threats_by_type && Object.keys(data.threats_by_type).length > 0) {
+                    threatTypeChart.data.labels = Object.keys(data.threats_by_type);
+                    threatTypeChart.data.datasets[0].data = Object.values(data.threats_by_type);
+                    threatTypeChart.update();
+                    $('#threatTypeChart').show();
+                    $('#threatTypeNoData').hide();
+                } else {
+                    $('#threatTypeChart').hide();
+                    $('#threatTypeNoData').show();
+                }
+                
+                // Severity chart
+                if (data.threats_by_severity) {
+                    const severityData = data.threats_by_severity;
+                    const hasData = Object.values(severityData).some(val => val > 0);
+                    
+                    if (hasData) {
+                        severityChart.data.datasets[0].data = [
+                            severityData.critical || 0,
+                            severityData.high || 0,
+                            severityData.medium || 0,
+                            severityData.low || 0
+                        ];
+                        severityChart.update();
+                        $('#severityChart').show();
+                        $('#severityNoData').hide();
+                    } else {
+                        $('#severityChart').hide();
+                        $('#severityNoData').show();
+                    }
+                }
             }
         });
         
-        // Update timeline
-        ajaxGet('/api/webguard/threats/getTimeline', {period: currentPeriod}, function(data) {
-            console.log('Timeline data received:', data);
+        // Update timeline chart
+        ajaxCall('/api/webguard/threats/getTimeline', {period: currentPeriod}, function(data, status) {
+            console.log('Timeline API response:', data, 'Status:', status);
             
-            if (data.status === 'ok' && data.timeline && timelineChart) {
-                console.log('Updating timeline chart:', data.timeline);
-                timelineChart.data.labels = data.timeline.labels;
-                timelineChart.data.datasets[0].data = data.timeline.threats;
-                timelineChart.update();
+            if (data && status === 'success' && data.status === 'ok' && data.timeline) {
+                const timeline = data.timeline;
+                if (timeline.labels && timeline.threats && timeline.labels.length > 0) {
+                    timelineChart.data.labels = timeline.labels;
+                    timelineChart.data.datasets[0].data = timeline.threats;
+                    timelineChart.update();
+                    $('#timelineChart').show();
+                    $('#timelineNoData').hide();
+                } else {
+                    $('#timelineChart').hide();
+                    $('#timelineNoData').show();
+                }
+            } else {
+                console.warn('Timeline data not available or malformed');
+                $('#timelineChart').hide();
+                $('#timelineNoData').show();
             }
         });
+    }
+    
+    function showErrorState() {
+        // Show error messages or fallback data
+        $('#totalThreats, #blockedThreats, #detectedThreats, #uniqueIPs').text('N/A');
+        $('#topIPsNoData, #patternsNoData, #threatTypeNoData, #severityNoData, #timelineNoData').show();
     }
     
     function formatNumber(num) {
+        if (typeof num !== 'number' || isNaN(num)) return '0';
         return new Intl.NumberFormat().format(num);
     }
     
-    // AJAX function with fallback data
-    function ajaxGet(url, data, callback) {
-        console.log('AJAX GET:', url, data);
-        
-        $.ajax({
-            url: url,
-            type: 'GET',
-            data: data,
-            dataType: 'json',
-            success: function(response) {
-                console.log('AJAX Success:', response);
-                callback(response);
-            },
-            error: function(xhr, status, error) {
-                console.error('AJAX Error:', {
-                    url: url,
-                    status: xhr.status,
-                    statusText: xhr.statusText,
-                    error: error,
-                    response: xhr.responseText
-                });
-                
-                // Provide fallback sample data
-                console.log('Using fallback sample data');
-                
-                if (url.includes('/getStats')) {
-                    callback(generateSampleStats());
-                } else if (url.includes('/getTimeline')) {
-                    callback(generateSampleTimeline());
-                } else {
-                    callback({});
-                }
-            }
-        });
-    }
-    
-    // Generate sample statistics data
-    function generateSampleStats() {
-        const sampleIPs = {
-            '192.168.1.100': 15,
-            '10.0.0.50': 12,
-            '172.16.0.25': 8,
-            '203.0.113.10': 6,
-            '198.51.100.5': 4
-        };
-        
-        return {
-            total_threats: 145,
-            blocked_today: 89,
-            threats_24h: 45,
-            blocked_threats: 89,
-            top_source_ips: sampleIPs,
-            threats_by_type: {
-                'SQL Injection': 45,
-                'XSS': 32,
-                'CSRF': 28,
-                'File Upload': 23,
-                'Behavioral': 17
-            },
-            threats_by_severity: {
-                critical: 12,
-                high: 28,
-                medium: 67,
-                low: 38
-            },
-            patterns: {
-                sql_injection_patterns: {
-                    'union_select': 15,
-                    'drop_table': 8,
-                    'script_injection': 12
-                },
-                xss_patterns: {
-                    'script_tag': 20,
-                    'onclick_event': 7,
-                    'iframe_injection': 5
-                }
-            }
-        };
-    }
-    
-    // Generate sample timeline data
-    function generateSampleTimeline() {
-        const labels = [];
-        const threats = [];
-        const now = new Date();
-        
-        for (let i = 23; i >= 0; i--) {
-            const time = new Date(now.getTime() - i * 60 * 60 * 1000);
-            labels.push(time.getHours() + ':00');
-            threats.push(Math.floor(Math.random() * 20) + 1);
+    function formatTimestamp(timestamp) {
+        if (!timestamp) return '{{ lang._("Recently") }}';
+        try {
+            const date = new Date(timestamp * 1000); // Assuming Unix timestamp
+            return date.toLocaleString();
+        } catch (e) {
+            return '{{ lang._("Recently") }}';
         }
-        
-        return {
-            status: 'ok',
-            timeline: {
-                labels: labels,
-                threats: threats
-            }
-        };
     }
+    
+    function isValidIP(ip) {
+        const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+        const ipv6Regex = /^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
+        return ipv4Regex.test(ip) || ipv6Regex.test(ip);
+    }
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    // Cleanup on page unload
+    $(window).on('beforeunload', function() {
+        if (refreshInterval) {
+            clearInterval(refreshInterval);
+        }
+    });
 });
 </script>
 
@@ -457,12 +512,12 @@ $(document).ready(function() {
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     display: flex;
     align-items: center;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transition: transform 0.2s ease;
 }
 
 .stats-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
 }
 
 .stats-icon {
@@ -493,6 +548,7 @@ $(document).ready(function() {
     color: #6b7280;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    margin-top: 0.25rem;
 }
 
 .chart-card, .table-card {
@@ -507,11 +563,24 @@ $(document).ready(function() {
     margin-top: 0;
     margin-bottom: 1rem;
     color: #1f2937;
-    font-weight: 600;
+    font-size: 1.2rem;
 }
 
 .chart-card canvas {
     max-height: 300px;
+}
+
+.pattern-section {
+    margin-bottom: 1.5rem;
+}
+
+.pattern-section:last-child {
+    margin-bottom: 0;
+}
+
+.pattern-section h5 {
+    margin-bottom: 0.5rem;
+    color: #374151;
 }
 
 .pattern-list {
@@ -532,45 +601,44 @@ $(document).ready(function() {
     border-bottom: none;
 }
 
+.no-data-message {
+    text-align: center;
+    padding: 2rem;
+}
+
+.no-data-message p {
+    margin: 0;
+    font-style: italic;
+}
+
 .period-selector {
     display: inline-block;
-    margin-bottom: 1rem;
 }
 
-.dpi-header {
-    background: white;
-    border-radius: 8px;
-    padding: 1rem;
-    margin-bottom: 1.5rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+.table-responsive {
+    overflow-x: auto;
 }
 
-.badge {
-    display: inline-block;
-    padding: 0.25em 0.4em;
-    font-size: 75%;
-    font-weight: 700;
-    line-height: 1;
-    text-align: center;
-    white-space: nowrap;
-    vertical-align: baseline;
-    border-radius: 0.25rem;
+.table th {
+    border-top: none;
+    font-weight: 600;
+    color: #374151;
 }
 
 .badge-danger {
-    color: #fff;
     background-color: #dc3545;
 }
 
-.text-center {
-    text-align: center;
+.fa-spin {
+    animation: fa-spin 1s infinite linear;
 }
 
-.text-muted {
-    color: #6c757d;
+@keyframes fa-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(359deg); }
 }
 
-/* Responsive improvements */
+/* Responsive adjustments */
 @media (max-width: 768px) {
     .stats-card {
         flex-direction: column;
@@ -582,8 +650,8 @@ $(document).ready(function() {
         margin-bottom: 1rem;
     }
     
-    .stats-value {
-        font-size: 1.5rem;
+    .chart-card canvas {
+        max-height: 250px;
     }
 }
 </style>
