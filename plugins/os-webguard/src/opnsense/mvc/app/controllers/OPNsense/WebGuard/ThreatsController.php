@@ -134,8 +134,12 @@ class ThreatsController extends IndexController
             $this->view->blockedCountries = [];  // Da aggiornare se vuoi integrarli dal backend
             $this->response->setHeader(
                 'Content-Security-Policy',
-                "default-src 'self'; img-src 'self' data: blob: https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org;"
+                "default-src 'self'; 
+                img-src 'self' data: blob: https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org;
+                style-src 'self' 'unsafe-inline';
+                script-src 'self' 'unsafe-inline';"
             );
+
             $this->view->title            = gettext("Geographic Threat Analysis");
 
         } catch (\Exception $e) {
