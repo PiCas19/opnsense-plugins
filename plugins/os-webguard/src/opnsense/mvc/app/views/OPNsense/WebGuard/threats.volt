@@ -796,62 +796,91 @@ $(document).ready(function() {
     
     // Threat detail modal actions
     $('#markFalsePositive').click(function() {
-        if (!currentThreatId) return;
-        
+        if (!currentThreatId) {
+            showNotification('{{ lang._("No threat selected.") }}', 'error');
+            return;
+        }
+
+        const btn = $(this);
+        setButtonLoading(btn, true);
+
         const comment = prompt('{{ lang._("Optional comment:") }}');
-        if (comment === null) return;
-        
+        if (comment === null) return; // User canceled
+
         ajaxPost('/api/webguard/threats/markFalsePositive/' + currentThreatId, {
             comment: comment
         }, function(data) {
+            setButtonLoading(btn, false);
             if (data.result === 'ok') {
                 $('#threatDetailModal').modal('hide');
                 showNotification(data.message || '{{ lang._("Threat marked as false positive.") }}', 'success');
-                loadThreats();
+                loadThreats(); // Refresh the threat list
             } else {
-                showNotification('{{ lang._("Failed") }}: ' + (data.message || '{{ lang._("Unknown error") }}'), 'error');
+                showNotification('{{ lang._("Failed to mark as false positive") }}: ' + (data.message || '{{ lang._("Unknown error") }}'), 'error');
             }
         });
     });
-    
+
     $('#whitelistIp').click(function() {
-        if (!currentThreatId) return;
-        
+        if (!currentThreatId) {
+            showNotification('{{ lang._("No threat selected.") }}', 'error');
+            return;
+        }
+
+        const btn = $(this);
+        setButtonLoading(btn, true);
+
         const permanent = confirm('{{ lang._("Make this a permanent whitelist entry?") }}');
+        if (permanent === null) return; // User canceled
+
         const comment = prompt('{{ lang._("Optional comment:") }}');
-        if (comment === null) return;
-        
+        if (comment === null) return; // User canceled
+
         ajaxPost('/api/webguard/threats/whitelistIp/' + currentThreatId, {
             permanent: permanent,
             comment: comment
         }, function(data) {
+            setButtonLoading(btn, false);
             if (data.result === 'ok') {
                 $('#threatDetailModal').modal('hide');
                 showNotification(data.message || '{{ lang._("IP added to whitelist.") }}', 'success');
+                loadThreats(); // Refresh the threat list
             } else {
-                showNotification('{{ lang._("Failed") }}: ' + (data.message || '{{ lang._("Unknown error") }}'), 'error');
+                showNotification('{{ lang._("Failed to whitelist IP") }}: ' + (data.message || '{{ lang._("Unknown error") }}'), 'error');
             }
         });
     });
-    
+
     $('#blockIp').click(function() {
-        if (!currentThreatId) return;
-        
+        if (!currentThreatId) {
+            showNotification('{{ lang._("No threat selected.") }}', 'error');
+            return;
+        }
+
+        const btn = $(this);
+        setButtonLoading(btn, true);
+
         const duration = prompt('{{ lang._("Block duration in seconds (3600 = 1 hour):") }}', '3600');
-        if (!duration) return;
-        
+        if (duration === null || !duration.match(/^\d+$/)) {
+            setButtonLoading(btn, false);
+            showNotification('{{ lang._("Please enter a valid duration in seconds.") }}', 'error');
+            return;
+        }
+
         const comment = prompt('{{ lang._("Optional comment:") }}');
-        if (comment === null) return;
-        
+        if (comment === null) return; // User canceled
+
         ajaxPost('/api/webguard/threats/blockIp/' + currentThreatId, {
-            duration: duration,
+            duration: parseInt(duration),
             comment: comment
         }, function(data) {
+            setButtonLoading(btn, false);
             if (data.result === 'ok') {
                 $('#threatDetailModal').modal('hide');
                 showNotification(data.message || '{{ lang._("IP blocked successfully.") }}', 'success');
+                loadThreats(); // Refresh the threat list
             } else {
-                showNotification('{{ lang._("Failed") }}: ' + (data.message || '{{ lang._("Unknown error") }}'), 'error');
+                showNotification('{{ lang._("Failed to block IP") }}: ' + (data.message || '{{ lang._("Unknown error") }}'), 'error');
             }
         });
     });
