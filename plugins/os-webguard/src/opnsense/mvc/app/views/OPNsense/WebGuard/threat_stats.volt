@@ -15,6 +15,7 @@
                         <option value="30d">{{ lang._('Last 30 Days') }}</option>
                     </select>
                 </div>
+                <div id="apiStatus" class="text-danger" style="display: none; margin-top: 10px;">API Error: Check console for details</div>
             </div>
         </div>
     </div>
@@ -132,6 +133,32 @@ $(document).ready(function() {
 
     // Initialize
     console.log('Initializing stats page at', new Date().toISOString());
+    if (typeof ajaxCall === 'undefined') {
+        console.error('ajaxCall function is not defined. Falling back to fetch.');
+        $('#apiStatus').text('Warning: Using fallback AJAX. Check setup.').show();
+    }
+
+    function makeApiCall(url, data, successCallback, failCallback) {
+        if (typeof ajaxCall !== 'undefined') {
+            console.log('Using ajaxCall for:', url);
+            ajaxCall(url, data, successCallback).fail(failCallback);
+        } else {
+            console.log('Using fetch fallback for:', url);
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRFToken': $('meta[name="csrf-token"]').attr('content') || ''
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(successCallback)
+            .catch(error => failCallback({ status: 0, responseText: error.message }));
+        }
+    }
+
     loadStatsData();
     initCharts();
 
@@ -145,7 +172,7 @@ $(document).ready(function() {
 
     function loadStatsData() {
         console.log('Loading stats data for period:', currentPeriod);
-        ajaxCall('/api/webguard/threats/getStats', { period: currentPeriod }, function(data) {
+        makeApiCall('/api/webguard/threats/getStats', { period: currentPeriod }, function(data) {
             console.log('API response for getStats:', data);
             if (data && data.status === 'ok') {
                 updateSummaryCards(data);
@@ -157,8 +184,9 @@ $(document).ready(function() {
                 updateTopIPs({});
                 updateAttackPatterns({});
             }
-        }).fail(function(xhr, status, error) {
+        }, function(xhr, status, error) {
             console.error('Failed to load stats:', error, 'Status:', status, 'Response:', xhr.responseText);
+            $('#apiStatus').text('API Error: ' + (xhr.responseText || 'No response')).show();
             updateSummaryCards({});
             updateTopIPs({});
             updateAttackPatterns({});
@@ -314,7 +342,7 @@ $(document).ready(function() {
 
     function updateCharts() {
         console.log('Updating charts for period:', currentPeriod);
-        ajaxCall('/api/webguard/threats/getStats', { period: currentPeriod }, function(data) {
+        makeApiCall('/api/webguard/threats/getStats', { period: currentPeriod }, function(data) {
             console.log('getStats response for charts:', data);
             if (data && data.status === 'ok' && threatTypeChart) {
                 const threatsByType = data.threats_by_type || {};
@@ -332,8 +360,9 @@ $(document).ready(function() {
                 ];
                 severityChart.update();
             }
-        }).fail(function(xhr, status, error) {
+        }, function(xhr, status, error) {
             console.error('Failed to update stats charts:', error, 'Status:', status, 'Response:', xhr.responseText);
+            $('#apiStatus').text('API Error: ' + (xhr.responseText || 'No response')).show();
             if (threatTypeChart) {
                 threatTypeChart.data.labels = [];
                 threatTypeChart.data.datasets[0].data = [];
@@ -345,15 +374,16 @@ $(document).ready(function() {
             }
         });
 
-        ajaxCall('/api/webguard/threats/getTimeline', { period: currentPeriod }, function(data) {
+        makeApiCall('/api/webguard/threats/getTimeline', { period: currentPeriod }, function(data) {
             console.log('getTimeline response:', data);
             if (data && data.status === 'ok' && data.timeline && timelineChart) {
                 timelineChart.data.labels = data.timeline.labels || [];
                 timelineChart.data.datasets[0].data = data.timeline.threats || [];
                 timelineChart.update();
             }
-        }).fail(function(xhr, status, error) {
+        }, function(xhr, status, error) {
             console.error('Failed to update timeline chart:', error, 'Status:', status, 'Response:', xhr.responseText);
+            $('#apiStatus').text('API Error: ' + (xhr.responseText || 'No response')).show();
             if (timelineChart) {
                 timelineChart.data.labels = [];
                 timelineChart.data.datasets[0].data = [];
