@@ -170,7 +170,7 @@
                     </button>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-6">
                 <!-- Quick Navigation -->
                 <div class="quick-nav-controls">
                     <h3>{{ lang._('Threat Analysis') }}</h3>
@@ -774,44 +774,39 @@ $(document).ready(function() {
 .quick-nav-controls .nav-grid {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 1rem;
 }
 
 .quick-nav-controls .nav-item {
     display: flex;
     align-items: center;
-    background: transparent;
-    border-radius: 6px;
-    padding: 0.5rem;
     text-decoration: none;
-    color: inherit; /* Keep original text color */
-    transition: background-color 0.2s ease;
+    color: #ffc107; /* Marrone/rosso come nell'immagine */
+    font-size: 0.95rem;
 }
 
 .quick-nav-controls .nav-icon {
-    font-size: 1.5rem;
+    font-size: 1.2rem;
     margin-right: 0.75rem;
-    color: inherit; /* Keep icon color consistent */
+    color: #ffc107; /* stesso colore per l'icona */
+    flex-shrink: 0;
 }
 
 .quick-nav-controls .nav-content {
     display: flex;
     flex-direction: column;
-    white-space: nowrap;
-    overflow: hidden;
 }
 
 .quick-nav-controls .nav-title {
     font-weight: 600;
-    font-size: 0.95rem;
-    color: inherit;
+    font-size: 1rem;
     line-height: 1.2;
 }
 
 .quick-nav-controls .nav-desc {
-    font-size: 0.85rem;
-    color: inherit;
+    font-size: 0.9rem;
     line-height: 1.2;
+    opacity: 0.85;
 }
 
 
