@@ -518,16 +518,13 @@ class ThreatsController extends ApiControllerBase
             return ['status' => 'error', 'message' => 'GET required'];
         }
         $backend = new Backend();
-        $out = trim($backend->configdpRun('webguard', ['get_threats', '1']));
+        $out = trim($backend->configdpRun('webguard', ['get_threat_false_positive', '1']));
         if ($out !== '') {
             $data = json_decode($out, true);
-            if (is_array($data) && isset($data['threats'])) {
-                $threats = array_filter($data['threats'], function($threat) {
-                    return isset($threat['false_positive']) && $threat['false_positive'] == 1;
-                });
+            if (is_array($data)) {
                 return [
                     'status' => 'ok',
-                    'data' => ['threats' => array_values($threats)]
+                    'data' => $data
                 ];
             }
         }

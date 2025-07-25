@@ -122,6 +122,119 @@ def get_threats(page=1):
         print(f"ERROR: Failed to get threats: {e}")
         return False
 
+def get_threat_all(page=1):
+    """Get all threats with pagination"""
+    try:
+        conn = init_database()
+        if not conn:
+            return False
+        
+        limit = 50
+        offset = (int(page) - 1) * limit
+        
+        cursor = conn.execute('SELECT COUNT(*) FROM threats')
+        total = cursor.fetchone()[0]
+        
+        cursor = conn.execute('''
+            SELECT id, timestamp, source_ip, target, type, severity, description, false_positive, payload, method
+            FROM threats 
+            ORDER BY timestamp DESC
+            LIMIT ? OFFSET ?
+        ''', (limit, offset))
+        
+        threats = []
+        for row in cursor.fetchall():
+            threat_id, timestamp, source_ip, target, threat_type, severity, description, false_positive, payload, method = row
+            
+            threats.append({
+                'id': threat_id,
+                'ip_address': source_ip,
+                'target': target,
+                'threat_type': threat_type,
+                'severity': severity,
+                'description': description,
+                'false_positive': bool(false_positive),
+                'payload': payload,
+                'method': method,
+                'first_seen': timestamp,
+                'first_seen_iso': datetime.fromtimestamp(timestamp).isoformat(),
+                'last_seen': timestamp,
+                'last_seen_iso': datetime.fromtimestamp(timestamp).isoformat()
+            })
+        
+        result = {
+            'threats': threats,
+            'total': total,
+            'page': int(page),
+            'limit': limit,
+            'pages': (total + limit - 1) // limit
+        }
+        
+        print(json.dumps(result, indent=2))
+        conn.close()
+        return True
+        
+    except Exception as e:
+        print(f"ERROR: Failed to get all threats: {e}")
+        return False
+
+def get_threat_false_positive(page=1):
+    """Get only false positive threats with pagination"""
+    try:
+        conn = init_database()
+        if not conn:
+            return False
+        
+        limit = 50
+        offset = (int(page) - 1) * limit
+        
+        cursor = conn.execute('SELECT COUNT(*) FROM threats WHERE false_positive = 1')
+        total = cursor.fetchone()[0]
+        
+        cursor = conn.execute('''
+            SELECT id, timestamp, source_ip, target, type, severity, description, false_positive, payload, method
+            FROM threats 
+            WHERE false_positive = 1
+            ORDER BY timestamp DESC
+            LIMIT ? OFFSET ?
+        ''', (limit, offset))
+        
+        threats = []
+        for row in cursor.fetchall():
+            threat_id, timestamp, source_ip, target, threat_type, severity, description, false_positive, payload, method = row
+            
+            threats.append({
+                'id': threat_id,
+                'ip_address': source_ip,
+                'target': target,
+                'threat_type': threat_type,
+                'severity': severity,
+                'description': description,
+                'false_positive': bool(false_positive),
+                'payload': payload,
+                'method': method,
+                'first_seen': timestamp,
+                'first_seen_iso': datetime.fromtimestamp(timestamp).isoformat(),
+                'last_seen': timestamp,
+                'last_seen_iso': datetime.fromtimestamp(timestamp).isoformat()
+            })
+        
+        result = {
+            'threats': threats,
+            'total': total,
+            'page': int(page),
+            'limit': limit,
+            'pages': (total + limit - 1) // limit
+        }
+        
+        print(json.dumps(result, indent=2))
+        conn.close()
+        return True
+        
+    except Exception as e:
+        print(f"ERROR: Failed to get false positive threats: {e}")
+        return False
+
 def mark_false_positive(threat_id, reason=''):
     """Mark a threat as false positive"""
     try:
@@ -137,7 +250,7 @@ def mark_false_positive(threat_id, reason=''):
         
         conn.execute('''
             UPDATE threats 
-            SET false_positive = 1, description = description || ? 
+            SET false_positive = 1, description = COALESCE(description, '') || ? 
             WHERE id = ?
         ''', (f' [FALSE POSITIVE: {reason}]' if reason else ' [FALSE POSITIVE]', threat_id))
         
@@ -149,6 +262,36 @@ def mark_false_positive(threat_id, reason=''):
         
     except Exception as e:
         print(f"ERROR: Failed to mark false positive: {e}")
+        return False
+
+def unmark_false_positive(threat_id, reason=''):
+    """Unmark a threat as false positive"""
+    try:
+        conn = init_database()
+        if not conn:
+            return False
+        
+        cursor = conn.execute('SELECT COUNT(*) FROM threats WHERE id = ? AND false_positive = 1', (threat_id,))
+        if cursor.fetchone()[0] == 0:
+            print(f"ERROR: Threat {threat_id} not found or not marked as false positive")
+            conn.close()
+            return False
+        
+        # Remove the false positive marking and clean up the description
+        conn.execute('''
+            UPDATE threats 
+            SET false_positive = 0, description = TRIM(REPLACE(description, ? , ''))
+            WHERE id = ?
+        ''', ('[FALSE POSITIVE' if not reason else f'[FALSE POSITIVE: {reason}]', threat_id))
+        
+        conn.commit()
+        conn.close()
+        
+        print(f"OK: Threat {threat_id} unmarked as false positive")
+        return True
+        
+    except Exception as e:
+        print(f"ERROR: Failed to unmark false positive: {e}")
         return False
 
 def whitelist_ip_from_threat(threat_id, description='Added from threat', permanent='1'):
@@ -501,12 +644,15 @@ def main():
         print("Usage: manage_threats.py <command> [args...]")
         print("Commands:")
         print("  false_positive <threat_id> [reason]")
+        print("  unmark_false_positive <threat_id> [reason]")
         print("  whitelist_ip <threat_id> [description] [permanent]")
         print("  block_ip <threat_id> [duration] [reason]")
         print("  create_rule <threat_id> <rule_name> [rule_type] [enabled]")
         print("  clear_old <days> [severity]")
         print("  add_samples")
         print("  get_threats [page]")
+        print("  get_threat_all [page]")
+        print("  get_threat_false_positive [page]")
         print("  get_recent [limit]")
         print("  get_feed <since_id> [limit]")
         print("  get_timeline [period]")
@@ -523,6 +669,16 @@ def main():
         reason = sys.argv[3] if len(sys.argv) > 3 else ''
         
         mark_false_positive(threat_id, reason)
+        
+    elif command == 'unmark_false_positive':
+        if len(sys.argv) < 3:
+            print("ERROR: Threat ID required")
+            sys.exit(1)
+        
+        threat_id = int(sys.argv[2])
+        reason = sys.argv[3] if len(sys.argv) > 3 else ''
+        
+        unmark_false_positive(threat_id, reason)
         
     elif command == 'whitelist_ip':
         if len(sys.argv) < 3:
@@ -574,6 +730,14 @@ def main():
     elif command == 'get_threats':
         page = sys.argv[2] if len(sys.argv) > 2 else '1'
         get_threats(page)
+        
+    elif command == 'get_threat_all':
+        page = sys.argv[2] if len(sys.argv) > 2 else '1'
+        get_threat_all(page)
+        
+    elif command == 'get_threat_false_positive':
+        page = sys.argv[2] if len(sys.argv) > 2 else '1'
+        get_threat_false_positive(page)
         
     elif command == 'get_recent':
         limit = sys.argv[2] if len(sys.argv) > 2 else '10'
