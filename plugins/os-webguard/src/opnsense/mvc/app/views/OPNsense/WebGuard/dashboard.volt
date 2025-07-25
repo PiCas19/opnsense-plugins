@@ -771,6 +771,50 @@ $(document).ready(function() {
     margin-bottom: 2px;
 }
 
+.quick-nav-controls .nav-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.quick-nav-controls .nav-item {
+    display: flex;
+    align-items: center;
+    background: transparent;
+    border-radius: 6px;
+    padding: 0.5rem;
+    text-decoration: none;
+    color: inherit; /* Keep original text color */
+    transition: background-color 0.2s ease;
+}
+
+.quick-nav-controls .nav-icon {
+    font-size: 1.5rem;
+    margin-right: 0.75rem;
+    color: inherit; /* Keep icon color consistent */
+}
+
+.quick-nav-controls .nav-content {
+    display: flex;
+    flex-direction: column;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.quick-nav-controls .nav-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: inherit;
+    line-height: 1.2;
+}
+
+.quick-nav-controls .nav-desc {
+    font-size: 0.85rem;
+    color: inherit;
+    line-height: 1.2;
+}
+
+
 .badge-danger { background-color: #dc3545; }
 .badge-warning { background-color: #ffc107; color: #212529; }
 .badge-info { background-color: #17a2b8; }
