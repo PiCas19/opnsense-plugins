@@ -132,6 +132,10 @@ class ThreatsController extends IndexController
             $this->view->geoBlocking      = $this->isGeoBlockingEnabled($mdlWebGuard);
             $this->view->geoDatabase      = $this->isGeoDatabaseAvailable();
             $this->view->blockedCountries = [];  // Da aggiornare se vuoi integrarli dal backend
+            $this->response->setHeader(
+                'Content-Security-Policy',
+                "default-src 'self'; img-src 'self' data: blob: https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org;"
+            );
             $this->view->title            = gettext("Geographic Threat Analysis");
 
         } catch (\Exception $e) {
