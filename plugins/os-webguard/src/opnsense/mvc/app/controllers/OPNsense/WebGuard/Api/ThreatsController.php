@@ -53,7 +53,7 @@ class ThreatsController extends ApiControllerBase
         ];
     }
 
-     /**
+    /**
      * New API endpoint: recent threats list
      * @return array
      */
@@ -117,7 +117,7 @@ class ThreatsController extends ApiControllerBase
         return ['status' => 'ok', 'recent_threats' => [], 'last_id' => $sinceId];
     }
 
-   /**
+    /**
      * Get threat details by ID
      * @param string $id
      * @return array
@@ -512,23 +512,76 @@ class ThreatsController extends ApiControllerBase
         ];
     }
 
+    /**
+     * Get all threats list with pagination
+     * @return array
+     */
+    public function getAllThreatsAction()
+    {
+        if (!$this->request->isGet()) {
+            return ['status' => 'error', 'message' => 'GET required'];
+        }
+        $page = max(1, (int)$this->request->getQuery('page', 'int', 1));
+        $limit = max(1, (int)$this->request->getQuery('limit', 'int', 50));
+
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['get_threat_all', (string)$page]));
+
+        if ($out !== '') {
+            $data = json_decode($out, true);
+            if (is_array($data) && isset($data['threats'])) {
+                // Return the structure the UI expects
+                return [
+                    'status' => 'ok',
+                    'threats' => $data['threats'],
+                    'total'   => isset($data['total']) ? (int)$data['total'] : count($data['threats']),
+                    'page'    => $page
+                ];
+            }
+        }
+
+        // Fallback: empty list
+        return [
+            'status'  => 'ok',
+            'threats' => [],
+            'total'   => 0,
+            'page'    => $page
+        ];
+    }
+
+    /**
+     * Get false positive threats list with pagination
+     * @return array
+     */
     public function getFalsePositivesAction()
     {
         if (!$this->request->isGet()) {
             return ['status' => 'error', 'message' => 'GET required'];
         }
+        $page = max(1, (int)$this->request->getQuery('page', 'int', 1));
+
         $backend = new Backend();
-        $out = trim($backend->configdpRun('webguard', ['get_threat_false_positive', '1']));
+        $out = trim($backend->configdpRun('webguard', ['get_threat_false_positive', (string)$page]));
+
         if ($out !== '') {
             $data = json_decode($out, true);
-            if (is_array($data)) {
+            if (is_array($data) && isset($data['threats'])) {
                 return [
                     'status' => 'ok',
-                    'data' => $data
+                    'threats' => $data['threats'],
+                    'total'   => isset($data['total']) ? (int)$data['total'] : count($data['threats']),
+                    'page'    => $page
                 ];
             }
         }
-        return ['status' => 'ok', 'data' => ['threats' => []]];
+
+        // Fallback: empty list
+        return [
+            'status'  => 'ok',
+            'threats' => [],
+            'total'   => 0,
+            'page'    => $page
+        ];
     }
 
     /* ===== METODI HELPER PER DATI DI ESEMPIO ===== */
