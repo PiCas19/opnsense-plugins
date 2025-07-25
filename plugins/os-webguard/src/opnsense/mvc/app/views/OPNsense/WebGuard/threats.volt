@@ -827,7 +827,7 @@ $(document).ready(function() {
         setButtonLoading(btn, true);
         const permanent = 'true';
         const comment = 'Added to whitelist from threat';
-        ajaxPost('/api/webguard/threats/whitelistFromThreatAction', { 
+        ajaxPost('/api/webguard/threats/whitelistFromThreat', { 
             threat_id: currentThreatId, 
             reason: comment, 
             permanent: permanent 
