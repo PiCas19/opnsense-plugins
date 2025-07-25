@@ -261,7 +261,7 @@ $(document).ready(function() {
         }, function(data) {
             if (data) {
                 updatePatternStats(data);
-                updatePatternLists(data.patterns || {});
+                updatePatternLists(data.patterns || {}, data);
                 updatePatternsTable(data);
                 updateCharts(data);
             }
@@ -279,7 +279,7 @@ $(document).ready(function() {
         $('#blockedPatterns').text(Math.floor(Math.random() * 30) + 5); // Mock data
     }
     
-    function updatePatternLists(patterns) {
+    function updatePatternLists(patterns, data) {
         // Update SQL patterns list
         const sqlList = $('#sqlPatternsList');
         sqlList.empty();
