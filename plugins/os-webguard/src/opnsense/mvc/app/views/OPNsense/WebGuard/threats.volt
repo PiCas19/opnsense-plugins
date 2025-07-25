@@ -825,10 +825,9 @@ $(document).ready(function() {
         }
         const btn = $(this);
         setButtonLoading(btn, true);
-        // Valori hardcoded di default
         const permanent = 'true';
-        const comment = 'Whitelisted from threat';
-        ajaxPost('/api/webguard/threats/whitelistIp/' + currentThreatId, { permanent: permanent, comment: comment }, function(data) {
+        const comment = 'Added to whitelist from threat';
+        ajaxPost('/api/webguard/service/whitelistFromThreatAction', { ip: currentThreatId, threat_id: currentThreatId, reason: comment, permanent: permanent }, function(data) {
             setButtonLoading(btn, false);
             if (data.result === 'ok') {
                 $('#threatDetailModal').modal('hide');

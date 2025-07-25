@@ -207,29 +207,29 @@ class ThreatsController extends ApiControllerBase
         return ["result" => "failed", "message" => "Failed to mark threat as false positive"];
     }
 
-    /**
-     * Add IP to whitelist from threat
-     * @param string $id
-     * @return array
-     */
-    public function whitelistIpAction($id = null)
+    public function whitelistFromThreatAction()
     {
-        if ($this->request->isPost() && !empty($id)) {
-            $permanent = $this->request->getPost('permanent', 'string', 'true');
-            $comment = $this->request->getPost('comment', 'string', '');
-            
-            $backend = new Backend();
-            $out = trim($backend->configdpRun('webguard', ['whitelist_ip_from_threat', $id, $permanent, $comment]));
-            
-            if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false || empty($out)) {
-                return [
-                    "result" => "ok",
-                    "message" => "IP added to whitelist"
-                ];
-            }
+        if (!$this->request->isPost()) {
+            return ['status' => 'error', 'message' => 'POST required'];
+        }
+
+        $ip = trim($this->request->getPost('ip', 'string', ''));
+        $threatId = trim($this->request->getPost('threat_id', 'string', ''));
+        $reason = $this->argSafe($this->request->getPost('reason', 'string', 'Whitelisted from threat'));
+        $permanent = $this->request->getPost('permanent', 'string', '1');
+
+        if (!$this->validateIP($ip)) {
+            return ['status' => 'error', 'message' => 'Invalid IP address'];
+        }
+
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['whitelist_ip_from_threat', $ip, $threatId, $reason, $permanent]));
+
+        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
+            return ['status' => 'ok', 'message' => 'IP whitelisted from threat'];
         }
         
-        return ["result" => "failed", "message" => "Failed to add IP to whitelist"];
+        return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
     }
 
     /**
