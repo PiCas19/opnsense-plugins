@@ -1307,7 +1307,7 @@ $(function() {
     }
 
     function loadFalsePositives() {
-        ajaxGet('/api/webguard/service/getThreatFalsePositives', {}, function(data) {
+        ajaxGet('/api/webguard/threats/getThreatFalsePositives', {}, function(data) {
             let tbody = $('#false-positives-table tbody').empty();
             if (data && data.threats) {
                 const arr = data.threats;
