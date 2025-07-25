@@ -372,7 +372,6 @@ $(document).ready(function() {
                     const threatId = threat.id || threat.threat_id;
                     const sourceIp = threat.source_ip || threat.ip_address;
                     const threatType = threat.threat_type || threat.type;
-                    // Revert to original logic, replace '-' with 'N/A'
                     const target = threat.url || threat.target || threat.description || 'N/A';
                     
                     const row = $(`
