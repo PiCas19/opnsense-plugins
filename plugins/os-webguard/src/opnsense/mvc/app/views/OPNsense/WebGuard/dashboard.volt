@@ -91,7 +91,6 @@
                             <th>{{ lang._('Threat Type') }}</th>
                             <th>{{ lang._('Severity') }}</th>
                             <th>{{ lang._('Target') }}</th>
-                            <th>{{ lang._('Actions') }}</th>
                         </tr>
                     </thead>
                     <tbody id="threatTableBody">
@@ -205,35 +204,6 @@
                         </div>
                     </a>
                 </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Threat Detail Modal -->
-<div class="modal fade" id="threatDetailModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog modal-lg" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <button type="button" class="close" data-dismiss="modal">
-                    <span>&times;</span>
-                </button>
-                <h4 class="modal-title">{{ lang._('Threat Details') }}</h4>
-            </div>
-            <div class="modal-body" id="threatDetailContent">
-                <!-- Populated by JavaScript -->
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-default" data-dismiss="modal">{{ lang._('Close') }}</button>
-                <button type="button" class="btn btn-warning" id="markFalsePositive">
-                    <i class="fa fa-times"></i> {{ lang._('Mark False Positive') }}
-                </button>
-                <button type="button" class="btn btn-success" id="whitelistIp">
-                    <i class="fa fa-check"></i> {{ lang._('Whitelist IP') }}
-                </button>
-                <button type="button" class="btn btn-danger" id="blockIp">
-                    <i class="fa fa-ban"></i> {{ lang._('Block IP') }}
-                </button>
             </div>
         </div>
     </div>
@@ -381,91 +351,10 @@ $(document).ready(function() {
                             <td>${threatType}</td>
                             <td><span class="badge ${severityClass}">${threat.severity || 'low'}</span></td>
                             <td>${target}</td>
-                            <td>
-                                <button class="btn btn-sm btn-primary view-threat-btn" data-threat-id="${threatId}">
-                                    <i class="fa fa-eye"></i>
-                                </button>
-                                <button class="btn btn-sm btn-danger block-source-btn" data-source-ip="${sourceIp}">
-                                    <i class="fa fa-ban"></i>
-                                </button>
-                            </td>
                         </tr>
                     `);
                     tbody.append(row);
                 });
-                
-                // Event listeners for buttons
-                $('.view-threat-btn').off('click').on('click', function () {
-                    const threatId = $(this).data('threat-id');
-                    console.log('Viewing threat ID:', threatId);
-
-                    if (!threatId) {
-                        showNotification('{{ lang._("Threat ID not found") }}', 'error');
-                        return;
-                    }
-
-                    // Memorizza l'ID corrente
-                    currentThreatId = threatId;
-
-                    // Chiamata AJAX con gestione errori migliorata
-                    $.ajax({
-                        url: '/api/webguard/threats/getDetail/' + threatId,
-                        type: 'GET',
-                        dataType: 'json',
-                        success: function (data) {
-                            console.log('Threat detail response:', data);
-                            
-                            if (data.result === 'ok' || data.status === 'ok') {
-                                const threat = data.threat || data.data;
-                                if (!threat) {
-                                    showNotification('{{ lang._("Threat data not found") }}', 'error');
-                                    return;
-                                }
-                                
-                                displayThreatDetail(threat);
-                            } else {
-                                showNotification('{{ lang._("Failed to load threat details") }}: ' + (data.message || '{{ lang._("Unknown error") }}'), 'error');
-                            }
-                        },
-                        error: function(xhr, status, error) {
-                            console.error('Threat detail error:', {
-                                status: xhr.status,
-                                statusText: xhr.statusText,
-                                responseText: xhr.responseText,
-                                error: error
-                            });
-                            
-                            // Fallback: usa i dati già disponibili dalla tabella
-                            const rowData = $(this).closest('tr');
-                            const fallbackThreat = {
-                                id: threatId,
-                                timestamp: rowData.find('td:eq(0)').text(),
-                                source_ip: rowData.find('td:eq(1) code').text(),
-                                threat_type: rowData.find('td:eq(2)').text(),
-                                severity: rowData.find('td:eq(3) .badge').text().toLowerCase(),
-                                url: rowData.find('td:eq(4)').text(),
-                                description: 'Limited information available (API error)'
-                            };
-                            
-                            displayThreatDetail(fallbackThreat);
-                            showNotification('{{ lang._("Using limited threat information due to API error") }}', 'warning');
-                        }.bind(this)
-                    });
-                });
-                
-                $('.block-source-btn').off('click').on('click', function() {
-                    const sourceIP = $(this).data('source-ip');
-                    if (confirm(`{{ lang._("Are you sure you want to block IP") }} ${sourceIP}?`)) {
-                        ajaxCall("/api/webguard/settings/blockIP", {ip: sourceIP}, function(data) {
-                            if (data.result === 'ok' || data.status === 'ok') {
-                                showNotification(`{{ lang._("IP") }} ${sourceIP} {{ lang._("blocked successfully") }}`, 'success');
-                            } else {
-                                showNotification(`{{ lang._("Failed to block IP") }}: ${data.message || '{{ lang._("Unknown error") }}'}`, 'error');
-                            }
-                        });
-                    }
-                });
-                
             } else {
                 console.log('No threats found in response');
                 tbody.append(`
