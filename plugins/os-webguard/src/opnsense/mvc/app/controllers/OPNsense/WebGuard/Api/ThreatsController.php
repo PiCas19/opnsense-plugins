@@ -1,3 +1,4 @@
+
 <?php
 /*
  * Copyright (C) 2024 OPNsense WebGuard Plugin
@@ -150,7 +151,7 @@ class ThreatsController extends ApiControllerBase
     }
 
     /**
-     * Get threat statistics
+     * Get threat statistics - VERSIONE CORRETTA CHE USA DATI REALI
      * @return array
      */
     public function getStatsAction()
@@ -168,8 +169,8 @@ class ThreatsController extends ApiControllerBase
                 }
             }
             
-            // FALLBACK: Genera statistiche di esempio
-            return $this->generateSampleThreatStats($period);
+            // SE IL BACKEND NON RISPONDE, CONTA I THREATS REALI DAL DATABASE
+            return $this->getStatsFromDatabase($period);
         }
         
         return [
@@ -179,8 +180,131 @@ class ThreatsController extends ApiControllerBase
             'threats_by_type' => [],
             'threats_by_severity' => [],
             'top_source_ips' => [],
-            'threat_timeline' => []
+            'patterns' => []
         ];
+    }
+
+    /**
+     * Conta i threats reali dal database quando il backend non risponde
+     */
+    private function getStatsFromDatabase($period)
+    {
+        $backend = new Backend();
+        
+        // Prima prova a ottenere tutti i threats
+        $threatsOut = trim($backend->configdpRun('webguard', ['get_threat_all', '1']));
+        
+        if ($threatsOut && $threatsOut !== '') {
+            $threatsData = json_decode($threatsOut, true);
+            
+            if (is_array($threatsData) && isset($threatsData['threats'])) {
+                $threats = $threatsData['threats'];
+                $totalThreats = $threatsData['total'] ?? count($threats);
+                
+                // Calcola statistiche dai dati reali
+                $stats = $this->calculateStatsFromThreats($threats, $period);
+                $stats['total_threats'] = $totalThreats;
+                
+                return $stats;
+            }
+        }
+        
+        // Se anche questo fallisce, prova con get_threats normale
+        $normalThreatsOut = trim($backend->configdpRun('webguard', ['get_threats', '1']));
+        
+        if ($normalThreatsOut && $normalThreatsOut !== '') {
+            $normalData = json_decode($normalThreatsOut, true);
+            
+            if (is_array($normalData) && isset($normalData['threats'])) {
+                $threats = $normalData['threats'];
+                $totalThreats = $normalData['total'] ?? count($threats);
+                
+                $stats = $this->calculateStatsFromThreats($threats, $period);
+                $stats['total_threats'] = $totalThreats;
+                
+                return $stats;
+            }
+        }
+        
+        // ULTIMO FALLBACK: dati vuoti ma reali
+        return [
+            'total_threats' => 0,
+            'threats_24h' => 0,
+            'blocked_today' => 0,
+            'threats_by_type' => [],
+            'threats_by_severity' => [],
+            'top_source_ips' => [],
+            'patterns' => []
+        ];
+    }
+
+    /**
+     * Calcola le statistiche dai threats reali
+     */
+    private function calculateStatsFromThreats($threats, $period)
+    {
+        $now = time();
+        $periodSeconds = $this->getPeriodSeconds($period);
+        $cutoffTime = $now - $periodSeconds;
+        
+        $stats = [
+            'threats_24h' => 0,
+            'blocked_today' => 0,
+            'threats_by_type' => [],
+            'threats_by_severity' => [],
+            'top_source_ips' => [],
+            'patterns' => [
+                'sql_injection_patterns' => [],
+                'xss_patterns' => []
+            ]
+        ];
+        
+        foreach ($threats as $threat) {
+            // Controlla se il threat è nel periodo richiesto
+            $threatTime = 0;
+            if (isset($threat['timestamp'])) {
+                $threatTime = is_numeric($threat['timestamp']) ? $threat['timestamp'] : strtotime($threat['timestamp']);
+            } elseif (isset($threat['first_seen_iso'])) {
+                $threatTime = strtotime($threat['first_seen_iso']);
+            } elseif (isset($threat['last_seen_iso'])) {
+                $threatTime = strtotime($threat['last_seen_iso']);
+            }
+            
+            if ($threatTime >= $cutoffTime) {
+                $stats['threats_24h']++;
+                
+                // Conta per tipo
+                $type = $threat['threat_type'] ?? 'unknown';
+                $stats['threats_by_type'][$type] = ($stats['threats_by_type'][$type] ?? 0) + 1;
+                
+                // Conta per severità
+                $severity = $threat['severity'] ?? 'medium';
+                $stats['threats_by_severity'][$severity] = ($stats['threats_by_severity'][$severity] ?? 0) + 1;
+                
+                // Conta IP sources
+                $ip = $threat['ip_address'] ?? $threat['source_ip'] ?? 'unknown';
+                if ($ip !== 'unknown') {
+                    $stats['top_source_ips'][$ip] = ($stats['top_source_ips'][$ip] ?? 0) + 1;
+                }
+                
+                // Conta se bloccato
+                if (isset($threat['status']) && $threat['status'] === 'blocked') {
+                    $stats['blocked_today']++;
+                }
+                
+                // Analizza patterns
+                if (stripos($type, 'sql') !== false || stripos($type, 'injection') !== false) {
+                    $stats['patterns']['sql_injection_patterns']['detected'] = 
+                        ($stats['patterns']['sql_injection_patterns']['detected'] ?? 0) + 1;
+                }
+                if (stripos($type, 'xss') !== false || stripos($type, 'script') !== false) {
+                    $stats['patterns']['xss_patterns']['detected'] = 
+                        ($stats['patterns']['xss_patterns']['detected'] ?? 0) + 1;
+                }
+            }
+        }
+        
+        return $stats;
     }
     
     /**
@@ -493,7 +617,7 @@ class ThreatsController extends ApiControllerBase
             
             if ($out && $out !== '') {
                 $timeline = json_decode($out, true);
-                if (is_array($timeline)) {
+                if (is_array($timeline) && isset($timeline['labels']) && isset($timeline['threats'])) {
                     return [
                         'status' => 'ok',
                         'timeline' => $timeline,
@@ -503,10 +627,12 @@ class ThreatsController extends ApiControllerBase
             }
         }
         
-        // Generate fallback timeline data
+        // Generate fallback timeline data - STRUTTURA CORRETTA
+        $fallbackData = $this->generateFallbackTimeline($this->request->getQuery('period', 'string', '24h'));
+        
         return [
             'status' => 'ok',
-            'timeline' => $this->generateFallbackTimeline($this->request->getQuery('period', 'string', '24h')),
+            'timeline' => $fallbackData,
             'period' => $this->request->getQuery('period', 'string', '24h'),
             'fallback' => true
         ];
@@ -587,56 +713,6 @@ class ThreatsController extends ApiControllerBase
     /* ===== METODI HELPER PER DATI DI ESEMPIO ===== */
 
     /**
-     * Genera minacce di esempio IDENTICHE a quelle del ServiceController
-     * STESSA STRUTTURA CHE FUNZIONA NELLA PAGINA BLOCKING
-     */
-    private function generateSampleThreatsForService() 
-    {
-        return [
-            [
-                'ip_address' => '192.168.1.100',
-                'threat_type' => 'SQL Injection',
-                'severity' => 'high',
-                'first_seen_iso' => date('c', time() - 3600),
-                'last_seen_iso' => date('c', time() - 1800),
-                'id' => 1
-            ],
-            [
-                'ip_address' => '10.0.0.50',
-                'threat_type' => 'Cross-Site Scripting',
-                'severity' => 'medium',
-                'first_seen_iso' => date('c', time() - 7200),
-                'last_seen_iso' => date('c', time() - 3600),
-                'id' => 2
-            ],
-            [
-                'ip_address' => '172.16.0.25',
-                'threat_type' => 'Brute Force',
-                'severity' => 'critical',
-                'first_seen_iso' => date('c', time() - 10800),
-                'last_seen_iso' => date('c', time() - 5400),
-                'id' => 3
-            ],
-            [
-                'ip_address' => '203.0.113.45',
-                'threat_type' => 'File Upload',
-                'severity' => 'high',
-                'first_seen_iso' => date('c', time() - 14400),
-                'last_seen_iso' => date('c', time() - 7200),
-                'id' => 4
-            ],
-            [
-                'ip_address' => '198.51.100.67',
-                'threat_type' => 'Behavioral',
-                'severity' => 'medium',
-                'first_seen_iso' => date('c', time() - 18000),
-                'last_seen_iso' => date('c', time() - 9000),
-                'id' => 5
-            ]
-        ];
-    }
-
-    /**
      * Genera dettagli di esempio per una minaccia specifica
      */
     private function generateSampleThreatDetail($id) 
@@ -664,84 +740,6 @@ class ThreatsController extends ApiControllerBase
                 'city' => 'Unknown'
             ]
         ];
-    }
-
-    /**
-     * Genera statistiche di esempio per le minacce
-     */
-    private function generateSampleThreatStats($period) 
-    {
-        $baseThreats = 1247;
-        $threats24h = 89;
-        $blockedToday = 67;
-        
-        // Aggiusta in base al periodo
-        switch ($period) {
-            case '1h':
-                $threats24h = 7;
-                $blockedToday = 5;
-                break;
-            case '7d':
-                $threats24h = 623;
-                $blockedToday = 89;
-                break;
-            case '30d':
-                $threats24h = 2145;
-                $blockedToday = 134;
-                break;
-        }
-
-        return [
-            'total_threats' => $baseThreats,
-            'threats_24h' => $threats24h,
-            'blocked_today' => $blockedToday,
-            'threats_by_type' => [
-                'sql_injection' => rand(15, 45),
-                'xss' => rand(10, 30),
-                'csrf' => rand(5, 20),
-                'file_upload' => rand(3, 15),
-                'behavioral' => rand(8, 25),
-                'covert_channel' => rand(2, 10)
-            ],
-            'threats_by_severity' => [
-                'critical' => rand(5, 15),
-                'high' => rand(15, 35),
-                'medium' => rand(25, 50),
-                'low' => rand(10, 30)
-            ],
-            'top_source_ips' => [
-                '192.168.1.100' => rand(5, 20),
-                '10.0.0.50' => rand(3, 15),
-                '172.16.0.25' => rand(8, 25),
-                '203.0.113.45' => rand(2, 12),
-                '198.51.100.67' => rand(4, 18)
-            ]
-        ];
-    }
-
-    /**
-     * Genera dati di feed di esempio
-     */
-    private function generateSampleFeedData($limit) 
-    {
-        $feed = [];
-        $threatTypes = ['SQL Injection', 'XSS', 'Brute Force', 'File Upload', 'Behavioral'];
-        $severities = ['critical', 'high', 'medium', 'low'];
-        $sampleIps = ['192.168.1.100', '10.0.0.50', '172.16.0.25', '203.0.113.45'];
-        
-        for ($i = 0; $i < min($limit, 10); $i++) {
-            $feed[] = [
-                'id' => rand(1000, 9999),
-                'timestamp' => date('c', time() - rand(0, 3600)),
-                'source_ip' => $sampleIps[array_rand($sampleIps)],
-                'threat_type' => $threatTypes[array_rand($threatTypes)],
-                'severity' => $severities[array_rand($severities)],
-                'url' => '/sample-endpoint-' . $i,
-                'status' => 'detected'
-            ];
-        }
-        
-        return $feed;
     }
 
     /**
@@ -806,19 +804,13 @@ class ThreatsController extends ApiControllerBase
     {
         $labels = [];
         $threats = [];
-        $requests = [];
         
         // Generate different intervals based on period
         switch ($period) {
             case '1h':
-                $intervals = 12; // 5-minute intervals
+                $intervals = 6; // 10-minute intervals
                 $format = 'H:i';
-                $step = 300; // 5 minutes
-                break;
-            case '6h':
-                $intervals = 12; // 30-minute intervals  
-                $format = 'H:i';
-                $step = 1800; // 30 minutes
+                $step = 600; // 10 minutes
                 break;
             case '24h':
             default:
@@ -831,6 +823,11 @@ class ThreatsController extends ApiControllerBase
                 $format = 'M j';
                 $step = 86400; // 1 day
                 break;
+            case '30d':
+                $intervals = 15; // Every 2 days
+                $format = 'M j';
+                $step = 172800; // 2 days
+                break;
         }
         
         $startTime = time() - $this->getPeriodSeconds($period);
@@ -838,14 +835,30 @@ class ThreatsController extends ApiControllerBase
         for ($i = 0; $i < $intervals; $i++) {
             $currentTime = $startTime + ($i * $step);
             $labels[] = date($format, $currentTime);
-            $threats[] = rand(0, 15); // Random threat count
-            $requests[] = rand(50, 300); // Random request count
+            
+            // Generate realistic threat counts based on period
+            switch ($period) {
+                case '1h':
+                    $threats[] = rand(0, 3); // Few threats per 10 min
+                    break;
+                case '24h':
+                    $threats[] = rand(2, 15); // More threats per 2 hours
+                    break;
+                case '7d':
+                    $threats[] = rand(10, 50); // Daily totals
+                    break;
+                case '30d':
+                    $threats[] = rand(25, 100); // Every 2 days
+                    break;
+                default:
+                    $threats[] = rand(1, 10);
+            }
         }
         
+        // RETURN CORRECT STRUCTURE
         return [
             'labels' => $labels,
-            'threats' => $threats,
-            'requests' => $requests
+            'threats' => $threats
         ];
     }
 
@@ -859,8 +872,6 @@ class ThreatsController extends ApiControllerBase
         switch ($period) {
             case '1h':
                 return 3600;
-            case '6h':
-                return 6 * 3600;
             case '24h':
             default:
                 return 24 * 3600;
