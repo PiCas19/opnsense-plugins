@@ -31,6 +31,21 @@ class SettingsController extends ApiMutableModelControllerBase
         return $result;
     }
 
+    public function getConfigAction()
+    {
+        $mdl = $this->getModel();
+        $data = [
+            'geoBlocking' => (string)$mdl->general->geoBlocking,
+            'blockedCountries' => explode(',', (string)$mdl->general->blockedCountries)
+        ];
+
+        return [
+            'status' => 'ok',
+            'data' => $data
+        ];
+    }
+
+
     /**
      * Retrieve general settings
      * @return array webguard general settings content
