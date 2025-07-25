@@ -52,38 +52,6 @@ class ThreatsController extends IndexController
         $this->view->pick('OPNsense/WebGuard/threats');
     }
     
-    /**
-     * Dettagli di una minaccia specifica
-     */
-    public function detailAction($id = null)
-    {
-        try {
-            $mdlWebGuard = new WebGuard();
-            
-            $this->view->webguardModel = $mdlWebGuard;
-            $this->view->threatId = $id;
-            $this->view->isEnabled = (string)$mdlWebGuard->general->enabled === '1';
-            $this->view->currentMode = (string)$mdlWebGuard->general->mode;
-            $this->view->title = gettext("Threat Details");
-            
-            // Valida l'ID della minaccia
-            if (empty($id) || !is_numeric($id)) {
-                $this->view->error = gettext("Invalid threat ID");
-            }
-            
-        } catch (\Exception $e) {
-            error_log("WebGuard Threat Detail MVC Error: " . $e->getMessage());
-            
-            $this->view->webguardModel = null;
-            $this->view->threatId = $id;
-            $this->view->isEnabled = false;
-            $this->view->currentMode = 'learning';
-            $this->view->error = $e->getMessage();
-            $this->view->title = gettext("Threat Details");
-        }
-        
-        $this->view->pick('OPNsense/WebGuard/threat_details');
-    }
     
     /**
      * Statistiche delle minacce
