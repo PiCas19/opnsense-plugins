@@ -3,6 +3,267 @@
  # All rights reserved.
  #}
 
+<!-- Include external libraries only -->
+<link rel="stylesheet" href="/ui/css/leaflet.css"/>
+<script src="/ui/js/leaflet.js"></script>
+<script src="/ui/js/chart.min.js"></script>
+
+<style>
+.geo-stat-card {
+    background: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    align-items: center;
+}
+
+.stat-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: #3b82f6;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    font-size: 1.5rem;
+}
+
+.stat-content {
+    flex: 1;
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #1f2937;
+    line-height: 1;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.map-container, .country-list-container, .analysis-card, .table-container, .geo-blocking-card {
+    background: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.country-item {
+    padding: 1rem 0;
+    border-bottom: 1px solid #f3f4f6;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.country-item:hover {
+    background-color: #f8f9fa;
+}
+
+.country-item:last-child {
+    border-bottom: none;
+}
+
+.country-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.country-name {
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.country-flag {
+    margin-right: 0.5rem;
+    font-size: 1.2rem;
+}
+
+.country-stats {
+    display: flex;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    align-items: center;
+}
+
+.threats-count {
+    color: #ef4444;
+    font-weight: 600;
+}
+
+.threats-percentage {
+    color: #6b7280;
+}
+
+.country-bar {
+    height: 8px;
+    background: #f3f4f6;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.bar-fill {
+    height: 100%;
+    transition: width 0.3s ease;
+}
+
+.analysis-card canvas {
+    max-height: 300px;
+}
+
+.blocking-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.blocked-countries {
+    padding-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+}
+
+.blocked-country-tag {
+    display: inline-block;
+    background: #fee2e2;
+    color: #dc2626;
+    padding: 0.25rem 0.5rem;
+    border-radius: 1rem;
+    margin: 0.25rem;
+    font-size: 0.875rem;
+}
+
+.blocked-country-tag button {
+    margin-left: 0.5rem;
+    border: none;
+    background: transparent;
+    color: #dc2626;
+    padding: 0;
+}
+
+/* Leaflet popup styles */
+.threat-popup h5 {
+    margin: 0 0 0.5rem 0;
+    color: #1f2937;
+    font-size: 1.1rem;
+}
+
+.popup-stats {
+    margin-bottom: 0.75rem;
+}
+
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.25rem;
+    font-size: 0.875rem;
+}
+
+.stat-row .stat-label {
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.stat-row .stat-value {
+    color: #1f2937;
+    font-weight: 600;
+}
+
+.popup-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.popup-actions .btn {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+/* Map legend styles */
+.map-legend {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 8px;
+    padding: 1rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    font-size: 0.875rem;
+}
+
+.map-legend h6 {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+}
+
+.legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 1px solid #fff;
+}
+
+.legend-note {
+    color: #6b7280;
+    font-style: italic;
+    margin-top: 0.5rem;
+    display: block;
+}
+
+.loading-message {
+    text-align: center;
+    padding: 2rem;
+    color: #6b7280;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .country-info {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+    }
+    
+    .country-stats {
+        flex-wrap: wrap;
+    }
+    
+    .blocking-controls {
+        flex-direction: column;
+    }
+    
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .input-group {
+        max-width: 100% !important;
+    }
+    
+    .popup-actions {
+        flex-direction: column;
+    }
+}
+</style>
+
 <div class="content-box">
     <div class="row">
         <div class="col-md-12">
@@ -220,16 +481,9 @@
     }
 } %}
 
-<!-- Include local Leaflet CSS and JS -->
-<link rel="stylesheet" href="/ui/css/leaflet.css"/>
-<script src="/ui/js/leaflet.js"></script>
-<script src="/ui/js/chart.min.js"></script>
-
 <script type="text/javascript">
     window.appConfig = {{ appConfig|json_encode(constant('JSON_UNESCAPED_UNICODE'))|raw }};
-</script>
 
-<script>
 // Country coordinates mapping for map display
 const countryCoordinates = {
     'China': [35.8617, 104.1954],
@@ -1209,259 +1463,3 @@ $(document).ready(function() {
     };
 });
 </script>
-
-<style>
-.geo-stat-card {
-    background: white;
-    border-radius: 8px;
-    padding: 1.5rem;
-    margin-bottom: 1rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    display: flex;
-    align-items: center;
-}
-
-.stat-icon {
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    background: #3b82f6;
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 1rem;
-    font-size: 1.5rem;
-}
-
-.stat-content {
-    flex: 1;
-}
-
-.stat-value {
-    font-size: 2rem;
-    font-weight: bold;
-    color: #1f2937;
-    line-height: 1;
-}
-
-.stat-label {
-    font-size: 0.875rem;
-    color: #6b7280;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.map-container, .country-list-container, .analysis-card, .table-container, .geo-blocking-card {
-    background: white;
-    border-radius: 8px;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.country-item {
-    padding: 1rem 0;
-    border-bottom: 1px solid #f3f4f6;
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-
-.country-item:hover {
-    background-color: #f8f9fa;
-}
-
-.country-item:last-child {
-    border-bottom: none;
-}
-
-.country-info {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.5rem;
-}
-
-.country-name {
-    font-weight: 600;
-    color: #1f2937;
-}
-
-.country-flag {
-    margin-right: 0.5rem;
-    font-size: 1.2rem;
-}
-
-.country-stats {
-    display: flex;
-    gap: 0.5rem;
-    font-size: 0.875rem;
-    align-items: center;
-}
-
-.threats-count {
-    color: #ef4444;
-    font-weight: 600;
-}
-
-.threats-percentage {
-    color: #6b7280;
-}
-
-.country-bar {
-    height: 8px;
-    background: #f3f4f6;
-    border-radius: 4px;
-    overflow: hidden;
-}
-
-.bar-fill {
-    height: 100%;
-    transition: width 0.3s ease;
-}
-
-.analysis-card canvas {
-    max-height: 300px;
-}
-
-.blocking-controls {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-}
-
-.blocked-countries {
-    padding-top: 1rem;
-    border-top: 1px solid #e5e7eb;
-}
-
-.blocked-country-tag {
-    display: inline-block;
-    background: #fee2e2;
-    color: #dc2626;
-    padding: 0.25rem 0.5rem;
-    border-radius: 1rem;
-    margin: 0.25rem;
-    font-size: 0.875rem;
-}
-
-.blocked-country-tag button {
-    margin-left: 0.5rem;
-    border: none;
-    background: transparent;
-    color: #dc2626;
-    padding: 0;
-}
-
-/* Leaflet popup styles */
-.threat-popup h5 {
-    margin: 0 0 0.5rem 0;
-    color: #1f2937;
-    font-size: 1.1rem;
-}
-
-.popup-stats {
-    margin-bottom: 0.75rem;
-}
-
-.stat-row {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 0.25rem;
-    font-size: 0.875rem;
-}
-
-.stat-row .stat-label {
-    color: #6b7280;
-    font-weight: 500;
-}
-
-.stat-row .stat-value {
-    color: #1f2937;
-    font-weight: 600;
-}
-
-.popup-actions {
-    display: flex;
-    gap: 0.5rem;
-}
-
-.popup-actions .btn {
-    font-size: 0.75rem;
-    padding: 0.25rem 0.5rem;
-}
-
-/* Map legend styles */
-.map-legend {
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 8px;
-    padding: 1rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    font-size: 0.875rem;
-}
-
-.map-legend h6 {
-    margin: 0 0 0.5rem 0;
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: #1f2937;
-}
-
-.legend-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.25rem;
-}
-
-.legend-dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    border: 1px solid #fff;
-}
-
-.legend-note {
-    color: #6b7280;
-    font-style: italic;
-    margin-top: 0.5rem;
-    display: block;
-}
-
-.loading-message {
-    text-align: center;
-    padding: 2rem;
-    color: #6b7280;
-}
-
-/* Responsive design */
-@media (max-width: 768px) {
-    .country-info {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.25rem;
-    }
-    
-    .country-stats {
-        flex-wrap: wrap;
-    }
-    
-    .blocking-controls {
-        flex-direction: column;
-    }
-    
-    .form-group {
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-    
-    .input-group {
-        max-width: 100% !important;
-    }
-    
-    .popup-actions {
-        flex-direction: column;
-    }
-}
-</style>
