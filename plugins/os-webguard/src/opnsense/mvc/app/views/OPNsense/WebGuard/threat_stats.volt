@@ -131,31 +131,34 @@ $(document).ready(function() {
     let currentPeriod = '24h';
 
     // Initialize
+    console.log('Initializing stats page at', new Date().toISOString());
     loadStatsData();
     initCharts();
 
     // Period selector
     $('#periodSelect').change(function() {
         currentPeriod = $(this).val();
+        console.log('Period changed to:', currentPeriod);
         loadStatsData();
         updateCharts();
     });
 
     function loadStatsData() {
+        console.log('Loading stats data for period:', currentPeriod);
         ajaxCall('/api/webguard/threats/getStats', { period: currentPeriod }, function(data) {
+            console.log('API response for getStats:', data);
             if (data && data.status === 'ok') {
                 updateSummaryCards(data);
                 updateTopIPs(data.top_source_ips || {});
                 updateAttackPatterns(data.patterns || {});
             } else {
-                // No data or error: show empty state
+                console.log('No valid data from API, showing empty state');
                 updateSummaryCards({});
                 updateTopIPs({});
                 updateAttackPatterns({});
             }
         }).fail(function(xhr, status, error) {
-            console.error('Failed to load stats:', error);
-            // Show empty state on failure
+            console.error('Failed to load stats:', error, 'Status:', status, 'Response:', xhr.responseText);
             updateSummaryCards({});
             updateTopIPs({});
             updateAttackPatterns({});
@@ -163,6 +166,7 @@ $(document).ready(function() {
     }
 
     function updateSummaryCards(data) {
+        console.log('Updating summary cards with data:', data);
         $('#totalThreats').text(formatNumber(data.total_threats || 0));
         $('#blockedThreats').text(formatNumber(data.blocked_today || 0));
         $('#detectedThreats').text(formatNumber((data.total_threats || 0) - (data.blocked_today || 0)));
@@ -170,6 +174,7 @@ $(document).ready(function() {
     }
 
     function updateTopIPs(topIPs) {
+        console.log('Updating top IPs with data:', topIPs);
         const tbody = $('#topIPsTable');
         tbody.empty();
         if (Object.keys(topIPs).length === 0) {
@@ -177,7 +182,6 @@ $(document).ready(function() {
             return;
         }
         Object.entries(topIPs).slice(0, 10).forEach(([ip, value]) => {
-            // Handle both object (with count and last_seen) and simple count
             const count = typeof value === 'object' ? (value.count || 1) : value;
             const lastSeen = typeof value === 'object' && value.last_seen ? formatTime(value.last_seen) : '{{ lang._("Recently") }}';
             tbody.append(`
@@ -191,6 +195,7 @@ $(document).ready(function() {
     }
 
     function updateAttackPatterns(patterns) {
+        console.log('Updating attack patterns with data:', patterns);
         let html = '';
         if (patterns.sql_injection_patterns && Object.keys(patterns.sql_injection_patterns).length) {
             html += '<h5><i class="fa fa-database text-danger"></i> {{ lang._("SQL Injection Patterns") }}</h5>';
@@ -212,90 +217,105 @@ $(document).ready(function() {
     }
 
     function initCharts() {
+        console.log('Initializing charts');
         // Threat Type Chart
-        const ctx1 = document.getElementById('threatTypeChart').getContext('2d');
-        threatTypeChart = new Chart(ctx1, {
-            type: 'doughnut',
-            data: {
-                labels: [],
-                datasets: [{
-                    data: [],
-                    backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40']
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: { padding: 15, usePointStyle: true }
+        const ctx1 = document.getElementById('threatTypeChart');
+        if (ctx1) {
+            threatTypeChart = new Chart(ctx1.getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { padding: 15, usePointStyle: true }
+                        }
                     }
                 }
-            }
-        });
+            });
+        } else {
+            console.error('Canvas element #threatTypeChart not found');
+        }
 
         // Severity Chart
-        const ctx2 = document.getElementById('severityChart').getContext('2d');
-        severityChart = new Chart(ctx2, {
-            type: 'bar',
-            data: {
-                labels: ['Critical', 'High', 'Medium', 'Low'],
-                datasets: [{
-                    label: 'Threats',
-                    data: [0, 0, 0, 0],
-                    backgroundColor: ['#dc3545', '#ffc107', '#17a2b8', '#28a745']
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: { stepSize: 5 }
+        const ctx2 = document.getElementById('severityChart');
+        if (ctx2) {
+            severityChart = new Chart(ctx2.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: ['Critical', 'High', 'Medium', 'Low'],
+                    datasets: [{
+                        label: 'Threats',
+                        data: [0, 0, 0, 0],
+                        backgroundColor: ['#dc3545', '#ffc107', '#17a2b8', '#28a745']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { stepSize: 5 }
+                        }
                     }
                 }
-            }
-        });
+            });
+        } else {
+            console.error('Canvas element #severityChart not found');
+        }
 
         // Timeline Chart
-        const ctx3 = document.getElementById('timelineChart').getContext('2d');
-        timelineChart = new Chart(ctx3, {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: [{
-                    label: 'Threats',
-                    data: [],
-                    borderColor: '#dc3545',
-                    backgroundColor: 'rgba(220, 53, 69, 0.1)',
-                    tension: 0.4,
-                    fill: true
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: true, position: 'top' }
+        const ctx3 = document.getElementById('timelineChart');
+        if (ctx3) {
+            timelineChart = new Chart(ctx3.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Threats',
+                        data: [],
+                        borderColor: '#dc3545',
+                        backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
                 },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: { stepSize: 2 }
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true, position: 'top' }
                     },
-                    x: { ticks: { maxTicksLimit: 12 } }
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { stepSize: 2 }
+                        },
+                        x: { ticks: { maxTicksLimit: 12 } }
+                    }
                 }
-            }
-        });
+            });
+        } else {
+            console.error('Canvas element #timelineChart not found');
+        }
 
         updateCharts();
     }
 
     function updateCharts() {
+        console.log('Updating charts for period:', currentPeriod);
         ajaxCall('/api/webguard/threats/getStats', { period: currentPeriod }, function(data) {
+            console.log('getStats response for charts:', data);
             if (data && data.status === 'ok' && threatTypeChart) {
                 const threatsByType = data.threats_by_type || {};
                 threatTypeChart.data.labels = Object.keys(threatsByType);
@@ -313,8 +333,7 @@ $(document).ready(function() {
                 severityChart.update();
             }
         }).fail(function(xhr, status, error) {
-            console.error('Failed to update stats charts:', error);
-            // Clear charts on failure
+            console.error('Failed to update stats charts:', error, 'Status:', status, 'Response:', xhr.responseText);
             if (threatTypeChart) {
                 threatTypeChart.data.labels = [];
                 threatTypeChart.data.datasets[0].data = [];
@@ -327,13 +346,14 @@ $(document).ready(function() {
         });
 
         ajaxCall('/api/webguard/threats/getTimeline', { period: currentPeriod }, function(data) {
+            console.log('getTimeline response:', data);
             if (data && data.status === 'ok' && data.timeline && timelineChart) {
                 timelineChart.data.labels = data.timeline.labels || [];
                 timelineChart.data.datasets[0].data = data.timeline.threats || [];
                 timelineChart.update();
             }
         }).fail(function(xhr, status, error) {
-            console.error('Failed to update timeline chart:', error);
+            console.error('Failed to update timeline chart:', error, 'Status:', status, 'Response:', xhr.responseText);
             if (timelineChart) {
                 timelineChart.data.labels = [];
                 timelineChart.data.datasets[0].data = [];
