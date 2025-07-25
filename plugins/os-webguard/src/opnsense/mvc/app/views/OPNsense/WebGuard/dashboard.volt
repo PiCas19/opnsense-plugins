@@ -352,10 +352,65 @@ $(document).ready(function() {
                 });
                 
                 // Aggiungi event listeners per i nuovi pulsanti
-                $('.view-threat-btn').click(function() {
+                $('.view-threat-btn').click(function () {
                     const threatId = $(this).data('threat-id');
-                    window.open('/ui/webguard/threats/detail/' + threatId, '_blank');
+
+                    // Memorizza l'ID corrente per azioni future (come nel file threats.js)
+                    currentThreatId = threatId;
+
+                    // Recupera i dettagli del threat e mostra il modal
+                    $.get('/api/webguard/threats/getDetail/' + threatId, function (data) {
+                        if (data.result === 'ok') {
+                            const threat = data.threat;
+                            let html = '<div class="threat-detail-section">';
+                            html += '<h5>{{ lang._("Basic Information") }}</h5>';
+                            html += '<div class="row">';
+                            html += '<div class="col-md-6"><strong>{{ lang._("Timestamp") }}:</strong> ' + formatTimeFromISO(threat.timestamp) + '</div>';
+                            html += '<div class="col-md-6"><strong>{{ lang._("Source IP") }}:</strong> ' + (threat.source_ip || threat.ip_address) + '</div>';
+                            html += '<div class="col-md-6"><strong>{{ lang._("Type") }}:</strong> ' + (threat.type || threat.threat_type) + '</div>';
+                            html += '<div class="col-md-6"><strong>{{ lang._("Severity") }}:</strong> <span class="badge ' + getSeverityClass(threat.severity) + '">' + (threat.severity || 'low') + '</span></div>';
+                            html += '<div class="col-md-6"><strong>{{ lang._("Target") }}:</strong> ' + (threat.target || threat.url || '-') + '</div>';
+                            html += '<div class="col-md-6"><strong>{{ lang._("Method") }}:</strong> ' + (threat.method || 'GET') + '</div>';
+                            html += '<div class="col-md-6"><strong>{{ lang._("Status") }}:</strong> ' + (threat.status || 'logged').toUpperCase() + '</div>';
+                            html += '<div class="col-md-6"><strong>{{ lang._("Score") }}:</strong> ' + (threat.score || 0) + '</div>';
+                            html += '</div></div>';
+
+                            if (threat.request_headers || threat.headers) {
+                                html += '<div class="threat-detail-section">';
+                                html += '<h5>{{ lang._("Request Headers") }}</h5>';
+                                html += '<pre>' + JSON.stringify(threat.request_headers || threat.headers, null, 2) + '</pre>';
+                                html += '</div>';
+                            }
+
+                            if (threat.payload || threat.request_body) {
+                                html += '<div class="threat-detail-section">';
+                                html += '<h5>{{ lang._("Payload") }}</h5>';
+                                html += '<pre>' + (threat.payload || threat.request_body) + '</pre>';
+                                html += '</div>';
+                            }
+
+                            if (threat.rule_matched || threat.rule) {
+                                html += '<div class="threat-detail-section">';
+                                html += '<h5>{{ lang._("Rule Matched") }}</h5>';
+                                html += '<p>' + (threat.rule_matched || threat.rule) + '</p>';
+                                html += '</div>';
+                            }
+
+                            if (threat.description) {
+                                html += '<div class="threat-detail-section">';
+                                html += '<h5>{{ lang._("Description") }}</h5>';
+                                html += '<p>' + threat.description + '</p>';
+                                html += '</div>';
+                            }
+
+                            $('#threatDetailContent').html(html);
+                            $('#threatDetailModal').modal('show');
+                        } else {
+                            showNotification('{{ lang._("Failed to load threat details") }}: ' + (data.message || '{{ lang._("Unknown error") }}'), 'error');
+                        }
+                    });
                 });
+
                 
                 $('.block-source-btn').click(function() {
                     const sourceIP = $(this).data('source-ip');
