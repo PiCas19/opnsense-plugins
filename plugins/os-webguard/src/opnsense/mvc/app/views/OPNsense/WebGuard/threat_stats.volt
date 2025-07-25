@@ -7,7 +7,6 @@
     <div class="row">
         <div class="col-md-12">
             <div class="dpi-header">
-                <h1>{{ lang._('Threat Statistics') }}</h1>
                 <div class="period-selector">
                     <select id="periodSelect" class="form-control" style="width: auto; display: inline-block;">
                         <option value="1h">{{ lang._('Last Hour') }}</option>
