@@ -29,6 +29,7 @@ def init_database():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp INTEGER,
                 source_ip TEXT,
+                target TEXT,
                 type TEXT,
                 severity TEXT,
                 description TEXT,

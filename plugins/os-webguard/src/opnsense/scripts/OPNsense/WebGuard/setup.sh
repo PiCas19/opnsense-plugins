@@ -45,7 +45,7 @@ echo "Creating whitelist table..."
 sqlite3 "$DB_FILE" "CREATE TABLE whitelist (ip_address TEXT PRIMARY KEY, description TEXT, added_at INTEGER, expires_at INTEGER, permanent INTEGER DEFAULT 1);"
 
 echo "Creating threats table..."  
-sqlite3 "$DB_FILE" "CREATE TABLE threats (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER, source_ip TEXT, type TEXT, severity TEXT, description TEXT, false_positive INTEGER DEFAULT 0, payload TEXT, method TEXT);"
+sqlite3 "$DB_FILE" "CREATE TABLE threats (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER, source_ip TEXT, target TEXT, type TEXT, severity TEXT, description TEXT, false_positive INTEGER DEFAULT 0, payload TEXT, method TEXT);"
 
 # Insert sample data
 echo "Inserting sample data..."
@@ -55,11 +55,26 @@ sqlite3 "$DB_FILE" "INSERT INTO blocked_ips (ip_address, block_type, blocked_sin
 
 sqlite3 "$DB_FILE" "INSERT INTO whitelist (ip_address, description, added_at, permanent) VALUES ('192.168.1.1', 'Sample whitelist entry', $CURRENT_TIME, 1);"
 
-sqlite3 "$DB_FILE" "INSERT INTO threats (timestamp, source_ip, type, severity, description, payload, method, false_positive) VALUES ($((CURRENT_TIME - 3600)), '192.168.1.200', 'SQL Injection', 'high', 'SQL injection detected', ''' OR 1=1 --', 'POST', 0);"
+sqlite3 "$DB_FILE" "INSERT INTO threats (
+    timestamp, source_ip, target, method, type, severity, description, payload, request_headers, rule_matched, false_positive
+) VALUES (
+    $((CURRENT_TIME - 3600)), '192.168.1.200', '10.0.0.2', 'POST', 'SQL Injection', 'high',
+    'SQL injection detected', ''' OR 1=1 --', '{}', 'rule_1', 0
+);"
 
-sqlite3 "$DB_FILE" "INSERT INTO threats (timestamp, source_ip, type, severity, description, payload, method, false_positive) VALUES ($((CURRENT_TIME - 7200)), '10.0.0.50', 'XSS Attack', 'medium', 'Cross-site scripting attempt', '<script>alert(\"xss\")</script>', 'GET', 0);"
+sqlite3 "$DB_FILE" "INSERT INTO threats (
+    timestamp, source_ip, target, method, type, severity, description, payload, request_headers, rule_matched, false_positive
+) VALUES (
+    $((CURRENT_TIME - 7200)), '10.0.0.50', '10.0.0.2', 'GET', 'XSS Attack', 'medium',
+    'Cross-site scripting attempt', '<script>alert(\"xss\")</script>', '{}', 'rule_2', 0
+);"
 
-sqlite3 "$DB_FILE" "INSERT INTO threats (timestamp, source_ip, type, severity, description, payload, method, false_positive) VALUES ($((CURRENT_TIME - 10800)), '172.16.0.25', 'Path Traversal', 'medium', 'Directory traversal detected', '../../../etc/passwd', 'GET', 0);"
+sqlite3 "$DB_FILE" "INSERT INTO threats (
+    timestamp, source_ip, target, method, type, severity, description, payload, request_headers, rule_matched, false_positive
+) VALUES (
+    $((CURRENT_TIME - 10800)), '172.16.0.25', '10.0.0.3', 'GET', 'Path Traversal', 'medium',
+    'Directory traversal detected', '../../../etc/passwd', '{}', 'rule_3', 0
+);"
 
 # Verify database creation
 echo "[*] Verifying database creation..."

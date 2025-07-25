@@ -1,7 +1,7 @@
 #!/usr/local/bin/python3.11
 
 """
-WebGuard Engine - Main Web Application Firewall and Behavioral Analysis Engine
+WebGuard Engine - Main Web Application Firewall and Behavioral Analysis Engine with Scapy
 Copyright (C) 2024 OPNsense WebGuard Plugin
 All rights reserved.
 """
@@ -23,7 +23,16 @@ import socket
 import subprocess
 import xml.etree.ElementTree as ET
 
-# Import support functions from separate files
+# Import Scapy for packet sniffing
+try:
+    from scapy.all import sniff, IP, TCP, UDP, Raw
+    SCAPY_AVAILABLE = True
+except ImportError as e:
+    print(f"Error: Could not import Scapy: {e}")
+    print("Install with: pkg install py311-scapy")
+    sys.exit(1)
+
+# Import support functions
 try:
     from update_rules import download_rules, need_update as check_rules_age
     from export_config import export_config
@@ -43,7 +52,7 @@ except ImportError as e:
 
 # Network capture and analysis
 try:
-    import psutil  # For system monitoring
+    import psutil
     import geoip2.database
     import geoip2.errors
     GEOIP_AVAILABLE = True
@@ -76,8 +85,8 @@ config = {}
 waf_rules = {}
 attack_patterns = {}
 behavioral_baselines = {}
-geoip_reader = None  # GeoIP database reader
-geo_stats = defaultdict(int)  # Country statistics
+geoip_reader = None
+geo_stats = defaultdict(int)
 stats = {
     'requests_analyzed': 0,
     'threats_blocked': 0,
@@ -122,9 +131,6 @@ whitelist = set()
 db = None
 db_lock = threading.Lock()
 
-# Network sockets for packet capture simulation
-capture_sockets = []
-
 def signal_handler(signum, frame):
     """Handle shutdown signals"""
     global running
@@ -135,11 +141,10 @@ def setup_logging():
     """Initialize logging system"""
     os.makedirs(LOG_DIR, exist_ok=True)
     
-    # Create all log files if they don't exist
     for log_file in [ALERT_LOG, THREAT_LOG, BLOCKED_LOG, WAF_LOG, BEHAVIORAL_LOG, COVERT_LOG, ENGINE_LOG]:
         if not os.path.exists(log_file):
             with open(log_file, 'w') as f:
-                pass  # Create empty file
+                pass
     
     logging.basicConfig(
         level=logging.INFO,
@@ -162,7 +167,7 @@ def setup_database():
             db = sqlite3.connect(DB_FILE, check_same_thread=False)
             db.execute('PRAGMA journal_mode=WAL')
             
-            # Create tables
+            # Create tables with 'target' field included
             db.executescript('''
                 CREATE TABLE IF NOT EXISTS threats (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -225,7 +230,6 @@ def setup_geoip():
         return False
     
     try:
-        # Try different possible locations for GeoIP database
         possible_paths = [
             '/usr/local/share/GeoIP/GeoLite2-Country.mmdb',
             '/var/db/GeoIP/GeoLite2-Country.mmdb',
@@ -251,13 +255,11 @@ def get_country_info(ip_address):
         return {'country_code': 'XX', 'country_name': 'Unknown', 'is_private': False}
     
     try:
-        # Check if it's a private IP
         import ipaddress
         ip_obj = ipaddress.ip_address(ip_address)
         if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_multicast:
             return {'country_code': 'PR', 'country_name': 'Private', 'is_private': True}
         
-        # Look up country using GeoIP2
         response = geoip_reader.country(ip_address)
         country_info = {
             'country_code': response.country.iso_code or 'XX',
@@ -267,9 +269,7 @@ def get_country_info(ip_address):
             'is_private': False
         }
         
-        # Update geo statistics
         geo_stats[country_info['country_code']] += 1
-        
         logger.debug(f"GeoIP lookup for {ip_address}: {country_info['country_name']} ({country_info['country_code']})")
         return country_info
         
@@ -289,44 +289,38 @@ def analyze_geographic_patterns():
         current_time = time.time()
         recent_threats = []
         
-        # Get recent threats from database
         with db_lock:
             cursor = db.execute('''
-                SELECT source_ip, type, severity, timestamp FROM threats 
+                SELECT source_ip, target, type, severity, timestamp FROM threats 
                 WHERE timestamp > ? 
                 ORDER BY timestamp DESC LIMIT 100
-            ''', (int(current_time - 3600),))  # Last hour
+            ''', (int(current_time - 3600),))
             
             recent_threats = cursor.fetchall()
         
         if not recent_threats:
             return
         
-        # Analyze by country
         country_threat_counts = defaultdict(int)
         country_severity_scores = defaultdict(list)
         high_risk_countries = set()
         
-        for source_ip, threat_type, severity, timestamp in recent_threats:
+        for source_ip, target, threat_type, severity, timestamp in recent_threats:
             try:
                 country_info = get_country_info(source_ip)
                 country_code = country_info['country_code']
                 
                 country_threat_counts[country_code] += 1
-                
-                # Assign severity scores
                 severity_score = {'low': 1, 'medium': 2, 'high': 3, 'critical': 4}.get(severity, 1)
                 country_severity_scores[country_code].append(severity_score)
                 
-                # Mark high-risk countries
-                if severity_score >= 3:  # high or critical
+                if severity_score >= 3:
                     high_risk_countries.add(country_code)
                     
             except Exception as e:
                 logger.error(f"Error analyzing geographic pattern for {source_ip}: {e}")
                 continue
         
-        # Log geographic analysis results
         if country_threat_counts:
             sorted_countries = sorted(country_threat_counts.items(), 
                                     key=lambda x: x[1], reverse=True)[:10]
@@ -345,20 +339,18 @@ def analyze_geographic_patterns():
                 
                 country_data = {
                     'country_code': country_code,
-                    'country_name': country_code,  # Simplified
+                    'country_name': country_code,
                     'threat_count': threat_count,
                     'avg_severity': round(avg_severity, 2),
                     'is_high_risk': country_code in high_risk_countries
                 }
                 geo_log_entry['top_threat_countries'].append(country_data)
             
-            # Log to behavioral analysis file
             with open(BEHAVIORAL_LOG, 'a') as f:
                 f.write(json.dumps(geo_log_entry) + '\n')
             
-            # Check for geographic anomalies
             for country_code, threat_count in sorted_countries[:5]:
-                if threat_count > 10:  # More than 10 threats in an hour
+                if threat_count > 10:
                     avg_severity = sum(country_severity_scores[country_code]) / len(country_severity_scores[country_code])
                     
                     anomaly_entry = {
@@ -382,19 +374,15 @@ def load_config():
     """Load WebGuard engine configuration using export_config"""
     global config
     try:
-        # Use the export_config function to get OPNsense configuration
         if export_config():
             logger.info("Configuration exported from OPNsense successfully")
         
-        # Load the configuration
         if os.path.exists(CONFIG_FILE):
             with open(CONFIG_FILE, 'r') as f:
                 config = json.load(f)
         else:
-            # Create default configuration
             config = create_default_config()
             
-        # Set defaults for missing values
         defaults = {
             'general': {
                 'enabled': True,
@@ -430,7 +418,6 @@ def load_config():
             }
         }
         
-        # Merge defaults with loaded config
         for section, values in defaults.items():
             if section not in config:
                 config[section] = {}
@@ -483,7 +470,6 @@ def load_rules():
     global waf_rules, attack_patterns, behavioral_baselines, waf_patterns
     
     try:
-        # Check if rules need updating and download if necessary
         if check_rules_age():
             logger.info("Rules are outdated, downloading new rules...")
             if download_rules():
@@ -493,7 +479,6 @@ def load_rules():
         else:
             logger.info("Rules are up to date")
         
-        # Load WAF rules
         try:
             with open(WAF_RULES_FILE, 'r') as f:
                 waf_rules = json.load(f)
@@ -503,7 +488,6 @@ def load_rules():
             logger.error(f"Error loading WAF rules: {e}")
             create_default_waf_rules()
             
-        # Load attack patterns
         try:
             with open(ATTACK_PATTERNS_FILE, 'r') as f:
                 attack_patterns = json.load(f)
@@ -512,7 +496,6 @@ def load_rules():
             logger.error(f"Error loading attack patterns: {e}")
             attack_patterns = {'patterns': {}}
             
-        # Compile WAF patterns for faster matching
         compile_waf_patterns()
                 
         logger.info("All rules and patterns loaded successfully")
@@ -537,6 +520,15 @@ def create_default_waf_rules():
                 "enabled": True,
                 "score": 50,
                 "description": "Detects basic SQL injection attempts"
+            },
+            {
+                "id": 2,
+                "name": "XSS - Basic",
+                "type": "xss",
+                "pattern": "<script[^>]*>|javascript:",
+                "enabled": True,
+                "score": 40,
+                "description": "Detects basic XSS attempts"
             }
         ]
     }
@@ -550,7 +542,6 @@ def compile_waf_patterns():
     global waf_patterns
     
     try:
-        # Reset patterns
         for key in waf_patterns:
             waf_patterns[key] = []
             
@@ -573,7 +564,6 @@ def compile_waf_patterns():
                         
         logger.info("WAF patterns compiled successfully")
         
-        # Log pattern counts
         for rule_type, patterns in waf_patterns.items():
             if patterns:
                 logger.info(f"  {rule_type}: {len(patterns)} patterns")
@@ -602,27 +592,18 @@ def load_default_rules():
 def update_statistics():
     """Update and save comprehensive statistics using all stat modules"""
     try:
-        # Get engine stats using get_stats module
         engine_stats = get_engine_stats()
         threat_stats_24h = get_threat_stats('24h')
         blocking_stats = get_blocking_stats('24h')
-        
-        # Get WAF specific stats
         waf_stats_24h = get_waf_stats('24h')
-        
-        # Get comprehensive threat metrics
         threat_metrics = get_threat_metrics('24h')
-        
-        # Get system metrics
         system_metrics = get_metrics()
         system_health = get_system_health()
         
-        # Get geographic stats if available
         geo_statistics = None
         if GEOIP_AVAILABLE:
             geo_statistics = get_geo_stats('24h')
         
-        # Combine all statistics
         comprehensive_stats = {
             'timestamp': datetime.now().isoformat(),
             'collection_time': int(time.time()),
@@ -638,7 +619,6 @@ def update_statistics():
         if geo_statistics:
             comprehensive_stats['geographic'] = geo_statistics
         
-        # Save to stats file
         with open(STATS_FILE, 'w') as f:
             json.dump(comprehensive_stats, f, indent=2, default=str)
         
@@ -651,49 +631,40 @@ def stats_worker():
     """Statistics collection worker thread"""
     while running:
         try:
-            # Update comprehensive statistics
             update_statistics()
             
-            # Use psutil extensively for system monitoring
             if psutil:
-                # CPU usage per core
                 cpu_percents = psutil.cpu_percent(interval=1, percpu=True)
                 stats['performance']['cpu_usage'] = psutil.cpu_percent()
                 stats['performance']['cpu_cores'] = len(cpu_percents)
                 stats['performance']['cpu_per_core'] = cpu_percents
                 
-                # Memory usage detailed
                 memory = psutil.virtual_memory()
                 stats['performance']['memory_usage'] = memory.percent
                 stats['performance']['memory_total'] = memory.total
                 stats['performance']['memory_available'] = memory.available
                 stats['performance']['memory_used'] = memory.used
                 
-                # Disk usage
                 disk_usage = psutil.disk_usage('/')
                 stats['performance']['disk_usage'] = round((disk_usage.used / disk_usage.total) * 100, 2)
                 stats['performance']['disk_free'] = disk_usage.free
                 
-                # Network I/O
                 net_io = psutil.net_io_counters()
                 stats['performance']['bytes_sent'] = net_io.bytes_sent
                 stats['performance']['bytes_recv'] = net_io.bytes_recv
                 stats['performance']['packets_sent'] = net_io.packets_sent
                 stats['performance']['packets_recv'] = net_io.packets_recv
                 
-                # System load average
                 load_avg = os.getloadavg()
                 stats['performance']['load_avg_1min'] = load_avg[0]
                 stats['performance']['load_avg_5min'] = load_avg[1]
                 stats['performance']['load_avg_15min'] = load_avg[2]
                 
-                # Process information
                 current_process = psutil.Process()
                 stats['performance']['webguard_cpu'] = current_process.cpu_percent()
                 stats['performance']['webguard_memory'] = current_process.memory_percent()
                 stats['performance']['webguard_threads'] = current_process.num_threads()
                 
-                # System boot time and uptime
                 boot_time = psutil.boot_time()
                 stats['performance']['system_uptime'] = int(time.time() - boot_time)
                 
@@ -706,25 +677,137 @@ def stats_worker():
         except Exception as e:
             logger.error(f"Error in stats worker: {e}")
             
-        time.sleep(30)  # Update every 30 seconds
+        time.sleep(30)
+
+def analyze_packet(packet):
+    """Analyze a single packet for threats"""
+    try:
+        if not packet.haslayer(IP):
+            return
+        
+        current_time = time.time()
+        src_ip = packet[IP].src
+        dst_ip = packet[IP].dst
+        proto = 'unknown'
+        method = 'N/A'
+        payload = ''
+        threat_detected = False
+        threat_type = None
+        severity = 'low'
+        rule_matched = None
+        description = None
+        
+        # Determine protocol
+        if packet.haslayer(TCP):
+            proto = 'tcp'
+            stats['protocols_analyzed']['tcp'] += 1
+        elif packet.haslayer(UDP):
+            proto = 'udp'
+            stats['protocols_analyzed']['udp'] += 1
+        
+        # Extract payload if available
+        if packet.haslayer(Raw):
+            try:
+                payload = packet[Raw].load.decode('utf-8', errors='ignore')
+            except:
+                payload = str(packet[Raw].load)
+        
+        # Update IP statistics
+        ip_stats[src_ip]['requests'] += 1
+        ip_stats[src_ip]['last_seen'] = current_time
+        ip_stats[src_ip]['bytes_sent'] += len(packet)
+        if ip_stats[src_ip]['first_seen'] == 0:
+            ip_stats[src_ip]['first_seen'] = current_time
+        
+        # Check if IP is whitelisted
+        if any(src_ip.startswith(wl_ip.split('/')[0]) for wl_ip in config['whitelist']['trusted_sources']):
+            return
+        
+        # WAF pattern matching
+        for threat_category, patterns in waf_patterns.items():
+            for pattern_info in patterns:
+                if pattern_info['pattern'].search(payload):
+                    threat_detected = True
+                    threat_type = threat_category
+                    severity = 'high' if pattern_info['score'] >= 50 else 'medium'
+                    rule_matched = pattern_info['rule_id']
+                    description = pattern_info['name']
+                    ip_stats[src_ip]['violations'] += 1
+                    ip_stats[src_ip]['threat_score'] += pattern_info['score']
+                    stats['threat_types'][threat_category] += 1
+                    break
+            if threat_detected:
+                break
+        
+        # HTTP method detection (simplified)
+        if proto == 'tcp' and packet.haslayer(Raw):
+            if payload.startswith(('GET ', 'POST ', 'HEAD ', 'PUT ', 'DELETE ')):
+                method = payload.split(' ')[0]
+        
+        # Log threat if detected
+        if threat_detected:
+            threat_entry = {
+                'timestamp': int(current_time),
+                'source_ip': src_ip,
+                'target': dst_ip,
+                'method': method,
+                'type': threat_type,
+                'severity': severity,
+                'status': 'blocked' if config['response']['auto_blocking'] else 'detected',
+                'score': ip_stats[src_ip]['threat_score'],
+                'payload': payload[:1000],
+                'request_headers': '{}',
+                'rule_matched': str(rule_matched),
+                'description': description,
+                'false_positive': 0
+            }
+            
+            with db_lock:
+                db.execute('''
+                    INSERT INTO threats (
+                        timestamp, source_ip, target, method, type, severity, status,
+                        score, payload, request_headers, rule_matched, description, false_positive
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    threat_entry['timestamp'], threat_entry['source_ip'], threat_entry['target'],
+                    threat_entry['method'], threat_entry['type'], threat_entry['severity'],
+                    threat_entry['status'], threat_entry['score'], threat_entry['payload'],
+                    threat_entry['request_headers'], threat_entry['rule_matched'],
+                    threat_entry['description'], threat_entry['false_positive']
+                ))
+                db.commit()
+            
+            with open(THREAT_LOG, 'a') as f:
+                f.write(json.dumps(threat_entry) + '\n')
+            
+            stats['threats_blocked'] += 1
+            logger.warning(f"Threat detected: {threat_type} from {src_ip} to {dst_ip}")
+        
+        stats['requests_analyzed'] += 1
+        packet_buffer.append({
+            'timestamp': current_time,
+            'src_ip': src_ip,
+            'dst_ip': dst_ip,
+            'protocol': proto,
+            'payload': payload[:1000]
+        })
+        
+    except Exception as e:
+        logger.error(f"Error analyzing packet: {e}")
 
 def process_network_traffic():
     """Process network traffic for threat detection"""
     try:
-        # Simulate network traffic processing
         current_time = time.time()
         
-        # Update IP statistics
-        for ip in ip_stats:
-            if current_time - ip_stats[ip]['last_seen'] > 300:  # 5 minutes timeout
+        for ip in list(ip_stats.keys()):
+            if current_time - ip_stats[ip]['last_seen'] > 300:
                 continue
             
-            # Basic threat scoring
             if ip_stats[ip]['violations'] > config['general']['auto_block_threshold']:
                 if ip not in blocked_ips and ip not in whitelist:
                     blocked_ips.add(ip)
                     
-                    # Log blocked IP
                     block_entry = {
                         'timestamp': datetime.now().isoformat(),
                         'ip': ip,
@@ -738,74 +821,81 @@ def process_network_traffic():
                     
                     logger.warning(f"Blocked IP {ip} due to {ip_stats[ip]['violations']} violations")
         
-        # Update global statistics
         stats['ips_blocked'] = len(blocked_ips)
-        
         logger.debug(f"Traffic processed: {len(ip_stats)} IPs tracked, {len(blocked_ips)} blocked")
         
     except Exception as e:
         logger.error(f"Error processing network traffic: {e}")
 
 def traffic_worker():
-    """Network traffic processing worker thread"""
-    while running:
-        try:
-            process_network_traffic()
-            analyze_geographic_patterns()  # Use GeoIP2 analysis
-            
-            # Use psutil for network monitoring
-            if psutil:
-                # Monitor network connections
-                connections = psutil.net_connections()
-                active_connections = len([c for c in connections if c.status == 'ESTABLISHED'])
-                listening_connections = len([c for c in connections if c.status == 'LISTEN'])
+    """Network traffic processing worker thread with Scapy"""
+    def packet_callback(packet):
+        analyze_packet(packet)
+    
+    try:
+        interfaces = config['general']['interfaces']
+        logger.info(f"Starting packet capture on interfaces: {interfaces}")
+        
+        # Start sniffing on configured interfaces
+        sniff(iface=interfaces, prn=packet_callback, store=0, filter="ip", stop_filter=lambda x: not running)
+        
+    except Exception as e:
+        logger.error(f"Error in traffic worker: {e}")
+        
+        # Fallback to periodic processing if sniffing fails
+        while running:
+            try:
+                process_network_traffic()
+                analyze_geographic_patterns()
                 
-                stats['network'] = {
-                    'active_connections': active_connections,
-                    'listening_connections': listening_connections,
-                    'total_connections': len(connections)
-                }
+                if psutil:
+                    connections = psutil.net_connections()
+                    active_connections = len([c for c in connections if c.status == 'ESTABLISHED'])
+                    listening_connections = len([c for c in connections if c.status == 'LISTEN'])
+                    
+                    stats['network'] = {
+                        'active_connections': active_connections,
+                        'listening_connections': listening_connections,
+                        'total_connections': len(connections)
+                    }
+                    
+                    net_if_stats = psutil.net_if_stats()
+                    net_io_counters = psutil.net_io_counters(pernic=True)
+                    
+                    interface_stats = {}
+                    for interface in config['general']['interfaces']:
+                        if interface in net_if_stats and interface in net_io_counters:
+                            interface_stats[interface] = {
+                                'is_up': net_if_stats[interface].isup,
+                                'speed': net_if_stats[interface].speed,
+                                'bytes_sent': net_io_counters[interface].bytes_sent,
+                                'bytes_recv': net_io_counters[interface].bytes_recv,
+                                'packets_sent': net_io_counters[interface].packets_sent,
+                                'packets_recv': net_io_counters[interface].packets_recv,
+                                'errors_in': net_io_counters[interface].errin,
+                                'errors_out': net_io_counters[interface].errout
+                            }
+                    
+                    stats['interfaces'] = interface_stats
+                    
+                    logger.debug(f"Traffic worker: {active_connections} active connections, "
+                               f"monitoring {len(interface_stats)} interfaces")
                 
-                # Monitor per-interface statistics
-                net_if_stats = psutil.net_if_stats()
-                net_io_counters = psutil.net_io_counters(pernic=True)
+            except Exception as e:
+                logger.error(f"Error in fallback traffic processing: {e}")
                 
-                interface_stats = {}
-                for interface in config['general']['interfaces']:
-                    if interface in net_if_stats and interface in net_io_counters:
-                        interface_stats[interface] = {
-                            'is_up': net_if_stats[interface].isup,
-                            'speed': net_if_stats[interface].speed,
-                            'bytes_sent': net_io_counters[interface].bytes_sent,
-                            'bytes_recv': net_io_counters[interface].bytes_recv,
-                            'packets_sent': net_io_counters[interface].packets_sent,
-                            'packets_recv': net_io_counters[interface].packets_recv,
-                            'errors_in': net_io_counters[interface].errin,
-                            'errors_out': net_io_counters[interface].errout
-                        }
-                
-                stats['interfaces'] = interface_stats
-                
-                logger.debug(f"Traffic worker: {active_connections} active connections, "
-                           f"monitoring {len(interface_stats)} interfaces")
-            
-        except Exception as e:
-            logger.error(f"Error in traffic worker: {e}")
-            
-        time.sleep(1)  # Process traffic every second
+            time.sleep(1)
 
 def rules_update_worker():
     """Rules update worker thread"""
     while running:
         try:
-            # Check for rule updates every hour
             if check_rules_age():
                 logger.info("Updating rules...")
                 if download_rules():
                     logger.info("Rules updated, reloading...")
                     load_rules()
             
-            # Use psutil to monitor system resources during rule updates
             if psutil:
                 disk_io = psutil.disk_io_counters()
                 if disk_io:
@@ -814,18 +904,16 @@ def rules_update_worker():
         except Exception as e:
             logger.error(f"Error in rules update worker: {e}")
             
-        time.sleep(3600)  # Check every hour
+        time.sleep(3600)
 
 def main():
     """Main WebGuard engine loop"""
     global logger, running
     
-    # Setup
     logger = setup_logging()
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
     
-    # Save PID
     try:
         os.makedirs(os.path.dirname(PID_FILE), exist_ok=True)
         with open(PID_FILE, 'w') as f:
@@ -834,11 +922,11 @@ def main():
         logger.error(f"Failed to write PID file: {e}")
         return 1
     
-    logger.info("Starting WebGuard Engine")
+    logger.info("Starting WebGuard Engine with Scapy")
     logger.info("=" * 50)
     
-    # Log all libraries being used
     logger.info("Using all required libraries:")
+    logger.info("  - scapy: Packet capture and analysis")
     logger.info("  - socket: Network communication")  
     logger.info("  - subprocess: System command execution")
     logger.info("  - struct: Binary data packing/unpacking")
@@ -846,19 +934,16 @@ def main():
     logger.info("  - xml.etree.ElementTree: XML configuration parsing")
     logger.info("  - geoip2.database: Geographic IP location analysis")
     
-    # Initialize GeoIP database
     geoip_initialized = setup_geoip()
     if geoip_initialized:
         logger.info("GeoIP database initialized successfully")
     else:
         logger.warning("Running without GeoIP functionality")
     
-    # Initialize database
     if not setup_database():
         logger.error("Failed to initialize database")
         return 1
     
-    # Load configuration and rules
     if not load_config():
         logger.error("Failed to load configuration")
         return 1
@@ -866,12 +951,10 @@ def main():
     if not load_rules():
         logger.warning("Using default rules")
     
-    # Check if enabled
     if not config['general']['enabled']:
         logger.info("WebGuard engine is disabled in configuration")
         return 0
     
-    # Main loop
     try:
         logger.info("WebGuard Engine is running...")
         logger.info(f"Configuration sections: {list(config.keys())}")
@@ -879,24 +962,20 @@ def main():
         logger.info(f"Auto-blocking: {'enabled' if config['response']['auto_blocking'] else 'disabled'}")
         logger.info("=" * 50)
         
-        # Start worker threads with psutil monitoring
         threads = []
         
-        # Statistics worker thread
         stats_thread = threading.Thread(target=stats_worker, name="StatsWorker")
         stats_thread.daemon = True
         stats_thread.start()
         threads.append(stats_thread)
         logger.info("Statistics worker thread started")
         
-        # Traffic processing worker thread
         traffic_thread = threading.Thread(target=traffic_worker, name="TrafficWorker")
         traffic_thread.daemon = True
         traffic_thread.start()
         threads.append(traffic_thread)
         logger.info("Traffic processing worker thread started")
         
-        # Rules update worker thread
         rules_thread = threading.Thread(target=rules_update_worker, name="RulesWorker")
         rules_thread.daemon = True
         rules_thread.start()
@@ -909,14 +988,11 @@ def main():
                 time.sleep(5)
                 loop_counter += 1
                 
-                # Demonstrate usage of all required libraries and functions
-                if loop_counter % 10 == 0:  # Every 50 seconds
-                    # Use hashlib
+                if loop_counter % 10 == 0:
                     data_to_hash = f"webguard_status_{loop_counter}_{time.time()}"
                     data_hash = hashlib.md5(data_to_hash.encode()).hexdigest()
                     sha_hash = hashlib.sha256(data_to_hash.encode()).hexdigest()
                     
-                    # Use struct
                     packed_stats = struct.pack('!IIII', 
                                              stats['requests_analyzed'],
                                              stats['threats_blocked'], 
@@ -924,23 +1000,20 @@ def main():
                                              loop_counter)
                     unpacked = struct.unpack('!IIII', packed_stats)
                     
-                    # Use psutil for real-time system monitoring
                     if psutil:
                         current_cpu = psutil.cpu_percent(interval=0.1)
                         current_memory = psutil.virtual_memory().percent
                         current_process = psutil.Process()
-                        process_memory = current_process.memory_info().rss / 1024 / 1024  # MB
+                        process_memory = current_process.memory_info().rss / 1024 / 1024
                         
                         logger.info(f"Loop {loop_counter}: CPU={current_cpu:.1f}%, Memory={current_memory:.1f}%, "
                                   f"Process={process_memory:.1f}MB, Hash={data_hash[:8]}")
                         
-                        # Check system health using psutil
                         if current_cpu > 90:
                             logger.warning(f"High CPU usage detected: {current_cpu}%")
                         if current_memory > 90:
                             logger.warning(f"High memory usage detected: {current_memory}%")
                     
-                # Call get_system_health every 2 minutes
                 if loop_counter % 24 == 0:
                     try:
                         health_status = get_system_health()
@@ -950,7 +1023,6 @@ def main():
                     except Exception as e:
                         logger.error(f"Error getting system health: {e}")
                 
-                # Call get_threat_stats every 3 minutes
                 if loop_counter % 36 == 0:
                     try:
                         threat_stats = get_threat_stats('1h')
@@ -959,7 +1031,6 @@ def main():
                     except Exception as e:
                         logger.error(f"Error getting threat stats: {e}")
                 
-                # Call get_blocking_stats every 4 minutes
                 if loop_counter % 48 == 0:
                     try:
                         blocking_stats = get_blocking_stats('24h')
@@ -968,7 +1039,6 @@ def main():
                     except Exception as e:
                         logger.error(f"Error getting blocking stats: {e}")
                 
-                # Call get_geo_stats if GeoIP is available every 5 minutes
                 if loop_counter % 60 == 0 and GEOIP_AVAILABLE:
                     try:
                         geo_statistics = get_geo_stats('24h')
@@ -977,13 +1047,11 @@ def main():
                     except Exception as e:
                         logger.error(f"Error getting geo stats: {e}")
                 
-                # XML parsing demonstration every 2 minutes
                 if loop_counter % 24 == 0 and os.path.exists(OPNSENSE_CONFIG):
                     try:
                         tree = ET.parse(OPNSENSE_CONFIG)
                         root = tree.getroot()
                         
-                        # Check for configuration changes
                         config_hash = hashlib.md5(ET.tostring(root)).hexdigest()
                         if not hasattr(main, 'last_config_hash'):
                             main.last_config_hash = config_hash
@@ -997,28 +1065,23 @@ def main():
                     except Exception as e:
                         logger.error(f"Error checking OPNsense configuration: {e}")
                 
-                # Socket demonstration (basic network check)
-                if loop_counter % 30 == 0:  # Every 2.5 minutes
+                if loop_counter % 30 == 0:
                     try:
-                        # Test socket connectivity
                         test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                         test_socket.settimeout(1)
-                        result = test_socket.connect_ex(('127.0.0.1', 22))  # SSH port
+                        result = test_socket.connect_ex(('127.0.0.1', 22))
                         test_socket.close()
                         logger.debug(f"Socket test to localhost:22 result: {result}")
                     except Exception as e:
                         logger.debug(f"Socket test failed: {e}")
                 
-                # Subprocess demonstration every 3 minutes
                 if loop_counter % 36 == 0:
                     try:
-                        # Check system uptime
                         result = subprocess.run(['uptime'], capture_output=True, text=True, timeout=5)
                         if result.returncode == 0:
                             uptime_info = result.stdout.strip()
                             logger.info(f"System uptime: {uptime_info}")
                         
-                        # Check firewall table status
                         result = subprocess.run(['pfctl', '-t', 'webguard_blocked', '-T', 'show'], 
                                               capture_output=True, text=True)
                         if result.returncode == 0:
@@ -1030,13 +1093,7 @@ def main():
                     except Exception as e:
                         logger.debug(f"Subprocess test failed: {e}")
                 
-                # Update statistics and demonstrate psutil usage
-                stats['requests_analyzed'] += 5  # Simulate processing requests
-                if loop_counter % 20 == 0:
-                    stats['threats_blocked'] += 1  # Simulate blocking threats
-                
-                # Monitor thread health using psutil
-                if psutil and loop_counter % 12 == 0:  # Every minute
+                if psutil and loop_counter % 12 == 0:
                     active_threads = sum(1 for t in threads if t.is_alive())
                     current_process = psutil.Process()
                     thread_count = current_process.num_threads()
@@ -1044,7 +1101,6 @@ def main():
                     logger.debug(f"Thread health: {active_threads}/{len(threads)} workers active, "
                                f"{thread_count} total threads")
                     
-                    # Restart dead threads
                     for i, thread in enumerate(threads):
                         if not thread.is_alive():
                             logger.warning(f"Thread {thread.name} died, restarting...")
@@ -1061,11 +1117,9 @@ def main():
                             new_thread.start()
                             threads[i] = new_thread
                 
-                # Save stats periodically
                 with open(STATS_FILE, 'w') as f:
                     json.dump(stats, f, indent=2, default=str)
                 
-                # Log status every 2 minutes
                 if loop_counter % 24 == 0:
                     active_threads = sum(1 for t in threads if t.is_alive())
                     logger.info(f"Engine status: {active_threads}/{len(threads)} threads active, "
@@ -1086,18 +1140,9 @@ def main():
         logger.error(f"Fatal error in main loop: {e}")
         return 1
     finally:
-        # Cleanup
         logger.info("Shutting down WebGuard Engine...")
         running = False
         
-        # Close capture sockets
-        for sock in capture_sockets:
-            try:
-                sock.close()
-            except:
-                pass
-        
-        # Close GeoIP database
         if geoip_reader:
             try:
                 geoip_reader.close()
@@ -1105,9 +1150,7 @@ def main():
             except Exception as e:
                 logger.error(f"Error closing GeoIP database: {e}")
         
-        # Final statistics update
         try:
-            # Use all the stat functions explicitly
             final_engine_stats = get_engine_stats()
             final_threat_stats = get_threat_stats('24h')
             final_blocking_stats = get_blocking_stats('24h')
@@ -1116,7 +1159,6 @@ def main():
             final_system_metrics = get_metrics()
             final_system_health = get_system_health()
             
-            # Get geo stats if available
             final_geo_stats = None
             if GEOIP_AVAILABLE:
                 final_geo_stats = get_geo_stats('24h')
@@ -1134,7 +1176,6 @@ def main():
             if final_geo_stats:
                 logger.info(f"  Geographic Stats: {final_geo_stats.get('total_countries', 0)} countries")
             
-            # Final psutil system stats
             if psutil:
                 final_cpu = psutil.cpu_percent()
                 final_memory = psutil.virtual_memory().percent
@@ -1144,7 +1185,6 @@ def main():
         except Exception as e:
             logger.error(f"Error in final statistics: {e}")
         
-        # Close database
         if db:
             try:
                 with db_lock:
@@ -1153,7 +1193,6 @@ def main():
             except Exception as e:
                 logger.error(f"Error closing database: {e}")
         
-        # Remove PID file
         if os.path.exists(PID_FILE):
             try:
                 os.remove(PID_FILE)
@@ -1161,10 +1200,10 @@ def main():
             except Exception as e:
                 logger.error(f"Error removing PID file: {e}")
         
-        # Log shutdown with all imported modules used
         logger.info("=" * 50)
         logger.info("WebGuard Engine stopped successfully")
         logger.info("All libraries utilized:")
+        logger.info("  - scapy: Packet capture and analysis")
         logger.info("  - socket: Network communication and connectivity tests")
         logger.info("  - subprocess: System command execution and firewall management")
         logger.info("  - struct: Binary data packing/unpacking for statistics")
