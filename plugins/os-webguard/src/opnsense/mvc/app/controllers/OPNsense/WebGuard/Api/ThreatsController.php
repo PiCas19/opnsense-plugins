@@ -117,36 +117,36 @@ class ThreatsController extends ApiControllerBase
         return ['status' => 'ok', 'recent_threats' => [], 'last_id' => $sinceId];
     }
 
-    /**
+   /**
      * Get threat details by ID
      * @param string $id
      * @return array
      */
     public function getDetailAction($id = null)
     {
-        if ($this->request->isGet() && !empty($id)) {
-            $backend = new Backend();
-            $out = trim($backend->configdpRun('webguard', ['get_threat_detail', $id]));
-            
-            if ($out && $out !== '') {
-                $threat = json_decode($out, true);
-                if (is_array($threat)) {
-                    return [
-                        "result" => "ok",
-                        "threat" => $threat
-                    ];
-                }
+        if (!$this->request->isGet() || empty($id)) {
+            return ["result" => "failed", "message" => "Threat ID required"];
+        }
+
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['get_threat_detail', $id]));
+        
+        if ($out && $out !== '') {
+            $threat = json_decode($out, true);
+            if (is_array($threat) && !isset($threat['error'])) {
+                return [
+                    "result" => "ok",
+                    "threat" => $threat
+                ];
             }
-            
-            // FALLBACK: Genera dettagli di esempio
-            return [
-                "result" => "ok",
-                "threat" => $this->generateSampleThreatDetail($id),
-                "fallback" => true
-            ];
         }
         
-        return ["result" => "failed", "message" => "Threat ID required"];
+        // FALLBACK: Genera dettagli di esempio con struttura corretta
+        return [
+            "result" => "ok",
+            "threat" => $this->generateSampleThreatDetail($id),
+            "fallback" => true
+        ];
     }
 
     /**

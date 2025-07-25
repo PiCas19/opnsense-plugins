@@ -372,7 +372,8 @@ $(document).ready(function() {
                     const threatId = threat.id || threat.threat_id;
                     const sourceIp = threat.source_ip || threat.ip_address;
                     const threatType = threat.threat_type || threat.type;
-                    const url = threat.url || threat.target || threat.description || '-';
+                    // Revert to original logic, replace '-' with 'N/A'
+                    const target = threat.url || threat.target || threat.description || 'N/A';
                     
                     const row = $(`
                         <tr>
@@ -380,7 +381,7 @@ $(document).ready(function() {
                             <td><code>${sourceIp}</code></td>
                             <td>${threatType}</td>
                             <td><span class="badge ${severityClass}">${threat.severity || 'low'}</span></td>
-                            <td>${url}</td>
+                            <td>${target}</td>
                             <td>
                                 <button class="btn btn-sm btn-primary view-threat-btn" data-threat-id="${threatId}">
                                     <i class="fa fa-eye"></i>
@@ -394,7 +395,7 @@ $(document).ready(function() {
                     tbody.append(row);
                 });
                 
-                // Event listeners per i pulsanti
+                // Event listeners for buttons
                 $('.view-threat-btn').off('click').on('click', function () {
                     const threatId = $(this).data('threat-id');
                     console.log('Viewing threat ID:', threatId);
@@ -490,7 +491,6 @@ $(document).ready(function() {
             `);
         });
     }
-
     // Funzione per visualizzare i dettagli della minaccia
     function displayThreatDetail(threat) {
         let html = '<div class="threat-detail-section">';
@@ -500,7 +500,7 @@ $(document).ready(function() {
         html += '<div class="col-md-6"><strong>{{ lang._("Source IP") }}:</strong> ' + (threat.source_ip || threat.ip_address) + '</div>';
         html += '<div class="col-md-6"><strong>{{ lang._("Type") }}:</strong> ' + (threat.type || threat.threat_type) + '</div>';
         html += '<div class="col-md-6"><strong>{{ lang._("Severity") }}:</strong> <span class="badge ' + getSeverityClass(threat.severity) + '">' + (threat.severity || 'low') + '</span></div>';
-        html += '<div class="col-md-6"><strong>{{ lang._("Target") }}:</strong> ' + (threat.target || threat.url || '-') + '</div>';
+        html += '<div class="col-md-6"><strong>{{ lang._("Target") }}:</strong> ' + (threat.target || threat.url || 'N/A') + '</div>';
         html += '<div class="col-md-6"><strong>{{ lang._("Method") }}:</strong> ' + (threat.method || 'GET') + '</div>';
         html += '<div class="col-md-6"><strong>{{ lang._("Status") }}:</strong> ' + (threat.status || 'logged').toUpperCase() + '</div>';
         html += '<div class="col-md-6"><strong>{{ lang._("Score") }}:</strong> ' + (threat.score || 0) + '</div>';
@@ -548,7 +548,7 @@ $(document).ready(function() {
                     const item = $(`
                         <div class="threat-feed-item ${threat.severity}">
                             <div class="threat-feed-time">${formatTimeFromISO(threat.timestamp)}</div>
-                            <strong>${threat.type}</strong> from ${threat.source_ip} → ${threat.description}
+                            <strong>${threat.type}</strong> from ${threat.source_ip} → ${threat.target}
                         </div>
                     `);
                     feed.prepend(item);
