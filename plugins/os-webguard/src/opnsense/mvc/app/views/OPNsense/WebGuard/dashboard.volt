@@ -781,14 +781,12 @@ $(document).ready(function() {
     display: flex;
     align-items: center;
     text-decoration: none;
-    color: #ffc107; /* Marrone/rosso come nell'immagine */
     font-size: 0.95rem;
 }
 
 .quick-nav-controls .nav-icon {
     font-size: 1.2rem;
     margin-right: 0.75rem;
-    color: #ffc107; /* stesso colore per l'icona */
     flex-shrink: 0;
 }
 
