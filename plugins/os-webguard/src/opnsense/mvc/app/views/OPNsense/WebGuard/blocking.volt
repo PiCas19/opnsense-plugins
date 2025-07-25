@@ -1307,11 +1307,10 @@ $(function() {
     }
 
     function loadFalsePositives() {
-        ajaxGet('/api/webguard/threats/getFalsePositives', {}, function(data) {
+        ajaxGet('/api/webguard/service/getThreatFalsePositives', {}, function(data) {
             let tbody = $('#false-positives-table tbody').empty();
-
-            if (data && data.status === 'ok' && data.data && data.data.threats) {
-                const arr = data.data.threats;
+            if (data && data.threats) {
+                const arr = data.threats;
                 if (arr.length) {
                     arr.forEach(function(item) {
                         let severityClass = {
@@ -1319,16 +1318,20 @@ $(function() {
                             'medium': 'warning',
                             'low': 'info'
                         }[item.severity] || 'info';
-                        let reason = item.description.match(/\[FALSE POSITIVE: (.*?)\]/) ? item.description.match(/\[FALSE POSITIVE: (.*?)\]/)[1] : 'No reason';
+                        
+                        let reason = item.description.match(/\[FALSE POSITIVE: (.*?)\]/) ? 
+                            item.description.match(/\[FALSE POSITIVE: (.*?)\]/)[1] : 'No reason';
+                        
                         let row = $('<tr>');
                         row.append('<td><strong>' + (item.ip_address || '-') + '</strong></td>');
                         row.append('<td>' + (item.threat_type || 'Unknown') + '</td>');
-                        row.append('<td><span class="label label-' + severityClass + '">' + (item.severity || 'LOW').toUpperCase() + '</span></td>');
+                        row.append('<td><span class="label label-' + severityClass + '">' + 
+                            (item.severity || 'LOW').toUpperCase() + '</span></td>');
                         row.append('<td>' + formatDate(item.first_seen_iso) + '</td>');
                         row.append('<td>' + reason + '</td>');
                         row.append('<td>' +
-                            '<button class="btn btn-xs btn-warning mark-false-positive-btn" data-threat-id="' + item.id + '">' +
-                            '<i class="fa fa-times"></i> {{ lang._("Mark") }}</button> ' +
+                            '<button class="btn btn-xs btn-danger unmark-false-positive-btn" data-threat-id="' + item.id + '">' +
+                            '<i class="fa fa-undo"></i> {{ lang._("Unmark") }}</button> ' +
                             '<button class="btn btn-xs btn-info view-false-positive-btn" data-threat-id="' + item.id + '">' +
                             '<i class="fa fa-eye"></i> {{ lang._("View") }}</button>' +
                             '</td>');
@@ -1338,6 +1341,8 @@ $(function() {
                     tbody.append(createEmptyState('{{ lang._("No false positives found") }}', 'times-circle'));
                 }
             } else {
+                // DEBUG - mostra cosa arriva effettivamente
+                console.log('loadFalsePositives data:', data);
                 tbody.append(createErrorState('{{ lang._("Error loading false positives") }}'));
             }
         });
