@@ -44,8 +44,21 @@ sqlite3 "$DB_FILE" "CREATE TABLE blocked_ips (ip_address TEXT PRIMARY KEY, block
 echo "Creating whitelist table..."
 sqlite3 "$DB_FILE" "CREATE TABLE whitelist (ip_address TEXT PRIMARY KEY, description TEXT, added_at INTEGER, expires_at INTEGER, permanent INTEGER DEFAULT 1);"
 
-echo "Creating threats table..."  
-sqlite3 "$DB_FILE" "CREATE TABLE threats (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER, source_ip TEXT, target TEXT, type TEXT, severity TEXT, description TEXT, false_positive INTEGER DEFAULT 0, payload TEXT, method TEXT);"
+echo "Creating threats table..."
+sqlite3 "$DB_FILE" "CREATE TABLE threats (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp INTEGER,
+    source_ip TEXT,
+    target TEXT,
+    type TEXT,
+    severity TEXT,
+    description TEXT,
+    false_positive INTEGER DEFAULT 0,
+    payload TEXT,
+    method TEXT,
+    request_headers TEXT,
+    rule_matched TEXT
+);"
 
 # Insert sample data
 echo "Inserting sample data..."
@@ -58,21 +71,21 @@ sqlite3 "$DB_FILE" "INSERT INTO whitelist (ip_address, description, added_at, pe
 sqlite3 "$DB_FILE" "INSERT INTO threats (
     timestamp, source_ip, target, method, type, severity, description, payload, request_headers, rule_matched, false_positive
 ) VALUES (
-    $((CURRENT_TIME - 3600)), '192.168.1.200', '10.0.0.2', 'POST', 'SQL Injection', 'high',
+    $((CURRENT_TIME - 3600)), '192.168.1.200', '/admin/login.php', 'POST', 'SQL Injection', 'high',
     'SQL injection detected', ''' OR 1=1 --', '{}', 'rule_1', 0
 );"
 
 sqlite3 "$DB_FILE" "INSERT INTO threats (
     timestamp, source_ip, target, method, type, severity, description, payload, request_headers, rule_matched, false_positive
 ) VALUES (
-    $((CURRENT_TIME - 7200)), '10.0.0.50', '10.0.0.2', 'GET', 'XSS Attack', 'medium',
+    $((CURRENT_TIME - 7200)), '10.0.0.50', '/search?q=<script>', 'GET', 'XSS Attack', 'medium',
     'Cross-site scripting attempt', '<script>alert(\"xss\")</script>', '{}', 'rule_2', 0
 );"
 
 sqlite3 "$DB_FILE" "INSERT INTO threats (
     timestamp, source_ip, target, method, type, severity, description, payload, request_headers, rule_matched, false_positive
 ) VALUES (
-    $((CURRENT_TIME - 10800)), '172.16.0.25', '10.0.0.3', 'GET', 'Path Traversal', 'medium',
+    $((CURRENT_TIME - 10800)), '172.16.0.25', '/api/users', 'GET', 'Path Traversal', 'medium',
     'Directory traversal detected', '../../../etc/passwd', '{}', 'rule_3', 0
 );"
 
@@ -101,9 +114,9 @@ echo "[*] Installing Python dependencies..."
 $PY -m pip install -q psutil geoip2 requests || echo "pip install errors ignored"
 
 echo "[*] Downloading GeoIP2 database..."
-fetch -o "${GEOIP_DIR}/GeoLite2-Country.mmdb" \
-"https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-Country.mmdb" 2>/dev/null || \
-echo "Warning: GeoIP download failed"
+if ! fetch -o "${GEOIP_DIR}/GeoLite2-Country.mmdb" "https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-Country.mmdb" 2>/dev/null; then
+    echo "[!] Warning: GeoIP download failed. Manual download may be required from https://dev.maxmind.com/geoip/geoip2/geolite2/"
+fi
 
 # Check if update_rules.py exists and run it
 if [ -f "$UPDATER" ]; then
@@ -117,7 +130,7 @@ else
 fi
 
 echo "[*] Setting permissions..."
-chown -R root:wheel "$CONFIG_DIR" "$LOG_DIR" "$DB_DIR" "$GEOIP_DIR" 2>/dev/null || true
+chown -R root:wheel "$CONFIG_DIR" "$LOG_DIR" "$DB_DIR" "$GEOIP_DIR"
 chmod -R 755 "$CONFIG_DIR" "$LOG_DIR" "$DB_DIR"
 chmod 644 "$CONFIG_DIR"/*.json 2>/dev/null || true
 chmod 644 "$GEOIP_DIR"/*.mmdb 2>/dev/null || true
