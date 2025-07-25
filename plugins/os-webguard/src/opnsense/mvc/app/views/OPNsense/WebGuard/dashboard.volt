@@ -170,47 +170,47 @@
                     </button>
                 </div>
             </div>
-            <div class="col-md-6">
-                <!-- Quick Navigation -->
-                <div class="quick-nav-controls">
-                    <h3>{{ lang._('Threat Analysis') }}</h3>
-                    <div class="nav-grid">
-                        <a href="/ui/webguard/threats/stats" class="nav-item">
-                            <div class="nav-icon">
-                                <i class="fa fa-bar-chart"></i>
-                            </div>
-                            <div class="nav-content">
-                                <div class="nav-title">{{ lang._('Statistics') }}</div>
-                                <div class="nav-desc">{{ lang._('Detailed threat analytics') }}</div>
-                            </div>
-                        </a>
-                        
-                        <a href="/ui/webguard/threats/geo" class="nav-item">
-                            <div class="nav-icon">
-                                <i class="fa fa-globe"></i>
-                            </div>
-                            <div class="nav-content">
-                                <div class="nav-title">{{ lang._('Geographic') }}</div>
-                                <div class="nav-desc">{{ lang._('Geographic threat analysis') }}</div>
-                            </div>
-                        </a>
-                        
-                        <a href="/ui/webguard/threats/patterns" class="nav-item">
-                            <div class="nav-icon">
-                                <i class="fa fa-search"></i>
-                            </div>
-                            <div class="nav-content">
-                                <div class="nav-title">{{ lang._('Patterns') }}</div>
-                                <div class="nav-desc">{{ lang._('Attack pattern analysis') }}</div>
-                            </div>
-                        </a>
-                    </div>
+            
+            <!-- Quick Navigation -->
+            <div class="quick-nav-controls">
+                <h3>{{ lang._('Threat Analysis') }}</h3>
+                <div class="nav-grid">
+                    <a href="/ui/webguard/threats/stats" class="nav-item">
+                        <div class="nav-icon">
+                            <i class="fa fa-bar-chart"></i>
+                        </div>
+                        <div class="nav-content">
+                            <div class="nav-title">{{ lang._('Statistics') }}</div>
+                            <div class="nav-desc">{{ lang._('Detailed threat analytics') }}</div>
+                        </div>
+                    </a>
+                    
+                    <a href="/ui/webguard/threats/geo" class="nav-item">
+                        <div class="nav-icon">
+                            <i class="fa fa-globe"></i>
+                        </div>
+                        <div class="nav-content">
+                            <div class="nav-title">{{ lang._('Geographic') }}</div>
+                            <div class="nav-desc">{{ lang._('Geographic threat analysis') }}</div>
+                        </div>
+                    </a>
+                    
+                    <a href="/ui/webguard/threats/patterns" class="nav-item">
+                        <div class="nav-icon">
+                            <i class="fa fa-search"></i>
+                        </div>
+                        <div class="nav-content">
+                            <div class="nav-title">{{ lang._('Patterns') }}</div>
+                            <div class="nav-desc">{{ lang._('Attack pattern analysis') }}</div>
+                        </div>
+                    </a>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Threat Detail Modal -->
 <div class="modal fade" id="threatDetailModal" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
@@ -251,6 +251,7 @@ $(document).ready(function() {
     let lastThreatId = 0;
     let threatChart = null;
     let timelineChart = null;
+    let currentThreatId = null;
     
     // Initialize dashboard
     loadDashboardData();
@@ -354,7 +355,7 @@ $(document).ready(function() {
     function loadRecentThreatsFromStats() {
         // Fetch recent threats via dedicated API endpoint
         ajaxCall('/api/webguard/threats/getRecent', {}, function(response) {
-            console.log('Recent threats response:', response); // Debug log
+            console.log('Recent threats response:', response);
             
             const tbody = $('#threatTableBody');
             tbody.empty();
@@ -396,7 +397,7 @@ $(document).ready(function() {
                 // Event listeners per i pulsanti
                 $('.view-threat-btn').off('click').on('click', function () {
                     const threatId = $(this).data('threat-id');
-                    console.log('Viewing threat ID:', threatId); // Debug log
+                    console.log('Viewing threat ID:', threatId);
 
                     if (!threatId) {
                         showNotification('{{ lang._("Threat ID not found") }}', 'error');
@@ -412,7 +413,7 @@ $(document).ready(function() {
                         type: 'GET',
                         dataType: 'json',
                         success: function (data) {
-                            console.log('Threat detail response:', data); // Debug log
+                            console.log('Threat detail response:', data);
                             
                             if (data.result === 'ok' || data.status === 'ok') {
                                 const threat = data.threat || data.data;
@@ -466,7 +467,7 @@ $(document).ready(function() {
                 });
                 
             } else {
-                console.log('No threats found in response'); // Debug log
+                console.log('No threats found in response');
                 tbody.append(`
                     <tr>
                         <td colspan="6" class="text-center text-muted">
@@ -490,30 +491,7 @@ $(document).ready(function() {
         });
     }
 
-
-    function loadThreatFeedFromStats() {
-        // Use dedicated feed API endpoint
-        ajaxCall('/api/webguard/threats/getFeed', {sinceId: lastThreatId}, function(response) {
-            if (response.status === 'ok' && response.recent_threats && response.recent_threats.length) {
-                const feed = $('#threatFeed');
-                response.recent_threats.forEach(function(threat) {
-                    console.log('Processing threat:', threat);
-                    const item = $(`
-                        <div class="threat-feed-item ${threat.severity}">
-                            <div class="threat-feed-time">${formatTimeFromISO(threat.timestamp)}</div>
-                            <strong>${threat.type}</strong> from ${threat.source_ip} → ${threat.description}
-                        </div>
-                    `);
-                    feed.prepend(item);
-                });
-                lastThreatId = response.last_id;
-                // Keep only last 50 items
-                feed.children().slice(50).remove();
-            }
-        });
-    }
-
-
+    // Funzione per visualizzare i dettagli della minaccia
     function displayThreatDetail(threat) {
         let html = '<div class="threat-detail-section">';
         html += '<h5>{{ lang._("Basic Information") }}</h5>';
@@ -560,7 +538,27 @@ $(document).ready(function() {
         $('#threatDetailModal').modal('show');
     }
 
-
+    function loadThreatFeedFromStats() {
+        // Use dedicated feed API endpoint
+        ajaxCall('/api/webguard/threats/getFeed', {sinceId: lastThreatId}, function(response) {
+            if (response.status === 'ok' && response.recent_threats && response.recent_threats.length) {
+                const feed = $('#threatFeed');
+                response.recent_threats.forEach(function(threat) {
+                    console.log('Processing threat:', threat);
+                    const item = $(`
+                        <div class="threat-feed-item ${threat.severity}">
+                            <div class="threat-feed-time">${formatTimeFromISO(threat.timestamp)}</div>
+                            <strong>${threat.type}</strong> from ${threat.source_ip} → ${threat.description}
+                        </div>
+                    `);
+                    feed.prepend(item);
+                });
+                lastThreatId = response.last_id;
+                // Keep only last 50 items
+                feed.children().slice(50).remove();
+            }
+        });
+    }
 
     function initCharts() {
         // Initialize Threat Distribution Chart
@@ -698,22 +696,6 @@ $(document).ready(function() {
         });
     }
 
-    function viewThreatDetails(threatId) {
-        window.open('/ui/webguard/threats/detail/' + threatId, '_blank');
-    }
-
-    function blockSource(sourceIP) {
-        if (confirm(`{{ lang._("Are you sure you want to block IP") }} ${sourceIP}?`)) {
-            ajaxCall("/api/webguard/settings/blockIP", {ip: sourceIP}, function(data) {
-                if (data.result === 'ok' || data.status === 'ok') {
-                    showNotification(`{{ lang._("IP") }} ${sourceIP} {{ lang._("blocked successfully") }}`, 'success');
-                } else {
-                    showNotification(`{{ lang._("Failed to block IP") }}: ${data.message || '{{ lang._("Unknown error") }}'}`, 'error');
-                }
-            });
-        }
-    }
-
     function getSeverityClass(severity) {
         if (!severity || typeof severity !== 'string') return 'badge-secondary';
 
@@ -733,18 +715,16 @@ $(document).ready(function() {
     function formatTimeFromISO(timestamp) {
         if (!timestamp) return '--';
         try {
-            // Handle ISO string format from your data
             const date = new Date(timestamp);
             return date.toLocaleTimeString();
         } catch (e) {
-            return timestamp; // Return as-is if parsing fails
+            return timestamp;
         }
     }
 
     function formatTime(timestamp) {
         if (!timestamp) return '--';
         try {
-            // Handle both Unix timestamp and ISO string
             const date = typeof timestamp === 'string' ? new Date(timestamp) : new Date(timestamp * 1000);
             return date.toLocaleTimeString();
         } catch (e) {
@@ -771,12 +751,10 @@ $(document).ready(function() {
     function formatUptimeFromString(uptimeStr) {
         if (uptimeStr === 'Unknown' || uptimeStr === 'N/A') return uptimeStr;
         
-        // If it's already formatted, return as is
         if (uptimeStr.includes('d') || uptimeStr.includes('h') || uptimeStr.includes('m')) {
             return uptimeStr;
         }
         
-        // If it's a number, format it
         const seconds = parseInt(uptimeStr);
         if (!isNaN(seconds)) {
             return formatUptime(seconds);
@@ -900,6 +878,7 @@ $(document).ready(function() {
     border-radius: 8px;
     padding: 1.5rem;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 1rem;
 }
 
 .service-controls .btn {
@@ -930,6 +909,13 @@ $(document).ready(function() {
     margin-bottom: 2px;
 }
 
+.quick-nav-controls {
+    background: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
 .quick-nav-controls .nav-grid {
     display: flex;
     flex-direction: column;
@@ -941,12 +927,21 @@ $(document).ready(function() {
     align-items: center;
     text-decoration: none;
     font-size: 0.95rem;
+    padding: 10px;
+    border-radius: 5px;
+    transition: background-color 0.2s;
+}
+
+.quick-nav-controls .nav-item:hover {
+    background-color: #f8fafc;
+    text-decoration: none;
 }
 
 .quick-nav-controls .nav-icon {
     font-size: 1.2rem;
     margin-right: 0.75rem;
     flex-shrink: 0;
+    color: #2563eb;
 }
 
 .quick-nav-controls .nav-content {
@@ -958,14 +953,38 @@ $(document).ready(function() {
     font-weight: 600;
     font-size: 1rem;
     line-height: 1.2;
+    color: #1f2937;
 }
 
 .quick-nav-controls .nav-desc {
     font-size: 0.9rem;
     line-height: 1.2;
     opacity: 0.85;
+    color: #6b7280;
 }
 
+/* Threat Detail Modal Styles */
+.threat-detail-section {
+    margin-bottom: 20px;
+}
+
+.threat-detail-section h5 {
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 8px;
+    margin-bottom: 15px;
+    font-weight: 600;
+    color: #2d3748;
+}
+
+.threat-detail-section pre {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 15px;
+    font-size: 0.9rem;
+    max-height: 300px;
+    overflow-y: auto;
+}
 
 .badge-danger { background-color: #dc3545; }
 .badge-warning { background-color: #ffc107; color: #212529; }
