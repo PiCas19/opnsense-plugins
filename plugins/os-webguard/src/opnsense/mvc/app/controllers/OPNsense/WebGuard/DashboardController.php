@@ -24,7 +24,7 @@ class DashboardController extends IndexController
             $this->view->currentMode = (string)$mdlWebGuard->general->mode;
             
             // Imposta il titolo (gettext è ora disponibile)
-            $this->view->title = gettext("WebGuard Dashboard");
+            $this->view->title = gettext("WebGuard Security Dashboard");
             
         } catch (\Exception $e) {
             // Log dell'errore
@@ -34,7 +34,7 @@ class DashboardController extends IndexController
             $this->view->webguardModel = null;
             $this->view->isEnabled = false;
             $this->view->currentMode = 'learning';
-            $this->view->title = gettext("WebGuard Dashboard");
+            $this->view->title = gettext("WebGuard Security Dashboard");
             $this->view->error = $e->getMessage();
         }
         

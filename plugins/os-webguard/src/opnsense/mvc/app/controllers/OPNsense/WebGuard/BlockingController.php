@@ -18,6 +18,7 @@ class BlockingController extends IndexController
             $mdlWebGuard = new WebGuard();
             $this->view->webguardModel = $mdlWebGuard;
             $this->view->isEnabled = (string)$mdlWebGuard->general->enabled === '1';
+            $this->view->title = gettext("");
             
         } catch (\Exception $e) {
             error_log("WebGuard Blocking Error: " . $e->getMessage());

@@ -7,7 +7,6 @@
     <div class="row">
         <div class="col-md-12">
             <div class="dpi-header">
-                <h1>{{ lang._('WebGuard Security Dashboard') }}</h1>
                 <div class="service-status">
                     <span id="serviceStatus" class="badge badge-secondary">{{ lang._('Loading...') }}</span>
                 </div>
@@ -183,16 +182,6 @@
                             <div class="nav-content">
                                 <div class="nav-title">{{ lang._('Statistics') }}</div>
                                 <div class="nav-desc">{{ lang._('Detailed threat analytics') }}</div>
-                            </div>
-                        </a>
-                        
-                        <a href="/ui/webguard/threats/feed" class="nav-item">
-                            <div class="nav-icon">
-                                <i class="fa fa-rss"></i>
-                            </div>
-                            <div class="nav-content">
-                                <div class="nav-title">{{ lang._('Live Feed') }}</div>
-                                <div class="nav-desc">{{ lang._('Real-time threat monitoring') }}</div>
                             </div>
                         </a>
                         

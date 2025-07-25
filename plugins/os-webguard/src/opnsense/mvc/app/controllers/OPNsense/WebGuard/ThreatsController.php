@@ -28,7 +28,7 @@ class ThreatsController extends IndexController
             $this->view->webguardModel = $mdlWebGuard;
             $this->view->isEnabled = (string)$mdlWebGuard->general->enabled === '1';
             $this->view->currentMode = (string)$mdlWebGuard->general->mode;
-            $this->view->title = gettext("WebGuard Threat Analysis");
+            $this->view->title = gettext("");
             
             // Aggiungi informazioni aggiuntive per la pagina
             $this->view->threatDetection = $this->isThreatDetectionEnabled($mdlWebGuard);
@@ -115,38 +115,6 @@ class ThreatsController extends IndexController
         }
         
         $this->view->pick('OPNsense/WebGuard/threat_stats');
-    }
-    
-    /**
-     * Feed in tempo reale delle minacce
-     */
-    public function feedAction()
-    {
-        try {
-            $mdlWebGuard = new WebGuard();
-            
-            $this->view->webguardModel = $mdlWebGuard;
-            $this->view->isEnabled = (string)$mdlWebGuard->general->enabled === '1';
-            $this->view->currentMode = (string)$mdlWebGuard->general->mode;
-            $this->view->title = gettext("Real-time Threat Feed");
-            
-            // Configurazioni per il feed in tempo reale
-            $this->view->realTimeFeed = $this->isRealTimeFeedEnabled($mdlWebGuard);
-            $this->view->updateInterval = 5000; // 5 secondi fisso
-            
-        } catch (\Exception $e) {
-            error_log("WebGuard Threat Feed MVC Error: " . $e->getMessage());
-            
-            $this->view->webguardModel = null;
-            $this->view->isEnabled = false;
-            $this->view->currentMode = 'learning';
-            $this->view->realTimeFeed = false;
-            $this->view->updateInterval = 5000;
-            $this->view->error = $e->getMessage();
-            $this->view->title = gettext("Real-time Threat Feed");
-        }
-        
-        $this->view->pick('OPNsense/WebGuard/threat_feed');
     }
     
     /**
@@ -258,19 +226,6 @@ class ThreatsController extends IndexController
         }
     }
     
-    /**
-     * Verifica se il feed in tempo reale è abilitato
-     */
-    private function isRealTimeFeedEnabled($model)
-    {
-        try {
-            // Semplificato: se WebGuard è abilitato e non in learning mode
-            return (string)$model->general->enabled === '1' && 
-                   (string)$model->general->mode !== 'learning';
-        } catch (\Exception $e) {
-            return false;
-        }
-    }
     
     /**
      * Verifica se il geo-blocking è abilitato
