@@ -268,7 +268,6 @@
     <div class="row">
         <div class="col-md-12">
             <div class="dpi-header">
-                <h1>{{ lang._('Geographic Threat Analysis') }}</h1>
                 {% if not geoDatabase %}
                 <div class="alert alert-warning">
                     <i class="fa fa-exclamation-triangle"></i>

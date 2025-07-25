@@ -124,20 +124,26 @@ class ThreatsController extends IndexController
     {
         try {
             $mdlWebGuard = new WebGuard();
-            
+
             $this->view->webguardModel = $mdlWebGuard;
             $this->view->isEnabled = (string)$mdlWebGuard->general->enabled === '1';
             $this->view->currentMode = (string)$mdlWebGuard->general->mode;
             $this->view->geoBlocking = $this->isGeoBlockingEnabled($mdlWebGuard);
             $this->view->title = gettext("Geographic Threat Analysis");
-            
+
             // Configurazioni geografiche
             $this->view->geoDatabase = $this->isGeoDatabaseAvailable();
             $this->view->blockedCountries = []; // Lista vuota dato che non è nel modello
-            
+
+            // ✅ Aggiunta della Content-Security-Policy per permettere le tile di OpenStreetMap
+            $this->view->headMeta()->appendHttpEquiv(
+                'Content-Security-Policy',
+                "default-src 'self'; img-src 'self' data: blob: https://*.tile.openstreetmap.org;"
+            );
+
         } catch (\Exception $e) {
             error_log("WebGuard Geo Analysis MVC Error: " . $e->getMessage());
-            
+
             $this->view->webguardModel = null;
             $this->view->isEnabled = false;
             $this->view->currentMode = 'learning';
@@ -147,9 +153,10 @@ class ThreatsController extends IndexController
             $this->view->error = $e->getMessage();
             $this->view->title = gettext("Geographic Threat Analysis");
         }
-        
+
         $this->view->pick('OPNsense/WebGuard/threat_geo');
     }
+
     
     /**
      * Analisi dei pattern di attacco
