@@ -81,6 +81,41 @@ class ThreatsController extends ApiControllerBase
     }
 
     /**
+     * Get real-time threat feed
+     * @return array
+     */
+    public function getFeedAction()
+    {
+        if (!($this->request->isGet() || $this->request->isPost())) {
+            return ['status' => 'error', 'message' => 'GET or POST required'];
+        }
+        
+        $sinceId = (int)$this->request->getQuery('sinceId', 'int', 0);
+        $limit = max(1, (int)$this->request->getQuery('limit', 'int', 50));
+        if ($this->request->isPost()) {
+            $sinceId = (int)$this->request->getPost('sinceId', 'int', $sinceId);
+            $limit = max(1, (int)$this->request->getPost('limit', 'int', $limit));
+        }
+
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['get_threat_feed', (string)$sinceId, (string)$limit]));
+
+        if (!empty($out)) {
+            $data = json_decode($out, true);
+            if (is_array($data) && isset($data['feed'])) {
+                return [
+                    'status' => 'ok',
+                    'recent_threats' => $data['feed'],
+                    'last_id' => isset($data['lastId']) ? $data['lastId'] : $sinceId
+                ];
+            }
+        }
+        
+        // NESSUN FALLBACK - solo dati reali
+        return ['status' => 'ok', 'recent_threats' => [], 'last_id' => $sinceId];
+    }
+
+    /**
      * Get threat details by ID
      * @param string $id
      * @return array
@@ -497,6 +532,185 @@ class ThreatsController extends ApiControllerBase
         }
         
         return ["result" => "failed", "message" => "Failed to block IP"];
+    }
+
+    public function unmarkFalsePositiveAction($id = null)
+    {
+        if ($this->request->isPost() && !empty($id)) {
+            $comment = $this->request->getPost('comment', 'string', '');
+            $backend = new Backend();
+            $out = trim($backend->configdpRun('webguard', ['unmark_false_positive', $id, $comment]));
+            if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false || empty($out)) {
+                return ['status' => 'ok', 'message' => 'Threat unmarked as false positive'];
+            }
+        }
+        return ['status' => 'failed', 'message' => 'Failed to unmark threat as false positive'];
+    }
+
+    public function createRuleAction($id = null)
+    {
+        if ($this->request->isPost() && !empty($id)) {
+            $ruleName = $this->request->getPost('rule_name', 'string', '');
+            $ruleDescription = $this->request->getPost('rule_description', 'string', '');
+            $action = $this->request->getPost('action', 'string', 'block');
+            
+            if (!empty($ruleName)) {
+                $backend = new Backend();
+                $out = trim($backend->configdpRun('webguard', [
+                    'create_rule_from_threat', 
+                    $id, 
+                    $ruleName, 
+                    $ruleDescription, 
+                    $action
+                ]));
+                
+                if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false || empty($out)) {
+                    return [
+                        "result" => "ok",
+                        "message" => "Custom rule created successfully"
+                    ];
+                }
+            } else {
+                return ["result" => "failed", "message" => "Rule name is required"];
+            }
+        }
+        
+        return ["result" => "failed", "message" => "Failed to create custom rule"];
+    }
+
+    public function exportAction()
+    {
+        if ($this->request->isGet()) {
+            $format = $this->request->getQuery('format', 'string', 'json');
+            $startDate = $this->request->getQuery('start_date', 'string', '');
+            $endDate = $this->request->getQuery('end_date', 'string', '');
+            $severity = $this->request->getQuery('severity', 'string', '');
+            $type = $this->request->getQuery('type', 'string', '');
+
+            $backend = new Backend();
+            $out = trim($backend->configdpRun('webguard', [
+                'export_threats',
+                $format,
+                $startDate,
+                $endDate,
+                $severity,
+                $type
+            ]));
+            
+            if ($out && $out !== '') {
+                $filename = 'webguard_threats_' . date('Y-m-d_H-i-s') . '.' . $format;
+                
+                return [
+                    "result" => "ok",
+                    "data" => $out,
+                    "filename" => $filename,
+                    "format" => $format
+                ];
+            }
+        }
+        
+        return ["result" => "failed", "message" => "No data to export"];
+    }
+
+    public function getGeoStatsAction()
+    {
+        if ($this->request->isGet()) {
+            $period = $this->request->getQuery('period', 'string', '24h');
+            
+            $backend = new Backend();
+            $out = trim($backend->configdpRun('webguard', ['get_geo_stats', $period]));
+            
+            if ($out && $out !== '') {
+                $geoStats = json_decode($out, true);
+                if (is_array($geoStats)) {
+                    return $geoStats;
+                }
+            }
+        }
+        
+        return [
+            'countries' => [],
+            'total_countries' => 0,
+            'top_countries' => []
+        ];
+    }
+
+    public function getPatternsAction()
+    {
+        if ($this->request->isGet()) {
+            $period = $this->request->getQuery('period', 'string', '7d');
+            $patternType = $this->request->getQuery('pattern_type', 'string', 'all');
+            
+            $backend = new Backend();
+            $out = trim($backend->configdpRun('webguard', ['get_attack_patterns', $period, $patternType]));
+            
+            if ($out && $out !== '') {
+                $patterns = json_decode($out, true);
+                if (is_array($patterns)) {
+                    return $patterns;
+                }
+            }
+        }
+        
+        return [
+            'patterns' => [],
+            'trending_attacks' => [],
+            'attack_sequences' => []
+        ];
+    }
+
+    public function clearOldAction()
+    {
+        if ($this->request->isPost()) {
+            $daysOld = $this->request->getPost('days_old', 'int', 30);
+            $keepCritical = $this->request->getPost('keep_critical', 'string', 'true');
+            
+            if ($daysOld > 0) {
+                $backend = new Backend();
+                $out = trim($backend->configdpRun('webguard', ['clear_old_threats', (string)$daysOld, $keepCritical]));
+                
+                if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false || empty($out)) {
+                    return [
+                        "result" => "ok",
+                        "message" => "Old threats cleared successfully"
+                    ];
+                }
+            } else {
+                return ["result" => "failed", "message" => "Invalid days_old parameter"];
+            }
+        }
+        
+        return ["result" => "failed", "message" => "Failed to clear old threats"];
+    }
+
+    public function getFalsePositivesAction()
+    {
+        if (!$this->request->isGet()) {
+            return ['status' => 'error', 'message' => 'GET required'];
+        }
+        $page = max(1, (int)$this->request->getQuery('page', 'int', 1));
+
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['get_threat_false_positive', (string)$page]));
+
+        if ($out !== '') {
+            $data = json_decode($out, true);
+            if (is_array($data) && isset($data['threats'])) {
+                return [
+                    'status' => 'ok',
+                    'threats' => $data['threats'],
+                    'total'   => isset($data['total']) ? (int)$data['total'] : count($data['threats']),
+                    'page'    => $page
+                ];
+            }
+        }
+
+        return [
+            'status'  => 'ok',
+            'threats' => [],
+            'total'   => 0,
+            'page'    => $page
+        ];
     }
 
     /* ===== UTILITY METHODS ===== */
