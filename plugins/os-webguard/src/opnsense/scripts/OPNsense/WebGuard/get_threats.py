@@ -11,9 +11,14 @@ import json
 import sqlite3
 import os
 import time
+import logging
 from datetime import datetime
 
 DB_FILE = '/var/db/webguard/webguard.db'
+
+# Configure logging
+logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 def get_threats(period='24h', limit=100, offset=0):
     """Get threats with pagination"""
@@ -21,36 +26,86 @@ def get_threats(period='24h', limit=100, offset=0):
         return {'error': 'Database not found'}
     
     try:
-        conn = sqlite3.connect(DB_FILE)
-        
-        # Calculate time range
-        if period == '1h':
-            start_time = int(time.time() - 3600)
-        elif period == '24h':
-            start_time = int(time.time() - 86400)
-        elif period == '7d':
-            start_time = int(time.time() - 604800)
-        elif period == '30d':
-            start_time = int(time.time() - 2592000)
-        else:
-            start_time = int(time.time() - 86400)
-        
-        # Get total count
-        cursor = conn.execute('SELECT COUNT(*) FROM threats WHERE timestamp >= ?', (start_time,))
-        total = cursor.fetchone()[0]
-        
-        # Get threats
-        cursor = conn.execute('''
-            SELECT id, timestamp, source_ip, target, method, type, severity, status, 
-                   score, payload, request_headers, rule_matched, description, false_positive
-            FROM threats 
-            WHERE timestamp >= ? 
-            ORDER BY timestamp DESC 
-            LIMIT ? OFFSET ?
-        ''', (start_time, limit, offset))
-        
-        threats = []
-        for row in cursor.fetchall():
+        with sqlite3.connect(DB_FILE) as conn:
+            # Calculate time range
+            if period == '1h':
+                start_time = int(time.time() - 3600)
+            elif period == '24h':
+                start_time = int(time.time() - 86400)
+            elif period == '7d':
+                start_time = int(time.time() - 604800)
+            elif period == '30d':
+                start_time = int(time.time() - 2592000)
+            else:
+                start_time = int(time.time() - 86400)
+            
+            # Get total count
+            cursor = conn.execute('SELECT COUNT(*) FROM threats WHERE timestamp >= ?', (start_time,))
+            total = cursor.fetchone()[0]
+            
+            # Get threats
+            cursor = conn.execute('''
+                SELECT id, timestamp, source_ip, target, method, type, severity, status, 
+                       score, payload, request_headers, rule_matched, description, false_positive
+                FROM threats 
+                WHERE timestamp >= ? 
+                ORDER BY timestamp DESC 
+                LIMIT ? OFFSET ?
+            ''', (start_time, limit, offset))
+            
+            threats = []
+            for row in cursor.fetchall():
+                threat = {
+                    'id': row[0],
+                    'timestamp': row[1],
+                    'timestamp_iso': datetime.fromtimestamp(row[1]).isoformat(),
+                    'source_ip': row[2],
+                    'target': row[3],
+                    'method': row[4],
+                    'type': row[5],
+                    'severity': row[6],
+                    'status': row[7],
+                    'score': row[8],
+                    'payload': row[9],
+                    'request_headers': row[10],
+                    'rule_matched': row[11],
+                    'description': row[12],
+                    'false_positive': bool(row[13])
+                }
+                threats.append(threat)
+            
+            result = {
+                'threats': threats,
+                'total': total,
+                'limit': limit,
+                'offset': offset,
+                'period': period
+            }
+            
+            return result
+            
+    except Exception as e:
+        logger.error(f'Failed to get threats: {e}')
+        return {'error': f'Failed to get threats: {e}'}
+
+def get_threat_detail(threat_id):
+    """Get detailed information about a specific threat"""
+    if not os.path.exists(DB_FILE):
+        return {'error': 'Database not found'}
+    
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.execute('''
+                SELECT id, timestamp, source_ip, target, method, type, severity, description,
+                       false_positive, payload
+                FROM threats 
+                WHERE id = ?
+            ''', (threat_id,))
+            
+            row = cursor.fetchone()
+            if not row:
+                return {'error': 'Threat not found'}
+            
             threat = {
                 'id': row[0],
                 'timestamp': row[1],
@@ -60,77 +115,24 @@ def get_threats(period='24h', limit=100, offset=0):
                 'method': row[4],
                 'type': row[5],
                 'severity': row[6],
-                'status': row[7],
-                'score': row[8],
-                'payload': row[9],
-                'request_headers': row[10],
-                'rule_matched': row[11],
-                'description': row[12],
-                'false_positive': bool(row[13])
+                'description': row[7],
+                'false_positive': bool(row[8]),
+                'payload': row[9]
             }
-            threats.append(threat)
-        
-        result = {
-            'threats': threats,
-            'total': total,
-            'limit': limit,
-            'offset': offset,
-            'period': period
-        }
-        
-        conn.close()
-        return result
-        
+            
+            # Get related threats from same IP in last 24h
+            cursor = conn.execute('''
+                SELECT COUNT(*) FROM threats 
+                WHERE source_ip = ? AND timestamp >= ?
+            ''', (row[2], int(time.time() - 86400)))
+            
+            threat['related_count'] = cursor.fetchone()[0]
+            
+            return threat
+            
     except Exception as e:
-        return {'error': f'Failed to get threats: {e}'}
-
-def get_threat_detail(threat_id):
-    """Get detailed information about a specific threat"""
-    if not os.path.exists(DB_FILE):
-        return {'error': 'Database not found'}
-    
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        
-        cursor = conn.execute('''
-            SELECT id, timestamp, source_ip, method, type, severity, description,
-                   false_positive, payload
-            FROM threats 
-            WHERE id = ?
-        ''', (threat_id,))
-        
-        row = cursor.fetchone()
-        if not row:
-            conn.close()
-            return {'error': 'Threat not found'}
-        
-        threat = {
-            'id': row[0],
-            'timestamp': row[1],
-            'timestamp_iso': datetime.fromtimestamp(row[1]).isoformat(),
-            'source_ip': row[2],
-            'method': row[3],
-            'type': row[4],
-            'severity': row[5],
-            'description': row[6],
-            'false_positive': bool(row[7]),
-            'payload': row[8],
-        }
-        
-        # Get related threats from same IP in last 24h
-        cursor = conn.execute('''
-            SELECT COUNT(*) FROM threats 
-            WHERE source_ip = ? AND timestamp >= ?
-        ''', (row[2], int(time.time() - 86400)))
-        
-        threat['related_count'] = cursor.fetchone()[0]
-        
-        conn.close()
-        return threat
-        
-    except Exception as e:
+        logger.error(f'Failed to get threat detail: {e}')
         return {'error': f'Failed to get threat detail: {e}'}
-
 
 def get_threat_feed(feed_type='recent', limit=50):
     """Get threat feed data"""
@@ -138,56 +140,56 @@ def get_threat_feed(feed_type='recent', limit=50):
         return {'error': 'Database not found'}
     
     try:
-        conn = sqlite3.connect(DB_FILE)
-        
-        if feed_type == 'recent':
-            cursor = conn.execute('''
-                SELECT id, timestamp, source_ip, type, severity, description
-                FROM threats 
-                ORDER BY timestamp DESC 
-                LIMIT ?
-            ''', (limit,))
-        elif feed_type == 'critical':
-            cursor = conn.execute('''
-                SELECT id, timestamp, source_ip, type, severity, description
-                FROM threats 
-                WHERE severity = 'critical'
-                ORDER BY timestamp DESC 
-                LIMIT ?
-            ''', (limit,))
-        elif feed_type == 'high':
-            cursor = conn.execute('''
-                SELECT id, timestamp, source_ip, type, severity, description
-                FROM threats 
-                WHERE severity IN ('critical', 'high')
-                ORDER BY timestamp DESC 
-                LIMIT ?
-            ''', (limit,))
-        else:
-            cursor = conn.execute('''
-                SELECT id, timestamp, source_ip, type, severity, description
-                FROM threats 
-                ORDER BY timestamp DESC 
-                LIMIT ?
-            ''', (limit,))
-        
-        feed = []
-        for row in cursor.fetchall():
-            item = {
-                'id': row[0],
-                'timestamp': row[1],
-                'timestamp_iso': datetime.fromtimestamp(row[1]).isoformat(),
-                'source_ip': row[2],
-                'type': row[3],
-                'severity': row[4],
-                'description': row[5]
-            }
-            feed.append(item)
-        
-        conn.close()
-        return {'feed': feed, 'type': feed_type, 'count': len(feed)}
-        
+        with sqlite3.connect(DB_FILE) as conn:
+            if feed_type == 'recent':
+                cursor = conn.execute('''
+                    SELECT id, timestamp, source_ip, target, type, severity, description
+                    FROM threats 
+                    ORDER BY timestamp DESC 
+                    LIMIT ?
+                ''', (limit,))
+            elif feed_type == 'critical':
+                cursor = conn.execute('''
+                    SELECT id, timestamp, source_ip, target, type, severity, description
+                    FROM threats 
+                    WHERE severity = 'critical'
+                    ORDER BY timestamp DESC 
+                    LIMIT ?
+                ''', (limit,))
+            elif feed_type == 'high':
+                cursor = conn.execute('''
+                    SELECT id, timestamp, source_ip, target, type, severity, description
+                    FROM threats 
+                    WHERE severity IN ('critical', 'high')
+                    ORDER BY timestamp DESC 
+                    LIMIT ?
+                ''', (limit,))
+            else:
+                cursor = conn.execute('''
+                    SELECT id, timestamp, source_ip, target, type, severity, description
+                    FROM threats 
+                    ORDER BY timestamp DESC 
+                    LIMIT ?
+                ''', (limit,))
+            
+            feed = []
+            for row in cursor.fetchall():
+                item = {
+                    'id': row[0],
+                    'timestamp': row[1],
+                    'timestamp_iso': datetime.fromtimestamp(row[1]).isoformat(),
+                    'source_ip': row[2],
+                    'target': row[3],
+                    'type': row[4],
+                    'severity': row[5],
+                    'description': row[6]
+                }
+                feed.append(item)
+            
+            return {'feed': feed, 'type': feed_type, 'count': len(feed)}
+            
     except Exception as e:
+        logger.error(f'Failed to get threat feed: {e}')
         return {'error': f'Failed to get threat feed: {e}'}
 
 def get_attack_patterns(period='24h', pattern_type='all'):
@@ -196,72 +198,71 @@ def get_attack_patterns(period='24h', pattern_type='all'):
         return {'error': 'Database not found'}
     
     try:
-        conn = sqlite3.connect(DB_FILE)
-        
-        # Calculate time range
-        if period == '24h':
-            start_time = int(time.time() - 86400)
-        elif period == '7d':
-            start_time = int(time.time() - 604800)
-        else:
-            start_time = int(time.time() - 86400)
-        
-        patterns = {}
-        
-        # Pattern by type
-        cursor = conn.execute('''
-            SELECT type, COUNT(*) as count, AVG(score) as avg_score
-            FROM threats 
-            WHERE timestamp >= ?
-            GROUP BY type
-            ORDER BY count DESC
-        ''', (start_time,))
-        
-        patterns['by_type'] = []
-        for row in cursor.fetchall():
-            patterns['by_type'].append({
-                'type': row[0],
-                'count': row[1],
-                'avg_score': round(row[2], 2) if row[2] else 0
-            })
-        
-        # Pattern by hour
-        cursor = conn.execute('''
-            SELECT strftime('%H', datetime(timestamp, 'unixepoch')) as hour, 
-                   COUNT(*) as count
-            FROM threats 
-            WHERE timestamp >= ?
-            GROUP BY hour
-            ORDER BY hour
-        ''', (start_time,))
-        
-        patterns['by_hour'] = []
-        for row in cursor.fetchall():
-            patterns['by_hour'].append({
-                'hour': int(row[0]),
-                'count': row[1]
-            })
-        
-        # Pattern by severity
-        cursor = conn.execute('''
-            SELECT severity, COUNT(*) as count
-            FROM threats 
-            WHERE timestamp >= ?
-            GROUP BY severity
-            ORDER BY count DESC
-        ''', (start_time,))
-        
-        patterns['by_severity'] = []
-        for row in cursor.fetchall():
-            patterns['by_severity'].append({
-                'severity': row[0],
-                'count': row[1]
-            })
-        
-        conn.close()
-        return patterns
-        
+        with sqlite3.connect(DB_FILE) as conn:
+            # Calculate time range
+            if period == '24h':
+                start_time = int(time.time() - 86400)
+            elif period == '7d':
+                start_time = int(time.time() - 604800)
+            else:
+                start_time = int(time.time() - 86400)
+            
+            patterns = {}
+            
+            # Pattern by type
+            cursor = conn.execute('''
+                SELECT type, COUNT(*) as count, AVG(score) as avg_score
+                FROM threats 
+                WHERE timestamp >= ?
+                GROUP BY type
+                ORDER BY count DESC
+            ''', (start_time,))
+            
+            patterns['by_type'] = []
+            for row in cursor.fetchall():
+                patterns['by_type'].append({
+                    'type': row[0],
+                    'count': row[1],
+                    'avg_score': round(row[2], 2) if row[2] else 0
+                })
+            
+            # Pattern by hour
+            cursor = conn.execute('''
+                SELECT strftime('%H', datetime(timestamp, 'unixepoch')) as hour, 
+                       COUNT(*) as count
+                FROM threats 
+                WHERE timestamp >= ?
+                GROUP BY hour
+                ORDER BY hour
+            ''', (start_time,))
+            
+            patterns['by_hour'] = []
+            for row in cursor.fetchall():
+                patterns['by_hour'].append({
+                    'hour': int(row[0]),
+                    'count': row[1]
+                })
+            
+            # Pattern by severity
+            cursor = conn.execute('''
+                SELECT severity, COUNT(*) as count
+                FROM threats 
+                WHERE timestamp >= ?
+                GROUP BY severity
+                ORDER BY count DESC
+            ''', (start_time,))
+            
+            patterns['by_severity'] = []
+            for row in cursor.fetchall():
+                patterns['by_severity'].append({
+                    'severity': row[0],
+                    'count': row[1]
+                })
+            
+            return patterns
+            
     except Exception as e:
+        logger.error(f'Failed to get attack patterns: {e}')
         return {'error': f'Failed to get attack patterns: {e}'}
 
 def export_threats(format='json', period='24h'):

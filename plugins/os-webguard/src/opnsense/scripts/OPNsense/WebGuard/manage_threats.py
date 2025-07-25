@@ -18,12 +18,10 @@ DB_FILE = '/var/db/webguard/webguard.db'
 def init_database():
     """Initialize database connection with auto-creation"""
     try:
-        # Create directory if it doesn't exist
         os.makedirs(os.path.dirname(DB_FILE), exist_ok=True)
         
         conn = sqlite3.connect(DB_FILE)
         
-        # Create tables if they don't exist
         conn.execute('''
             CREATE TABLE IF NOT EXISTS threats (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -78,13 +76,11 @@ def get_threats(page=1):
         limit = 50
         offset = (int(page) - 1) * limit
         
-        # Get total count
         cursor = conn.execute('SELECT COUNT(*) FROM threats WHERE false_positive = 0')
         total = cursor.fetchone()[0]
         
-        # Get threats with pagination
         cursor = conn.execute('''
-            SELECT id, timestamp, source_ip, type, severity, description, payload, method
+            SELECT id, timestamp, source_ip, target, type, severity, description, payload, method
             FROM threats 
             WHERE false_positive = 0
             ORDER BY timestamp DESC
@@ -93,11 +89,12 @@ def get_threats(page=1):
         
         threats = []
         for row in cursor.fetchall():
-            threat_id, timestamp, source_ip, threat_type, severity, description, payload, method = row
+            threat_id, timestamp, source_ip, target, threat_type, severity, description, payload, method = row
             
             threats.append({
                 'id': threat_id,
                 'ip_address': source_ip,
+                'target': target,
                 'threat_type': threat_type,
                 'severity': severity,
                 'description': description,
@@ -132,14 +129,12 @@ def mark_false_positive(threat_id, reason=''):
         if not conn:
             return False
         
-        # Check if threat exists
         cursor = conn.execute('SELECT COUNT(*) FROM threats WHERE id = ?', (threat_id,))
         if cursor.fetchone()[0] == 0:
             print(f"ERROR: Threat {threat_id} not found")
             conn.close()
             return False
         
-        # Mark as false positive
         conn.execute('''
             UPDATE threats 
             SET false_positive = 1, description = description || ? 
@@ -163,7 +158,6 @@ def whitelist_ip_from_threat(threat_id, description='Added from threat', permane
         if not conn:
             return False
         
-        # Get threat IP
         cursor = conn.execute('SELECT source_ip FROM threats WHERE id = ?', (threat_id,))
         row = cursor.fetchone()
         if not row:
@@ -174,7 +168,6 @@ def whitelist_ip_from_threat(threat_id, description='Added from threat', permane
         ip_address = row[0]
         current_time = int(time.time())
         
-        # Add to whitelist
         conn.execute('''
             INSERT OR REPLACE INTO whitelist 
             (ip_address, description, added_at, expires_at, permanent)
@@ -198,7 +191,6 @@ def block_ip_from_threat(threat_id, duration=3600, reason='Blocked from threat')
         if not conn:
             return False
         
-        # Get threat IP
         cursor = conn.execute('SELECT source_ip FROM threats WHERE id = ?', (threat_id,))
         row = cursor.fetchone()
         if not row:
@@ -210,7 +202,6 @@ def block_ip_from_threat(threat_id, duration=3600, reason='Blocked from threat')
         current_time = int(time.time())
         expires_at = current_time + int(duration) if int(duration) > 0 else None
         
-        # Add to blocked IPs
         conn.execute('''
             INSERT OR REPLACE INTO blocked_ips 
             (ip_address, block_type, blocked_since, expires_at, reason, violations, last_violation)
@@ -234,7 +225,6 @@ def create_rule_from_threat(threat_id, rule_name, rule_type='custom', enabled='1
         if not conn:
             return False
         
-        # Get threat details
         cursor = conn.execute('''
             SELECT source_ip, payload, type, method FROM threats WHERE id = ?
         ''', (threat_id,))
@@ -246,14 +236,11 @@ def create_rule_from_threat(threat_id, rule_name, rule_type='custom', enabled='1
         
         source_ip, payload, threat_type, method = row
         
-        # Create rule pattern from payload
         if payload:
-            # Simple pattern creation (in production, this would be more sophisticated)
             pattern = payload[:100].replace('(', '\\(').replace(')', '\\)').replace('[', '\\[').replace(']', '\\]')
         else:
             pattern = f"threat_type_{threat_type}"
         
-        # Save rule (simplified - would integrate with WAF rules system)
         rule_data = {
             'id': int(time.time()),
             'name': rule_name,
@@ -264,7 +251,6 @@ def create_rule_from_threat(threat_id, rule_name, rule_type='custom', enabled='1
             'created_at': datetime.now().isoformat()
         }
         
-        # In production, this would be saved to WAF rules file
         rules_file = f"/tmp/custom_rule_{threat_id}.json"
         with open(rules_file, 'w') as f:
             json.dump(rule_data, f, indent=2)
@@ -287,7 +273,6 @@ def clear_old_threats(days=30, severity='low'):
         
         cutoff_time = int(time.time() - (int(days) * 86400))
         
-        # Get count before deletion
         cursor = conn.execute('''
             SELECT COUNT(*) FROM threats 
             WHERE timestamp < ? AND severity = ?
@@ -296,7 +281,6 @@ def clear_old_threats(days=30, severity='low'):
         old_count = cursor.fetchone()[0]
         
         if old_count > 0:
-            # Delete old threats
             conn.execute('''
                 DELETE FROM threats 
                 WHERE timestamp < ? AND severity = ?
@@ -324,19 +308,19 @@ def add_sample_threats():
         current_time = int(time.time())
         
         sample_threats = [
-            ('192.168.1.100', 'SQL Injection', 'high', 'SQL injection attempt detected', "' OR 1=1 --", 'POST'),
-            ('10.0.0.50', 'XSS Attack', 'medium', 'Cross-site scripting attempt', '<script>alert("xss")</script>', 'GET'),
-            ('172.16.0.25', 'Path Traversal', 'medium', 'Directory traversal attempt', '../../../etc/passwd', 'GET'),
-            ('203.0.113.100', 'Brute Force', 'low', 'Multiple failed login attempts', 'admin:password123', 'POST'),
-            ('198.51.100.200', 'Bot Activity', 'low', 'Suspicious bot behavior detected', 'User-Agent: BadBot/1.0', 'GET')
+            ('192.168.1.100', '192.168.1.1', 'SQL Injection', 'high', 'SQL injection attempt detected', "' OR 1=1 --", 'POST'),
+            ('10.0.0.50', '10.0.0.1', 'XSS Attack', 'medium', 'Cross-site scripting attempt', '<script>alert("xss")</script>', 'GET'),
+            ('172.16.0.25', '172.16.0.1', 'Path Traversal', 'medium', 'Directory traversal attempt', '../../../etc/passwd', 'GET'),
+            ('203.0.113.100', '203.0.113.1', 'Brute Force', 'low', 'Multiple failed login attempts', 'admin:password123', 'POST'),
+            ('198.51.100.200', '198.51.100.1', 'Bot Activity', 'low', 'Suspicious bot behavior detected', 'User-Agent: BadBot/1.0', 'GET')
         ]
         
-        for source_ip, threat_type, severity, description, payload, method in sample_threats:
+        for source_ip, target, threat_type, severity, description, payload, method in sample_threats:
             conn.execute('''
                 INSERT OR IGNORE INTO threats 
-                (timestamp, source_ip, type, severity, description, payload, method, false_positive)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (current_time - (len(sample_threats) * 3600), source_ip, threat_type, severity, description, payload, method, 0))
+                (timestamp, source_ip, target, type, severity, description, payload, method, false_positive)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (current_time - (len(sample_threats) * 3600), source_ip, target, threat_type, severity, description, payload, method, 0))
         
         conn.commit()
         conn.close()
@@ -355,9 +339,8 @@ def get_recent_threats(limit=10):
         if not conn:
             return False
         
-        # Get recent threats
         cursor = conn.execute('''
-            SELECT id, timestamp, source_ip, type, severity, description, payload, method
+            SELECT id, timestamp, source_ip, target, type, severity, description, payload, method
             FROM threats 
             WHERE false_positive = 0
             ORDER BY timestamp DESC
@@ -366,15 +349,16 @@ def get_recent_threats(limit=10):
         
         threats = []
         for row in cursor.fetchall():
-            threat_id, timestamp, source_ip, threat_type, severity, description, payload, method = row
+            threat_id, timestamp, source_ip, target, threat_type, severity, description, payload, method = row
             
             threats.append({
                 'id': threat_id,
                 'timestamp': datetime.fromtimestamp(timestamp).isoformat() + 'Z',
                 'source_ip': source_ip,
+                'target': target,
                 'threat_type': threat_type,
                 'severity': severity,
-                'url': f"/target-{threat_id}",  # You might want to store actual URL
+                'url': f"/target-{threat_id}",
                 'method': method or 'GET',
                 'status': 'detected'
             })
@@ -399,9 +383,8 @@ def get_threat_feed(since_id=0, limit=50):
         if not conn:
             return False
         
-        # Get threats since specific ID
         cursor = conn.execute('''
-            SELECT id, timestamp, source_ip, type, severity, description, method
+            SELECT id, timestamp, source_ip, target, type, severity, description, method
             FROM threats 
             WHERE false_positive = 0 AND id > ?
             ORDER BY id DESC
@@ -412,12 +395,13 @@ def get_threat_feed(since_id=0, limit=50):
         last_id = int(since_id)
         
         for row in cursor.fetchall():
-            threat_id, timestamp, source_ip, threat_type, severity, description, method = row
+            threat_id, timestamp, source_ip, target, threat_type, severity, description, method = row
             
             feed.append({
                 'id': threat_id,
                 'timestamp': datetime.fromtimestamp(timestamp).isoformat() + 'Z',
                 'source_ip': source_ip,
+                'target': target,
                 'threat_type': threat_type,
                 'severity': severity,
                 'url': f"/target-{threat_id}",
@@ -447,46 +431,42 @@ def get_threat_timeline(period='24h'):
         if not conn:
             return False
         
-        # Calculate time range based on period
         current_time = int(time.time())
         
         if period == '1h':
             start_time = current_time - 3600
-            interval = 300  # 5 minutes
+            interval = 300
             intervals = 12
         elif period == '6h':
             start_time = current_time - (6 * 3600)
-            interval = 1800  # 30 minutes
+            interval = 1800
             intervals = 12
         elif period == '24h':
             start_time = current_time - (24 * 3600)
-            interval = 7200  # 2 hours
+            interval = 7200
             intervals = 12
         elif period == '7d':
             start_time = current_time - (7 * 24 * 3600)
-            interval = 86400  # 1 day
+            interval = 86400
             intervals = 7
         else:
             start_time = current_time - (24 * 3600)
             interval = 7200
             intervals = 12
         
-        # Get threat counts for each interval
         labels = []
         threats = []
-        requests = []  # Mock data for requests
+        requests = []
         
         for i in range(intervals):
             interval_start = start_time + (i * interval)
             interval_end = interval_start + interval
             
-            # Format label based on period
             if period in ['1h', '6h', '24h']:
                 label = datetime.fromtimestamp(interval_start).strftime('%H:%M')
             else:
                 label = datetime.fromtimestamp(interval_start).strftime('%m/%d')
             
-            # Count threats in this interval
             cursor = conn.execute('''
                 SELECT COUNT(*) FROM threats 
                 WHERE timestamp >= ? AND timestamp < ? AND false_positive = 0
@@ -496,7 +476,7 @@ def get_threat_timeline(period='24h'):
             
             labels.append(label)
             threats.append(threat_count)
-            requests.append(threat_count * 20 + 50)  # Mock request data
+            requests.append(threat_count * 20 + 50)
         
         result = {
             'status': 'ok',
