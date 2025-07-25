@@ -122,7 +122,7 @@
     </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<script src="/ui/js/chart.min.js"></script>
 <script>
 $(document).ready(function() {
     let threatTypeChart = null;
