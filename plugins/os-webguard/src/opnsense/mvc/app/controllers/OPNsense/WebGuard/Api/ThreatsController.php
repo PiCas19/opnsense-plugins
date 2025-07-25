@@ -213,17 +213,16 @@ class ThreatsController extends ApiControllerBase
             return ['status' => 'error', 'message' => 'POST required'];
         }
 
-        $ip = trim($this->request->getPost('ip', 'string', ''));
         $threatId = trim($this->request->getPost('threat_id', 'string', ''));
         $reason = $this->argSafe($this->request->getPost('reason', 'string', 'Whitelisted from threat'));
         $permanent = $this->request->getPost('permanent', 'string', '1');
 
-        if (!$this->validateIP($ip)) {
-            return ['status' => 'error', 'message' => 'Invalid IP address'];
+        if (empty($threatId)) {
+            return ['status' => 'error', 'message' => 'Threat ID required'];
         }
 
         $backend = new Backend();
-        $out = trim($backend->configdpRun('webguard', ['whitelist_ip_from_threat', $ip, $threatId, $reason, $permanent]));
+        $out = trim($backend->configdpRun('webguard', ['whitelist_ip_from_threat', $threatId, $reason, $permanent]));
 
         if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
             return ['status' => 'ok', 'message' => 'IP whitelisted from threat'];
