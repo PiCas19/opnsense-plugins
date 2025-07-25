@@ -62,12 +62,12 @@
         </div>
     </div>
 
-    <!-- Filters Panel -->
+    <!-- Search Panel -->
     <div class="row">
         <div class="col-md-12">
             <div class="modern-panel">
                 <div class="panel-header">
-                    <h3 class="panel-title">{{ lang._('Threat Filters') }}</h3>
+                    <h3 class="panel-title">{{ lang._('Search & Filter') }}</h3>
                     <div class="panel-actions">
                         <button class="btn btn-primary btn-modern" id="refreshThreats">
                             <i class="fa fa-refresh"></i> {{ lang._('Refresh') }}
@@ -81,46 +81,44 @@
                     </div>
                 </div>
                 <div class="panel-body">
-                    <div class="row filter-row">
-                        <div class="col-md-2">
-                            <label class="control-label">{{ lang._('Severity') }}</label>
-                            <select class="form-control" id="severityFilter">
-                                <option value="">{{ lang._('All Severities') }}</option>
-                                <option value="critical">{{ lang._('Critical') }}</option>
-                                <option value="high">{{ lang._('High') }}</option>
-                                <option value="medium">{{ lang._('Medium') }}</option>
-                                <option value="low">{{ lang._('Low') }}</option>
-                            </select>
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="search-container">
+                                <div class="input-group">
+                                    <span class="input-group-addon">
+                                        <i class="fa fa-search"></i>
+                                    </span>
+                                    <input type="text" class="form-control search-box" id="globalSearch" 
+                                           placeholder="{{ lang._('Search threats by IP, type, severity, target...') }}">
+                                    <span class="input-group-addon clear-search" id="clearSearch" style="cursor: pointer; display: none;">
+                                        <i class="fa fa-times"></i>
+                                    </span>
+                                </div>
+                                <div class="search-info" id="searchInfo" style="display: none;">
+                                    <small class="text-muted">{{ lang._('Found') }} <span id="searchResults">0</span> {{ lang._('results') }}</small>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-md-2">
-                            <label class="control-label">{{ lang._('Type') }}</label>
-                            <select class="form-control" id="typeFilter">
-                                <option value="">{{ lang._('All Types') }}</option>
-                                <option value="sql_injection">{{ lang._('SQL Injection') }}</option>
-                                <option value="xss">{{ lang._('XSS') }}</option>
-                                <option value="csrf">{{ lang._('CSRF') }}</option>
-                                <option value="file_upload">{{ lang._('File Upload') }}</option>
-                                <option value="behavioral">{{ lang._('Behavioral') }}</option>
-                                <option value="covert_channel">{{ lang._('Covert Channel') }}</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <label class="control-label">{{ lang._('Source IP') }}</label>
-                            <input type="text" class="form-control" id="sourceIpFilter" placeholder="{{ lang._('IP Address') }}">
-                        </div>
-                        <div class="col-md-2">
-                            <label class="control-label">{{ lang._('Start Date') }}</label>
-                            <input type="date" class="form-control" id="startDateFilter">
-                        </div>
-                        <div class="col-md-2">
-                            <label class="control-label">{{ lang._('End Date') }}</label>
-                            <input type="date" class="form-control" id="endDateFilter">
-                        </div>
-                        <div class="col-md-2">
-                            <label class="control-label">&nbsp;</label>
-                            <button class="btn btn-primary btn-block btn-modern" id="applyFilters">
-                                <i class="fa fa-search"></i> {{ lang._('Apply') }}
-                            </button>
+                        <div class="col-md-4">
+                            <div class="quick-filters">
+                                <div class="btn-group" data-toggle="buttons">
+                                    <label class="btn btn-outline-danger btn-sm active" id="filter-all">
+                                        <input type="radio" name="severity-filter" value=""> {{ lang._('All') }}
+                                    </label>
+                                    <label class="btn btn-outline-danger btn-sm" id="filter-critical">
+                                        <input type="radio" name="severity-filter" value="critical"> {{ lang._('Critical') }}
+                                    </label>
+                                    <label class="btn btn-outline-warning btn-sm" id="filter-high">
+                                        <input type="radio" name="severity-filter" value="high"> {{ lang._('High') }}
+                                    </label>
+                                    <label class="btn btn-outline-info btn-sm" id="filter-medium">
+                                        <input type="radio" name="severity-filter" value="medium"> {{ lang._('Medium') }}
+                                    </label>
+                                    <label class="btn btn-outline-success btn-sm" id="filter-low">
+                                        <input type="radio" name="severity-filter" value="low"> {{ lang._('Low') }}
+                                    </label>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -136,6 +134,7 @@
                     <h3 class="panel-title">
                         {{ lang._('Threat Log') }}
                         <span class="badge badge-modern" id="threatCount">0</span>
+                        <span class="badge badge-info" id="filteredCount" style="display: none;">0 {{ lang._('filtered') }}</span>
                     </h3>
                     <div class="panel-actions">
                         <select class="form-control" id="pageSize" style="width: auto; display: inline-block;">
@@ -151,13 +150,27 @@
                         <table class="table table-modern" id="threatsTable">
                             <thead>
                                 <tr>
-                                    <th>{{ lang._('Time') }}</th>
-                                    <th>{{ lang._('Source IP') }}</th>
-                                    <th>{{ lang._('Type') }}</th>
-                                    <th>{{ lang._('Severity') }}</th>
-                                    <th>{{ lang._('Target') }}</th>
-                                    <th>{{ lang._('Method') }}</th>
-                                    <th>{{ lang._('Status') }}</th>
+                                    <th class="sortable" data-sort="time">
+                                        {{ lang._('Time') }} <i class="fa fa-sort sort-icon"></i>
+                                    </th>
+                                    <th class="sortable" data-sort="ip">
+                                        {{ lang._('Source IP') }} <i class="fa fa-sort sort-icon"></i>
+                                    </th>
+                                    <th class="sortable" data-sort="type">
+                                        {{ lang._('Type') }} <i class="fa fa-sort sort-icon"></i>
+                                    </th>
+                                    <th class="sortable" data-sort="severity">
+                                        {{ lang._('Severity') }} <i class="fa fa-sort sort-icon"></i>
+                                    </th>
+                                    <th class="sortable" data-sort="target">
+                                        {{ lang._('Target') }} <i class="fa fa-sort sort-icon"></i>
+                                    </th>
+                                    <th class="sortable" data-sort="method">
+                                        {{ lang._('Method') }} <i class="fa fa-sort sort-icon"></i>
+                                    </th>
+                                    <th class="sortable" data-sort="status">
+                                        {{ lang._('Status') }} <i class="fa fa-sort sort-icon"></i>
+                                    </th>
                                     <th>{{ lang._('Actions') }}</th>
                                 </tr>
                             </thead>
@@ -231,36 +244,6 @@
                             <option value="json">JSON</option>
                             <option value="csv">CSV</option>
                             <option value="txt">Plain Text</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="exportStartDate">{{ lang._('Start Date') }}</label>
-                        <input type="date" class="form-control" id="exportStartDate">
-                    </div>
-                    <div class="form-group">
-                        <label for="exportEndDate">{{ lang._('End Date') }}</label>
-                        <input type="date" class="form-control" id="exportEndDate">
-                    </div>
-                    <div class="form-group">
-                        <label for="exportSeverity">{{ lang._('Severity') }}</label>
-                        <select class="form-control" id="exportSeverity">
-                            <option value="">{{ lang._('All') }}</option>
-                            <option value="critical">{{ lang._('Critical') }}</option>
-                            <option value="high">{{ lang._('High') }}</option>
-                            <option value="medium">{{ lang._('Medium') }}</option>
-                            <option value="low">{{ lang._('Low') }}</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="exportType">{{ lang._('Type') }}</label>
-                        <select class="form-control" id="exportType">
-                            <option value="">{{ lang._('All') }}</option>
-                            <option value="sql_injection">{{ lang._('SQL Injection') }}</option>
-                            <option value="xss">{{ lang._('XSS') }}</option>
-                            <option value="csrf">{{ lang._('CSRF') }}</option>
-                            <option value="file_upload">{{ lang._('File Upload') }}</option>
-                            <option value="behavioral">{{ lang._('Behavioral') }}</option>
-                            <option value="covert_channel">{{ lang._('Covert Channel') }}</option>
                         </select>
                     </div>
                 </form>
@@ -435,14 +418,56 @@
     padding: 25px;
 }
 
-.filter-row {
-    align-items: end;
+/* Search Styles */
+.search-container {
+    margin-bottom: 15px;
 }
 
-.filter-row .form-group {
-    margin-bottom: 0;
+.search-box {
+    border-radius: 25px;
+    padding: 12px 20px;
+    font-size: 16px;
+    border: 2px solid #e2e8f0;
+    transition: all 0.3s ease;
 }
 
+.search-box:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.input-group-addon {
+    background: #f8fafc;
+    border: 2px solid #e2e8f0;
+    color: #718096;
+}
+
+.clear-search {
+    color: #e53e3e;
+    transition: all 0.3s ease;
+}
+
+.clear-search:hover {
+    background: #fed7d7;
+}
+
+.search-info {
+    margin-top: 5px;
+    text-align: center;
+}
+
+.quick-filters {
+    text-align: right;
+}
+
+.quick-filters .btn {
+    border-radius: 20px;
+    margin: 2px;
+    font-size: 12px;
+    padding: 5px 12px;
+}
+
+/* Table Styles */
 .btn-modern {
     border-radius: 8px;
     font-weight: 600;
@@ -476,6 +501,44 @@
     font-size: 0.85rem;
     letter-spacing: 0.5px;
     padding: 15px 20px;
+    position: relative;
+}
+
+.table-modern thead th.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.3s ease;
+}
+
+.table-modern thead th.sortable:hover {
+    background: #edf2f7;
+    color: #2d3748;
+}
+
+.sort-icon {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    opacity: 0.5;
+    transition: all 0.3s ease;
+}
+
+.table-modern thead th.sortable:hover .sort-icon {
+    opacity: 1;
+}
+
+.table-modern thead th.sort-asc .sort-icon:before {
+    content: "\f0de"; /* fa-sort-up */
+    color: #667eea;
+    opacity: 1;
+}
+
+.table-modern thead th.sort-desc .sort-icon:before {
+    content: "\f0dd"; /* fa-sort-down */
+    color: #667eea;
+    opacity: 1;
 }
 
 .table-modern tbody td {
@@ -491,6 +554,17 @@
 
 .table-modern tbody tr:last-child td {
     border-bottom: none;
+}
+
+.table-modern tbody tr.filtered-out {
+    display: none;
+}
+
+/* Highlighted search results */
+.search-highlight {
+    background: yellow;
+    padding: 1px 3px;
+    border-radius: 3px;
 }
 
 .severity-critical { 
@@ -681,7 +755,8 @@
         justify-content: flex-start;
     }
     
-    .filter-row .col-md-2 {
+    .search-container, .quick-filters {
+        text-align: center;
         margin-bottom: 15px;
     }
     
@@ -700,6 +775,9 @@ $(document).ready(function() {
     let currentPage = 1;
     let pageSize = 50;
     let currentThreatId = null;
+    let allThreats = []; // Store all threats for client-side filtering/sorting
+    let filteredThreats = []; // Store filtered results
+    let currentSort = { column: 'time', direction: 'desc' };
     
     // Initialize
     loadThreatStats();
@@ -711,27 +789,139 @@ $(document).ready(function() {
         loadThreats();
     }, 30000);
     
-    // Add clear filters button
-    addClearFiltersButton();
-    
-    // Filter controls
-    $('#applyFilters').click(function() {
-        console.log('Applying filters...');
-        console.log('Filter values:', {
-            severity: $('#severityFilter').val(),
-            type: $('#typeFilter').val(),
-            source_ip: $('#sourceIpFilter').val(),
-            start_date: $('#startDateFilter').val(),
-            end_date: $('#endDateFilter').val()
-        });
-        currentPage = 1;
-        loadThreats();
+    // SEARCH FUNCTIONALITY
+    $('#globalSearch').on('input', function() {
+        const searchTerm = $(this).val().toLowerCase().trim();
+        
+        if (searchTerm === '') {
+            $('#clearSearch').hide();
+            $('#searchInfo').hide();
+            filteredThreats = [...allThreats];
+        } else {
+            $('#clearSearch').show();
+            filteredThreats = allThreats.filter(threat => {
+                const searchableText = [
+                    threat.ip_address || threat.source_ip || '',
+                    threat.threat_type || threat.type || '',
+                    threat.severity || '',
+                    threat.url || threat.target || threat.description || '',
+                    threat.method || '',
+                    threat.status || ''
+                ].join(' ').toLowerCase();
+                
+                return searchableText.includes(searchTerm);
+            });
+            
+            $('#searchResults').text(filteredThreats.length);
+            $('#searchInfo').show();
+        }
+        
+        applySeverityFilter();
+        renderTable();
+        updateCounts();
     });
+    
+    $('#clearSearch').click(function() {
+        $('#globalSearch').val('');
+        $('#clearSearch').hide();
+        $('#searchInfo').hide();
+        filteredThreats = [...allThreats];
+        applySeverityFilter();
+        renderTable();
+        updateCounts();
+    });
+    
+    // SEVERITY FILTER BUTTONS
+    $('input[name="severity-filter"]').change(function() {
+        applySeverityFilter();
+        renderTable();
+        updateCounts();
+    });
+    
+    function applySeverityFilter() {
+        const selectedSeverity = $('input[name="severity-filter"]:checked').val();
+        
+        if (selectedSeverity === '') {
+            // No additional filtering needed
+            return;
+        }
+        
+        filteredThreats = filteredThreats.filter(threat => {
+            return (threat.severity || '').toLowerCase() === selectedSeverity;
+        });
+    }
+    
+    // SORTING FUNCTIONALITY
+    $('.sortable').click(function() {
+        const column = $(this).data('sort');
+        
+        // Toggle direction if same column, otherwise default to asc
+        if (currentSort.column === column) {
+            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort.column = column;
+            currentSort.direction = 'asc';
+        }
+        
+        // Update sort indicators
+        $('.sortable').removeClass('sort-asc sort-desc');
+        $(this).addClass('sort-' + currentSort.direction);
+        
+        sortThreats();
+        renderTable();
+    });
+    
+    function sortThreats() {
+        filteredThreats.sort((a, b) => {
+            let aValue, bValue;
+            
+            switch (currentSort.column) {
+                case 'time':
+                    aValue = new Date(a.first_seen || a.timestamp || a.last_seen || 0);
+                    bValue = new Date(b.first_seen || b.timestamp || b.last_seen || 0);
+                    break;
+                case 'ip':
+                    aValue = a.ip_address || a.source_ip || '';
+                    bValue = b.ip_address || b.source_ip || '';
+                    break;
+                case 'type':
+                    aValue = a.threat_type || a.type || '';
+                    bValue = b.threat_type || b.type || '';
+                    break;
+                case 'severity':
+                    const severityOrder = {'critical': 4, 'high': 3, 'medium': 2, 'low': 1};
+                    aValue = severityOrder[a.severity] || 0;
+                    bValue = severityOrder[b.severity] || 0;
+                    break;
+                case 'target':
+                    aValue = a.url || a.target || a.description || '';
+                    bValue = b.url || b.target || b.description || '';
+                    break;
+                case 'method':
+                    aValue = a.method || '';
+                    bValue = b.method || '';
+                    break;
+                case 'status':
+                    aValue = a.status || '';
+                    bValue = b.status || '';
+                    break;
+                default:
+                    aValue = '';
+                    bValue = '';
+            }
+            
+            if (currentSort.direction === 'asc') {
+                return aValue > bValue ? 1 : -1;
+            } else {
+                return aValue < bValue ? 1 : -1;
+            }
+        });
+    }
 
     $('#pageSize').change(function() {
         pageSize = $(this).val();
         currentPage = 1;
-        loadThreats();
+        renderTable();
     });
     
     // Action buttons
@@ -752,27 +942,16 @@ $(document).ready(function() {
     $('#downloadExport').click(function() {
         const btn = $(this);
         const format = $('#exportFormat').val();
-        const params = {
-            format: format,
-            start_date: $('#exportStartDate').val(),
-            end_date: $('#exportEndDate').val(),
-            severity: $('#exportSeverity').val(),
-            type: $('#exportType').val()
-        };
         
         setButtonLoading(btn, true);
         
-        ajaxGet('/api/webguard/threats/export', params, function(data) {
-            setButtonLoading(btn, false);
-            
-            if (data.result === 'ok') {
-                downloadFile(data.data, data.filename, 'application/octet-stream');
-                $('#exportModal').modal('hide');
-                showNotification('{{ lang._("Export completed successfully") }}', 'success');
-            } else {
-                showNotification('{{ lang._("Export failed") }}: ' + (data.message || '{{ lang._("Unknown error") }}'), 'error');
-            }
-        });
+        // Export filtered data
+        const dataToExport = filteredThreats.length > 0 ? filteredThreats : allThreats;
+        exportFilteredData(dataToExport, format);
+        
+        setButtonLoading(btn, false);
+        $('#exportModal').modal('hide');
+        showNotification('{{ lang._("Export completed successfully") }}', 'success');
     });
     
     // Clear old threats
@@ -931,26 +1110,8 @@ $(document).ready(function() {
         const page = $(this).data('page');
         if (page && page !== currentPage) {
             currentPage = page;
-            loadThreats();
+            renderTable();
         }
-    });
-
-    // MIGLIORAMENTO: Filtri in tempo reale per IP
-    $('#sourceIpFilter').on('input', function() {
-        clearTimeout(window.ipFilterTimeout);
-        window.ipFilterTimeout = setTimeout(function() {
-            if ($('#sourceIpFilter').val().length === 0 || $('#sourceIpFilter').val().length >= 3) {
-                currentPage = 1;
-                loadThreats();
-            }
-        }, 500);
-    });
-
-    // MIGLIORAMENTO: Auto-apply quando si cambiano date
-    $('#startDateFilter, #endDateFilter').change(function() {
-        console.log('Date filter changed, auto-applying...');
-        currentPage = 1;
-        loadThreats();
     });
     
     // Functions
@@ -975,106 +1136,109 @@ $(document).ready(function() {
             }
         });
     }
-
-    function addClearFiltersButton() {
-        if ($('#clearFilters').length === 0) {
-            const clearBtn = $('<button class="btn btn-default btn-modern" id="clearFilters">' +
-                '<i class="fa fa-times"></i> {{ lang._("Clear") }}</button>');
-            
-            $('#applyFilters').after(clearBtn);
-            
-            $('#clearFilters').click(function() {
-                console.log('Clearing filters...');
-                $('#severityFilter').val('');
-                $('#typeFilter').val('');
-                $('#sourceIpFilter').val('');
-                $('#startDateFilter').val('');
-                $('#endDateFilter').val('');
-                currentPage = 1;
-                loadThreats();
-            });
-        }
-    }
     
     function loadThreats() {
         console.log('Loading threats...');
         
-        const params = {
-            page: currentPage,
-            limit: pageSize,
-            severity: $('#severityFilter').val() || '',
-            type: $('#typeFilter').val() || '',
-            source_ip: $('#sourceIpFilter').val() || '',
-            start_date: $('#startDateFilter').val() || '',
-            end_date: $('#endDateFilter').val() || ''
-        };
-        
-        // Rimuovi parametri vuoti
-        Object.keys(params).forEach(key => {
-            if (params[key] === '' || params[key] === null || params[key] === undefined) {
-                delete params[key];
-            }
-        });
-        
-        console.log('Request params:', params);
-        
-        ajaxGet('/api/webguard/threats/getAllThreats', params, function(data) {
+        // Load ALL data at once - no pagination from backend
+        ajaxGet('/api/webguard/threats/getAllThreats', {limit: 10000}, function(data) {
             console.log('Threats response:', data);
-            const tbody = $('#threatsTable tbody');
-            tbody.empty();
             
-            const threats = data.threats || [];
-            const total = data.total || threats.length;
+            allThreats = data.threats || [];
+            filteredThreats = [...allThreats];
             
-            if (threats && threats.length > 0) {
-                console.log('Found', threats.length, 'threats');
-                threats.forEach(function(threat) {
-                    const row = $('<tr>');
+            // Apply current search and filters
+            const searchTerm = $('#globalSearch').val().toLowerCase().trim();
+            if (searchTerm !== '') {
+                filteredThreats = allThreats.filter(threat => {
+                    const searchableText = [
+                        threat.ip_address || threat.source_ip || '',
+                        threat.threat_type || threat.type || '',
+                        threat.severity || '',
+                        threat.url || threat.target || threat.description || '',
+                        threat.method || '',
+                        threat.status || ''
+                    ].join(' ').toLowerCase();
                     
-                    const timestamp = threat.first_seen || threat.timestamp || threat.last_seen;
-                    const sourceIp = threat.ip_address || threat.source_ip;
-                    const threatType = threat.threat_type || threat.type;
-                    const severity = threat.severity || 'low';
-                    const target = threat.url || threat.target || threat.description || '-';
-                    const method = threat.method || 'GET';
-                    const status = threat.status || 'logged';
-                    const threatId = threat.id || threat.threat_id;
-                    
-                    row.append('<td>' + formatTimestamp(timestamp) + '</td>');
-                    row.append('<td><strong>' + sourceIp + '</strong></td>');
-                    row.append('<td>' + threatType + '</td>');
-                    row.append('<td><span class="severity-' + severity + '">' + severity.toUpperCase() + '</span></td>');
-                    row.append('<td>' + target + '</td>');
-                    row.append('<td>' + method + '</td>');
-                    row.append('<td><span class="status-' + status + '">' + status.toUpperCase() + '</span></td>');
-                    
-                    const actions = '<div class="btn-group btn-group-xs">' +
-                        '<button class="btn btn-default btn-view-threat" data-id="' + threatId + '">' +
-                        '<i class="fa fa-eye"></i></button>' +
-                        '</div>';
-                    row.append('<td>' + actions + '</td>');
-                    
-                    tbody.append(row);
+                    return searchableText.includes(searchTerm);
                 });
-                
-                $('#threatCount').text(total);
-                
-                const start = ((currentPage - 1) * pageSize) + 1;
-                const end = Math.min(currentPage * pageSize, total);
-                $('#paginationInfo').text(`Showing ${start}-${end} of ${total} threats`);
-                
-                generatePagination(total);
-            } else {
-                console.log('No threats found or empty response');
-                tbody.append(createEmptyState('{{ lang._("No threats found") }}', 'exclamation-triangle'));
-                $('#threatCount').text('0');
-                $('#paginationInfo').text('No threats found');
             }
+            
+            applySeverityFilter();
+            sortThreats();
+            renderTable();
+            updateCounts();
         });
     }
     
-    function generatePagination(total) {
-        const totalPages = Math.ceil(total / pageSize);
+    function renderTable() {
+        const tbody = $('#threatsTable tbody');
+        tbody.empty();
+        
+        if (filteredThreats.length === 0) {
+            tbody.append(createEmptyState('{{ lang._("No threats found") }}', 'exclamation-triangle'));
+            $('#paginationInfo').text('No threats found');
+            $('#threatsPagination').empty();
+            return;
+        }
+        
+        // Client-side pagination
+        const totalPages = Math.ceil(filteredThreats.length / pageSize);
+        const startIndex = (currentPage - 1) * pageSize;
+        const endIndex = Math.min(startIndex + pageSize, filteredThreats.length);
+        const pageThreats = filteredThreats.slice(startIndex, endIndex);
+        
+        console.log('Rendering', pageThreats.length, 'threats for page', currentPage);
+        
+        pageThreats.forEach(function(threat) {
+            const row = $('<tr>');
+            
+            const timestamp = threat.first_seen || threat.timestamp || threat.last_seen;
+            const sourceIp = threat.ip_address || threat.source_ip;
+            const threatType = threat.threat_type || threat.type;
+            const severity = threat.severity || 'low';
+            const target = threat.url || threat.target || threat.description || '-';
+            const method = threat.method || 'GET';
+            const status = threat.status || 'logged';
+            const threatId = threat.id || threat.threat_id;
+            
+            row.append('<td>' + formatTimestamp(timestamp) + '</td>');
+            row.append('<td><strong>' + sourceIp + '</strong></td>');
+            row.append('<td>' + threatType + '</td>');
+            row.append('<td><span class="severity-' + severity + '">' + severity.toUpperCase() + '</span></td>');
+            row.append('<td>' + target + '</td>');
+            row.append('<td>' + method + '</td>');
+            row.append('<td><span class="status-' + status + '">' + status.toUpperCase() + '</span></td>');
+            
+            const actions = '<div class="btn-group btn-group-xs">' +
+                '<button class="btn btn-default btn-view-threat" data-id="' + threatId + '">' +
+                '<i class="fa fa-eye"></i></button>' +
+                '</div>';
+            row.append('<td>' + actions + '</td>');
+            
+            tbody.append(row);
+        });
+        
+        // Update pagination info
+        const start = startIndex + 1;
+        const end = endIndex;
+        $('#paginationInfo').text(`Showing ${start}-${end} of ${filteredThreats.length} threats`);
+        
+        // Generate pagination
+        generatePagination(totalPages);
+    }
+    
+    function updateCounts() {
+        $('#threatCount').text(formatNumber(allThreats.length));
+        
+        if (filteredThreats.length !== allThreats.length) {
+            $('#filteredCount').text(formatNumber(filteredThreats.length) + ' filtered').show();
+        } else {
+            $('#filteredCount').hide();
+        }
+    }
+    
+    function generatePagination(totalPages) {
         const pagination = $('#threatsPagination');
         pagination.empty();
         
@@ -1103,6 +1267,51 @@ $(document).ready(function() {
         }
         
         pagination.append(nav);
+    }
+    
+    function exportFilteredData(data, format) {
+        let content = '';
+        const filename = 'webguard_threats_filtered_' + new Date().toISOString().slice(0,10) + '.' + format;
+        
+        switch (format) {
+            case 'csv':
+                content = 'Time,Source IP,Type,Severity,Target,Method,Status\n';
+                data.forEach(threat => {
+                    const row = [
+                        formatTimestamp(threat.first_seen || threat.timestamp),
+                        threat.ip_address || threat.source_ip || '',
+                        threat.threat_type || threat.type || '',
+                        threat.severity || '',
+                        threat.url || threat.target || threat.description || '',
+                        threat.method || '',
+                        threat.status || ''
+                    ].map(field => '"' + (field || '').replace(/"/g, '""') + '"');
+                    content += row.join(',') + '\n';
+                });
+                break;
+                
+            case 'txt':
+                content = 'WebGuard Threats Export\n';
+                content += '======================\n\n';
+                data.forEach((threat, index) => {
+                    content += `Threat #${index + 1}\n`;
+                    content += `Time: ${formatTimestamp(threat.first_seen || threat.timestamp)}\n`;
+                    content += `Source IP: ${threat.ip_address || threat.source_ip || ''}\n`;
+                    content += `Type: ${threat.threat_type || threat.type || ''}\n`;
+                    content += `Severity: ${threat.severity || ''}\n`;
+                    content += `Target: ${threat.url || threat.target || threat.description || ''}\n`;
+                    content += `Method: ${threat.method || ''}\n`;
+                    content += `Status: ${threat.status || ''}\n\n`;
+                });
+                break;
+                
+            case 'json':
+            default:
+                content = JSON.stringify(data, null, 2);
+                break;
+        }
+        
+        downloadFile(content, filename, 'application/octet-stream');
     }
     
     function createEmptyState(message, icon) {
