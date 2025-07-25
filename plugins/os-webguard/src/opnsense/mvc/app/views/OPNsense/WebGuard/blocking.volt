@@ -91,6 +91,12 @@
                             <span>{{ lang._('Tools') }}</span>
                         </a>
                     </li>
+                    <li>
+                        <a href="#false-positive-tab" data-toggle="tab" role="tab">
+                            <i class="fa fa-times-circle"></i>
+                            <span>{{ lang._('Mark False Positives') }}</span>
+                        </a>
+                    </li>
                 </ul>
 
                 <div class="tab-content modern-tab-content">
@@ -254,6 +260,39 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Mark False Positives Tab -->
+                    <div class="tab-pane" id="false-positive-tab">
+                        <div class="modern-panel">
+                            <div class="panel-header">
+                                <h3 class="panel-title">{{ lang._('Mark False Positives') }}</h3>
+                                <div class="panel-actions">
+                                    <button type="button" class="btn btn-default btn-modern" id="refresh-false-positives-btn">
+                                        <i class="fa fa-refresh"></i> {{ lang._('Refresh') }}
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="panel-body">
+                                <div class="modern-table-container">
+                                    <table class="table table-modern" id="false-positives-table">
+                                        <thead>
+                                            <tr>
+                                                <th>{{ lang._('IP Address') }}</th>
+                                                <th>{{ lang._('Threat Type') }}</th>
+                                                <th>{{ lang._('Severity') }}</th>
+                                                <th>{{ lang._('First Seen') }}</th>
+                                                <th>{{ lang._('Reason') }}</th>
+                                                <th>{{ lang._('Actions') }}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <!-- Loaded via AJAX -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -267,7 +306,7 @@
         <div class="modal-content modern-modal">
             <div class="modal-header">
                 <button type="button" class="close" data-dismiss="modal">
-                    <span>&times;</span>
+                    <span>×</span>
                 </button>
                 <h4 class="modal-title">{{ lang._('Block IP Address') }}</h4>
             </div>
@@ -312,7 +351,7 @@
         <div class="modal-content modern-modal">
             <div class="modal-header">
                 <button type="button" class="close" data-dismiss="modal">
-                    <span>&times;</span>
+                    <span>×</span>
                 </button>
                 <h4 class="modal-title">{{ lang._('Bulk Block IP Addresses') }}</h4>
             </div>
@@ -320,7 +359,9 @@
                 <form id="bulk-block-form">
                     <div class="form-group">
                         <label class="control-label">{{ lang._('IP Addresses (one per line)') }}</label>
-                        <textarea class="form-control" id="bulk-block-ips" rows="6" placeholder="192.168.1.100&#10;10.0.0.50&#10;172.16.0.25"></textarea>
+                        <textarea class="form-control" id="bulk-block-ips" rows="6" placeholder="192.168.1.100
+10.0.0.50
+172.16.0.25"></textarea>
                     </div>
                     <div class="form-group">
                         <label class="control-label">{{ lang._('Duration') }}</label>
@@ -357,7 +398,7 @@
         <div class="modal-content modern-modal">
             <div class="modal-header">
                 <button type="button" class="close" data-dismiss="modal">
-                    <span>&times;</span>
+                    <span>×</span>
                 </button>
                 <h4 class="modal-title">{{ lang._('Add to Whitelist') }}</h4>
             </div>
@@ -382,6 +423,29 @@
                 <button type="button" class="btn btn-default" data-dismiss="modal">{{ lang._('Cancel') }}</button>
                 <button type="button" class="btn btn-success" id="confirm-whitelist-btn">
                     <i class="fa fa-check"></i> {{ lang._('Add to Whitelist') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- False Positive Detail Modal -->
+<div class="modal fade" id="false-positive-detail-modal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content modern-modal">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>×</span>
+                </button>
+                <h4 class="modal-title">{{ lang._('False Positive Details') }}</h4>
+            </div>
+            <div class="modal-body" id="false-positive-detail-content">
+                <!-- Populated by JavaScript -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">{{ lang._('Close') }}</button>
+                <button type="button" class="btn btn-info btn-modern" id="unmark-false-positive-btn">
+                    <i class="fa fa-undo"></i> {{ lang._('Unmark False Positive') }}
                 </button>
             </div>
         </div>
@@ -770,6 +834,8 @@ $(function() {
             loadWhitelist();
         } else if ($('#threats-tab').hasClass('active')) {
             loadThreats();
+        } else if ($('#false-positive-tab').hasClass('active')) {
+            loadFalsePositives();
         }
     }, 30000);
 
@@ -786,6 +852,9 @@ $(function() {
             case '#threats-tab':
                 loadThreats();
                 break;
+            case '#false-positive-tab':
+                loadFalsePositives();
+                break;
         }
     });
 
@@ -796,6 +865,7 @@ $(function() {
     $('#refresh-blocked-btn').click(() => { loadStats(); loadBlockedIps(); });
     $('#refresh-whitelist-btn').click(() => loadWhitelist());
     $('#refresh-threats-btn').click(() => loadThreats());
+    $('#refresh-false-positives-btn').click(() => loadFalsePositives());
 
     // Action buttons
     $('#clear-expired-btn').click(function() {
@@ -1050,6 +1120,68 @@ $(function() {
         });
     });
 
+    $(document).on('click', '.mark-false-positive-btn', function() {
+        const threatId = $(this).data('threat-id');
+        const btn = $(this);
+        setButtonLoading(btn, true);
+        const comment = prompt('{{ lang._("Enter reason for marking as false positive (optional):") }}') || '';
+        ajaxPost('/api/webguard/threats/markFalsePositive/' + threatId, { comment: comment }, function(data) {
+            setButtonLoading(btn, false);
+            if (data.status === 'ok') {
+                showNotification(data.message || '{{ lang._("Threat marked as false positive") }}', 'success');
+                loadFalsePositives();
+            } else {
+                showNotification('{{ lang._("Failed to mark as false positive") }}: ' + (data.message || ''), 'error');
+            }
+        });
+    });
+
+    $(document).on('click', '.view-false-positive-btn', function() {
+        const threatId = $(this).data('threat-id');
+        ajaxGet('/api/webguard/threats/getDetail/' + threatId, {}, function(data) {
+            if (data.status === 'ok') {
+                const threat = data.data;
+                let html = '<div class="threat-detail-section">';
+                html += '<h5>{{ lang._("Basic Information") }}</h5>';
+                html += '<div class="row">';
+                html += '<div class="col-md-6"><strong>{{ lang._("IP Address") }}:</strong> ' + (threat.ip_address || '-') + '</div>';
+                html += '<div class="col-md-6"><strong>{{ lang._("Threat Type") }}:</strong> ' + (threat.threat_type || '-') + '</div>';
+                html += '<div class="col-md-6"><strong>{{ lang._("Severity") }}:</strong> <span class="label label-' + (threat.severity === 'high' ? 'danger' : threat.severity === 'medium' ? 'warning' : 'info') + '">' + (threat.severity || 'LOW').toUpperCase() + '</span></div>';
+                html += '<div class="col-md-6"><strong>{{ lang._("First Seen") }}:</strong> ' + formatDate(threat.first_seen_iso) + '</div>';
+                html += '<div class="col-md-6"><strong>{{ lang._("Last Seen") }}:</strong> ' + formatDate(threat.last_seen_iso) + '</div>';
+                html += '<div class="col-md-6"><strong>{{ lang._("Reason") }}:</strong> ' + (threat.description.match(/\[FALSE POSITIVE: (.*?)\]/) ? threat.description.match(/\[FALSE POSITIVE: (.*?)\]/)[1] : 'No reason') + '</div>';
+                html += '</div></div>';
+                if (threat.payload) {
+                    html += '<div class="threat-detail-section">';
+                    html += '<h5>{{ lang._("Payload") }}</h5>';
+                    html += '<pre>' + threat.payload + '</pre>';
+                    html += '</div>';
+                }
+                $('#false-positive-detail-content').html(html);
+                $('#false-positive-detail-modal').modal('show');
+            } else {
+                showNotification('{{ lang._("Failed to load false positive details") }}: ' + (data.message || ''), 'error');
+            }
+        });
+    });
+
+    $(document).on('click', '.unmark-false-positive-btn', function() {
+        const threatId = $(this).data('threat-id');
+        const btn = $(this);
+        setButtonLoading(btn, true);
+        const comment = prompt('{{ lang._("Enter reason for unmarking (optional):") }}') || '';
+        ajaxPost('/api/webguard/threats/unmarkFalsePositive/' + threatId, { comment: comment }, function(data) {
+            setButtonLoading(btn, false);
+            if (data.status === 'ok') {
+                $('#false-positive-detail-modal').modal('hide');
+                showNotification(data.message || '{{ lang._("Threat unmarked as false positive") }}', 'success');
+                loadFalsePositives();
+            } else {
+                showNotification('{{ lang._("Failed to unmark as false positive") }}: ' + (data.message || ''), 'error');
+            }
+        });
+    });
+
     // Functions
     function loadStats() {
         ajaxGet('/api/webguard/service/status', {}, function(data) {
@@ -1170,6 +1302,43 @@ $(function() {
                 }
             } else {
                 tbody.append(createEmptyState('{{ lang._("No threat data available") }}', 'exclamation-triangle'));
+            }
+        });
+    }
+
+    function loadFalsePositives() {
+        ajaxGet('/api/webguard/threats/getFalsePositives', {}, function(data) {
+            let tbody = $('#false-positives-table tbody').empty();
+
+            if (data && data.status === 'ok' && data.data && data.data.threats) {
+                const arr = data.data.threats;
+                if (arr.length) {
+                    arr.forEach(function(item) {
+                        let severityClass = {
+                            'high': 'danger',
+                            'medium': 'warning',
+                            'low': 'info'
+                        }[item.severity] || 'info';
+                        let reason = item.description.match(/\[FALSE POSITIVE: (.*?)\]/) ? item.description.match(/\[FALSE POSITIVE: (.*?)\]/)[1] : 'No reason';
+                        let row = $('<tr>');
+                        row.append('<td><strong>' + (item.ip_address || '-') + '</strong></td>');
+                        row.append('<td>' + (item.threat_type || 'Unknown') + '</td>');
+                        row.append('<td><span class="label label-' + severityClass + '">' + (item.severity || 'LOW').toUpperCase() + '</span></td>');
+                        row.append('<td>' + formatDate(item.first_seen_iso) + '</td>');
+                        row.append('<td>' + reason + '</td>');
+                        row.append('<td>' +
+                            '<button class="btn btn-xs btn-warning mark-false-positive-btn" data-threat-id="' + item.id + '">' +
+                            '<i class="fa fa-times"></i> {{ lang._("Mark") }}</button> ' +
+                            '<button class="btn btn-xs btn-info view-false-positive-btn" data-threat-id="' + item.id + '">' +
+                            '<i class="fa fa-eye"></i> {{ lang._("View") }}</button>' +
+                            '</td>');
+                        tbody.append(row);
+                    });
+                } else {
+                    tbody.append(createEmptyState('{{ lang._("No false positives found") }}', 'times-circle'));
+                }
+            } else {
+                tbody.append(createErrorState('{{ lang._("Error loading false positives") }}'));
             }
         });
     }
