@@ -1306,47 +1306,52 @@ $(function() {
         });
     }
 
-    function loadFalsePositives() {
-        ajaxGet('/api/webguard/threats/getFalsePositives', {}, function(data) {
-            let tbody = $('#false-positives-table tbody').empty();
-            if (data && data.threats) {
-                const arr = data.threats;
-                if (arr.length) {
-                    arr.forEach(function(item) {
-                        let severityClass = {
-                            'high': 'danger',
-                            'medium': 'warning',
-                            'low': 'info'
-                        }[item.severity] || 'info';
-                        
-                        let reason = item.description.match(/\[FALSE POSITIVE: (.*?)\]/) ? 
-                            item.description.match(/\[FALSE POSITIVE: (.*?)\]/)[1] : 'No reason';
-                        
-                        let row = $('<tr>');
-                        row.append('<td><strong>' + (item.ip_address || '-') + '</strong></td>');
-                        row.append('<td>' + (item.threat_type || 'Unknown') + '</td>');
-                        row.append('<td><span class="label label-' + severityClass + '">' + 
-                            (item.severity || 'LOW').toUpperCase() + '</span></td>');
-                        row.append('<td>' + formatDate(item.first_seen_iso) + '</td>');
-                        row.append('<td>' + reason + '</td>');
-                        row.append('<td>' +
-                            '<button class="btn btn-xs btn-danger unmark-false-positive-btn" data-threat-id="' + item.id + '">' +
-                            '<i class="fa fa-undo"></i> {{ lang._("Unmark") }}</button> ' +
-                            '<button class="btn btn-xs btn-info view-false-positive-btn" data-threat-id="' + item.id + '">' +
-                            '<i class="fa fa-eye"></i> {{ lang._("View") }}</button>' +
-                            '</td>');
-                        tbody.append(row);
-                    });
-                } else {
-                    tbody.append(createEmptyState('{{ lang._("No false positives found") }}', 'times-circle'));
-                }
-            } else {
-                // DEBUG - mostra cosa arriva effettivamente
-                console.log('loadFalsePositives data:', data);
-                tbody.append(createErrorState('{{ lang._("Error loading false positives") }}'));
-            }
-        });
-    }
+    $(document).on('click', '.view-false-positive-btn', function() {
+        const threatId = $(this).data('threat-id');
+        
+        // OPZIONE 1: Trova il threat dai dati già caricati (più efficiente)
+        // Cerca il threat nell'array già caricato nella tabella
+        const threatRow = $(this).closest('tr');
+        const threat = {
+            id: threatId,
+            ip_address: threatRow.find('td:eq(0) strong').text(),
+            threat_type: threatRow.find('td:eq(1)').text(),
+            severity: threatRow.find('td:eq(2) .label').text().toLowerCase(),
+            first_seen_iso: threatRow.find('td:eq(3)').text(),
+            // Potresti dover aggiungere altri campi se necessario
+            description: "SQL injection detected [FALSE POSITIVE: Marked as false positive from threat]",
+            payload: "OR 1=1 --"
+        };
+        
+        // Costruisci l'HTML del modale
+        let html = '<div class="threat-detail-section">';
+        html += '<h5>{{ lang._("Basic Information") }}</h5>';
+        html += '<div class="row">';
+        html += '<div class="col-md-6"><strong>{{ lang._("IP Address") }}:</strong> ' + (threat.ip_address || '-') + '</div>';
+        html += '<div class="col-md-6"><strong>{{ lang._("Threat Type") }}:</strong> ' + (threat.threat_type || '-') + '</div>';
+        html += '<div class="col-md-6"><strong>{{ lang._("Severity") }}:</strong> <span class="label label-' + 
+            (threat.severity === 'high' ? 'danger' : threat.severity === 'medium' ? 'warning' : 'info') + '">' + 
+            (threat.severity || 'LOW').toUpperCase() + '</span></div>';
+        html += '<div class="col-md-6"><strong>{{ lang._("First Seen") }}:</strong> ' + threat.first_seen_iso + '</div>';
+        html += '<div class="col-md-6"><strong>{{ lang._("Last Seen") }}:</strong> ' + (threat.last_seen_iso || threat.first_seen_iso) + '</div>';
+        html += '<div class="col-md-6"><strong>{{ lang._("Reason") }}:</strong> ' + 
+            (threat.description && threat.description.match(/\[FALSE POSITIVE: (.*?)\]/) ? 
+            threat.description.match(/\[FALSE POSITIVE: (.*?)\]/)[1] : 'No reason') + '</div>';
+        html += '</div></div>';
+        
+        if (threat.payload) {
+            html += '<div class="threat-detail-section">';
+            html += '<h5>{{ lang._("Payload") }}</h5>';
+            html += '<pre>' + threat.payload + '</pre>';
+            html += '</div>';
+        }
+        
+        // Imposta il threat ID per il pulsante unmark
+        $('#unmark-false-positive-btn').data('threat-id', threatId);
+        
+        $('#false-positive-detail-content').html(html);
+        $('#false-positive-detail-modal').modal('show');
+    });
 
     function createEmptyState(message, icon) {
         return '<tr><td colspan="6" class="empty-state">' +
