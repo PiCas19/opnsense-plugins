@@ -3,7 +3,7 @@
  # All rights reserved.
  #}
 <!-- Allow OSM tiles -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob: https://*.tile.openstreetmap.org;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob: https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org;">
 <!-- Include external libraries only -->
 <link rel="stylesheet" href="/ui/css/leaflet.css"/>
 <script src="/ui/js/leaflet.js"></script>
