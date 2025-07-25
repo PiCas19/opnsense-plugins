@@ -131,36 +131,14 @@ $(document).ready(function() {
     let timelineChart = null;
     let currentPeriod = '24h';
 
-    // Initialize
-    console.log('Initializing stats page at', new Date().toISOString());
-    if (typeof ajaxCall === 'undefined') {
-        console.error('ajaxCall function is not defined. Falling back to fetch.');
-        $('#apiStatus').text('Warning: Using fallback AJAX. Check setup.').show();
-    }
-
-    function makeApiCall(url, data, successCallback, failCallback) {
-        if (typeof ajaxCall !== 'undefined') {
-            console.log('Using ajaxCall for:', url);
-            ajaxCall(url, data, successCallback).fail(failCallback);
-        } else {
-            console.log('Using fetch fallback for:', url);
-            fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRFToken': $('meta[name="csrf-token"]').attr('content') || ''
-                },
-                body: JSON.stringify(data)
-            })
-            .then(response => response.json())
-            .then(successCallback)
-            .catch(error => failCallback({ status: 0, responseText: error.message }));
-        }
-    }
-
+    // Initialize dashboard
     loadStatsData();
     initCharts();
+
+    // Set up periodic updates every 5 seconds
+    setInterval(function() {
+        loadStatsData();
+    }, 5000);
 
     // Period selector
     $('#periodSelect').change(function() {
@@ -172,19 +150,19 @@ $(document).ready(function() {
 
     function loadStatsData() {
         console.log('Loading stats data for period:', currentPeriod);
-        makeApiCall('/api/webguard/threats/getStats', { period: currentPeriod }, function(data) {
+        ajaxCall('/api/webguard/threats/getStats', { period: currentPeriod }, function(data) {
             console.log('API response for getStats:', data);
-            if (data && data.status === 'ok') {
-                updateSummaryCards(data);
-                updateTopIPs(data.top_source_ips || {});
-                updateAttackPatterns(data.patterns || {});
+            if (data.status === 'ok' && data.data) {
+                updateSummaryCards(data.data);
+                updateTopIPs(data.data.top_source_ips || {});
+                updateAttackPatterns(data.data.patterns || {});
             } else {
                 console.log('No valid data from API, showing empty state');
                 updateSummaryCards({});
                 updateTopIPs({});
                 updateAttackPatterns({});
             }
-        }, function(xhr, status, error) {
+        }).fail(function(xhr, status, error) {
             console.error('Failed to load stats:', error, 'Status:', status, 'Response:', xhr.responseText);
             $('#apiStatus').text('API Error: ' + (xhr.responseText || 'No response')).show();
             updateSummaryCards({});
@@ -196,8 +174,8 @@ $(document).ready(function() {
     function updateSummaryCards(data) {
         console.log('Updating summary cards with data:', data);
         $('#totalThreats').text(formatNumber(data.total_threats || 0));
-        $('#blockedThreats').text(formatNumber(data.blocked_today || 0));
-        $('#detectedThreats').text(formatNumber((data.total_threats || 0) - (data.blocked_today || 0)));
+        $('#blockedThreats').text(formatNumber(data.blocked_threats || 0));
+        $('#detectedThreats').text(formatNumber((data.total_threats || 0) - (data.blocked_threats || 0)));
         $('#uniqueIPs').text(formatNumber(Object.keys(data.top_source_ips || {}).length));
     }
 
@@ -246,7 +224,6 @@ $(document).ready(function() {
 
     function initCharts() {
         console.log('Initializing charts');
-        // Threat Type Chart
         const ctx1 = document.getElementById('threatTypeChart');
         if (ctx1) {
             threatTypeChart = new Chart(ctx1.getContext('2d'), {
@@ -269,11 +246,8 @@ $(document).ready(function() {
                     }
                 }
             });
-        } else {
-            console.error('Canvas element #threatTypeChart not found');
         }
 
-        // Severity Chart
         const ctx2 = document.getElementById('severityChart');
         if (ctx2) {
             severityChart = new Chart(ctx2.getContext('2d'), {
@@ -298,11 +272,8 @@ $(document).ready(function() {
                     }
                 }
             });
-        } else {
-            console.error('Canvas element #severityChart not found');
         }
 
-        // Timeline Chart
         const ctx3 = document.getElementById('timelineChart');
         if (ctx3) {
             timelineChart = new Chart(ctx3.getContext('2d'), {
@@ -333,8 +304,6 @@ $(document).ready(function() {
                     }
                 }
             });
-        } else {
-            console.error('Canvas element #timelineChart not found');
         }
 
         updateCharts();
@@ -342,16 +311,16 @@ $(document).ready(function() {
 
     function updateCharts() {
         console.log('Updating charts for period:', currentPeriod);
-        makeApiCall('/api/webguard/threats/getStats', { period: currentPeriod }, function(data) {
+        ajaxCall('/api/webguard/threats/getStats', { period: currentPeriod }, function(data) {
             console.log('getStats response for charts:', data);
-            if (data && data.status === 'ok' && threatTypeChart) {
-                const threatsByType = data.threats_by_type || {};
+            if (data.status === 'ok' && data.data && threatTypeChart) {
+                const threatsByType = data.data.threats_by_type || {};
                 threatTypeChart.data.labels = Object.keys(threatsByType);
                 threatTypeChart.data.datasets[0].data = Object.values(threatsByType);
                 threatTypeChart.update();
             }
-            if (data && data.status === 'ok' && severityChart) {
-                const severityData = data.threats_by_severity || {};
+            if (data.status === 'ok' && data.data && severityChart) {
+                const severityData = data.data.threats_by_severity || {};
                 severityChart.data.datasets[0].data = [
                     severityData.critical || 0,
                     severityData.high || 0,
@@ -360,7 +329,7 @@ $(document).ready(function() {
                 ];
                 severityChart.update();
             }
-        }, function(xhr, status, error) {
+        }).fail(function(xhr, status, error) {
             console.error('Failed to update stats charts:', error, 'Status:', status, 'Response:', xhr.responseText);
             $('#apiStatus').text('API Error: ' + (xhr.responseText || 'No response')).show();
             if (threatTypeChart) {
@@ -374,14 +343,14 @@ $(document).ready(function() {
             }
         });
 
-        makeApiCall('/api/webguard/threats/getTimeline', { period: currentPeriod }, function(data) {
+        ajaxCall('/api/webguard/threats/getTimeline', { period: currentPeriod }, function(data) {
             console.log('getTimeline response:', data);
-            if (data && data.status === 'ok' && data.timeline && timelineChart) {
-                timelineChart.data.labels = data.timeline.labels || [];
-                timelineChart.data.datasets[0].data = data.timeline.threats || [];
+            if (data.status === 'ok' && data.data && data.data.timeline && timelineChart) {
+                timelineChart.data.labels = data.data.timeline.labels || [];
+                timelineChart.data.datasets[0].data = data.data.timeline.threats || [];
                 timelineChart.update();
             }
-        }, function(xhr, status, error) {
+        }).fail(function(xhr, status, error) {
             console.error('Failed to update timeline chart:', error, 'Status:', status, 'Response:', xhr.responseText);
             $('#apiStatus').text('API Error: ' + (xhr.responseText || 'No response')).show();
             if (timelineChart) {
