@@ -215,11 +215,11 @@ class ThreatsController extends ApiControllerBase
     public function whitelistIpAction($id = null)
     {
         if ($this->request->isPost() && !empty($id)) {
-            $permanent = $this->request->getPost('permanent', 'string', 'true');
+            $description = $this->request->getPost('description', 'string', '');
             $comment = $this->request->getPost('comment', 'string', '');
             
             $backend = new Backend();
-            $out = trim($backend->configdpRun('webguard', ['whitelist_ip_from_threat', $id, $permanent, $comment]));
+            $out = trim($backend->configdpRun('webguard', ['whitelist_ip_from_threat', $id, $description, $comment]));
             
             if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false || empty($out)) {
                 return [

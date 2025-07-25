@@ -825,14 +825,12 @@ $(document).ready(function() {
         }
         const btn = $(this);
         setButtonLoading(btn, true);
-        const permanent = 'true'; // O '1' se il backend si aspetta un booleano numerico
-        const comment = 'Added to whitelist from threat';
-        ajaxPost('/api/webguard/threats/whitelistFromThreat/' + currentThreatId, { 
-            reason: comment, 
-            permanent: permanent 
-        }, function(data) {
+        // Valori hardcoded di default
+        const description = 'Manual whitelist entry';
+        const comment = 'Whitelisted from threat';
+        ajaxPost('/api/webguard/threats/whitelistIp/' + currentThreatId, { description: description, comment: comment }, function(data) {
             setButtonLoading(btn, false);
-            if (data.result === 'ok') { // Allineato con il pattern di blockIp
+            if (data.result === 'ok') {
                 $('#threatDetailModal').modal('hide');
                 showNotification(data.message || '{{ lang._("IP added to whitelist.") }}', 'success');
                 loadThreats();
@@ -841,6 +839,7 @@ $(document).ready(function() {
             }
         });
     });
+    
     // Block IP
     $('#blockIp').click(function() {
         console.log('Blocking threat with ID:', currentThreatId);
