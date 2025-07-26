@@ -234,45 +234,55 @@ def get_blocking_stats(period='24h'):
         return {'error': f'Failed to get blocking stats: {e}'}
 
 def get_geo_stats(period='24h'):
-    """Get geographic statistics for threats"""
+    """Get geographic statistics for threats using GeoIP-compatible MMDB"""
     if not os.path.exists(DB_FILE):
         return {'error': 'Database not found'}
-    
+
     try:
         import geoip2.database
-        
-        # Load GeoIP database
-        try:
-            geoip_reader = geoip2.database.Reader('/usr/local/share/GeoIP/GeoLite2-Country.mmdb')
-        except:
-            return {'error': 'GeoIP database not available'}
-        
+    except ImportError:
+        return {'error': 'geoip2 module not installed. Run: pip install geoip2'}
+
+    # Detect GeoIP MMDB path (IP2Location or MaxMind)
+    geoip_paths = [
+        '/usr/local/share/GeoIP/IP2LOCATION-LITE-DB1.MMDB',
+        '/usr/local/share/GeoIP/GeoLite2-Country.mmdb'
+    ]
+    geoip_path = next((p for p in geoip_paths if os.path.exists(p)), None)
+    if not geoip_path:
+        return {'error': 'No supported GeoIP MMDB file found'}
+
+    try:
+        geoip_reader = geoip2.database.Reader(geoip_path)
+    except Exception as e:
+        return {'error': f'Failed to load GeoIP database: {e}'}
+
+    try:
         conn = sqlite3.connect(DB_FILE)
-        
-        # Calculate time range
+
         if period == '24h':
             start_time = int(time.time() - 86400)
         elif period == '7d':
             start_time = int(time.time() - 604800)
+        elif period == '30d':
+            start_time = int(time.time() - 2592000)
         else:
             start_time = int(time.time() - 86400)
-        
-        # Get unique source IPs from threats
+
         cursor = conn.execute('''
             SELECT DISTINCT source_ip FROM threats 
             WHERE timestamp >= ?
         ''', (start_time,))
-        
         ips = [row[0] for row in cursor.fetchall()]
-        
-        # Resolve countries
+        conn.close()
+
         countries = {}
         for ip in ips:
             try:
                 response = geoip_reader.country(ip)
-                country_code = response.country.iso_code
-                country_name = response.country.name
-                
+                country_code = response.country.iso_code or 'unknown'
+                country_name = response.country.name or 'Unknown'
+
                 if country_code not in countries:
                     countries[country_code] = {
                         'name': country_name,
@@ -280,9 +290,7 @@ def get_geo_stats(period='24h'):
                         'count': 0
                     }
                 countries[country_code]['count'] += 1
-                
             except:
-                # Unknown/private IP
                 if 'unknown' not in countries:
                     countries['unknown'] = {
                         'name': 'Unknown',
@@ -290,22 +298,23 @@ def get_geo_stats(period='24h'):
                         'count': 0
                     }
                 countries['unknown']['count'] += 1
-        
-        # Sort by count
+
         top_countries = sorted(countries.values(), key=lambda x: x['count'], reverse=True)[:10]
-        
+
         stats = {
             'countries': list(countries.values()),
             'total_countries': len(countries),
-            'top_countries': top_countries
+            'top_countries': top_countries,
+            'source': os.path.basename(geoip_path)
         }
-        
-        conn.close()
+
         geoip_reader.close()
         return stats
-        
+
     except Exception as e:
         return {'error': f'Failed to get geo stats: {e}'}
+
+
 
 def main():
     if len(sys.argv) > 1:
