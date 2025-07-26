@@ -519,7 +519,7 @@ $(document).ready(function() {
 
    function updateChartData() {
         // Corretto: gestisce la risposta diretta dell'API getStats
-        ajaxCall('/api/webguard/threats/getStats', {period: '24h'}, function(data) {
+        ajaxCall('/api/webguard/threats/getStats', {}, function(data) {
             console.log('getStats response:', data); // Debug log
             
             // L'API restituisce i dati direttamente, non wrapped in status/data
