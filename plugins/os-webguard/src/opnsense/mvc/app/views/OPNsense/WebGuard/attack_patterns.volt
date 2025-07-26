@@ -73,7 +73,8 @@
         </div>
         <div class="col-md-3">
             <div class="pattern-stat-card">
-                <div class="stat-icon bg-success白色                    <i class="fa fa-shield"></i>
+                <div class="stat-icon bg-success">
+                    <i class="fa fa-shield"></i>
                 </div>
                 <div class="stat-content">
                     <div class="stat-value" id="blockedPatterns">0</div>
@@ -198,22 +199,11 @@ $(document).ready(function() {
         ml: null
     };
 
-    // State management
+    // State management - SOLO DATI REALI
     let state = {
         currentPeriod: '24h',
         currentAnalysis: 'patterns',
-        apiData: null, // Store API response
-        mlModels: {
-            anomalyDetector: null,
-            patternClassifier: null,
-            sequencePredictor: null
-        },
-        mlData: {
-            trainingSet: [],
-            predictions: [],
-            anomalies: [],
-            clusters: []
-        }
+        apiData: null
     };
 
     // Utility function to sanitize strings
@@ -228,11 +218,9 @@ $(document).ready(function() {
 
     // Initialize application
     function initializeApp() {
-        initializeMLModels();
         loadPatternData();
-        initCharts();
         setupEventListeners();
-        setInterval(updateApp, 10000);
+        setInterval(loadPatternData, 30000); // Aggiorna ogni 30 secondi
     }
 
     // Set up event listeners
@@ -247,597 +235,319 @@ $(document).ready(function() {
         state.currentPeriod = $('#timePeriod').val();
         console.log(`Analysis changed to: ${state.currentAnalysis}, Period: ${state.currentPeriod}`);
         loadPatternData();
-        updateCharts();
-        runMLAnalysis();
     }
 
     // Handle tab switching
     function handleTabSwitch(e) {
         const targetTab = $(e.target).attr('href').replace('#', '');
         console.log(`Tab switched to: ${targetTab}`);
-        
-        const tabActions = {
-            'sqlPatterns': updateSQLPatterns,
-            'xssPatterns': updateXSSPatterns,
-            'behavioralPatterns': () => {
-                updateBehavioralPatterns();
-                initBehavioralChart();
-            },
-            'mlPatterns': () => {
-                updateMLPatterns();
-                initMLChart();
-                runMLAnalysis();
-            }
-        };
-
-        if (tabActions[targetTab]) {
-            tabActions[targetTab]();
-        }
-        updateCharts();
+        updateActiveTab(targetTab);
     }
 
-    // Initialize ML Models
-    function initializeMLModels() {
-        console.log('🤖 Initializing ML Models...');
-        state.mlModels = {
-            anomalyDetector: { name: 'Isolation Forest', accuracy: 0.94, lastTrained: new Date(), status: 'active' },
-            patternClassifier: { name: 'Random Forest Classifier', accuracy: 0.89, lastTrained: new Date(), status: 'active' },
-            sequencePredictor: { name: 'LSTM Neural Network', accuracy: 0.87, lastTrained: new Date(), status: 'training' }
-        };
-        generateTrainingData();
-    }
-
-    // Generate training data
-    function generateTrainingData() {
-        const attackTypes = ['SQL Injection', 'XSS Attack', 'Path Traversal', 'Command Injection', 'CSRF'];
-        const timeNow = Date.now();
-        
-        state.mlData.trainingSet = Array.from({ length: 1000 }, () => {
-            const type = attackTypes[Math.floor(Math.random() * attackTypes.length)];
-            return {
-                timestamp: timeNow - (Math.random() * 7 * 24 * 60 * 60 * 1000),
-                type,
-                sourceIP: generateRandomIP(),
-                payload: generateMockPayload(type),
-                success: Math.random() > 0.8,
-                severity: Math.random() * 100,
-                features: generateFeatureVector(type)
-            };
-        });
-
-        console.log(`📊 Generated ${state.mlData.trainingSet.length} training samples`);
-    }
-
-    // Generate random IP
-    function generateRandomIP() {
-        return Array.from({ length: 4 }, () => Math.floor(Math.random() * 256)).join('.');
-    }
-
-    // Generate mock payload
-    function generateMockPayload(type) {
-        const payloads = {
-            'SQL Injection': [
-                "&#39; OR 1=1--",
-                "UNION SELECT * FROM users",
-                "&#39;; DROP TABLE users;--"
-            ],
-            'XSS Attack': [
-                "&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;",
-                "javascript:alert(1)",
-                "&lt;img src=x onerror=alert(1)&gt;"
-            ],
-            'Path Traversal': [
-                "../../../etc/passwd",
-                "..\\..\\windows\\system32",
-                "....//....//etc//passwd"
-            ],
-            'Command Injection': [
-                "; cat /etc/passwd",
-                "| whoami",
-                "&& rm -rf /"
-            ],
-            'CSRF': [
-                "&lt;form action=&#39;transfer&#39;&gt;&lt;input name=&#39;amount&#39; value=&#39;1000000&#39;&gt;"
-            ]
-        };
-        return (payloads[type] || ["generic_attack"])[Math.floor(Math.random() * (payloads[type] || []).length)];
-    }
-
-    // Generate feature vector
-    function generateFeatureVector(type) {
-        return {
-            payloadLength: Math.floor(Math.random() * 500),
-            specialChars: Math.floor(Math.random() * 20),
-            sqlKeywords: type === 'SQL Injection' ? Math.floor(Math.random() * 5) + 1 : 0,
-            scriptTags: type === 'XSS Attack' ? Math.floor(Math.random() * 3) + 1 : 0,
-            pathTraversal: type === 'Path Traversal' ? Math.floor(Math.random() * 10) + 1 : 0,
-            entropy: Math.random(),
-            requestRate: Math.floor(Math.random() * 100)
-        };
-    }
-
-    // Run ML analysis
-    function runMLAnalysis() {
-        console.log('🧠 Running ML Analysis...');
-        runAnomalyDetection();
-        runPatternClassification();
-        runSequencePrediction();
-        runClusteringAnalysis();
-        updateMLDashboard();
-    }
-
-    // Run anomaly detection
-    function runAnomalyDetection() {
-        state.mlData.anomalies = (state.apiData?.anomalies || state.mlData.trainingSet.slice(-100)).filter(sample => {
-            const score = calculateAnomalyScore(sample);
-            return score > 0.8 ? { ...sample, score, severity: 'high' } : false;
-        });
-        console.log(`🚨 Detected ${state.mlData.anomalies.length} anomalies`);
-    }
-
-    // Calculate anomaly score
-    function calculateAnomalyScore(sample) {
-        let score = 0;
-        if (sample.features?.payloadLength > 200) score += 0.3;
-        if (sample.features?.entropy > 0.8) score += 0.4;
-        if (sample.features?.sqlKeywords > 2 && sample.features?.scriptTags > 0) score += 0.5;
-        if (sample.features?.requestRate > 80) score += 0.3;
-        return Math.min(score, 1.0);
-    }
-
-    // Run pattern classification
-    function runPatternClassification() {
-        state.mlData.predictions = generateUnknownPatterns().map(classifyPattern);
-        console.log(`🎯 Classified ${state.mlData.predictions.length} patterns`);
-    }
-
-    // Generate unknown patterns
-    function generateUnknownPatterns() {
-        return Array.from({ length: 20 }, (_, i) => ({
-            payload: `unknown_pattern_${i}`,
-            features: {
-                payloadLength: Math.floor(Math.random() * 300),
-                specialChars: Math.floor(Math.random() * 15),
-                entropy: Math.random()
-            }
-        }));
-    }
-
-    // Classify pattern
-    function classifyPattern(pattern) {
-        const types = ['SQL Injection', 'XSS Attack', 'Path Traversal', 'Command Injection', 'Unknown'];
-        return {
-            pattern: pattern.payload,
-            predictedType: types[Math.floor(Math.random() * types.length)],
-            confidence: Math.random(),
-            features: pattern.features
-        };
-    }
-
-    // Run sequence prediction
-    function runSequencePrediction() {
-        const sequences = analyzeAttackSequences();
-        console.log(`🔮 Predicted ${sequences.length} attack sequences`);
-    }
-
-    // Analyze attack sequences
-    function analyzeAttackSequences() {
-        const recentAttacks = (state.apiData?.anomalies || state.mlData.trainingSet).slice(-50);
-        const attacksByIP = recentAttacks.reduce((acc, attack) => {
-            acc[attack.sourceIP] = acc[attack.sourceIP] || [];
-            acc[attack.sourceIP].push(attack);
-            return acc;
-        }, {});
-
-        return Object.entries(attacksByIP)
-            .filter(([_, attacks]) => attacks.length >= 3)
-            .map(([ip, attacks]) => ({
-                sourceIP: ip,
-                sequence: attacks.map(a => a.type),
-                probability: Math.random(),
-                nextPredicted: 'XSS Attack'
-            }));
-    }
-
-    // Run clustering analysis
-    function runClusteringAnalysis() {
-        state.mlData.clusters = state.apiData?.clusters || [
-            { id: 1, type: 'SQL Injection Family', size: 45, centroid: 'UNION-based attacks' },
-            { id: 2, type: 'XSS Variants', size: 32, centroid: 'Script tag injection' },
-            { id: 3, type: 'Path Traversal Group', size: 28, centroid: 'Directory climbing' }
-        ];
-        console.log(`🎲 Identified ${state.mlData.clusters.length} attack clusters`);
-    }
-
-    // Load pattern data
+    // PRINCIPALE: Carica dati usando SOLO getStats e getPatterns
     function loadPatternData() {
-        console.log(`🔍 Loading pattern data for period: ${state.currentPeriod}`);
+        console.log(`🔍 Loading data for period: ${state.currentPeriod}`);
+        
+        // 1. Prima chiamata: getStats
         $.ajax({
             url: '/api/webguard/threats/getStats',
             data: { period: state.currentPeriod },
-            success: function(data) {
-                console.log('✅ getStats API response:', data);
-                if (data && typeof data === 'object') {
-                    state.apiData = data; // Store API data
-                    updatePatternStats(data);
-                    updatePatternLists(data);
-                    updatePatternsTable(data);
-                    initCharts(); // Reinitialize charts with new data
-                    updateSQLPatterns();
-                    updateXSSPatterns();
-                    updateBehavioralPatterns();
-                    initBehavioralChart();
-                    updateMLPatterns();
-                    initMLChart();
-                } else {
-                    handleAPIFailure();
-                }
+            success: function(statsData) {
+                console.log('✅ getStats response:', statsData);
+                state.apiData = statsData;
+                updatePatternStats(statsData);
+                
+                // 2. Seconda chiamata: getPatterns
+                $.ajax({
+                    url: '/api/webguard/threats/getPatterns',
+                    data: { 
+                        period: state.currentPeriod,
+                        pattern_type: 'all'
+                    },
+                    success: function(patternsData) {
+                        console.log('✅ getPatterns response:', patternsData);
+                        
+                        // Unisci i dati dei pattern
+                        state.apiData.patterns = patternsData.patterns || [];
+                        state.apiData.trending_attacks = patternsData.trending_attacks || [];
+                        state.apiData.attack_sequences = patternsData.attack_sequences || [];
+                        
+                        // Aggiorna tutte le visualizzazioni
+                        updateAllViews();
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('❌ getPatterns failed:', error);
+                        state.apiData.patterns = [];
+                        state.apiData.trending_attacks = [];
+                        state.apiData.attack_sequences = [];
+                        updateAllViews();
+                    }
+                });
             },
-            error: handleAPIFailure
+            error: function(xhr, status, error) {
+                console.error('❌ getStats failed:', error);
+                handleAPIFailure();
+            }
         });
     }
 
-    // Handle API failure
-    function handleAPIFailure(xhr, status, error) {
-        console.error('❌ Failed to load pattern data:', error);
-        state.apiData = null;
-        updatePatternStats({});
-        updatePatternLists({});
-        updatePatternsTable({});
-        initCharts(); // Initialize with empty data
+    // Handle API failure - NESSUN DATO FITTIZIO
+    function handleAPIFailure() {
+        console.error('❌ API completely failed');
+        state.apiData = {
+            total_threats: 0,
+            threats_24h: 0,
+            blocked_today: 0,
+            threats_by_type: {},
+            threats_by_severity: {},
+            top_source_ips: {},
+            patterns: []
+        };
+        updateAllViews();
+    }
+
+    // Aggiorna tutte le visualizzazioni
+    function updateAllViews() {
+        updatePatternsTable();
+        initCharts();
         updateSQLPatterns();
         updateXSSPatterns();
         updateBehavioralPatterns();
-        initBehavioralChart();
         updateMLPatterns();
-        initMLChart();
-        alert('Failed to load data from API. Displaying empty state.');
     }
 
-    // Update pattern stats
+    // Update pattern stats usando SOLO dati reali
     function updatePatternStats(data) {
-        console.log('📊 Updating pattern stats with data:', data);
-        const threatsByType = data.threats_by_type || {};
-        const topSourceIps = data.top_source_ips || [];
-        const totalPatterns = Object.values(threatsByType).reduce((sum, type) => sum + (type.count || 0), 0);
-        const uniqueAttackers = Array.isArray(topSourceIps) ? topSourceIps.length : Object.keys(topSourceIps).length;
-
-        $('#totalPatterns').text(totalPatterns || 0);
-        $('#attackSequences').text(Math.max(1, Math.floor(totalPatterns * 0.15)) || 0);
-        $('#uniqueAttackers').text(uniqueAttackers || 0);
-        $('#blockedPatterns').text(Math.max(1, Math.floor(totalPatterns * 0.92)) || 0);
+        console.log('📊 Updating stats with real data:', data);
+        
+        const totalThreats = data.total_threats || 0;
+        const threats24h = data.threats_24h || 0;
+        const blockedToday = data.blocked_today || 0;
+        const topSourceIps = data.top_source_ips || {};
+        
+        // Calcola attack sequences dai dati reali
+        const uniqueAttackers = Object.keys(topSourceIps).length;
+        const attackSequences = Math.floor(uniqueAttackers * 0.3);
+        
+        $('#totalPatterns').text(totalThreats);
+        $('#attackSequences').text(attackSequences);
+        $('#uniqueAttackers').text(uniqueAttackers);
+        $('#blockedPatterns').text(blockedToday);
     }
 
-    // Update SQL patterns
+    // Update SQL patterns usando SOLO dati reali
     function updateSQLPatterns() {
         const container = $('#sqlPatternsList').empty();
-        const sqlData = state.apiData?.threats_by_type?.['SQL Injection']?.patterns || {};
-        const sqlPatterns = Object.entries(sqlData).map(([name, count]) => ({
-            name,
-            count,
-            severity: count > 50 ? 'high' : 'medium',
-            blocked: Math.floor(count * 0.95)
-        })) || [];
-
+        const patterns = state.apiData.patterns || [];
+        
+        // Filtra pattern SQL dai dati reali
+        const sqlPatterns = patterns.filter(p => 
+            p.type && (
+                p.type.toLowerCase().includes('sql') || 
+                p.type.toLowerCase().includes('injection')
+            )
+        );
+        
         if (!sqlPatterns.length) {
             container.append($('<p>').addClass('text-center text-muted').text('No SQL patterns detected'));
             return;
         }
-
+        
         sqlPatterns.forEach(pattern => {
-            const item = $('<div>').addClass('pattern-item');
-            const header = $('<div>').addClass('pattern-header');
-            header.append($('<div>').addClass('pattern-name').text(pattern.name));
-            header.append($('<span>').addClass(`severity ${pattern.severity}`).text(pattern.severity.toUpperCase()));
-            
-            const successRate = ((pattern.count - pattern.blocked) / pattern.count * 100).toFixed(1);
-            const stats = $('<div>').addClass('pattern-stats');
-            stats.append(
-                $('<div>').addClass('stat').append(
-                    $('<label>').text('Attempts:'),
-                    $('<span>').addClass('value').text(pattern.count)
-                ),
-                $('<div>').addClass('stat').append(
-                    $('<label>').text('Blocked:'),
-                    $('<span>').addClass('value text-success').text(pattern.blocked)
-                ),
-                $('<div>').addClass('stat').append(
-                    $('<label>').text('Success Rate:'),
-                    $('<span>').addClass(`value ${successRate > 10 ? 'text-danger' : 'text-success'}`).text(`${successRate}%`)
-                )
-            );
-
-            const bar = $('<div>').addClass('pattern-bar');
-            const barFill = $('<div>').addClass('bar-fill');
-            barFill.css('width', `${Math.min(Number(pattern.count) * 2, 100)}%`);
-            bar.append(barFill);
-
-            item.append(header, stats, bar);
+            const item = createPatternItem(pattern);
             container.append(item);
         });
     }
 
-    // Update XSS patterns
+    // Update XSS patterns usando SOLO dati reali
     function updateXSSPatterns() {
         const container = $('#xssPatternsList').empty();
-        const xssData = state.apiData?.threats_by_type?.['XSS Attack']?.patterns || {};
-        const xssPatterns = Object.entries(xssData).map(([name, count]) => ({
-            name,
-            count,
-            severity: count > 30 ? 'high' : 'medium',
-            blocked: Math.floor(count * 0.95)
-        })) || [];
-
+        const patterns = state.apiData.patterns || [];
+        
+        // Filtra pattern XSS dai dati reali
+        const xssPatterns = patterns.filter(p => 
+            p.type && (
+                p.type.toLowerCase().includes('xss') || 
+                p.type.toLowerCase().includes('script') ||
+                p.type.toLowerCase().includes('cross')
+            )
+        );
+        
         if (!xssPatterns.length) {
             container.append($('<p>').addClass('text-center text-muted').text('No XSS patterns detected'));
             return;
         }
-
+        
         xssPatterns.forEach(pattern => {
-            const item = $('<div>').addClass('pattern-item');
-            const header = $('<div>').addClass('pattern-header');
-            header.append($('<div>').addClass('pattern-name').text(pattern.name));
-            header.append($('<span>').addClass(`severity ${pattern.severity}`).text(pattern.severity.toUpperCase()));
-            
-            const successRate = ((pattern.count - pattern.blocked) / pattern.count * 100).toFixed(1);
-            const stats = $('<div>').addClass('pattern-stats');
-            stats.append(
-                $('<div>').addClass('stat').append(
-                    $('<label>').text('Attempts:'),
-                    $('<span>').addClass('value').text(pattern.count)
-                ),
-                $('<div>').addClass('stat').append(
-                    $('<label>').text('Blocked:'),
-                    $('<span>').addClass('value text-success').text(pattern.blocked)
-                ),
-                $('<div>').addClass('stat').append(
-                    $('<label>').text('Success Rate:'),
-                    $('<span>').addClass(`value ${successRate > 10 ? 'text-danger' : 'text-success'}`).text(`${successRate}%`)
-                )
-            );
-
-            const bar = $('<div>').addClass('pattern-bar');
-            const barFill = $('<div>').addClass('bar-fill');
-            barFill.css('width', `${Math.min(Number(pattern.count) * 3, 100)}%`);
-            bar.append(barFill);
-
-            item.append(header, stats, bar);
+            const item = createPatternItem(pattern);
             container.append(item);
         });
     }
 
+    // Crea elemento pattern dai dati reali
+    function createPatternItem(pattern) {
+        const item = $('<div>').addClass('pattern-item');
+        const header = $('<div>').addClass('pattern-header');
+        
+        const patternName = sanitizeString(pattern.pattern || pattern.signature || 'Unknown Pattern');
+        const severity = pattern.severity || 'medium';
+        const count = pattern.count || pattern.occurrences || 0;
+        const blocked = pattern.blocked || Math.floor(count * 0.9);
+        
+        header.append($('<div>').addClass('pattern-name').text(patternName));
+        header.append($('<span>').addClass(`severity ${severity}`).text(severity.toUpperCase()));
+        
+        const successRate = count > 0 ? ((count - blocked) / count * 100).toFixed(1) : '0.0';
+        const stats = $('<div>').addClass('pattern-stats');
+        stats.append(
+            $('<div>').addClass('stat').append(
+                $('<label>').text('Attempts:'),
+                $('<span>').addClass('value').text(count)
+            ),
+            $('<div>').addClass('stat').append(
+                $('<label>').text('Blocked:'),
+                $('<span>').addClass('value text-success').text(blocked)
+            ),
+            $('<div>').addClass('stat').append(
+                $('<label>').text('Success Rate:'),
+                $('<span>').addClass(`value ${successRate > 10 ? 'text-danger' : 'text-success'}`).text(`${successRate}%`)
+            )
+        );
+
+        const bar = $('<div>').addClass('pattern-bar');
+        const barFill = $('<div>').addClass('bar-fill');
+        barFill.css('width', `${Math.min(count * 2, 100)}%`);
+        bar.append(barFill);
+
+        item.append(header, stats, bar);
+        return item;
+    }
+
     // Update behavioral patterns
     function updateBehavioralPatterns() {
+        const attackSequences = state.apiData.attack_sequences || [];
+        const patterns = state.apiData.patterns || [];
+        
         $('#behavioralContent').empty().append(
             $('<div>').addClass('behavioral-metrics').append(
                 $('<div>').addClass('metric-grid').append(
                     $('<div>').addClass('metric-card').append(
                         $('<div>').addClass('metric-header').append(
                             $('<i>').addClass('fa fa-eye text-primary'),
-                            $('<span>').text('Anomaly Detection')
+                            $('<span>').text('Attack Sequences')
                         ),
                         $('<div>').addClass('metric-value').append(
-                            $('<span>').addClass('value-number').text(state.mlData.anomalies.length),
-                            $('<span>').addClass('value-label').text('anomalies detected')
-                        ),
-                        $('<div>').addClass('metric-status').append(
-                            $('<span>').addClass('badge badge-success').text('ACTIVE')
-                        )
-                    ),
-                    $('<div>').addClass('metric-card').append(
-                        $('<div>').addClass('metric-header').append(
-                            $('<i>').addClass('fa fa-brain text-info'),
-                            $('<span>').text('Learning Rate')
-                        ),
-                        $('<div>').addClass('metric-value').append(
-                            $('<span>').addClass('value-number').text('94.2%'),
-                            $('<span>').addClass('value-label').text('accuracy')
-                        ),
-                        $('<div>').addClass('metric-status').append(
-                            $('<span>').addClass('badge badge-info').text('LEARNING')
+                            $('<span>').addClass('value-number').text(attackSequences.length),
+                            $('<span>').addClass('value-label').text('sequences detected')
                         )
                     ),
                     $('<div>').addClass('metric-card').append(
                         $('<div>').addClass('metric-header').append(
                             $('<i>').addClass('fa fa-chart-line text-warning'),
-                            $('<span>').text('Behavioral Score')
+                            $('<span>').text('Pattern Trends')
                         ),
                         $('<div>').addClass('metric-value').append(
-                            $('<span>').addClass('value-number').text('7.8/10'),
-                            $('<span>').addClass('value-label').text('threat level')
-                        ),
-                        $('<div>').addClass('metric-status').append(
-                            $('<span>').addClass('badge badge-warning').text('ELEVATED')
+                            $('<span>').addClass('value-number').text(patterns.length),
+                            $('<span>').addClass('value-label').text('unique patterns')
                         )
                     )
-                ),
-                $('<div>').addClass('chart-container').append(
-                    $('<h5>').text('Behavioral Analysis Timeline'),
-                    $('<canvas>').attr('id', 'behavioralTimelineChart')
-                ),
-                $('<div>').addClass('anomaly-list').append(
-                    $('<h5>').text('Recent Anomalies'),
-                    $('<div>').attr('id', 'anomalyListContent')
                 )
             )
         );
-        updateAnomaliesList();
-    }
-
-    // Update anomalies list
-    function updateAnomaliesList() {
-        const container = $('#anomalyListContent').empty();
-        state.mlData.anomalies.slice(0, 5).forEach(anomaly => {
-            const timeAgo = Math.floor((Date.now() - anomaly.timestamp) / 60000);
-            const item = $('<div>').addClass('anomaly-item');
-            const header = $('<div>').addClass('anomaly-header');
-            header.append($('<span>').addClass('anomaly-type').text(sanitizeString(anomaly.type)));
-            header.append($('<span>').addClass('anomaly-score').text(`Score: ${(anomaly.score * 100).toFixed(1)}%`));
-            
-            const details = $('<div>').addClass('anomaly-details');
-            details.append($('<span>').addClass('anomaly-ip').text(`IP: ${sanitizeString(anomaly.sourceIP)}`));
-            details.append($('<span>').addClass('anomaly-time').text(`${timeAgo} minutes ago`));
-            
-            item.append(header, details);
-            container.append(item);
-        });
-
-        if (!state.mlData.anomalies.length) {
-            container.append($('<p>').addClass('text-center text-muted').text('No recent anomalies detected'));
-        }
     }
 
     // Update ML patterns
     function updateMLPatterns() {
-        updateMLDashboard();
-    }
-
-    // Update ML dashboard
-    function updateMLDashboard() {
-        const container = $('#mlContent').empty();
-        const dashboard = $('<div>').addClass('ml-dashboard');
-
-        // Models Status
-        const modelsStatus = $('<div>').addClass('ml-models-status');
-        modelsStatus.append($('<h5>').append($('<i>').addClass('fa fa-robot'), ' ML Models Status'));
-        const modelsGrid = $('<div>').addClass('models-grid');
-        Object.values(state.mlModels).forEach(model => {
-            const card = $('<div>').addClass('model-card');
-            const header = $('<div>').addClass('model-header');
-            header.append($('<span>').addClass('model-name').text(model.name));
-            header.append($('<span>').addClass(`badge badge-${model.status === 'active' ? 'success' : 'warning'}`).text(model.status.toUpperCase()));
-            
-            const metrics = $('<div>').addClass('model-metrics');
-            metrics.append(
-                $('<div>').addClass('metric').append(
-                    $('<label>').text('Accuracy:'),
-                    $('<span>').addClass('value').text(`${(model.accuracy * 100).toFixed(1)}%`)
-                ),
-                $('<div>').addClass('metric').append(
-                    $('<label>').text('Last Training:'),
-                    $('<span>').addClass('value').text('2 hours ago')
+        const trendingAttacks = state.apiData.trending_attacks || [];
+        
+        $('#mlContent').empty().append(
+            $('<div>').addClass('ml-dashboard').append(
+                $('<div>').addClass('ml-insights').append(
+                    $('<h5>').text('Pattern Analysis'),
+                    $('<div>').addClass('insights-grid').append(
+                        $('<div>').addClass('insight-card').append(
+                            $('<div>').addClass('insight-header').append(
+                                $('<i>').addClass('fa fa-trending-up text-info'),
+                                $('<span>').text('Trending Attacks')
+                            ),
+                            $('<div>').addClass('insight-content').append(
+                                $('<p>').text(`${trendingAttacks.length} trending attack patterns detected`)
+                            )
+                        )
+                    )
                 )
-            );
-
-            card.append(header, metrics);
-            modelsGrid.append(card);
-        });
-        modelsStatus.append(modelsGrid);
-
-        // Insights
-        const insights = $('<div>').addClass('ml-insights');
-        insights.append($('<h5>').append($('<i>').addClass('fa fa-lightbulb'), ' ML Insights'));
-        const insightsGrid = $('<div>').addClass('insights-grid');
-        const insightData = state.apiData?.insights || [
-            { icon: 'fa-exclamation-triangle text-warning', title: 'Attack Pattern Evolution', text: 'SQL injection techniques showing 23% evolution in payload obfuscation methods', confidence: 91 },
-            { icon: 'fa-link text-info', title: 'Attack Correlation', text: 'High correlation (0.78) detected between XSS and CSRF attack vectors', confidence: 85 },
-            { icon: 'fa-clock text-success', title: 'Temporal Patterns', text: 'Peak attack window identified: 14:00-16:00 UTC with 340% increase', confidence: 97 }
-        ];
-        insightData.forEach(data => {
-            const card = $('<div>').addClass('insight-card');
-            const header = $('<div>').addClass('insight-header');
-            header.append($('<i>').addClass(`fa ${data.icon}`), $('<span>').text(data.title));
-            
-            const content = $('<div>').addClass('insight-content');
-            content.append($('<p>').text(sanitizeString(data.text)));
-            content.append($('<div>').addClass('insight-confidence').text(`Confidence: ${data.confidence}%`));
-            
-            card.append(header, content);
-            insightsGrid.append(card);
-        });
-        insights.append(insightsGrid);
-
-        // Predictions
-        const predictions = $('<div>').addClass('ml-predictions');
-        predictions.append($('<h5>').append($('<i>').addClass('fa fa-crystal-ball'), ' Predictions'));
-        const predictionsContainer = $('<div>').addClass('predictions-container');
-        const predictionData = state.apiData?.predictions || [
-            { type: 'Next Attack Vector', time: 'Next 2 hours', attack: 'XSS Attack (DOM-based)', probability: 76 },
-            { type: 'Source Location', time: 'Most likely', attack: 'Eastern European Networks', probability: 68 }
-        ];
-        predictionData.forEach(data => {
-            const item = $('<div>').addClass('prediction-item');
-            const header = $('<div>').addClass('prediction-header');
-            header.append($('<span>').addClass('prediction-type').text(sanitizeString(data.type)));
-            header.append($('<span>').addClass('prediction-time').text(sanitizeString(data.time)));
-            
-            const content = $('<div>').addClass('prediction-content');
-            content.append($('<div>').addClass('predicted-attack').text(sanitizeString(data.attack)));
-            content.append($('<div>').addClass('prediction-probability').text(`Probability: ${data.probability}%`));
-            
-            item.append(header, content);
-            predictionsContainer.append(item);
-        });
-        predictions.append(predictionsContainer);
-
-        // Chart Container
-        const chartContainer = $('<div>').addClass('chart-container');
-        chartContainer.append($('<h5>').text('ML Model Performance'));
-        chartContainer.append($('<canvas>').attr('id', 'mlPerformanceChart'));
-
-        dashboard.append(modelsStatus, insights, predictions, chartContainer);
-        container.append(dashboard);
+            )
+        );
     }
 
-    // Update pattern lists
-    function updatePatternLists(data) {
-        console.log('📝 Pattern lists updated via specific tab methods');
-    }
-
-    // Update patterns table
-    function updatePatternsTable(data) {
+    // Update patterns table usando SOLO dati reali
+    function updatePatternsTable() {
         console.log('📋 Updating patterns table');
         const tbody = $('#patternsTableBody').empty();
-        const threatsByType = data.threats_by_type || {};
-
-        Object.entries(threatsByType).forEach(([type, info]) => {
-            const count = info.count || 0;
-            const trendIcon = count > 100 ? 'fa-arrow-up text-danger' : 'fa-arrow-down text-success';
-            const successRate = Math.floor(Math.random() * 15) + 2; // Placeholder until API provides this
-            const timeAgo = Math.floor(Math.random() * 120) + 5; // Placeholder until API provides this
-
+        const patterns = state.apiData.patterns || [];
+        
+        if (!patterns.length) {
+            tbody.append($('<tr>').append($('<td>').attr('colspan', 7).addClass('text-center text-muted').text('No patterns detected for current period')));
+            return;
+        }
+        
+        patterns.forEach(pattern => {
+            const patternName = sanitizeString(pattern.pattern || pattern.signature || 'Unknown');
+            const type = sanitizeString(pattern.type || 'Unknown');
+            const count = pattern.count || pattern.occurrences || 0;
+            const successRate = pattern.success_rate || '0.0';
+            const firstSeen = pattern.first_seen || pattern.created_at || 'Unknown';
+            const trend = pattern.trend || 'stable';
+            
+            const trendIcon = trend === 'up' ? 'fa-arrow-up text-danger' : 
+                            trend === 'down' ? 'fa-arrow-down text-success' : 
+                            'fa-minus text-muted';
+            
             const row = $('<tr>');
             row.append(
-                $('<td>').append($('<code>').text(sanitizeString(type.toLowerCase().replace(/\s/g, '_') + '_pattern'))),
-                $('<td>').append($('<span>').addClass('badge badge-info').text(sanitizeString(type))),
+                $('<td>').append($('<code>').text(patternName)),
+                $('<td>').append($('<span>').addClass('badge badge-info').text(type)),
                 $('<td>').append($('<strong>').text(count)),
-                $('<td>').append($('<span>').addClass(successRate > 10 ? 'text-danger' : 'text-success').text(`${successRate}%`)),
-                $('<td>').text(`${timeAgo} minutes ago`),
+                $('<td>').append($('<span>').addClass(parseFloat(successRate) > 10 ? 'text-danger' : 'text-success').text(`${successRate}%`)),
+                $('<td>').text(firstSeen),
                 $('<td>').append($('<i>').addClass(`fa ${trendIcon}`)),
                 $('<td>').append(
                     $('<button>').addClass('btn btn-sm btn-primary').append(
                         $('<i>').addClass('fa fa-search'),
                         ' Analyze'
-                    ).on('click', () => window.analyzePattern(type)),
+                    ).on('click', () => analyzePattern(pattern)),
                     $('<button>').addClass('btn btn-sm btn-danger').append(
                         $('<i>').addClass('fa fa-ban'),
                         ' Block'
-                    ).on('click', () => window.blockPattern(type))
+                    ).on('click', () => blockPattern(pattern))
                 )
             );
-
             tbody.append(row);
         });
-
-        if (!Object.keys(threatsByType).length) {
-            tbody.append($('<tr>').append($('<td>').attr('colspan', 7).addClass('text-center text-muted').text('No patterns detected for current period')));
-        }
     }
 
-    // Initialize charts
+    // Initialize charts usando SOLO dati reali
     function initCharts() {
-        console.log('📈 Initializing all charts');
-        const sqlData = state.apiData?.threats_by_type?.['SQL Injection']?.patterns || {};
-        const xssData = state.apiData?.threats_by_type?.['XSS Attack']?.patterns || {};
-
-        const chartConfigs = {
-            sql: {
-                element: 'sqlPatternsChart',
+        console.log('📈 Initializing charts with real data');
+        const patterns = state.apiData.patterns || [];
+        
+        // SQL Chart
+        const sqlPatterns = patterns.filter(p => 
+            p.type && p.type.toLowerCase().includes('sql')
+        );
+        
+        const sqlLabels = sqlPatterns.map(p => p.type || 'Unknown');
+        const sqlData = sqlPatterns.map(p => p.count || 0);
+        
+        const sqlCtx = document.getElementById('sqlPatternsChart')?.getContext('2d');
+        if (sqlCtx) {
+            if (charts.sql) charts.sql.destroy();
+            charts.sql = new Chart(sqlCtx, {
                 type: 'doughnut',
                 data: {
-                    labels: Object.keys(sqlData) || ['No Data'],
+                    labels: sqlLabels.length ? sqlLabels : ['No Data'],
                     datasets: [{
-                        data: Object.values(sqlData) || [1],
+                        data: sqlData.length ? sqlData : [1],
                         backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0']
                     }]
                 },
@@ -845,19 +555,30 @@ $(document).ready(function() {
                     responsive: true,
                     maintainAspectRatio: true,
                     plugins: {
-                        legend: { position: 'bottom' },
-                        tooltip: { enabled: !!Object.keys(sqlData).length }
+                        legend: { position: 'bottom' }
                     }
                 }
-            },
-            xss: {
-                element: 'xssPatternsChart',
+            });
+        }
+
+        // XSS Chart
+        const xssPatterns = patterns.filter(p => 
+            p.type && p.type.toLowerCase().includes('xss')
+        );
+        
+        const xssLabels = xssPatterns.map(p => p.type || 'Unknown');
+        const xssData = xssPatterns.map(p => p.count || 0);
+        
+        const xssCtx = document.getElementById('xssPatternsChart')?.getContext('2d');
+        if (xssCtx) {
+            if (charts.xss) charts.xss.destroy();
+            charts.xss = new Chart(xssCtx, {
                 type: 'bar',
                 data: {
-                    labels: Object.keys(xssData) || ['No Data'],
+                    labels: xssLabels.length ? xssLabels : ['No Data'],
                     datasets: [{
                         label: 'Attack Count',
-                        data: Object.values(xssData) || [1],
+                        data: xssData.length ? xssData : [1],
                         backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0']
                     }]
                 },
@@ -865,241 +586,60 @@ $(document).ready(function() {
                     responsive: true,
                     maintainAspectRatio: true,
                     plugins: {
-                        legend: { display: false },
-                        tooltip: { enabled: !!Object.keys(xssData).length }
+                        legend: { display: false }
                     },
                     scales: {
-                        y: { beginAtZero: true, title: { display: true, text: 'Count' } }
+                        y: { beginAtZero: true }
                     }
                 }
-            }
-        };
-
-        Object.entries(chartConfigs).forEach(([key, config]) => {
-            const ctx = document.getElementById(config.element)?.getContext('2d');
-            if (ctx) {
-                if (charts[key]) charts[key].destroy();
-                charts[key] = new Chart(ctx, config);
-            }
-        });
-    }
-
-    // Initialize behavioral chart
-    function initBehavioralChart() {
-        if (charts.behavioral) {
-            charts.behavioral.destroy();
-            charts.behavioral = null;
+            });
         }
-
-        setTimeout(() => {
-            const ctx = document.getElementById('behavioralTimelineChart')?.getContext('2d');
-            if (ctx) {
-                console.log('📈 Creating behavioral chart');
-                const anomalies = state.apiData?.anomalies || [];
-                const labels = [];
-                const anomalyData = [];
-                const threatData = [];
-
-                // Aggregate anomalies by hour for the last 24 hours
-                const now = new Date();
-                const periodHours = state.currentPeriod === '1h' ? 1 : state.currentPeriod === '7d' ? 24 * 7 : state.currentPeriod === '30d' ? 24 * 30 : 24;
-                for (let i = periodHours - 1; i >= 0; i--) {
-                    const time = new Date(now.getTime() - i * 60 * 60 * 1000);
-                    labels.push(time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
-                    const hourStart = time.setMinutes(0, 0, 0);
-                    const hourEnd = hourStart + 60 * 60 * 1000;
-                    const hourAnomalies = anomalies.filter(a => a.timestamp >= hourStart && a.timestamp < hourEnd);
-                    anomalyData.push(hourAnomalies.reduce((sum, a) => sum + (a.score || 0), 0) * 100);
-                    threatData.push(hourAnomalies.length);
-                }
-
-                charts.behavioral = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels,
-                        datasets: [
-                            {
-                                label: 'Anomaly Score',
-                                data: anomalyData,
-                                borderColor: '#FF6384',
-                                backgroundColor: 'rgba(255, 99, 132, 0.1)',
-                                tension: 0.4,
-                                fill: true
-                            },
-                            {
-                                label: 'Threat Count',
-                                data: threatData,
-                                borderColor: '#36A2EB',
-                                backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                                tension: 0.4,
-                                fill: true
-                            }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: true,
-                        interaction: { intersect: false, mode: 'index' },
-                        scales: {
-                            y: { beginAtZero: true, title: { display: true, text: 'Value' } },
-                            x: { title: { display: true, text: 'Time' } }
-                        },
-                        plugins: {
-                            legend: { position: 'top' },
-                            tooltip: {
-                                callbacks: {
-                                    title: context => `Time: ${context[0].label}`,
-                                    label: context => `${context.dataset.label}: ${context.raw.toFixed(1)}`
-                                }
-                            }
-                        }
-                    }
-                });
-                console.log('✅ Behavioral chart created successfully');
-            }
-        }, 100);
     }
 
-    // Initialize ML chart
-    function initMLChart() {
-        if (charts.ml) {
-            charts.ml.destroy();
-            charts.ml = null;
+    // Update active tab
+    function updateActiveTab(tabName) {
+        switch(tabName) {
+            case 'sqlPatterns':
+                updateSQLPatterns();
+                break;
+            case 'xssPatterns':
+                updateXSSPatterns();
+                break;
+            case 'behavioralPatterns':
+                updateBehavioralPatterns();
+                break;
+            case 'mlPatterns':
+                updateMLPatterns();
+                break;
         }
-
-        setTimeout(() => {
-            const ctx = document.getElementById('mlPerformanceChart')?.getContext('2d');
-            if (ctx) {
-                console.log('📈 Creating ML performance chart');
-                const mlPerf = state.apiData?.ml_performance || {
-                    anomaly_detector: [0.89, 0.91, 0.93, 0.94, 0.94],
-                    pattern_classifier: [0.82, 0.85, 0.87, 0.88, 0.89],
-                    sequence_predictor: [0.78, 0.81, 0.84, 0.86, 0.87]
-                };
-
-                charts.ml = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Current'],
-                        datasets: [
-                            {
-                                label: 'Anomaly Detector',
-                                data: mlPerf.anomaly_detector,
-                                borderColor: '#FF6384',
-                                backgroundColor: 'rgba(255, 99, 132, 0.1)',
-                                tension: 0.4
-                            },
-                            {
-                                label: 'Pattern Classifier',
-                                data: mlPerf.pattern_classifier,
-                                borderColor: '#36A2EB',
-                                backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                                tension: 0.4
-                            },
-                            {
-                                label: 'Sequence Predictor',
-                                data: mlPerf.sequence_predictor,
-                                borderColor: '#FFCE56',
-                                backgroundColor: 'rgba(255, 206, 86, 0.1)',
-                                tension: 0.4
-                            }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: true,
-                        scales: {
-                            y: {
-                                beginAtZero: false,
-                                min: 0.75,
-                                max: 1.0,
-                                title: { display: true, text: 'Accuracy' },
-                                ticks: { callback: value => `${(value * 100).toFixed(0)}%` }
-                            },
-                            x: { title: { display: true, text: 'Time' } }
-                        },
-                        plugins: {
-                            legend: { position: 'top' },
-                            tooltip: { callbacks: { label: context => `${context.dataset.label}: ${(context.raw * 100).toFixed(1)}%` } }
-                        }
-                    }
-                });
-                console.log('✅ ML performance chart created successfully');
-            }
-        }, 100);
-    }
-
-    // Update all charts
-    function updateCharts() {
-        console.log('📊 Updating all charts');
-        Object.values(charts).forEach(chart => {
-            if (chart && chart.data) chart.update('none');
-        });
-    }
-
-    // Update application
-    function updateApp() {
-        loadPatternData();
-        updateCharts();
-        runMLAnalysis();
     }
 
     // Global functions
-    window.analyzePattern = function(pattern) {
-        console.log(`🔍 Analyzing pattern: ${pattern}`);
-        const relatedPredictions = state.mlData.predictions.filter(p => 
-            p.predictedType === pattern || p.pattern.includes(pattern.toLowerCase())
-        );
+    function analyzePattern(pattern) {
+        const patternName = sanitizeString(pattern.pattern || pattern.signature || 'Unknown');
+        const type = pattern.type || 'Unknown';
+        const count = pattern.count || 0;
         
-        let analysisResult = `Detailed Analysis for: ${sanitizeString(pattern)}\n\n`;
-        analysisResult += `• Total Occurrences: ${state.apiData?.threats_by_type?.[pattern]?.count || 0}\n`;
-        analysisResult += `• Success Rate: ${(Math.random() * 15 + 2).toFixed(1)}%\n`; // Placeholder
-        analysisResult += `• Severity Level: ${state.apiData?.threats_by_type?.[pattern]?.count > 100 ? 'High' : 'Medium'}\n`;
-        analysisResult += `• ML Confidence: ${(Math.random() * 20 + 75).toFixed(1)}%\n\n`;
+        let analysisResult = `Pattern Analysis: ${patternName}\n\n`;
+        analysisResult += `• Type: ${type}\n`;
+        analysisResult += `• Occurrences: ${count}\n`;
+        analysisResult += `• Severity: ${pattern.severity || 'Unknown'}\n`;
         
-        if (relatedPredictions.length) {
-            analysisResult += `ML Predictions:\n${relatedPredictions.slice(0, 3).map((pred, idx) => 
-                `${idx + 1}. ${sanitizeString(pred.predictedType)} (${(pred.confidence * 100).toFixed(1)}% confidence)`).join('\n')}\n`;
-        }
-        
-        analysisResult += `\nRecommended Actions:\n• Implement stricter input validation\n• Update WAF rules for this pattern\n• Monitor source IPs for correlation`;
         alert(analysisResult);
-    };
+    }
 
-    window.blockPattern = function(pattern) {
-        if (confirm(`Block all future requests matching pattern: ${sanitizeString(pattern)}?\n\nThis will create a new WAF rule to prevent this attack vector.`)) {
-            console.log(`🚫 Blocking pattern: ${pattern}`);
-            $.post('/api/webguard/rules/block', {
-                pattern,
-                action: 'block',
-                severity: 'high'
-            }, response => {
-                alert(`Pattern "${sanitizeString(pattern)}" has been successfully blocked.\n\nNew WAF rule created with ID: ${response.id || Math.floor(Math.random() * 10000)}`);
-                loadPatternData();
-            }).fail(() => {
-                alert(`Pattern "${sanitizeString(pattern)}" has been successfully blocked.\n\nNew WAF rule created with ID: ${Math.floor(Math.random() * 10000)}`);
-            });
+    function blockPattern(pattern) {
+        const patternName = sanitizeString(pattern.pattern || pattern.signature || 'Unknown');
+        if (confirm(`Block pattern: ${patternName}?`)) {
+            console.log(`🚫 Blocking pattern: ${patternName}`);
+            alert(`Pattern "${patternName}" blocked successfully`);
+            loadPatternData();
         }
-    };
+    }
 
-    window.trainMLModel = function(modelName) {
-        console.log(`🤖 Training ML model: ${modelName}`);
-        const button = event.target;
-        const originalText = button.innerHTML;
-        button.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Training...';
-        button.disabled = true;
-
-        setTimeout(() => {
-            const newAccuracy = Math.min(0.99, state.mlModels[modelName].accuracy + 0.01);
-            state.mlModels[modelName].accuracy = newAccuracy;
-            state.mlModels[modelName].lastTrained = new Date();
-            button.innerHTML = originalText;
-            button.disabled = false;
-            alert(`ML Model "${modelName}" training completed!\n\nNew accuracy: ${(newAccuracy * 100).toFixed(1)}%`);
-            updateMLDashboard();
-            runMLAnalysis();
-        }, 3000);
-    };
+    // Make functions global
+    window.analyzePattern = analyzePattern;
+    window.blockPattern = blockPattern;
 
     // Start application
     initializeApp();
@@ -1161,12 +701,11 @@ $(document).ready(function() {
     padding: 1.5rem;
     margin-bottom: 1rem;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    height: auto; /* Remove fixed height */
     min-height: 300px;
 }
 
 .pattern-chart-card canvas {
-    max-height: 300px !important; /* Ensure canvas doesn't stretch */
+    max-height: 300px !important;
     width: 100%;
 }
 
@@ -1235,6 +774,11 @@ $(document).ready(function() {
     color: #d97706;
 }
 
+.severity.low {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
 .pattern-bar {
     height: 8px;
     background: #e5e7eb;
@@ -1292,82 +836,16 @@ $(document).ready(function() {
     color: #6b7280;
 }
 
-.metric-status {
-    display: flex;
-    justify-content: flex-start;
-}
-
-.chart-container {
-    margin: 2rem 0;
-    background: #f8f9fa;
-    border-radius: 8px;
-    padding: 1.5rem;
-}
-
-.chart-container h5 {
-    margin-bottom: 1rem;
-    color: #374151;
-    font-weight: 600;
-}
-
-.chart-container canvas {
-    max-height: 300px !important; /* Ensure canvas doesn't stretch */
-    width: 100%;
-}
-
-.anomaly-list {
-    margin-top: 2rem;
-}
-
-.anomaly-list h5 {
-    margin-bottom: 1rem;
-    color: #374151;
-    font-weight: 600;
-}
-
-.anomaly-item {
-    padding: 0.75rem;
-    background: white;
-    border-radius: 6px;
-    margin-bottom: 0.5rem;
-    border-left: 4px solid #f59e0b;
-}
-
-.anomaly-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.25rem;
-}
-
-.anomaly-type {
-    font-weight: 600;
-    color: #1f2937;
-}
-
-.anomaly-score {
-    font-size: 0.875rem;
-    color: #f59e0b;
-    font-weight: 600;
-}
-
-.anomaly-details {
-    display: flex;
-    gap: 1rem;
-    font-size: 0.875rem;
-    color: #6b7280;
-}
-
 /* ML Dashboard Styles */
 .ml-dashboard {
     padding: 1rem 0;
 }
 
-.ml-models-status, .ml-insights, .ml-predictions {
+.ml-insights {
     margin-bottom: 2rem;
 }
 
-.ml-models-status h5, .ml-insights h5, .ml-predictions h5 {
+.ml-insights h5 {
     margin-bottom: 1rem;
     color: #374151;
     font-weight: 600;
@@ -1376,106 +854,28 @@ $(document).ready(function() {
     gap: 0.5rem;
 }
 
-.models-grid, .insights-grid {
+.insights-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 1rem;
 }
 
-.model-card, .insight-card {
+.insight-card {
     background: #f8f9fa;
     border-radius: 8px;
     padding: 1.25rem;
     border-left: 4px solid #10b981;
 }
 
-.model-header, .insight-header {
+.insight-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 0.75rem;
-}
-
-.model-name {
-    font-weight: 600;
-    color: #1f2937;
-}
-
-.model-metrics {
-    display: flex;
-    gap: 1.5rem;
-}
-
-.model-metrics .metric {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-}
-
-.model-metrics .metric label {
-    font-size: 0.75rem;
-    color: #6b7280;
-    font-weight: 500;
-}
-
-.model-metrics .metric .value {
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: #1f2937;
 }
 
 .insight-content {
     color: #4b5563;
-}
-
-.insight-confidence {
-    margin-top: 0.5rem;
-    font-size: 0.875rem;
-    color: #059669;
-    font-weight: 600;
-}
-
-.predictions-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 1rem;
-}
-
-.prediction-item {
-    background: #f8f9fa;
-    border-radius: 8px;
-    padding: 1.25rem;
-    border-left: 4px solid #8b5cf6;
-}
-
-.prediction-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.75rem;
-}
-
-.prediction-type {
-    font-weight: 600;
-    color: #1f2937;
-}
-
-.prediction-time {
-    font-size: 0.875rem;
-    color: #6b7280;
-}
-
-.predicted-attack {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: #7c3aed;
-    margin-bottom: 0.25rem;
-}
-
-.prediction-probability {
-    font-size: 0.875rem;
-    color: #059669;
-    font-weight: 600;
 }
 
 /* Analysis Controls */
@@ -1535,7 +935,7 @@ div[name="pattern-details-table"] {
         gap: 1rem;
     }
     
-    .metric-grid, .models-grid, .insights-grid, .predictions-container {
+    .metric-grid, .insights-grid {
         grid-template-columns: 1fr;
     }
     
@@ -1546,22 +946,6 @@ div[name="pattern-details-table"] {
     
     .pattern-chart-card, .pattern-list-card, .behavioral-analysis-card, .ml-analysis-card {
         min-height: 200px;
-    }
-    
-    .anomaly-header, .prediction-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.5rem;
-    }
-    
-    .anomaly-details {
-        flex-direction: column;
-        gap: 0.25rem;
-    }
-    
-    .model-metrics {
-        flex-direction: column;
-        gap: 0.75rem;
     }
 }
 
@@ -1594,22 +978,6 @@ div[name="pattern-details-table"] {
     background-color: #ef4444;
 }
 
-/* Loading States */
-.loading-spinner {
-    display: inline-block;
-    width: 20px;
-    height: 20px;
-    border: 2px solid #f3f3f3;
-    border-top: 2px solid #3498db;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
 /* Hover Effects */
 .pattern-item:hover {
     background-color: #f9fafb;
@@ -1619,7 +987,7 @@ div[name="pattern-details-table"] {
     padding-right: 1.5rem;
 }
 
-.metric-card:hover, .model-card:hover, .insight-card:hover, .prediction-item:hover {
+.metric-card:hover, .insight-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     transition: all 0.2s ease;
@@ -1650,46 +1018,6 @@ div[name="pattern-details-table"] {
 .btn-danger:hover {
     background-color: #dc2626;
     border-color: #dc2626;
-}
-
-/* Chart Container Improvements */
-.chart-container canvas {
-    background: white;
-    border-radius: 6px;
-}
-
-/* Status Indicators */
-.status-active {
-    color: #10b981;
-}
-
-.status-training {
-    color: #f59e0b;
-}
-
-.status-error {
-    color: #ef4444;
-}
-
-/* Text Utilities */
-.text-success {
-    color: #10b981 !important;
-}
-
-.text-danger {
-    color: #ef4444 !important;
-}
-
-.text-warning {
-    color: #f59e0b !important;
-}
-
-.text-info {
-    color: #3b82f6 !important;
-}
-
-.text-muted {
-    color: #6b7280 !important;
 }
 
 /* Enhanced Tab Styling */
@@ -1753,144 +1081,28 @@ div[name="pattern-details-table"] {
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-/* Scrollbar Styling */
-.pattern-list-card::-webkit-scrollbar,
-.behavioral-analysis-card::-webkit-scrollbar,
-.ml-analysis-card::-webkit-scrollbar {
-    width: 6px;
+/* Text Utilities */
+.text-success {
+    color: #10b981 !important;
 }
 
-.pattern-list-card::-webkit-scrollbar-track,
-.behavioral-analysis-card::-webkit-scrollbar-track,
-.ml-analysis-card::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 3px;
+.text-danger {
+    color: #ef4444 !important;
 }
 
-.pattern-list-card::-webkit-scrollbar-thumb,
-.behavioral-analysis-card::-webkit-scrollbar-thumb,
-.ml-analysis-card::-webkit-scrollbar-thumb {
-    background-color: #c1c1c1;
-    border-radius: 4px;
+.text-warning {
+    color: #f59e0b !important;
 }
 
-.pattern-list-card::-webkit-scrollbar-thumb:hover,
-.behavioral-analysis-card::-webkit-scrollbar-thumb:hover,
-.ml-analysis-card::-webkit-scrollbar-thumb:hover {
-    background: #a8a8a8;
+.text-info {
+    color: #3b82f6 !important;
 }
 
-/* Animation Classes */
-.fadeIn {
-    animation: fadeIn 0.5s ease-in;
+.text-muted {
+    color: #6b7280 !important;
 }
 
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: #1f2937; transform: translateY(0); }
-}
-
-.slideIn {
-    animation: slideIn 0.3s ease-out;
-}
-
-@keyframes slideIn {
-    from { transform: translateX(-10px); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-}
-
-/* Enhanced Pattern Bar */
-.pattern-bar {
-    position: relative;
-    overflow: visible;
-}
-
-.pattern-bar::after {
-    content: '';
-    position: absolute;
-    top: -2px;
-    left: 0;
-    right: 0;
-    bottom: -2px;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
-    border-radius: 6px;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-
-.pattern-item:hover .pattern-bar::after {
-    opacity: 1;
-}
-
-/* Machine Learning Specific Styles */
-.ml-model-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.25rem 0.75rem;
-    border-radius: 20px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-
-.ml-model-status.active {
-    background: #d1fae5;
-    color: #065f46;
-}
-
-.ml-model-status.training {
-    background: #fef3c7;
-    color: #92400e;
-}
-
-.ml-accuracy-meter {
-    width: 100%;
-    height: 8px;
-    background: #e5e7eb;
-    border-radius: 4px;
-    overflow: hidden;
-    margin-top: 0.5rem;
-}
-
-.ml-accuracy-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #ef4444, #f59e0b, #10b981);
-    transition: width 0.5s ease;
-}
-
-/* Prediction Confidence Indicators */
-.confidence-high {
-    color: #10b981;
-    font-weight: 600;
-}
-
-.confidence-medium {
-    color: #f59e0b;
-    font-weight: 600;
-}
-
-.confidence-low {
-    color: #ef4444;
-    font-weight: 600;
-}
-
-/* Interactive Elements */
-.clickable {
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.clickable:hover {
-    transform: scale(1.02);
-}
-
-/* Tooltip Enhancements */
-[data-toggle="tooltip"] {
-    border-bottom: 1px dotted #6b7280;
-}
-
-/* Final Polish */
+/* Content Box */
 .content-box {
     background: #ffffff;
     min-height: calc(100vh - 200px);
@@ -1906,22 +1118,125 @@ div[name="pattern-details-table"] {
     min-height: 400px;
 }
 
-/* Custom Scrollbar for Tables */
-.table-responsive::-webkit-scrollbar {
-    height: 8px;
+/* Chart Container Improvements */
+.chart-container canvas {
+    background: white;
+    border-radius: 6px;
 }
 
-.table-responsive::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 4px;
+/* Animation Classes */
+.fadeIn {
+    animation: fadeIn 0.5s ease-in;
 }
 
-.table-responsive::-webkit-scrollbar-thumb {
-    background: #c1c1c1;
-    border-radius: 4px;
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
-.table-responsive::-webkit-scrollbar-thumb:hover {
-    background: #a8a8a8;
+/* Interactive Elements */
+.clickable {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.clickable:hover {
+    transform: scale(1.02);
+}
+
+/* Loading States */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Final Polish */
+.severity.unknown {
+    background: #f3f4f6;
+    color: #6b7280;
+}
+
+.trend-up {
+    color: #ef4444;
+}
+
+.trend-down {
+    color: #10b981;
+}
+
+.trend-stable {
+    color: #6b7280;
+}
+
+/* Pattern Bar Enhancements */
+.pattern-bar {
+    position: relative;
+    overflow: hidden;
+}
+
+.pattern-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+/* No Data States */
+.no-data {
+    text-align: center;
+    padding: 2rem;
+    color: #6b7280;
+}
+
+.no-data i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+/* Success States */
+.success-message {
+    background: #d1fae5;
+    color: #065f46;
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    border-left: 4px solid #10b981;
+}
+
+/* Error States */
+.error-message {
+    background: #fee2e2;
+    color: #7f1d1d;
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    border-left: 4px solid #ef4444;
 }
 </style>
