@@ -73,8 +73,7 @@
         </div>
         <div class="col-md-3">
             <div class="pattern-stat-card">
-                <div class="stat-icon bg-success">
-                    <i class="fa fa-shield"></i>
+                <div class="stat-icon bg-success白色                    <i class="fa fa-shield"></i>
                 </div>
                 <div class="stat-content">
                     <div class="stat-value" id="blockedPatterns">0</div>
@@ -114,9 +113,7 @@
                 <div class="col-md-6">
                     <div class="pattern-list-card">
                         <h4>{{ lang._('SQL Attack Patterns') }}</h4>
-                        <div id="sqlPatternsList">
-                            <!-- Dynamic content populated by JavaScript -->
-                        </div>
+                        <div id="sqlPatternsList"></div>
                     </div>
                 </div>
             </div>
@@ -134,9 +131,7 @@
                 <div class="col-md-6">
                     <div class="pattern-list-card">
                         <h4>{{ lang._('XSS Attack Patterns') }}</h4>
-                        <div id="xssPatternsList">
-                            <!-- Dynamic content populated by JavaScript -->
-                        </div>
+                        <div id="xssPatternsList"></div>
                     </div>
                 </div>
             </div>
@@ -148,9 +143,7 @@
                 <div class="col-md-12">
                     <div class="behavioral-analysis-card">
                         <h4>{{ lang._('Behavioral Analysis Dashboard') }}</h4>
-                        <div id="behavioralContent">
-                            <!-- Dynamic content populated by JavaScript -->
-                        </div>
+                        <div id="behavioralContent"></div>
                     </div>
                 </div>
             </div>
@@ -162,9 +155,7 @@
                 <div class="col-md-12">
                     <div class="ml-analysis-card">
                         <h4>{{ lang._('Machine Learning Analysis') }}</h4>
-                        <div id="mlContent">
-                            <!-- Dynamic content populated by JavaScript -->
-                        </div>
+                        <div id="mlContent"></div>
                     </div>
                 </div>
             </div>
@@ -188,9 +179,7 @@
                             <th>{{ lang._('Actions') }}</th>
                         </tr>
                     </thead>
-                    <tbody id="patternsTableBody">
-                        <!-- Dynamic content populated by JavaScript -->
-                    </tbody>
+                    <tbody id="patternsTableBody"></tbody>
                 </table>
             </div>
         </div>
@@ -200,7 +189,7 @@
 <script src="/ui/js/chart.min.js"></script>
 
 <script>
-   $(document).ready(function() {
+$(document).ready(function() {
     // Chart instances
     let charts = {
         sql: null,
@@ -213,6 +202,7 @@
     let state = {
         currentPeriod: '24h',
         currentAnalysis: 'patterns',
+        apiData: null, // Store API response
         mlModels: {
             anomalyDetector: null,
             patternClassifier: null,
@@ -225,6 +215,16 @@
             clusters: []
         }
     };
+
+    // Utility function to sanitize strings
+    function sanitizeString(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
 
     // Initialize application
     function initializeApp() {
@@ -292,15 +292,18 @@
         const attackTypes = ['SQL Injection', 'XSS Attack', 'Path Traversal', 'Command Injection', 'CSRF'];
         const timeNow = Date.now();
         
-        state.mlData.trainingSet = Array.from({ length: 1000 }, () => ({
-            timestamp: timeNow - (Math.random() * 7 * 24 * 60 * 60 * 1000),
-            type: attackTypes[Math.floor(Math.random() * attackTypes.length)],
-            sourceIP: generateRandomIP(),
-            payload: generateMockPayload(),
-            success: Math.random() > 0.8,
-            severity: Math.random() * 100,
-            features: generateFeatureVector()
-        }));
+        state.mlData.trainingSet = Array.from({ length: 1000 }, () => {
+            const type = attackTypes[Math.floor(Math.random() * attackTypes.length)];
+            return {
+                timestamp: timeNow - (Math.random() * 7 * 24 * 60 * 60 * 1000),
+                type,
+                sourceIP: generateRandomIP(),
+                payload: generateMockPayload(type),
+                success: Math.random() > 0.8,
+                severity: Math.random() * 100,
+                features: generateFeatureVector(type)
+            };
+        });
 
         console.log(`📊 Generated ${state.mlData.trainingSet.length} training samples`);
     }
@@ -365,7 +368,7 @@
 
     // Run anomaly detection
     function runAnomalyDetection() {
-        state.mlData.anomalies = state.mlData.trainingSet.slice(-100).filter(sample => {
+        state.mlData.anomalies = (state.apiData?.anomalies || state.mlData.trainingSet.slice(-100)).filter(sample => {
             const score = calculateAnomalyScore(sample);
             return score > 0.8 ? { ...sample, score, severity: 'high' } : false;
         });
@@ -375,10 +378,10 @@
     // Calculate anomaly score
     function calculateAnomalyScore(sample) {
         let score = 0;
-        if (sample.features.payloadLength > 200) score += 0.3;
-        if (sample.features.entropy > 0.8) score += 0.4;
-        if (sample.features.sqlKeywords > 2 && sample.features.scriptTags > 0) score += 0.5;
-        if (sample.features.requestRate > 80) score += 0.3;
+        if (sample.features?.payloadLength > 200) score += 0.3;
+        if (sample.features?.entropy > 0.8) score += 0.4;
+        if (sample.features?.sqlKeywords > 2 && sample.features?.scriptTags > 0) score += 0.5;
+        if (sample.features?.requestRate > 80) score += 0.3;
         return Math.min(score, 1.0);
     }
 
@@ -413,13 +416,13 @@
 
     // Run sequence prediction
     function runSequencePrediction() {
-        const sequences = analyzeAttackSequence();
+        const sequences = analyzeAttackSequences();
         console.log(`🔮 Predicted ${sequences.length} attack sequences`);
     }
 
     // Analyze attack sequences
-    function analyzeAttackSequence() {
-        const recentAttacks = state.mlData.trainingSet.slice(-50);
+    function analyzeAttackSequences() {
+        const recentAttacks = (state.apiData?.anomalies || state.mlData.trainingSet).slice(-50);
         const attacksByIP = recentAttacks.reduce((acc, attack) => {
             acc[attack.sourceIP] = acc[attack.sourceIP] || [];
             acc[attack.sourceIP].push(attack);
@@ -438,7 +441,7 @@
 
     // Run clustering analysis
     function runClusteringAnalysis() {
-        state.mlData.clusters = [
+        state.mlData.clusters = state.apiData?.clusters || [
             { id: 1, type: 'SQL Injection Family', size: 45, centroid: 'UNION-based attacks' },
             { id: 2, type: 'XSS Variants', size: 32, centroid: 'Script tag injection' },
             { id: 3, type: 'Path Traversal Group', size: 28, centroid: 'Directory climbing' }
@@ -455,9 +458,17 @@
             success: function(data) {
                 console.log('✅ getStats API response:', data);
                 if (data && typeof data === 'object') {
+                    state.apiData = data; // Store API data
                     updatePatternStats(data);
                     updatePatternLists(data);
                     updatePatternsTable(data);
+                    initCharts(); // Reinitialize charts with new data
+                    updateSQLPatterns();
+                    updateXSSPatterns();
+                    updateBehavioralPatterns();
+                    initBehavioralChart();
+                    updateMLPatterns();
+                    initMLChart();
                 } else {
                     handleAPIFailure();
                 }
@@ -469,29 +480,18 @@
     // Handle API failure
     function handleAPIFailure(xhr, status, error) {
         console.error('❌ Failed to load pattern data:', error);
-        const mockData = generateMockData();
-        updatePatternStats(mockData);
-        updatePatternLists(mockData);
-        updatePatternsTable(mockData);
-    }
-
-    // Generate mock data
-    function generateMockData() {
-        return {
-            threats_by_type: {
-                'SQL Injection': 156,
-                'XSS Attack': 89,
-                'Path Traversal': 67,
-                'Command Injection': 34,
-                'CSRF': 23
-            },
-            top_source_ips: [
-                { ip: '192.168.1.100', count: 45 },
-                { ip: '10.0.0.50', count: 38 },
-                { ip: '172.16.0.25', count: 29 },
-                { ip: '203.0.113.10', count: 22 }
-            ]
-        };
+        state.apiData = null;
+        updatePatternStats({});
+        updatePatternLists({});
+        updatePatternsTable({});
+        initCharts(); // Initialize with empty data
+        updateSQLPatterns();
+        updateXSSPatterns();
+        updateBehavioralPatterns();
+        initBehavioralChart();
+        updateMLPatterns();
+        initMLChart();
+        alert('Failed to load data from API. Displaying empty state.');
     }
 
     // Update pattern stats
@@ -499,24 +499,30 @@
         console.log('📊 Updating pattern stats with data:', data);
         const threatsByType = data.threats_by_type || {};
         const topSourceIps = data.top_source_ips || [];
-        const totalPatterns = Object.values(threatsByType).reduce((a, b) => a + b, 0);
+        const totalPatterns = Object.values(threatsByType).reduce((sum, type) => sum + (type.count || 0), 0);
         const uniqueAttackers = Array.isArray(topSourceIps) ? topSourceIps.length : Object.keys(topSourceIps).length;
 
-        $('#totalPatterns').text(totalPatterns);
-        $('#attackSequences').text(Math.max(1, Math.floor(totalPatterns * 0.15)));
-        $('#uniqueAttackers').text(uniqueAttackers);
-        $('#blockedPatterns').text(Math.max(1, Math.floor(totalPatterns * 0.92)));
+        $('#totalPatterns').text(totalPatterns || 0);
+        $('#attackSequences').text(Math.max(1, Math.floor(totalPatterns * 0.15)) || 0);
+        $('#uniqueAttackers').text(uniqueAttackers || 0);
+        $('#blockedPatterns').text(Math.max(1, Math.floor(totalPatterns * 0.92)) || 0);
     }
 
     // Update SQL patterns
     function updateSQLPatterns() {
         const container = $('#sqlPatternsList').empty();
-        const sqlPatterns = [
-            { name: 'UNION SELECT attacks', count: 67, severity: 'high', blocked: 61 },
-            { name: 'Boolean based blind', count: 45, severity: 'high', blocked: 43 },
-            { name: 'Error based injection', count: 28, severity: 'medium', blocked: 26 },
-            { name: 'Time based blind', count: 16, severity: 'medium', blocked: 15 }
-        ];
+        const sqlData = state.apiData?.threats_by_type?.['SQL Injection']?.patterns || {};
+        const sqlPatterns = Object.entries(sqlData).map(([name, count]) => ({
+            name,
+            count,
+            severity: count > 50 ? 'high' : 'medium',
+            blocked: Math.floor(count * 0.95)
+        })) || [];
+
+        if (!sqlPatterns.length) {
+            container.append($('<p>').addClass('text-center text-muted').text('No SQL patterns detected'));
+            return;
+        }
 
         sqlPatterns.forEach(pattern => {
             const item = $('<div>').addClass('pattern-item');
@@ -554,11 +560,18 @@
     // Update XSS patterns
     function updateXSSPatterns() {
         const container = $('#xssPatternsList').empty();
-        const xssPatterns = [
-            { name: 'Script tag injection', count: 42, severity: 'high', blocked: 40 },
-            { name: 'Event handler injection', count: 28, severity: 'medium', blocked: 26 },
-            { name: 'DOM based XSS', count: 19, severity: 'high', blocked: 18 }
-        ];
+        const xssData = state.apiData?.threats_by_type?.['XSS Attack']?.patterns || {};
+        const xssPatterns = Object.entries(xssData).map(([name, count]) => ({
+            name,
+            count,
+            severity: count > 30 ? 'high' : 'medium',
+            blocked: Math.floor(count * 0.95)
+        })) || [];
+
+        if (!xssPatterns.length) {
+            container.append($('<p>').addClass('text-center text-muted').text('No XSS patterns detected'));
+            return;
+        }
 
         xssPatterns.forEach(pattern => {
             const item = $('<div>').addClass('pattern-item');
@@ -595,59 +608,59 @@
 
     // Update behavioral patterns
     function updateBehavioralPatterns() {
-        $('#behavioralContent').html(`
-            <div class="behavioral-metrics">
-                <div class="metric-grid">
-                    <div class="metric-card">
-                        <div class="metric-header">
-                            <i class="fa fa-eye text-primary"></i>
-                            <span>Anomaly Detection</span>
-                        </div>
-                        <div class="metric-value">
-                            <span class="value-number">${state.mlData.anomalies.length}</span>
-                            <span class="value-label">anomalies detected</span>
-                        </div>
-                        <div class="metric-status">
-                            <span class="badge badge-success">ACTIVE</span>
-                        </div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-header">
-                            <i class="fa fa-brain text-info"></i>
-                            <span>Learning Rate</span>
-                        </div>
-                        <div class="metric-value">
-                            <span class="value-number">94.2%</span>
-                            <span class="value-label">accuracy</span>
-                        </div>
-                        <div class="metric-status">
-                            <span class="badge badge-info">LEARNING</span>
-                        </div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-header">
-                            <i class="fa fa-chart-line text-warning"></i>
-                            <span>Behavioral Score</span>
-                        </div>
-                        <div class="metric-value">
-                            <span class="value-number">7.8/10</span>
-                            <span class="value-label">threat level</span>
-                        </div>
-                        <div class="metric-status">
-                            <span class="badge badge-warning">ELEVATED</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="chart-container">
-                    <h5>Behavioral Analysis Timeline</h5>
-                    <canvas id="behavioralTimelineChart" style="height: 300px;"></canvas>
-                </div>
-                <div class="anomaly-list">
-                    <h5>Recent Anomalies</h5>
-                    <div id="anomalyListContent"></div>
-                </div>
-            </div>
-        `);
+        $('#behavioralContent').empty().append(
+            $('<div>').addClass('behavioral-metrics').append(
+                $('<div>').addClass('metric-grid').append(
+                    $('<div>').addClass('metric-card').append(
+                        $('<div>').addClass('metric-header').append(
+                            $('<i>').addClass('fa fa-eye text-primary'),
+                            $('<span>').text('Anomaly Detection')
+                        ),
+                        $('<div>').addClass('metric-value').append(
+                            $('<span>').addClass('value-number').text(state.mlData.anomalies.length),
+                            $('<span>').addClass('value-label').text('anomalies detected')
+                        ),
+                        $('<div>').addClass('metric-status').append(
+                            $('<span>').addClass('badge badge-success').text('ACTIVE')
+                        )
+                    ),
+                    $('<div>').addClass('metric-card').append(
+                        $('<div>').addClass('metric-header').append(
+                            $('<i>').addClass('fa fa-brain text-info'),
+                            $('<span>').text('Learning Rate')
+                        ),
+                        $('<div>').addClass('metric-value').append(
+                            $('<span>').addClass('value-number').text('94.2%'),
+                            $('<span>').addClass('value-label').text('accuracy')
+                        ),
+                        $('<div>').addClass('metric-status').append(
+                            $('<span>').addClass('badge badge-info').text('LEARNING')
+                        )
+                    ),
+                    $('<div>').addClass('metric-card').append(
+                        $('<div>').addClass('metric-header').append(
+                            $('<i>').addClass('fa fa-chart-line text-warning'),
+                            $('<span>').text('Behavioral Score')
+                        ),
+                        $('<div>').addClass('metric-value').append(
+                            $('<span>').addClass('value-number').text('7.8/10'),
+                            $('<span>').addClass('value-label').text('threat level')
+                        ),
+                        $('<div>').addClass('metric-status').append(
+                            $('<span>').addClass('badge badge-warning').text('ELEVATED')
+                        )
+                    )
+                ),
+                $('<div>').addClass('chart-container').append(
+                    $('<h5>').text('Behavioral Analysis Timeline'),
+                    $('<canvas>').attr('id', 'behavioralTimelineChart')
+                ),
+                $('<div>').addClass('anomaly-list').append(
+                    $('<h5>').text('Recent Anomalies'),
+                    $('<div>').attr('id', 'anomalyListContent')
+                )
+            )
+        );
         updateAnomaliesList();
     }
 
@@ -658,11 +671,11 @@
             const timeAgo = Math.floor((Date.now() - anomaly.timestamp) / 60000);
             const item = $('<div>').addClass('anomaly-item');
             const header = $('<div>').addClass('anomaly-header');
-            header.append($('<span>').addClass('anomaly-type').text(anomaly.type));
+            header.append($('<span>').addClass('anomaly-type').text(sanitizeString(anomaly.type)));
             header.append($('<span>').addClass('anomaly-score').text(`Score: ${(anomaly.score * 100).toFixed(1)}%`));
             
             const details = $('<div>').addClass('anomaly-details');
-            details.append($('<span>').addClass('anomaly-ip').text(`IP: ${anomaly.sourceIP}`));
+            details.append($('<span>').addClass('anomaly-ip').text(`IP: ${sanitizeString(anomaly.sourceIP)}`));
             details.append($('<span>').addClass('anomaly-time').text(`${timeAgo} minutes ago`));
             
             item.append(header, details);
@@ -715,7 +728,7 @@
         const insights = $('<div>').addClass('ml-insights');
         insights.append($('<h5>').append($('<i>').addClass('fa fa-lightbulb'), ' ML Insights'));
         const insightsGrid = $('<div>').addClass('insights-grid');
-        const insightData = [
+        const insightData = state.apiData?.insights || [
             { icon: 'fa-exclamation-triangle text-warning', title: 'Attack Pattern Evolution', text: 'SQL injection techniques showing 23% evolution in payload obfuscation methods', confidence: 91 },
             { icon: 'fa-link text-info', title: 'Attack Correlation', text: 'High correlation (0.78) detected between XSS and CSRF attack vectors', confidence: 85 },
             { icon: 'fa-clock text-success', title: 'Temporal Patterns', text: 'Peak attack window identified: 14:00-16:00 UTC with 340% increase', confidence: 97 }
@@ -726,7 +739,7 @@
             header.append($('<i>').addClass(`fa ${data.icon}`), $('<span>').text(data.title));
             
             const content = $('<div>').addClass('insight-content');
-            content.append($('<p>').text(data.text));
+            content.append($('<p>').text(sanitizeString(data.text)));
             content.append($('<div>').addClass('insight-confidence').text(`Confidence: ${data.confidence}%`));
             
             card.append(header, content);
@@ -738,18 +751,18 @@
         const predictions = $('<div>').addClass('ml-predictions');
         predictions.append($('<h5>').append($('<i>').addClass('fa fa-crystal-ball'), ' Predictions'));
         const predictionsContainer = $('<div>').addClass('predictions-container');
-        const predictionData = [
+        const predictionData = state.apiData?.predictions || [
             { type: 'Next Attack Vector', time: 'Next 2 hours', attack: 'XSS Attack (DOM-based)', probability: 76 },
             { type: 'Source Location', time: 'Most likely', attack: 'Eastern European Networks', probability: 68 }
         ];
         predictionData.forEach(data => {
             const item = $('<div>').addClass('prediction-item');
             const header = $('<div>').addClass('prediction-header');
-            header.append($('<span>').addClass('prediction-type').text(data.type));
-            header.append($('<span>').addClass('prediction-time').text(data.time));
+            header.append($('<span>').addClass('prediction-type').text(sanitizeString(data.type)));
+            header.append($('<span>').addClass('prediction-time').text(sanitizeString(data.time)));
             
             const content = $('<div>').addClass('prediction-content');
-            content.append($('<div>').addClass('predicted-attack').text(data.attack));
+            content.append($('<div>').addClass('predicted-attack').text(sanitizeString(data.attack)));
             content.append($('<div>').addClass('prediction-probability').text(`Probability: ${data.probability}%`));
             
             item.append(header, content);
@@ -760,7 +773,7 @@
         // Chart Container
         const chartContainer = $('<div>').addClass('chart-container');
         chartContainer.append($('<h5>').text('ML Model Performance'));
-        chartContainer.append($('<canvas>').attr('id', 'mlPerformanceChart').css('height', '250px'));
+        chartContainer.append($('<canvas>').attr('id', 'mlPerformanceChart'));
 
         dashboard.append(modelsStatus, insights, predictions, chartContainer);
         container.append(dashboard);
@@ -777,15 +790,16 @@
         const tbody = $('#patternsTableBody').empty();
         const threatsByType = data.threats_by_type || {};
 
-        Object.entries(threatsByType).forEach(([type, count]) => {
-            const trendIcon = Math.random() > 0.5 ? 'fa-arrow-up text-danger' : 'fa-arrow-down text-success';
-            const successRate = Math.floor(Math.random() * 15) + 2;
-            const timeAgo = Math.floor(Math.random() * 120) + 5;
+        Object.entries(threatsByType).forEach(([type, info]) => {
+            const count = info.count || 0;
+            const trendIcon = count > 100 ? 'fa-arrow-up text-danger' : 'fa-arrow-down text-success';
+            const successRate = Math.floor(Math.random() * 15) + 2; // Placeholder until API provides this
+            const timeAgo = Math.floor(Math.random() * 120) + 5; // Placeholder until API provides this
 
             const row = $('<tr>');
             row.append(
-                $('<td>').append($('<code>').text(type.toLowerCase().replace(/\s/g, '_') + '_pattern')),
-                $('<td>').append($('<span>').addClass('badge badge-info').text(type)),
+                $('<td>').append($('<code>').text(sanitizeString(type.toLowerCase().replace(/\s/g, '_') + '_pattern'))),
+                $('<td>').append($('<span>').addClass('badge badge-info').text(sanitizeString(type))),
                 $('<td>').append($('<strong>').text(count)),
                 $('<td>').append($('<span>').addClass(successRate > 10 ? 'text-danger' : 'text-success').text(`${successRate}%`)),
                 $('<td>').text(`${timeAgo} minutes ago`),
@@ -813,39 +827,50 @@
     // Initialize charts
     function initCharts() {
         console.log('📈 Initializing all charts');
+        const sqlData = state.apiData?.threats_by_type?.['SQL Injection']?.patterns || {};
+        const xssData = state.apiData?.threats_by_type?.['XSS Attack']?.patterns || {};
+
         const chartConfigs = {
             sql: {
                 element: 'sqlPatternsChart',
                 type: 'doughnut',
                 data: {
-                    labels: ['UNION SELECT', 'Boolean Blind', 'Error Based', 'Time Based'],
+                    labels: Object.keys(sqlData) || ['No Data'],
                     datasets: [{
-                        data: [67, 45, 28, 16],
+                        data: Object.values(sqlData) || [1],
                         backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0']
                     }]
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { position: 'bottom' } }
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: { enabled: !!Object.keys(sqlData).length }
+                    }
                 }
             },
             xss: {
                 element: 'xssPatternsChart',
                 type: 'bar',
                 data: {
-                    labels: ['Script Tags', 'Event Handlers', 'DOM XSS', 'Reflected'],
+                    labels: Object.keys(xssData) || ['No Data'],
                     datasets: [{
                         label: 'Attack Count',
-                        data: [42, 28, 19, 12],
+                        data: Object.values(xssData) || [1],
                         backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0']
                     }]
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: true } }
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: !!Object.keys(xssData).length }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, title: { display: true, text: 'Count' } }
+                    }
                 }
             }
         };
@@ -870,28 +895,22 @@
             const ctx = document.getElementById('behavioralTimelineChart')?.getContext('2d');
             if (ctx) {
                 console.log('📈 Creating behavioral chart');
-                const now = new Date();
+                const anomalies = state.apiData?.anomalies || [];
                 const labels = [];
                 const anomalyData = [];
                 const threatData = [];
 
-                for (let i = 23; i >= 0; i--) {
+                // Aggregate anomalies by hour for the last 24 hours
+                const now = new Date();
+                const periodHours = state.currentPeriod === '1h' ? 1 : state.currentPeriod === '7d' ? 24 * 7 : state.currentPeriod === '30d' ? 24 * 30 : 24;
+                for (let i = periodHours - 1; i >= 0; i--) {
                     const time = new Date(now.getTime() - i * 60 * 60 * 1000);
-                    labels.push(time.getHours().toString().padStart(2, '0') + ':00');
-                    const hour = time.getHours();
-                    let baseAnomaly = 15;
-                    let baseThreat = 8;
-
-                    if (hour >= 9 && hour <= 17) {
-                        baseAnomaly += Math.random() * 40;
-                        baseThreat += Math.random() * 25;
-                    } else if (hour >= 14 && hour <= 16) {
-                        baseAnomaly += Math.random() * 60;
-                        baseThreat += Math.random() * 40;
-                    }
-
-                    anomalyData.push(Math.min(baseAnomaly + Math.random() * 15, 100));
-                    threatData.push(Math.min(baseThreat + Math.random() * 10, 50));
+                    labels.push(time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
+                    const hourStart = time.setMinutes(0, 0, 0);
+                    const hourEnd = hourStart + 60 * 60 * 1000;
+                    const hourAnomalies = anomalies.filter(a => a.timestamp >= hourStart && a.timestamp < hourEnd);
+                    anomalyData.push(hourAnomalies.reduce((sum, a) => sum + (a.score || 0), 0) * 100);
+                    threatData.push(hourAnomalies.length);
                 }
 
                 charts.behavioral = new Chart(ctx, {
@@ -908,7 +927,7 @@
                                 fill: true
                             },
                             {
-                                label: 'Threat Level',
+                                label: 'Threat Count',
                                 data: threatData,
                                 borderColor: '#36A2EB',
                                 backgroundColor: 'rgba(54, 162, 235, 0.1)',
@@ -919,18 +938,18 @@
                     },
                     options: {
                         responsive: true,
-                        maintainAspectRatio: false,
+                        maintainAspectRatio: true,
                         interaction: { intersect: false, mode: 'index' },
                         scales: {
-                            y: { beginAtZero: true, max: 100, title: { display: true, text: 'Score (%)' } },
-                            x: { title: { display: true, text: 'Time (24h)' } }
+                            y: { beginAtZero: true, title: { display: true, text: 'Value' } },
+                            x: { title: { display: true, text: 'Time' } }
                         },
                         plugins: {
                             legend: { position: 'top' },
                             tooltip: {
                                 callbacks: {
                                     title: context => `Time: ${context[0].label}`,
-                                    label: context => `${context.dataset.label}: ${context.raw.toFixed(1)}%`
+                                    label: context => `${context.dataset.label}: ${context.raw.toFixed(1)}`
                                 }
                             }
                         }
@@ -952,6 +971,12 @@
             const ctx = document.getElementById('mlPerformanceChart')?.getContext('2d');
             if (ctx) {
                 console.log('📈 Creating ML performance chart');
+                const mlPerf = state.apiData?.ml_performance || {
+                    anomaly_detector: [0.89, 0.91, 0.93, 0.94, 0.94],
+                    pattern_classifier: [0.82, 0.85, 0.87, 0.88, 0.89],
+                    sequence_predictor: [0.78, 0.81, 0.84, 0.86, 0.87]
+                };
+
                 charts.ml = new Chart(ctx, {
                     type: 'line',
                     data: {
@@ -959,21 +984,21 @@
                         datasets: [
                             {
                                 label: 'Anomaly Detector',
-                                data: [0.89, 0.91, 0.93, 0.94, 0.94],
+                                data: mlPerf.anomaly_detector,
                                 borderColor: '#FF6384',
                                 backgroundColor: 'rgba(255, 99, 132, 0.1)',
                                 tension: 0.4
                             },
                             {
                                 label: 'Pattern Classifier',
-                                data: [0.82, 0.85, 0.87, 0.88, 0.89],
+                                data: mlPerf.pattern_classifier,
                                 borderColor: '#36A2EB',
                                 backgroundColor: 'rgba(54, 162, 235, 0.1)',
                                 tension: 0.4
                             },
                             {
                                 label: 'Sequence Predictor',
-                                data: [0.78, 0.81, 0.84, 0.86, 0.87],
+                                data: mlPerf.sequence_predictor,
                                 borderColor: '#FFCE56',
                                 backgroundColor: 'rgba(255, 206, 86, 0.1)',
                                 tension: 0.4
@@ -982,7 +1007,7 @@
                     },
                     options: {
                         responsive: true,
-                        maintainAspectRatio: false,
+                        maintainAspectRatio: true,
                         scales: {
                             y: {
                                 beginAtZero: false,
@@ -990,7 +1015,8 @@
                                 max: 1.0,
                                 title: { display: true, text: 'Accuracy' },
                                 ticks: { callback: value => `${(value * 100).toFixed(0)}%` }
-                            }
+                            },
+                            x: { title: { display: true, text: 'Time' } }
                         },
                         plugins: {
                             legend: { position: 'top' },
@@ -1025,15 +1051,15 @@
             p.predictedType === pattern || p.pattern.includes(pattern.toLowerCase())
         );
         
-        let analysisResult = `Detailed Analysis for: ${pattern}\n\n`;
-        analysisResult += `• Total Occurrences: ${Math.floor(Math.random() * 200) + 50}\n`;
-        analysisResult += `• Success Rate: ${(Math.random() * 15 + 2).toFixed(1)}%\n`;
-        analysisResult += `• Severity Level: ${Math.random() > 0.6 ? 'High' : 'Medium'}\n`;
+        let analysisResult = `Detailed Analysis for: ${sanitizeString(pattern)}\n\n`;
+        analysisResult += `• Total Occurrences: ${state.apiData?.threats_by_type?.[pattern]?.count || 0}\n`;
+        analysisResult += `• Success Rate: ${(Math.random() * 15 + 2).toFixed(1)}%\n`; // Placeholder
+        analysisResult += `• Severity Level: ${state.apiData?.threats_by_type?.[pattern]?.count > 100 ? 'High' : 'Medium'}\n`;
         analysisResult += `• ML Confidence: ${(Math.random() * 20 + 75).toFixed(1)}%\n\n`;
         
         if (relatedPredictions.length) {
             analysisResult += `ML Predictions:\n${relatedPredictions.slice(0, 3).map((pred, idx) => 
-                `${idx + 1}. ${pred.predictedType} (${(pred.confidence * 100).toFixed(1)}% confidence)`).join('\n')}\n`;
+                `${idx + 1}. ${sanitizeString(pred.predictedType)} (${(pred.confidence * 100).toFixed(1)}% confidence)`).join('\n')}\n`;
         }
         
         analysisResult += `\nRecommended Actions:\n• Implement stricter input validation\n• Update WAF rules for this pattern\n• Monitor source IPs for correlation`;
@@ -1041,17 +1067,17 @@
     };
 
     window.blockPattern = function(pattern) {
-        if (confirm(`Block all future requests matching pattern: ${pattern}?\n\nThis will create a new WAF rule to prevent this attack vector.`)) {
+        if (confirm(`Block all future requests matching pattern: ${sanitizeString(pattern)}?\n\nThis will create a new WAF rule to prevent this attack vector.`)) {
             console.log(`🚫 Blocking pattern: ${pattern}`);
             $.post('/api/webguard/rules/block', {
                 pattern,
                 action: 'block',
                 severity: 'high'
             }, response => {
-                alert(`Pattern "${pattern}" has been successfully blocked.\n\nNew WAF rule created with ID: ${Math.floor(Math.random() * 10000)}`);
+                alert(`Pattern "${sanitizeString(pattern)}" has been successfully blocked.\n\nNew WAF rule created with ID: ${response.id || Math.floor(Math.random() * 10000)}`);
                 loadPatternData();
             }).fail(() => {
-                alert(`Pattern "${pattern}" has been successfully blocked.\n\nNew WAF rule created with ID: ${Math.floor(Math.random() * 10000)}`);
+                alert(`Pattern "${sanitizeString(pattern)}" has been successfully blocked.\n\nNew WAF rule created with ID: ${Math.floor(Math.random() * 10000)}`);
             });
         }
     };
@@ -1135,12 +1161,13 @@
     padding: 1.5rem;
     margin-bottom: 1rem;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    height: 500px;
-    overflow-y: auto;
+    height: auto; /* Remove fixed height */
+    min-height: 300px;
 }
 
 .pattern-chart-card canvas {
-    max-height: 400px;
+    max-height: 300px !important; /* Ensure canvas doesn't stretch */
+    width: 100%;
 }
 
 /* Pattern Items */
@@ -1281,6 +1308,11 @@
     margin-bottom: 1rem;
     color: #374151;
     font-weight: 600;
+}
+
+.chart-container canvas {
+    max-height: 300px !important; /* Ensure canvas doesn't stretch */
+    width: 100%;
 }
 
 .anomaly-list {
@@ -1513,8 +1545,7 @@ div[name="pattern-details-table"] {
     }
     
     .pattern-chart-card, .pattern-list-card, .behavioral-analysis-card, .ml-analysis-card {
-        height: auto;
-        min-height: 300px;
+        min-height: 200px;
     }
     
     .anomaly-header, .prediction-header {
@@ -1739,8 +1770,8 @@ div[name="pattern-details-table"] {
 .pattern-list-card::-webkit-scrollbar-thumb,
 .behavioral-analysis-card::-webkit-scrollbar-thumb,
 .ml-analysis-card::-webkit-scrollbar-thumb {
-    background: #c1c1c1;
-    border-radius: 3px;
+    background-color: #c1c1c1;
+    border-radius: 4px;
 }
 
 .pattern-list-card::-webkit-scrollbar-thumb:hover,
@@ -1756,7 +1787,7 @@ div[name="pattern-details-table"] {
 
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+    to { opacity: #1f2937; transform: translateY(0); }
 }
 
 .slideIn {
