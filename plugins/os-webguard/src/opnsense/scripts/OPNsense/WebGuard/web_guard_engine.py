@@ -178,7 +178,7 @@ def setup_database():
                     type TEXT NOT NULL,
                     severity TEXT NOT NULL,
                     status TEXT NOT NULL,
-                    score INTEGER DEFAULT 0,
+                    score REAL DEFAULT 0.0,
                     payload TEXT,
                     request_headers TEXT,
                     rule_matched TEXT,
