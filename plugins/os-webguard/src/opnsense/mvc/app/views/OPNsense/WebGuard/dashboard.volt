@@ -443,7 +443,7 @@ $(document).ready(function() {
                     const item = $(`
                         <div class="threat-feed-item ${threat.severity}">
                             <div class="threat-feed-time">${formatTimeFromISO(threat.timestamp)}</div>
-                            <strong>${threat.threat_type}</strong> from ${threat.source_ip} → ${threat.target}
+                            <strong>${threat.type}</strong> from ${threat.source_ip} → ${threat.target}
                         </div>
                     `);
                     feed.prepend(item);
