@@ -261,12 +261,25 @@ $(document).ready(function() {
     });
 
     function loadDashboardData() {
-        // Load main statistics - using your existing endpoint
+        // Usa l'API threats per le metriche principali invece di settings/stats
+        $.get('/api/webguard/threats/getStats', function(data) {
+            if (data && data.total_threats !== undefined) {
+                // Usa i dati corretti dall'API threats
+                const statsData = {
+                    requests_analyzed: data.total_threats || 0,
+                    threats_blocked: data.total_threats || 0, 
+                    ips_blocked: data.top_source_ips ? data.top_source_ips.length : 0,
+                    recent_threats: [] // Non serve per le metriche
+                };
+                updateMetrics(statsData);
+                updateThreatsToday({recent_threats: []}); // Calcolo vuoto per ora
+            }
+        });
+
+        // Mantieni la chiamata originale per system info
         ajaxCall('/api/webguard/settings/stats', {}, function(data) {
             if (data.status === 'ok' && data.data) {
-                updateMetrics(data.data);
                 updateSystemInfo(data.data);
-                updateThreatsToday(data.data);
             }
         });
         
@@ -526,6 +539,9 @@ $(document).ready(function() {
         // Carica dati per il grafico delle minacce per tipo - prova con GET esplicito
         $.get('/api/webguard/threats/getStats', function(data) {
             console.log('getStats response:', data);
+            console.log('threats_by_type keys:', Object.keys(data.threats_by_type || {}));
+            console.log('threats_by_type values:', Object.values(data.threats_by_type || {}));
+            console.log('threats_by_type is empty?', Object.keys(data.threats_by_type || {}).length === 0);
             
             if (data && data.threats_by_type && Object.keys(data.threats_by_type).length > 0) {
                 const labels = Object.keys(data.threats_by_type);
@@ -539,7 +555,7 @@ $(document).ready(function() {
                     console.log('✅ Threat chart updated!');
                 }
             } else {
-                console.log('❌ No threats_by_type data available');
+                console.log('❌ No threats_by_type data available or empty object');
             }
         }).fail(function(xhr, status, error) {
             console.error('❌ getStats API failed:', error);
