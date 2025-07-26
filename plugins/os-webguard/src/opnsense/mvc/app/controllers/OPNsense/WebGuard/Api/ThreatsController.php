@@ -364,6 +364,36 @@ class ThreatsController extends ApiControllerBase
         return ["result" => "failed", "message" => "Failed to mark threat as false positive"];
     }
 
+    public function getFalsePositivesAction()
+    {
+        if (!$this->request->isGet()) {
+            return ['status' => 'error', 'message' => 'GET required'];
+        }
+        $page = max(1, (int)$this->request->getQuery('page', 'int', 1));
+
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['get_threat_false_positive', (string)$page]));
+
+        if ($out !== '') {
+            $data = json_decode($out, true);
+            if (is_array($data) && isset($data['threats'])) {
+                return [
+                    'status' => 'ok',
+                    'threats' => $data['threats'],
+                    'total'   => isset($data['total']) ? (int)$data['total'] : count($data['threats']),
+                    'page'    => $page
+                ];
+            }
+        }
+
+        return [
+            'status'  => 'ok',
+            'threats' => [],
+            'total'   => 0,
+            'page'    => $page
+        ];
+    }
+
 
     /**
      * Get all threats list with pagination
