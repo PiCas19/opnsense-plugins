@@ -221,6 +221,13 @@ $(document).ready(function() {
     loadPatternData();
     initCharts();
     
+    // Forza il caricamento iniziale del tab SQL dopo un piccolo delay
+    setTimeout(function() {
+        activeTab = 'sql';
+        loadPatternData();
+        updateCharts();
+    }, 1000);
+    
     // Set up periodic updates every 5 seconds
     setInterval(function() {
         loadPatternData();
@@ -240,6 +247,15 @@ $(document).ready(function() {
     $('#patternTabs a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
         activeTab = $(e.target).data('tab');
         console.log('Tab switched to:', activeTab);
+        
+        // Se è il tab behavioral, ricrea il grafico dopo un delay
+        if (activeTab === 'behavioral') {
+            setTimeout(function() {
+                updateBehavioralContent();
+                initBehavioralChart();
+            }, 300);
+        }
+        
         loadPatternData();
         updateCharts();
     });
@@ -255,8 +271,11 @@ $(document).ready(function() {
                 updatePatternStats(data);
                 updatePatternLists(data);
                 updatePatternsTable(data);
+                
+                // Aggiorna sempre il contenuto behavioral e ML
                 updateBehavioralContent();
                 updateMLContent();
+                
                 updateCharts();
             } else {
                 console.log('❌ No valid data from API');
@@ -268,6 +287,9 @@ $(document).ready(function() {
             }
         }).fail(function(xhr, status, error) {
             console.error('❌ Failed to load pattern data:', error);
+            // Carica comunque il contenuto di base anche in caso di errore
+            updateBehavioralContent();
+            updateMLContent();
         });
     }
     
@@ -552,9 +574,23 @@ $(document).ready(function() {
         }
         
         // Behavioral Timeline Chart - inizializza solo se il contenuto è stato creato
+        initBehavioralChart();
+        
+        // Load initial chart data
+        setTimeout(updateCharts, 500);
+    }
+    
+    function initBehavioralChart() {
+        // Distruggi il grafico esistente se presente
+        if (behavioralChart) {
+            behavioralChart.destroy();
+            behavioralChart = null;
+        }
+        
         setTimeout(function() {
             const ctx3 = document.getElementById('behavioralTimelineChart');
             if (ctx3) {
+                console.log('📈 Creating behavioral chart');
                 behavioralChart = new Chart(ctx3.getContext('2d'), {
                     type: 'line',
                     data: {
@@ -582,11 +618,11 @@ $(document).ready(function() {
                         }
                     }
                 });
+                console.log('✅ Behavioral chart created');
+            } else {
+                console.log('❌ Behavioral chart canvas not found');
             }
-        }, 1000); // Delay per assicurarsi che il canvas sia stato creato
-        
-        // Load initial chart data
-        setTimeout(updateCharts, 500);
+        }, 500); // Delay per assicurarsi che il canvas sia stato creato
     }
     
     function updateCharts() {
@@ -692,6 +728,20 @@ $(document).ready(function() {
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     margin-bottom: 1.5rem;
+}
+
+.pattern-analysis-container .nav-tabs {
+    border-bottom: 1px solid #dee2e6;
+    margin-bottom: 0;
+}
+
+.pattern-analysis-container .tab-content {
+    padding: 1.5rem;
+    min-height: 500px;
+}
+
+.pattern-analysis-container .tab-pane {
+    min-height: 450px;
 }
 
 .pattern-chart-card, .pattern-list-card, .behavioral-analysis-card, 
