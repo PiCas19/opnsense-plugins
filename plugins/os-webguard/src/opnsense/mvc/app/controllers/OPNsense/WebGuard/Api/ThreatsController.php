@@ -388,6 +388,42 @@ class ThreatsController extends ApiControllerBase
     }
 
     /**
+     * Get all threats list with pagination
+     * @return array
+     */
+    public function getAllThreatsAction()
+    {
+        if (!$this->request->isGet()) {
+            return ['status' => 'error', 'message' => 'GET required'];
+        }
+        $page = max(1, (int)$this->request->getQuery('page', 'int', 1));
+
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['get_threat_all', (string)$page]));
+
+        if ($out !== '') {
+            $data = json_decode($out, true);
+            if (is_array($data) && isset($data['threats'])) {
+                return [
+                    'status' => 'ok',
+                    'threats' => $data['threats'],
+                    'total'   => isset($data['total']) ? (int)$data['total'] : count($data['threats']),
+                    'page'    => $page
+                ];
+            }
+        }
+
+        // NESSUN FALLBACK - solo dati reali
+        return [
+            'status'  => 'ok',
+            'threats' => [],
+            'total'   => 0,
+            'page'    => $page
+        ];
+    }
+
+
+    /**
      * Add IP to whitelist from threat
      * @param string $id
      * @return array
