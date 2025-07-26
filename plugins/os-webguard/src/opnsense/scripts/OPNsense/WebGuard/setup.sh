@@ -4,7 +4,7 @@
 # - Crea directories e file base
 # - Installa dipendenze Python
 # - Scarica GeoIP database
-# - Crea database SQLite con tabelle COMPLETE
+# - Crea database SQLite con tabelle IDENTICHE ALL'ENGINE
 # - Copia update_rules.py se presente
 # - Imposta permessi
 
@@ -37,30 +37,53 @@ if [ -f "$DB_FILE" ]; then
     rm -f "$DB_FILE"
 fi
 
-# Create database and tables using separate commands
+# Create database and tables using SCHEMA IDENTICO ALL'ENGINE
 echo "Creating blocked_ips table..."
-sqlite3 "$DB_FILE" "CREATE TABLE blocked_ips (ip_address TEXT PRIMARY KEY, block_type TEXT DEFAULT 'manual', blocked_since INTEGER, expires_at INTEGER, reason TEXT, violations INTEGER DEFAULT 1, last_violation INTEGER);"
+sqlite3 "$DB_FILE" "CREATE TABLE blocked_ips (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ip_address TEXT UNIQUE NOT NULL,
+    block_type TEXT NOT NULL,
+    blocked_since INTEGER NOT NULL,
+    expires_at INTEGER,
+    reason TEXT,
+    violations INTEGER DEFAULT 1,
+    last_violation INTEGER
+);"
 
 echo "Creating whitelist table..."
-sqlite3 "$DB_FILE" "CREATE TABLE whitelist (ip_address TEXT PRIMARY KEY, description TEXT, added_at INTEGER, expires_at INTEGER, permanent INTEGER DEFAULT 1);"
+sqlite3 "$DB_FILE" "CREATE TABLE whitelist (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ip_address TEXT UNIQUE NOT NULL,
+    description TEXT,
+    added_at INTEGER NOT NULL,
+    expires_at INTEGER,
+    permanent INTEGER DEFAULT 1
+);"
 
-echo "Creating threats table with ALL required columns..."
+echo "Creating threats table with SCHEMA IDENTICO ALL'ENGINE..."
 sqlite3 "$DB_FILE" "CREATE TABLE threats (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    timestamp INTEGER,
-    source_ip TEXT,
-    target TEXT,
-    type TEXT,
-    severity TEXT,
-    description TEXT,
-    false_positive INTEGER DEFAULT 0,
+    timestamp INTEGER NOT NULL,
+    source_ip TEXT NOT NULL,
+    target TEXT NOT NULL,
+    method TEXT NOT NULL,
+    type TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    status TEXT NOT NULL,
+    score REAL DEFAULT 0.0,
     payload TEXT,
-    method TEXT,
     request_headers TEXT,
     rule_matched TEXT,
-    score REAL DEFAULT 0.0,
-    status TEXT DEFAULT 'detected'
+    description TEXT,
+    false_positive INTEGER DEFAULT 0
 );"
+
+# Create indexes (come nell'engine)
+echo "Creating indexes..."
+sqlite3 "$DB_FILE" "CREATE INDEX IF NOT EXISTS idx_threats_timestamp ON threats(timestamp);"
+sqlite3 "$DB_FILE" "CREATE INDEX IF NOT EXISTS idx_threats_source_ip ON threats(source_ip);"
+sqlite3 "$DB_FILE" "CREATE INDEX IF NOT EXISTS idx_blocked_ips_ip ON blocked_ips(ip_address);"
+sqlite3 "$DB_FILE" "CREATE INDEX IF NOT EXISTS idx_whitelist_ip ON whitelist(ip_address);"
 
 # Insert sample data with ALL columns
 echo "Inserting sample data..."
@@ -72,58 +95,58 @@ sqlite3 "$DB_FILE" "INSERT INTO whitelist (ip_address, description, added_at, pe
 
 # SQL Injection threat
 sqlite3 "$DB_FILE" "INSERT INTO threats (
-    timestamp, source_ip, target, method, type, severity, description, payload, request_headers, rule_matched, false_positive, score, status
+    timestamp, source_ip, target, method, type, severity, status, score, payload, request_headers, rule_matched, description, false_positive
 ) VALUES (
-    $((CURRENT_TIME - 3600)), '192.168.1.200', '/admin/login.php', 'POST', 'SQL Injection', 'high',
-    'SQL injection detected', ''' OR 1=1 --', '{}', 'rule_1', 0, 85.5, 'blocked'
+    $((CURRENT_TIME - 3600)), '192.168.1.200', '/admin/login.php', 'POST', 'SQL Injection', 'high', 'blocked', 85.5,
+    ''' OR 1=1 --', '{}', 'rule_1', 'SQL injection detected', 0
 );"
 
 # XSS Attack threat
 sqlite3 "$DB_FILE" "INSERT INTO threats (
-    timestamp, source_ip, target, method, type, severity, description, payload, request_headers, rule_matched, false_positive, score, status
+    timestamp, source_ip, target, method, type, severity, status, score, payload, request_headers, rule_matched, description, false_positive
 ) VALUES (
-    $((CURRENT_TIME - 7200)), '10.0.0.50', '/search?q=<script>', 'GET', 'XSS Attack', 'medium',
-    'Cross-site scripting attempt', '<script>alert(\"xss\")</script>', '{}', 'rule_2', 0, 65.0, 'blocked'
+    $((CURRENT_TIME - 7200)), '10.0.0.50', '/search?q=<script>', 'GET', 'XSS Attack', 'medium', 'blocked', 65.0,
+    '<script>alert(\"xss\")</script>', '{}', 'rule_2', 'Cross-site scripting attempt', 0
 );"
 
 # Path Traversal threat
 sqlite3 "$DB_FILE" "INSERT INTO threats (
-    timestamp, source_ip, target, method, type, severity, description, payload, request_headers, rule_matched, false_positive, score, status
+    timestamp, source_ip, target, method, type, severity, status, score, payload, request_headers, rule_matched, description, false_positive
 ) VALUES (
-    $((CURRENT_TIME - 10800)), '172.16.0.25', '/api/users', 'GET', 'Path Traversal', 'medium',
-    'Directory traversal detected', '../../../etc/passwd', '{}', 'rule_3', 0, 70.0, 'blocked'
+    $((CURRENT_TIME - 10800)), '172.16.0.25', '/api/users', 'GET', 'Path Traversal', 'medium', 'blocked', 70.0,
+    '../../../etc/passwd', '{}', 'rule_3', 'Directory traversal detected', 0
 );"
 
 # Command Injection threat
 sqlite3 "$DB_FILE" "INSERT INTO threats (
-    timestamp, source_ip, target, method, type, severity, description, payload, request_headers, rule_matched, false_positive, score, status
+    timestamp, source_ip, target, method, type, severity, status, score, payload, request_headers, rule_matched, description, false_positive
 ) VALUES (
-    $((CURRENT_TIME - 14400)), '203.0.113.45', '/cmd.php', 'POST', 'Command Injection', 'critical',
-    'Command injection attempt detected', '; cat /etc/passwd', '{}', 'rule_4', 0, 95.0, 'blocked'
+    $((CURRENT_TIME - 14400)), '203.0.113.45', '/cmd.php', 'POST', 'Command Injection', 'critical', 'blocked', 95.0,
+    '; cat /etc/passwd', '{}', 'rule_4', 'Command injection attempt detected', 0
 );"
 
 # Another SQL Injection from different IP
 sqlite3 "$DB_FILE" "INSERT INTO threats (
-    timestamp, source_ip, target, method, type, severity, description, payload, request_headers, rule_matched, false_positive, score, status
+    timestamp, source_ip, target, method, type, severity, status, score, payload, request_headers, rule_matched, description, false_positive
 ) VALUES (
-    $((CURRENT_TIME - 18000)), '198.51.100.33', '/login.asp', 'POST', 'SQL Injection', 'high',
-    'SQL injection with UNION attack', ' UNION SELECT username,password FROM users', '{}', 'rule_5', 0, 88.0, 'blocked'
+    $((CURRENT_TIME - 18000)), '198.51.100.33', '/login.asp', 'POST', 'SQL Injection', 'high', 'blocked', 88.0,
+    ' UNION SELECT username,password FROM users', '{}', 'rule_5', 'SQL injection with UNION attack', 0
 );"
 
 # XSS Attack with different vector
 sqlite3 "$DB_FILE" "INSERT INTO threats (
-    timestamp, source_ip, target, method, type, severity, description, payload, request_headers, rule_matched, false_positive, score, status
+    timestamp, source_ip, target, method, type, severity, status, score, payload, request_headers, rule_matched, description, false_positive
 ) VALUES (
-    $((CURRENT_TIME - 21600)), '93.184.216.34', '/comment.php', 'POST', 'XSS Attack', 'medium',
-    'DOM-based XSS attempt', '<img src=x onerror=alert(1)>', '{}', 'rule_6', 0, 72.5, 'blocked'
+    $((CURRENT_TIME - 21600)), '93.184.216.34', '/comment.php', 'POST', 'XSS Attack', 'medium', 'blocked', 72.5,
+    '<img src=x onerror=alert(1)>', '{}', 'rule_6', 'DOM-based XSS attempt', 0
 );"
 
 # File Inclusion threat
 sqlite3 "$DB_FILE" "INSERT INTO threats (
-    timestamp, source_ip, target, method, type, severity, description, payload, request_headers, rule_matched, false_positive, score, status
+    timestamp, source_ip, target, method, type, severity, status, score, payload, request_headers, rule_matched, description, false_positive
 ) VALUES (
-    $((CURRENT_TIME - 25200)), '185.199.108.153', '/include.php', 'GET', 'File Inclusion', 'high',
-    'Local file inclusion detected', '?file=../../../../etc/passwd', '{}', 'rule_7', 0, 82.0, 'blocked'
+    $((CURRENT_TIME - 25200)), '185.199.108.153', '/include.php', 'GET', 'File Inclusion', 'high', 'blocked', 82.0,
+    '?file=../../../../etc/passwd', '{}', 'rule_7', 'Local file inclusion detected', 0
 );"
 
 # Verify database creation
@@ -150,8 +173,13 @@ if [ "$TABLES" -eq 3 ]; then
     
     # Verify score and status columns exist
     echo ""
-    echo "Verifying new columns (score, status):"
+    echo "Verifying schema compatibility:"
     sqlite3 "$DB_FILE" "SELECT id, type, score, status FROM threats LIMIT 3;"
+    
+    # Verify schema matches engine exactly
+    echo ""
+    echo "Full schema verification:"
+    sqlite3 "$DB_FILE" ".schema threats"
     
 else
     echo "Database creation failed - only $TABLES tables found"
@@ -189,7 +217,7 @@ echo "=============================================="
 echo "WebGuard Setup Complete!"
 echo "=============================================="
 echo "Directories created"
-echo "SQLite database created with complete schema"
+echo "SQLite database created with ENGINE-COMPATIBLE schema"
 echo "Sample data inserted (7 threat records)"
 echo "Dependencies installed"
 echo "GeoIP database downloaded"
