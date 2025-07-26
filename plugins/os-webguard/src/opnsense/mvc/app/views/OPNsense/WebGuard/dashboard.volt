@@ -523,8 +523,8 @@ $(document).ready(function() {
     function updateChartData() {
         console.log('=== updateChartData() chiamata ===');
         
-        // Carica dati per il grafico delle minacce per tipo
-        ajaxCall('/api/webguard/threats/getStats', {}, function(data) {
+        // Carica dati per il grafico delle minacce per tipo - prova con GET esplicito
+        $.get('/api/webguard/threats/getStats', function(data) {
             console.log('getStats response:', data);
             
             if (data && data.threats_by_type && Object.keys(data.threats_by_type).length > 0) {
