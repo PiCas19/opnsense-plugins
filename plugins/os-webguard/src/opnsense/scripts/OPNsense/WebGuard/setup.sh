@@ -79,14 +79,15 @@ sqlite3 "$DB_FILE" "INSERT INTO whitelist (ip_address, description, added_at, pe
 
 echo "[*] Inserting sample threats..."
 for entry in \
-  "$((CURRENT_TIME - 3600))|'192.168.1.200'|'/admin/login.php'|'POST'|'SQL Injection'|'high'|85.5|''' OR 1=1 --'|'rule_1'|'SQL injection detected'" \
-  "$((CURRENT_TIME - 7200))|'10.0.0.50'|'/search?q=<script>'|'GET'|'XSS Attack'|'medium'|65.0|'<script>alert(\"xss\")</script>'|'rule_2'|'Cross-site scripting attempt'" \
-  "$((CURRENT_TIME - 10800))|'172.16.0.25'|'/api/users'|'GET'|'Path Traversal'|'medium'|70.0|'../../../etc/passwd'|'rule_3'|'Directory traversal detected'" \
-  "$((CURRENT_TIME - 14400))|'203.0.113.45'|'/cmd.php'|'POST'|'Command Injection'|'critical'|95.0|'; cat /etc/passwd'|'rule_4'|'Command injection attempt detected'" \
-  "$((CURRENT_TIME - 18000))|'198.51.100.33'|'/login.asp'|'POST'|'SQL Injection'|'high'|88.0|'UNION SELECT username,password FROM users'|'rule_5'|'SQL injection with UNION attack'" \
-  "$((CURRENT_TIME - 21600))|'93.184.216.34'|'/comment.php'|'POST'|'XSS Attack'|'medium'|72.5|'<img src=x onerror=alert(1)>'|'rule_6'|'DOM-based XSS attempt'" \
-  "$((CURRENT_TIME - 25200))|'185.199.108.153'|'/include.php'|'GET'|'File Inclusion'|'high'|82.0|'?file=../../../../etc/passwd'|'rule_7'|'Local file inclusion detected'"
+  "$((CURRENT_TIME - 3600))|192.168.1.200|/admin/login.php|POST|SQL Injection|high|85.5|'' OR 1=1 --|rule_1|SQL injection detected" \
+  "$((CURRENT_TIME - 7200))|10.0.0.50|/search?q=<script>|GET|XSS Attack|medium|65.0|<script>alert(\"xss\")</script>|rule_2|Cross-site scripting attempt" \
+  "$((CURRENT_TIME - 10800))|172.16.0.25|/api/users|GET|Path Traversal|medium|70.0|../../../etc/passwd|rule_3|Directory traversal detected" \
+  "$((CURRENT_TIME - 14400))|203.0.113.45|/cmd.php|POST|Command Injection|critical|95.0|; cat /etc/passwd|rule_4|Command injection attempt detected" \
+  "$((CURRENT_TIME - 18000))|198.51.100.33|/login.asp|POST|SQL Injection|high|88.0|UNION SELECT username,password FROM users|rule_5|SQL injection with UNION attack" \
+  "$((CURRENT_TIME - 21600))|93.184.216.34|/comment.php|POST|XSS Attack|medium|72.5|<img src=x onerror=alert(1)>|rule_6|DOM-based XSS attempt" \
+  "$((CURRENT_TIME - 25200))|185.199.108.153|/include.php|GET|File Inclusion|high|82.0|?file=../../../../etc/passwd|rule_7|Local file inclusion detected"
 do
+
     IFS='|' read -r ts ip tgt mtd typ sev scr pld rule desc <<EOF
 $entry
 EOF
