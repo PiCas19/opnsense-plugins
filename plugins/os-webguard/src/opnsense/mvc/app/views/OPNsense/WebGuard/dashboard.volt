@@ -338,9 +338,7 @@ $(document).ready(function() {
 
     function loadRecentThreatsFromStats() {
         // Fetch recent threats via dedicated API endpoint
-        ajaxCall('/api/webguard/threats/getRecent', {}, function(response) {
-            console.log('Recent threats response:', response);
-            
+        ajaxCall('/api/webguard/threats/getRecent', {}, function(response) {            
             const tbody = $('#threatTableBody');
             tbody.empty();
             
@@ -370,7 +368,6 @@ $(document).ready(function() {
                     tbody.append(row);
                 });
             } else {
-                console.log('No threats found in response');
                 tbody.append(`
                     <tr>
                         <td colspan="6" class="text-center text-muted">
@@ -379,10 +376,7 @@ $(document).ready(function() {
                     </tr>
                 `);
             }
-        }).fail(function(xhr, status, error) {
-            console.error('Failed to load recent threats:', error);
-            console.error('Response:', xhr.responseText);
-            
+        }).fail(function(xhr, status, error) {            
             const tbody = $('#threatTableBody');
             tbody.empty().append(`
                 <tr>
@@ -446,7 +440,6 @@ $(document).ready(function() {
             if (response.status === 'ok' && response.recent_threats && response.recent_threats.length) {
                 const feed = $('#threatFeed');
                 response.recent_threats.forEach(function(threat) {
-                    console.log('Processing threat:', threat);
                     const item = $(`
                         <div class="threat-feed-item ${threat.severity}">
                             <div class="threat-feed-time">${formatTimeFromISO(threat.timestamp)}</div>
@@ -533,43 +526,25 @@ $(document).ready(function() {
         }, 500);
     }
 
-    function updateChartData() {
-        console.log('=== updateChartData() chiamata ===');
-        
+    function updateChartData() {        
         // Carica dati per il grafico delle minacce per tipo - prova con GET esplicito
-        $.get('/api/webguard/threats/getStats', function(data) {
-            console.log('getStats response:', data);
-            console.log('threats_by_type keys:', Object.keys(data.threats_by_type || {}));
-            console.log('threats_by_type values:', Object.values(data.threats_by_type || {}));
-            console.log('threats_by_type is empty?', Object.keys(data.threats_by_type || {}).length === 0);
-            
+        $.get('/api/webguard/threats/getStats', function(data) {        
             if (data && data.threats_by_type && Object.keys(data.threats_by_type).length > 0) {
                 const labels = Object.keys(data.threats_by_type);
                 const values = Object.values(data.threats_by_type);
-                console.log('✅ Updating threat chart with:', labels, values);
-                
                 if (threatChart) {
                     threatChart.data.labels = labels;
                     threatChart.data.datasets[0].data = values;
                     threatChart.update();
-                    console.log('✅ Threat chart updated!');
                 }
-            } else {
-                console.log('❌ No threats_by_type data available or empty object');
             }
         }).fail(function(xhr, status, error) {
             console.error('❌ getStats API failed:', error);
         });
 
         // Carica dati per il grafico timeline
-        $.get('/api/webguard/threats/getTimeline', function(data) {
-            console.log('getTimeline response:', data);
-            console.log('Timeline labels length:', data.timeline ? data.timeline.labels.length : 0);
-            console.log('Timeline threats length:', data.timeline ? data.timeline.threats.length : 0);
-            
-            if (data && data.timeline && data.timeline.labels) {
-                console.log('✅ Updating timeline chart with:', data.timeline);
-                
+        $.get('/api/webguard/threats/getTimeline', function(data) {            
+            if (data && data.timeline && data.timeline.labels) {                
                 if (timelineChart) {
                     timelineChart.data.labels = data.timeline.labels;
                     timelineChart.data.datasets[0].data = data.timeline.threats || [];
@@ -579,10 +554,7 @@ $(document).ready(function() {
                     );
                     timelineChart.data.datasets[1].data = requestsData;
                     timelineChart.update();
-                    console.log('✅ Timeline chart updated!');
                 }
-            } else {
-                console.log('❌ Timeline data is empty or malformed');
             }
         }).fail(function(xhr, status, error) {
             console.error('❌ getTimeline API failed:', error);
