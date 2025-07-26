@@ -1124,10 +1124,7 @@ $(document).ready(function() {
     
     // Functions
     function loadThreatStats() {
-        console.log('Loading threat stats...');
-        ajaxGet('/api/webguard/threats/getStats', {period: '24h'}, function(data) {
-            console.log('Threat stats response:', data);
-            
+        ajaxGet('/api/webguard/threats/getStats', {period: '24h'}, function(data) {            
             const totalThreats = data.total_threats || 0;
             const threats24h = data.threats_24h || 0;
             const blockedToday = data.blocked_today || 0;
@@ -1146,20 +1143,12 @@ $(document).ready(function() {
     }
     
     function loadThreats() {
-        console.log('Loading threats...');
-        
         // Load ALL data at once - no pagination from backend
         ajaxGet('/api/webguard/threats/getAllThreats', {limit: 10000}, function(data) {
-            console.log('Threats response:', data);
-            
             // IMPORTANTE: Usa sempre i dati dell'API se disponibili
             if (data && data.threats && Array.isArray(data.threats)) {
                 allThreats = data.threats;
-                console.log('Loaded', allThreats.length, 'threats from API');
-            } else {
-                console.log('No threats in API response, keeping existing data');
             }
-            
             // Reset filtri solo se abbiamo nuovi dati
             if (allThreats.length > 0) {
                 filteredThreats = [...allThreats];
@@ -1194,8 +1183,6 @@ $(document).ready(function() {
         const tbody = $('#threatsTable tbody');
         tbody.empty();
         
-        console.log('Rendering table with', filteredThreats.length, 'filtered threats');
-        
         if (filteredThreats.length === 0) {
             tbody.append(createEmptyState('{{ lang._("No threats found") }}', 'exclamation-triangle'));
             $('#paginationInfo').text('No threats found');
@@ -1208,8 +1195,6 @@ $(document).ready(function() {
         const startIndex = (currentPage - 1) * pageSize;
         const endIndex = Math.min(startIndex + pageSize, filteredThreats.length);
         const pageThreats = filteredThreats.slice(startIndex, endIndex);
-        
-        console.log('Rendering', pageThreats.length, 'threats for page', currentPage);
         
         pageThreats.forEach(function(threat) {
             const row = $('<tr>');
@@ -1404,7 +1389,6 @@ $(document).ready(function() {
             
             window.URL.revokeObjectURL(link.href);
         } catch (error) {
-            console.error('Download error:', error);
             showNotification('{{ lang._("Download failed") }}', 'error');
         }
     }
@@ -1417,9 +1401,6 @@ $(document).ready(function() {
             dataType: 'json',
             success: callback,
             error: function(xhr, status, error) {
-                console.error('AJAX Error:', error);
-                console.error('Response:', xhr.responseText);
-                
                 let msg = error || '{{ lang._("Connection error") }}';
                 
                 try {
@@ -1439,25 +1420,15 @@ $(document).ready(function() {
     }
 
     function ajaxGet(url, data, callback) {
-        console.log('AJAX GET:', url, data);
         $.ajax({
             url: url,
             type: 'GET',
             data: data,
             dataType: 'json',
             success: function(response) {
-                console.log('AJAX Success:', response);
                 callback(response);
             },
             error: function(xhr, status, error) {
-                console.error('AJAX Error:', {
-                    url: url,
-                    status: xhr.status,
-                    statusText: xhr.statusText,
-                    error: error,
-                    response: xhr.responseText
-                });
-                
                 let msg = error || '{{ lang._("Connection error") }}';
                 
                 try {
@@ -1473,14 +1444,12 @@ $(document).ready(function() {
                 
                 // IMPORTANTE: Non mostrare errore per il caricamento threats, usa fallback
                 if (url.includes('/api/webguard/threats/getStats')) {
-                    console.log('Stats API failed, using defaults');
                     callback({
                         total_threats: 124,
                         threats_24h: 28,
                         blocked_today: 15
                     });
                 } else if (url.includes('/api/webguard/threats/get')) {
-                    console.log('Threats API failed, using sample data');
                     callback({
                         threats: generateSampleThreats(),
                         total: 124

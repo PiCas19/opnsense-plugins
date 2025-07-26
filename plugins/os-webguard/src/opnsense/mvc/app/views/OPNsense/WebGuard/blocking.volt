@@ -1288,7 +1288,6 @@ $(function() {
                 }
             } else {
                 // DEBUG - mostra cosa arriva effettivamente
-                console.log('loadFalsePositives data:', data);
                 tbody.append(createErrorState('{{ lang._("Error loading false positives") }}'));
             }
         });
@@ -1380,7 +1379,6 @@ $(function() {
             // Pulisci l'URL del blob
             window.URL.revokeObjectURL(link.href);
         } catch (error) {
-            console.error('Download error:', error);
             showNotification('{{ lang._("Download failed") }}', 'error');
         }
     }
@@ -1394,9 +1392,6 @@ $(function() {
             dataType: 'json',
             success: callback,
             error: function(xhr, status, error) {
-                console.error('AJAX Error:', error);
-                console.error('Response:', xhr.responseText);
-                
                 let msg = error || '{{ lang._("Connection error") }}';
                 
                 try {
@@ -1423,9 +1418,6 @@ $(function() {
             dataType: 'json',
             success: callback,
             error: function(xhr, status, error) {
-                console.error('AJAX Error:', error);
-                console.error('Response:', xhr.responseText);
-                
                 let msg = error || '{{ lang._("Connection error") }}';
                 
                 try {

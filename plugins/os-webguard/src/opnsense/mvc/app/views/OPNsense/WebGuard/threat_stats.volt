@@ -144,17 +144,13 @@ $(document).ready(function() {
     // Period selector
     $('#periodSelect').change(function() {
         currentPeriod = $(this).val();
-        console.log('Period changed to:', currentPeriod);
         loadStatsData();
         updateCharts();
     });
 
-    function loadStatsData() {
-        console.log('Loading stats data for period:', currentPeriod);
-        
+    function loadStatsData() {        
         // Usa $.get() invece di ajaxCall() e gestisce i dati diretti
         $.get('/api/webguard/threats/getStats', { period: currentPeriod }, function(data) {
-            console.log('✅ getStats API response:', data);
             $('#apiStatus').hide();
             
             // I dati arrivano direttamente, non wrapped
@@ -163,13 +159,11 @@ $(document).ready(function() {
                 updateTopIPs(data.top_source_ips || []);
                 updateAttackPatterns(data); // Passa tutti i dati
             } else {
-                console.log('❌ No valid data from API');
                 updateSummaryCards({});
                 updateTopIPs([]);
                 updateAttackPatterns({});
             }
         }).fail(function(xhr, status, error) {
-            console.error('❌ Failed to load stats:', error, 'Status:', status, 'Response:', xhr.responseText);
             $('#apiStatus').text('API Error: ' + (xhr.responseText || 'No response')).show();
             updateSummaryCards({});
             updateTopIPs([]);
@@ -177,9 +171,7 @@ $(document).ready(function() {
         });
     }
 
-    function updateSummaryCards(data) {
-        console.log('📊 Updating summary cards with data:', data);
-        
+    function updateSummaryCards(data) {        
         $('#totalThreats').text(formatNumber(data.total_threats || 0));
         $('#blockedThreats').text(formatNumber(data.blocked_today || data.total_threats || 0));
         $('#detectedThreats').text(formatNumber(data.threats_24h || (data.total_threats || 0)));
@@ -192,7 +184,6 @@ $(document).ready(function() {
     }
 
     function updateTopIPs(topIPs) {
-        console.log('🌐 Updating top IPs with data:', topIPs);
         const tbody = $('#topIPsTable');
         tbody.empty();
         
@@ -222,7 +213,6 @@ $(document).ready(function() {
     }
 
     function updateAttackPatterns(data) {
-        console.log('🔍 Updating attack patterns with data:', data);
         let html = '';
         
         // Genera pattern dai threats_by_type esistenti
@@ -276,9 +266,7 @@ $(document).ready(function() {
         $('#attackPatterns').html(html || '<p class="text-center text-muted">{{ lang._("No patterns detected") }}</p>');
     }
 
-    function initCharts() {
-        console.log('📈 Initializing charts');
-        
+    function initCharts() {        
         const ctx1 = document.getElementById('threatTypeChart');
         if (ctx1) {
             threatTypeChart = new Chart(ctx1.getContext('2d'), {
@@ -366,21 +354,15 @@ $(document).ready(function() {
     }
 
     function updateCharts() {
-        console.log('📊 Updating charts for period:', currentPeriod);
-        
         // Aggiorna i grafici con $.get() 
         $.get('/api/webguard/threats/getStats', { period: currentPeriod }, function(data) {
-            console.log('✅ getStats response for charts:', data);
             $('#apiStatus').hide();
             
             // Aggiorna Threat Type Chart
             if (data && data.threats_by_type && threatTypeChart) {
                 const threatsByType = data.threats_by_type;
                 const labels = Object.keys(threatsByType);
-                const values = Object.values(threatsByType);
-                
-                console.log('📊 Updating threat type chart:', labels, values);
-                
+                const values = Object.values(threatsByType);    
                 if (labels.length > 0) {
                     threatTypeChart.data.labels = labels;
                     threatTypeChart.data.datasets[0].data = values;
@@ -390,9 +372,7 @@ $(document).ready(function() {
             
             // Aggiorna Severity Chart
             if (data && data.threats_by_severity && severityChart) {
-                const severityData = data.threats_by_severity;
-                console.log('📊 Updating severity chart:', severityData);
-                
+                const severityData = data.threats_by_severity;                
                 severityChart.data.datasets[0].data = [
                     severityData.critical || 0,
                     severityData.high || 0,
@@ -402,7 +382,6 @@ $(document).ready(function() {
                 severityChart.update();
             }
         }).fail(function(xhr, status, error) {
-            console.error('❌ Failed to update stats charts:', error);
             $('#apiStatus').text('API Error: ' + (xhr.responseText || 'No response')).show();
             
             // Reset charts on error
@@ -419,17 +398,12 @@ $(document).ready(function() {
 
         // Aggiorna Timeline Chart
         $.get('/api/webguard/threats/getTimeline', { period: currentPeriod }, function(data) {
-            console.log('✅ getTimeline response:', data);
-            
-            if (data && data.timeline && timelineChart) {
-                console.log('📊 Updating timeline chart:', data.timeline);
-                
+            if (data && data.timeline && timelineChart) {                
                 timelineChart.data.labels = data.timeline.labels || [];
                 timelineChart.data.datasets[0].data = data.timeline.threats || [];
                 timelineChart.update();
             }
         }).fail(function(xhr, status, error) {
-            console.error('❌ Failed to update timeline chart:', error);
             $('#apiStatus').text('API Error: ' + (xhr.responseText || 'No response')).show();
             
             if (timelineChart) {
