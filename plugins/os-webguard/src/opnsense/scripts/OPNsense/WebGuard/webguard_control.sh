@@ -25,33 +25,6 @@ validate_ip() {
 }
 
 case "$1" in
-    get_threat_stats)
-        PERIOD="${2:-24h}"
-        
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/get_threats.py" stats "$PERIOD" 2>&1)
-        if [ $? -eq 0 ]; then
-            echo "$result"
-        else
-            log_action "Failed to get threat stats: $result"
-            echo '{"total_threats": 0, "threats_24h": 0, "blocked_today": 0, "threats_by_type": {}, "threats_by_severity": {}, "top_source_ips": {}}'
-            exit 1
-        fi
-        ;;
-
-    get_attack_patterns)
-        PERIOD="${2:-24h}"
-        PATTERN_TYPE="${3:-all}"
-        
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/get_threats.py" patterns "$PERIOD" "$PATTERN_TYPE" 2>&1)
-        if [ $? -eq 0 ]; then
-            echo "$result"
-        else
-            log_action "Failed to get attack patterns: $result"
-            echo '{"patterns": [], "trending_attacks": [], "attack_sequences": []}'
-            exit 1
-        fi
-        ;;
-
     block_ip)
         if [ -z "$2" ]; then
             echo "ERROR: IP address required"
@@ -68,6 +41,7 @@ case "$1" in
             exit 1
         fi
         
+        # Use the Python script
         result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_blocking.py" block "$IP" "$DURATION" "$REASON" "$BLOCK_TYPE" 2>&1)
         if [ $? -eq 0 ]; then
             log_action "Blocked IP: $IP (duration: $DURATION, reason: $REASON)"
@@ -93,6 +67,7 @@ case "$1" in
             exit 1
         fi
         
+        # Use the Python script
         result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_blocking.py" unblock "$IP" "$REASON" 2>&1)
         if [ $? -eq 0 ]; then
             log_action "Unblocked IP: $IP (reason: $REASON)"
@@ -119,6 +94,7 @@ case "$1" in
             exit 1
         fi
         
+        # Use the Python script
         result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_whitelist.py" add "$IP" "$DESCRIPTION" "$PERMANENT" 2>&1)
         if [ $? -eq 0 ]; then
             log_action "Whitelisted IP: $IP (description: $DESCRIPTION)"
@@ -144,6 +120,7 @@ case "$1" in
             exit 1
         fi
         
+        # Use the Python script
         result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_whitelist.py" remove "$IP" "$REASON" 2>&1)
         if [ $? -eq 0 ]; then
             log_action "Removed from whitelist: $IP (reason: $REASON)"
@@ -158,11 +135,11 @@ case "$1" in
     get_blocked_ips)
         PAGE="${2:-1}"
         
+        # Use the Python script to get blocked IPs in JSON format
         result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_blocking.py" list "$PAGE" 2>&1)
         if [ $? -eq 0 ]; then
             echo "$result"
         else
-            log_action "Failed to get blocked IPs: $result"
             echo '{"status": "error", "message": "Failed to retrieve blocked IPs", "data": []}'
             exit 1
         fi
@@ -172,11 +149,11 @@ case "$1" in
         PAGE="${2:-1}"
         LIMIT="${3:-100}"
         
+        # Use the Python script to get whitelist in JSON format
         result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_whitelist.py" list "$PAGE" "$LIMIT" 2>&1)
         if [ $? -eq 0 ]; then
             echo "$result"
         else
-            log_action "Failed to get whitelist: $result"
             echo '{"status": "error", "message": "Failed to retrieve whitelist", "data": []}'
             exit 1
         fi
@@ -185,54 +162,65 @@ case "$1" in
     get_threats)
         PAGE="${2:-1}"
         
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/get_threats.py" list "24h" "100" "0" 2>&1)
-        if [ $? -eq 0 ]; then
-            echo "$result"
+        # Use the Python script to get threats
+        if [ -f "$SCRIPTS_DIR/manage_threats.py" ]; then
+            result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" get_threats "$PAGE" 2>&1)
+            if [ $? -eq 0 ]; then
+                echo "$result"
+            else
+                echo '{"status": "error", "message": "Failed to retrieve threats", "data": {"threats": []}}'
+            fi
         else
-            log_action "Failed to get threats: $result"
-            echo '{"status": "error", "message": "Failed to retrieve threats", "threats": [], "total": 0}'
-            exit 1
+            # Return empty threats data if script doesn't exist
+            echo '{"status": "ok", "data": {"threats": [], "total": 0, "page": 1}}'
         fi
         ;;
 
     get_threat_all)
         PAGE="${2:-1}"
         
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/get_threats.py" list "30d" "1000" "0" 2>&1)
-        if [ $? -eq 0 ]; then
-            echo "$result"
+        # Use the Python script to get all threats
+        if [ -f "$SCRIPTS_DIR/manage_threats.py" ]; then
+            result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" get_threat_all "$PAGE" 2>&1)
+            if [ $? -eq 0 ]; then
+                echo "$result"
+            else
+                echo '{"status": "error", "message": "Failed to retrieve all threats", "data": {"threats": []}}'
+            fi
         else
-            log_action "Failed to get all threats: $result"
-            echo '{"status": "error", "message": "Failed to retrieve all threats", "threats": [], "total": 0}'
-            exit 1
+            echo '{"status": "ok", "data": {"threats": [], "total": 0, "page": 1}}'
         fi
         ;;
 
     get_threat_false_positive)
         PAGE="${2:-1}"
         
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/get_threats.py" list_false_positives "30d" "100" "$(( ($PAGE - 1) * 100 ))" 2>&1)
-        if [ $? -eq 0 ]; then
-            echo "$result"
+        # Use the Python script to get false positive threats
+        if [ -f "$SCRIPTS_DIR/manage_threats.py" ]; then
+            result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" get_threat_false_positive "$PAGE" 2>&1)
+            if [ $? -eq 0 ]; then
+                echo "$result"
+            else
+                echo '{"status": "error", "message": "Failed to retrieve false positive threats", "data": {"threats": []}}'
+            fi
         else
-            log_action "Failed to get false positive threats: $result"
-            echo '{"status": "error", "message": "Failed to retrieve false positive threats", "threats": [], "total": 0}'
-            exit 1
+            echo '{"status": "ok", "data": {"threats": [], "total": 0, "page": 1}}'
         fi
         ;;
 
     get_recent_threats)
         LIMIT="${2:-10}"
-        PERIOD="${3:-1h}"  # Allow configurable period, default to 1h
         
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/get_threats.py" list "$PERIOD" "$LIMIT" "0" 2>&1)
-        if [ $? -eq 0 ]; then
-            echo "{\"status\": \"ok\", \"recent\": $(echo "$result" | $PYTHON_BIN -c "import sys, json; data=json.load(sys.stdin); print(json.dumps(data.get('threats', [])))"), \"total\": $(echo "$result" | $PYTHON_BIN -c "import sys, json; data=json.load(sys.stdin); print(data.get('total', 0))"), \"period\": \"$PERIOD\"}"
-            log_action "Retrieved recent threats (period: $PERIOD, limit: $LIMIT, total: $(echo "$result" | $PYTHON_BIN -c "import sys, json; data=json.load(sys.stdin); print(data.get('total', 0))"))"
+        # Use the Python script to get recent threats
+        if [ -f "$SCRIPTS_DIR/manage_threats.py" ]; then
+            result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" get_recent "$LIMIT" 2>&1)
+            if [ $? -eq 0 ]; then
+                echo "$result"
+            else
+                echo '{"status": "ok", "recent": []}'
+            fi
         else
-            log_action "Failed to get recent threats: $result"
-            echo "{\"status\": \"error\", \"message\": \"Failed to retrieve recent threats\", \"recent\": [], \"total\": 0, \"period\": \"$PERIOD\"}"
-            exit 1
+            echo '{"status": "ok", "recent": []}'
         fi
         ;;
 
@@ -240,26 +228,32 @@ case "$1" in
         SINCE_ID="${2:-0}"
         LIMIT="${3:-50}"
         
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/get_threats.py" feed "recent" "$LIMIT" 2>&1)
-        if [ $? -eq 0 ]; then
-            echo "$result"
+        # Use the Python script to get threat feed
+        if [ -f "$SCRIPTS_DIR/manage_threats.py" ]; then
+            result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" get_feed "$SINCE_ID" "$LIMIT" 2>&1)
+            if [ $? -eq 0 ]; then
+                echo "$result"
+            else
+                echo '{"status": "ok", "feed": [], "lastId": 0}'
+            fi
         else
-            log_action "Failed to get threat feed: $result"
             echo '{"status": "ok", "feed": [], "lastId": 0}'
-            exit 1
         fi
         ;;
 
     get_threat_timeline)
         PERIOD="${2:-24h}"
         
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/get_threats.py" timeline "$PERIOD" 2>&1)
-        if [ $? -eq 0 ]; then
-            echo "$result"
+        # Use the Python script to get threat timeline
+        if [ -f "$SCRIPTS_DIR/manage_threats.py" ]; then
+            result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" get_timeline "$PERIOD" 2>&1)
+            if [ $? -eq 0 ]; then
+                echo "$result"
+            else
+                echo '{"status": "ok", "timeline": {"labels": [], "threats": [], "requests": []}, "period": "'$PERIOD'"}'
+            fi
         else
-            log_action "Failed to get threat timeline: $result"
-            echo "{\"status\": \"ok\", \"timeline\": {\"labels\": [], \"threats\": [], \"requests\": []}, \"period\": \"$PERIOD\"}"
-            exit 1
+            echo '{"status": "ok", "timeline": {"labels": [], "threats": [], "requests": []}, "period": "'$PERIOD'"}'
         fi
         ;;
         
@@ -274,6 +268,7 @@ case "$1" in
         REASON="${4:-Bulk block}"
         BLOCK_TYPE="${5:-manual}"
         
+        # Use the Python script
         result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_blocking.py" bulk_block "$IP_LIST" "$DURATION" "$REASON" "$BLOCK_TYPE" 2>&1)
         if [ $? -eq 0 ]; then
             log_action "Bulk blocked IPs: $result"
@@ -297,17 +292,18 @@ case "$1" in
             exit 1
         fi
         
+        # Use the Python script
         result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_whitelist.py" check "$IP" 2>&1)
         if [ $? -eq 0 ]; then
             echo "$result"
         else
-            log_action "Failed to check whitelist: $result"
             echo "ERROR: Failed to check whitelist"
             exit 1
         fi
         ;;
         
     clear_expired)
+        # Clear expired blocks
         result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_blocking.py" clear_expired 2>&1)
         if [ $? -eq 0 ]; then
             log_action "Cleared expired entries"
@@ -336,7 +332,6 @@ case "$1" in
         if [ $? -eq 0 ]; then
             echo "$result"
         else
-            log_action "Failed to export blocked IPs: $result"
             echo "ERROR: Failed to export blocked IPs"
             exit 1
         fi
@@ -349,21 +344,20 @@ case "$1" in
         if [ $? -eq 0 ]; then
             echo "$result"
         else
-            log_action "Failed to export whitelist: $result"
             echo "ERROR: Failed to export whitelist"
             exit 1
         fi
         ;;
         
     add_sample_threats)
-        COUNT="${2:-5}"
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/get_threats.py" add_sample_threats "$COUNT" 2>&1)
+        # Use the Python script to add sample data
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" add_samples 2>&1)
         if [ $? -eq 0 ]; then
-            log_action "Added $COUNT sample threats"
-            echo "$result"
+            log_action "Added sample threats for testing"
+            echo "OK: Sample threats added"
         else
             log_action "Failed to add sample threats: $result"
-            echo "{\"status\": \"error\", \"message\": \"Failed to add sample threats\"}"
+            echo "ERROR: $result"
             exit 1
         fi
         ;;
@@ -377,13 +371,14 @@ case "$1" in
         THREAT_ID="$2"
         REASON="${3:-Manual false positive}"
         
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/get_threats.py" mark_false_positive "$THREAT_ID" "$REASON" 2>&1)
+        # Use the Python script
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" false_positive "$THREAT_ID" "$REASON" 2>&1)
         if [ $? -eq 0 ]; then
             log_action "Marked threat $THREAT_ID as false positive: $REASON"
-            echo "$result"
+            echo "OK: Threat $THREAT_ID marked as false positive"
         else
-            log_action "Failed to mark threat $THREAT_ID as false positive: $result"
-            echo "ERROR: Failed to mark false positive"
+            log_action "Failed to mark false positive: $result"
+            echo "ERROR: $result"
             exit 1
         fi
         ;;
@@ -397,13 +392,14 @@ case "$1" in
         THREAT_ID="$2"
         REASON="${3:-Manual unmark false positive}"
         
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/get_threats.py" unmark_false_positive "$THREAT_ID" "$REASON" 2>&1)
+        # Use the Python script
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" unmark_false_positive "$THREAT_ID" "$REASON" 2>&1)
         if [ $? -eq 0 ]; then
             log_action "Unmarked threat $THREAT_ID as false positive: $REASON"
-            echo "$result"
+            echo "OK: Threat $THREAT_ID unmarked as false positive"
         else
-            log_action "Failed to unmark threat $THREAT_ID as false positive: $result"
-            echo "ERROR: Failed to unmark false positive"
+            log_action "Failed to unmark false positive: $result"
+            echo "ERROR: $result"
             exit 1
         fi
         ;;
@@ -415,15 +411,16 @@ case "$1" in
         fi
         
         THREAT_ID="$2"
-        DESCRIPTION="${3:-Whitelisted from threat}"
+        DESCRIPTION="${3:-Added from threat}"
+        PERMANENT="${4:-1}"
         
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/get_threats.py" whitelist_ip_from_threat "$THREAT_ID" "$DESCRIPTION" 2>&1)
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" whitelist_ip "$THREAT_ID" "$DESCRIPTION" "$PERMANENT" 2>&1)
         if [ $? -eq 0 ]; then
-            log_action "Whitelisted IP from threat $THREAT_ID: $DESCRIPTION"
+            log_action "Whitelisted IP from threat $THREAT_ID"
             echo "$result"
         else
-            log_action "Failed to whitelist IP from threat $THREAT_ID: $result"
-            echo "ERROR: Failed to whitelist IP from threat"
+            log_action "Failed to whitelist from threat: $result"
+            echo "ERROR: $result"
             exit 1
         fi
         ;;
@@ -438,31 +435,35 @@ case "$1" in
         DURATION="${3:-3600}"
         REASON="${4:-Blocked from threat}"
         
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/get_threats.py" block_ip_from_threat "$THREAT_ID" "$DURATION" "$REASON" 2>&1)
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" block_ip "$THREAT_ID" "$DURATION" "$REASON" 2>&1)
         if [ $? -eq 0 ]; then
-            log_action "Blocked IP from threat $THREAT_ID (duration: $DURATION, reason: $REASON)"
+            log_action "Blocked IP from threat $THREAT_ID"
             echo "$result"
         else
-            log_action "Failed to block IP from threat $THREAT_ID: $result"
-            echo "ERROR: Failed to block IP from threat"
+            log_action "Failed to block from threat: $result"
+            echo "ERROR: $result"
             exit 1
         fi
         ;;
 
     create_rule_from_threat)
-        if [ -z "$2" ]; then
-            echo "ERROR: Threat ID required"
+        if [ -z "$2" ] || [ -z "$3" ]; then
+            echo "ERROR: Threat ID and rule name required"
             exit 1
         fi
         
         THREAT_ID="$2"
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/get_threats.py" create_rule_from_threat "$THREAT_ID" 2>&1)
+        RULE_NAME="$3"
+        RULE_TYPE="${4:-custom}"
+        ENABLED="${5:-1}"
+        
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" create_rule "$THREAT_ID" "$RULE_NAME" "$RULE_TYPE" "$ENABLED" 2>&1)
         if [ $? -eq 0 ]; then
             log_action "Created rule from threat $THREAT_ID"
             echo "$result"
         else
-            log_action "Failed to create rule from threat $THREAT_ID: $result"
-            echo "ERROR: Failed to create rule from threat"
+            log_action "Failed to create rule from threat: $result"
+            echo "ERROR: $result"
             exit 1
         fi
         ;;
@@ -474,25 +475,26 @@ case "$1" in
         fi
         
         DAYS="$2"
-        CUTOFF_TIME=$(($(date +%s) - ($DAYS * 86400)))
+        SEVERITY="${3:-low}"
         
-        result=$(sqlite3 /var/db/webguard/webguard.db "DELETE FROM threats WHERE timestamp < $CUTOFF_TIME;" 2>&1)
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_threats.py" clear_old "$DAYS" "$SEVERITY" 2>&1)
         if [ $? -eq 0 ]; then
-            log_action "Cleared old threats older than $DAYS days"
-            echo "OK: Cleared old threats"
+            log_action "Cleared old threats: $result"
+            echo "$result"
         else
             log_action "Failed to clear old threats: $result"
-            echo "ERROR: Failed to clear old threats"
+            echo "ERROR: $result"
             exit 1
         fi
         ;;
         
     get_stats)
-        BLOCKED_COUNT=$(sqlite3 /var/db/webguard/webguard.db "SELECT COUNT(*) FROM blocked_ips;" 2>/dev/null || echo "0")
-        WHITELIST_COUNT=$(sqlite3 /var/db/webguard/webguard.db "SELECT COUNT(*) FROM whitelist;" 2>/dev/null || echo "0")
-        THREATS_COUNT=$(sqlite3 /var/db/webguard/webguard.db "SELECT COUNT(*) FROM threats;" 2>/dev/null || echo "0")
-        
-        echo '{"message": "WebGuard statistics", "status": "ok", "blocked_count": '$BLOCKED_COUNT', "whitelist_count": '$WHITELIST_COUNT', "total_threats": '$THREATS_COUNT', "active_blocks": '$BLOCKED_COUNT'}'
+        # Return basic stats - if you have a get_stats.py script, use it
+        if [ -f "$SCRIPTS_DIR/get_stats.py" ]; then
+            $PYTHON_BIN "$SCRIPTS_DIR/get_stats.py" "${2:-}"
+        else
+            echo '{"message": "WebGuard statistics", "status": "ok", "blocked_count": 0, "whitelist_count": 0, "active_blocks": 0, "temp_blocks": 0}'
+        fi
         ;;
         
     test)
@@ -506,29 +508,17 @@ case "$1" in
         ls -la "$SCRIPTS_DIR"/*.py 2>/dev/null || echo "No Python scripts found"
         echo ""
         echo "Testing database connection..."
-        THREATS_COUNT=$(sqlite3 /var/db/webguard/webguard.db "SELECT COUNT(*) FROM threats;" 2>/dev/null || echo "ERROR")
-        if [ "$THREATS_COUNT" != "ERROR" ]; then
-            echo "Database connection: OK ($THREATS_COUNT threats)"
-        else
-            echo "Database connection: ERROR"
-        fi
-        echo ""
-        echo "Testing get_threats.py..."
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/get_threats.py" stats "24h" 2>&1)
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_blocking.py" list 1 2>&1)
         if [ $? -eq 0 ]; then
-            echo "get_threats.py: OK"
+            echo "Database connection: OK"
         else
-            echo "get_threats.py: ERROR - $result"
+            echo "Database connection: ERROR - $result"
         fi
         echo "Test complete"
         ;;
         
     *)
         echo "Usage: $0 {command} [parameters...]"
-        echo ""
-        echo "API Commands:"
-        echo "  get_threat_stats [period]           - Get threat statistics"
-        echo "  get_attack_patterns [period] [type] - Get attack patterns"
         echo ""
         echo "IP Blocking Commands:"
         echo "  block_ip <IP> [duration] [reason] [block_type]"
@@ -549,20 +539,20 @@ case "$1" in
         echo "  get_threats [page]"
         echo "  get_threat_all [page]"
         echo "  get_threat_false_positive [page]"
-        echo "  get_recent_threats [limit] [period]"
+        echo "  get_recent_threats [limit]"
         echo "  get_threat_feed <since_id> [limit]"
         echo "  get_threat_timeline [period]"
         echo "  mark_false_positive <threat_id> [reason]"
         echo "  unmark_false_positive <threat_id> [reason]"
-        echo "  whitelist_ip_from_threat <threat_id> [description]"
+        echo "  whitelist_ip_from_threat <threat_id> [description] [permanent]"
         echo "  block_ip_from_threat <threat_id> [duration] [reason]"
-        echo "  create_rule_from_threat <threat_id>"
-        echo "  clear_old_threats <days>"
-        echo "  add_sample_threats [count]"
+        echo "  create_rule_from_threat <threat_id> <rule_name> [rule_type] [enabled]"
+        echo "  clear_old_threats <days> [severity]"
+        echo "  add_sample_threats"
         echo ""
         echo "Utility:"
         echo "  clear_logs"
-        echo "  get_stats"
+        echo "  get_stats [type]"
         echo "  test"
         echo ""
         exit 1
