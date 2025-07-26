@@ -1,95 +1,47 @@
-WebGuard is an advanced Web Application Firewall (WAF) and Behavioral Analysis Engine
-for OPNsense that provides comprehensive protection against sophisticated web attacks
-and insider threats through machine learning-based anomaly detection.
+WebGuard is an advanced Web Application Firewall (WAF) and Behavioral Analysis
+Engine for OPNsense that provides comprehensive protection against sophisticated
+web attacks and insider threats through machine learning-based anomaly detection.
 
-Key Features:
-============
-
-**Web Application Firewall (WAF):**
+Key features include:
 - Protection against SQL injection, XSS, CSRF, and other OWASP Top 10 threats
-- Custom rule engine with ModSecurity-compatible syntax
-- Real-time request inspection and blocking
-- File upload protection with malware scanning
-- HTTP protocol validation and normalization
+- ModSecurity-compatible custom rule engine
+- Real-time request inspection and file upload protection
+- Behavioral profiling and anomaly detection
+- Beaconing and data exfiltration pattern detection
+- Detection of covert channels (DNS, HTTP, ICMP tunneling)
+- Zero Trust model with learning and protection modes
+- Geographic IP blocking with GeoIP database integration
+- Honeypot redirection, progressive blocking, and tarpits
+- Real-time threat feed, SIEM integration, and webhook notifications
+- Forensics and audit trail capabilities
+- Multi-mode deployment: Learning, Detection, Protection, Zero Trust
+- Real-time dashboard with interactive threat visualization
+- Scalable performance with horizontal deployment support
 
-**Behavioral Analysis Engine:**
-- Machine learning-based anomaly detection
-- User behavior profiling and deviation analysis
-- Beaconing detection for C2 communications
-- Data exfiltration pattern recognition
-- Traffic timing and entropy analysis
-
-**Covert Channel Detection:**
-- DNS tunneling detection with entropy analysis
-- HTTP steganography identification
-- ICMP tunneling monitoring
-- Protocol anomaly detection
-- Size pattern analysis for hidden communications
-
-**Advanced Features:**
-- Zero Trust security model with learning modes
-- Geographic IP blocking with GeoIP integration
-- Progressive blocking with escalating responses
-- Honeypot redirection and tarpit modes
-- Real-time threat feed and statistics
-- SIEM integration with webhook notifications
-- Comprehensive audit trails and forensics
-
-**Management Interface:**
-- Modern web-based dashboard with real-time metrics
-- Interactive threat visualization and mapping
-- Flexible rule management and testing
-- Import/export configuration capabilities
-- Multi-level user access controls
-
-**Deployment Modes:**
-- Learning Mode: Builds behavioral baselines
-- Detection Mode: Monitors without blocking
-- Protection Mode: Active threat mitigation
-- Zero Trust Mode: Strict security enforcement
-
-**Use Cases:**
-- Enterprise web application protection
-- E-commerce and financial services security
-- Healthcare and compliance environments (HIPAA, GDPR)
-- Industrial control system (ICS/SCADA) protection
-- Government and critical infrastructure defense
-
-**Performance & Scalability:**
-- High-throughput packet processing
-- Optimized pattern matching algorithms
-- Distributed deployment support
-- Resource-efficient operation
-- Horizontal scaling capabilities
-
-Installation Requirements:
-=========================
+Installation requirements:
 - OPNsense 24.1 or later
-- Python 3.9+ with required modules
+- Python 3.9+ and required modules
 - 256MB RAM minimum (512MB recommended)
-- 100MB disk space for logs and database
+- 100MB disk space for logs and data
 
-Optional Dependencies:
-=====================
+Optional dependencies:
+- Scapy for deep packet inspection
+- NumPy for machine learning analysis
+- PSUtil for resource usage monitoring
 - GeoIP database for geographic features
-- Scapy for advanced packet analysis
-- NumPy for machine learning algorithms
-- PSUtil for system monitoring
 
-Changelog:
-=========
+Geolocation Notice:
+This plugin optionally uses the IP2Location LITE database for IP geolocation:
+https://lite.ip2location.com
 
-Version 1.0.0:
-- Initial release with full WAF capabilities
-- Behavioral analysis engine implementation
-- Covert channel detection features
-- Real-time dashboard and monitoring
-- Geographic blocking and threat intelligence
-- Machine learning anomaly detection
-- SIEM integration and API endpoints
-- Comprehensive documentation and examples
-- Multi-mode operation (Learning/Detection/Protection/Zero Trust)
-- Advanced threat response mechanisms
+IP2Location LITE is copyright (c) 2001-2025 Hexasoft Development Sdn. Bhd.
+All rights reserved. It provides free IP-to-country mapping with Class C
+accuracy. For higher accuracy or commercial use, refer to:
+https://www.ip2location.com
 
-Project Page:
+Alternatively, GeoLite2 data from MaxMind may be used under the Creative Commons
+Attribution-ShareAlike 4.0 International License:
+https://creativecommons.org/licenses/by-sa/4.0/
+You must register for a license key at https://www.maxmind.com for compliant use.
+
 WWW: https://git.consoli.ch/students/20250400_lavsem/moretto/
