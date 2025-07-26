@@ -227,9 +227,10 @@ $(document).ready(function() {
     loadDashboardData();
     initCharts();
     
-    // Set up periodic updates
+    // Set up periodic updates - INCLUDIAMO updateChartData()!
     setInterval(function() {
         loadDashboardData();
+        updateChartData(); // QUESTA È LA LINEA CHE MANCAVA!
         if (feedActive) {
             loadThreatFeedFromStats();
         }
@@ -379,7 +380,7 @@ $(document).ready(function() {
             `);
         });
     }
-    // Funzione per visualizzare i dettagli della minaccia
+
     function displayThreatDetail(threat) {
         let html = '<div class="threat-detail-section">';
         html += '<h5>{{ lang._("Basic Information") }}</h5>';
@@ -513,56 +514,58 @@ $(document).ready(function() {
             }
         });
 
-        // Load real chart data
-        updateChartData();
+        // Load real chart data with delay to ensure charts are ready
+        setTimeout(function() {
+            updateChartData();
+        }, 500);
     }
 
-   function updateChartData() {
-        // Corretto: gestisce la risposta diretta dell'API getStats
+    function updateChartData() {
+        console.log('=== updateChartData() chiamata ===');
+        
+        // Carica dati per il grafico delle minacce per tipo
         ajaxCall('/api/webguard/threats/getStats', {}, function(data) {
-            console.log('getStats response:', data); // Debug log
+            console.log('getStats response:', data);
             
-            // L'API restituisce i dati direttamente, non wrapped in status/data
-            if (data && data.threats_by_type && threatChart) {
+            if (data && data.threats_by_type && Object.keys(data.threats_by_type).length > 0) {
                 const labels = Object.keys(data.threats_by_type);
                 const values = Object.values(data.threats_by_type);
-                console.log('Threat types:', labels, values);
+                console.log('✅ Updating threat chart with:', labels, values);
                 
-                if (labels.length > 0) {
+                if (threatChart) {
                     threatChart.data.labels = labels;
                     threatChart.data.datasets[0].data = values;
                     threatChart.update();
+                    console.log('✅ Threat chart updated!');
                 }
             } else {
-                console.log('No threats_by_type data found in response');
+                console.log('❌ No threats_by_type data available');
             }
         }).fail(function(xhr, status, error) {
-            console.error('getStats failed:', error);
+            console.error('❌ getStats API failed:', error);
         });
 
-        // Corretto: gestisce la risposta diretta dell'API getTimeline
-        ajaxCall('/api/webguard/threats/getTimeline', {period: '24h'}, function(data) {
-            console.log('getTimeline response:', data); // Debug log
+        // Carica dati per il grafico timeline
+        ajaxCall('/api/webguard/threats/getTimeline', {}, function(data) {
+            console.log('getTimeline response:', data);
             
-            // L'API restituisce i dati direttamente, non wrapped in status/data
-            if (data && data.timeline && timelineChart) {
-                console.log('Timeline data:', data.timeline);
+            if (data && data.timeline && data.timeline.labels) {
+                console.log('✅ Updating timeline chart with:', data.timeline);
                 
-                timelineChart.data.labels = data.timeline.labels;
-                timelineChart.data.datasets[0].data = data.timeline.threats;
-                timelineChart.data.datasets[1].data = data.timeline.requests;
-                timelineChart.update();
+                if (timelineChart) {
+                    timelineChart.data.labels = data.timeline.labels;
+                    timelineChart.data.datasets[0].data = data.timeline.threats || [];
+                    timelineChart.data.datasets[1].data = data.timeline.requests || [];
+                    timelineChart.update();
+                    console.log('✅ Timeline chart updated!');
+                }
             } else {
-                console.log('No timeline data found in response');
-                // Se non ci sono dati timeline, mantieni i dati di default
+                console.log('❌ No timeline data available');
             }
         }).fail(function(xhr, status, error) {
-            console.error('getTimeline failed:', error);
-            // Se getTimeline non esiste, mantieni i dati di default
-            console.log('Timeline endpoint not available, using default data');
+            console.error('❌ getTimeline API failed:', error);
         });
     }
-
 
     function controlService(endpoint, button) {
         const originalText = button.html();
