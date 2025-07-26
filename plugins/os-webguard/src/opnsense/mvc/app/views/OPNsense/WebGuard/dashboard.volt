@@ -517,55 +517,52 @@ $(document).ready(function() {
         updateChartData();
     }
 
-    function updateChartData() {
-        // Try to load from ThreatsController, fallback to mock data from stats
+   function updateChartData() {
+        // Corretto: gestisce la risposta diretta dell'API getStats
         ajaxCall('/api/webguard/threats/getStats', {period: '24h'}, function(data) {
-            if (data.status === 'ok' && data.threats_by_type && threatChart) {
+            console.log('getStats response:', data); // Debug log
+            
+            // L'API restituisce i dati direttamente, non wrapped in status/data
+            if (data && data.threats_by_type && threatChart) {
                 const labels = Object.keys(data.threats_by_type);
                 const values = Object.values(data.threats_by_type);
+                console.log('Threat types:', labels, values);
                 
                 if (labels.length > 0) {
                     threatChart.data.labels = labels;
                     threatChart.data.datasets[0].data = values;
                     threatChart.update();
                 }
+            } else {
+                console.log('No threats_by_type data found in response');
             }
-        }).fail(function() {
-            // Fallback: generate chart data from stats
-            updateChartsFromStats();
+        }).fail(function(xhr, status, error) {
+            console.error('getStats failed:', error);
         });
 
-        // Try timeline endpoint, with better fallback
+        // Corretto: gestisce la risposta diretta dell'API getTimeline
         ajaxCall('/api/webguard/threats/getTimeline', {period: '24h'}, function(data) {
-            if (data.status === 'ok' && data.timeline && timelineChart) {
+            console.log('getTimeline response:', data); // Debug log
+            
+            // L'API restituisce i dati direttamente, non wrapped in status/data
+            if (data && data.timeline && timelineChart) {
+                console.log('Timeline data:', data.timeline);
+                
                 timelineChart.data.labels = data.timeline.labels;
                 timelineChart.data.datasets[0].data = data.timeline.threats;
                 timelineChart.data.datasets[1].data = data.timeline.requests;
                 timelineChart.update();
+            } else {
+                console.log('No timeline data found in response');
+                // Se non ci sono dati timeline, mantieni i dati di default
             }
-        }).fail(function() {
-            // If getTimeline doesn't exist, keep default chart data or generate some
+        }).fail(function(xhr, status, error) {
+            console.error('getTimeline failed:', error);
+            // Se getTimeline non esiste, mantieni i dati di default
             console.log('Timeline endpoint not available, using default data');
         });
     }
 
-    function updateChartsFromStats() {
-        // Generate chart data from your existing stats
-        ajaxCall('/api/webguard/settings/stats', {}, function(data) {
-            if (data.status === 'ok' && data.data) {
-                const threatTypes = data.data.threat_types || {};
-                
-                if (Object.keys(threatTypes).length > 0 && threatChart) {
-                    const labels = Object.keys(threatTypes).map(key => key.replace('_', ' ').toUpperCase());
-                    const values = Object.values(threatTypes);
-                    
-                    threatChart.data.labels = labels;
-                    threatChart.data.datasets[0].data = values;
-                    threatChart.update();
-                }
-            }
-        });
-    }
 
     function controlService(endpoint, button) {
         const originalText = button.html();
