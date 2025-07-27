@@ -222,66 +222,209 @@ def setup_database():
         return False
 
 def setup_geoip():
-    """Initialize GeoIP database"""
+    """Initialize GeoIP databases - supports both IP2Location and GeoLite2"""
     global geoip_reader
     
     if not GEOIP_AVAILABLE:
         logger.warning("GeoIP2 library not available")
         return False
     
+    # Initialize readers dictionary to support multiple databases
+    geoip_reader = {}
+    
     try:
-        possible_paths = [
-            '/usr/local/share/GeoIP/GeoLite2-Country.mmdb',
-            '/var/db/GeoIP/GeoLite2-Country.mmdb',
-            '/usr/share/GeoIP/GeoLite2-Country.mmdb'
-        ]
+        # Database paths for both IP2Location and GeoLite2
+        databases = {
+            'ip2location': '/usr/local/share/GeoIP/IP2LOCATION-LITE-DB1.MMDB',
+            'geolite2_country': '/usr/local/share/GeoIP/GeoLite2-Country.mmdb',
+            'geolite2_city': '/usr/local/share/GeoIP/GeoLite2-City.mmdb'
+        }
         
-        for db_path in possible_paths:
-            if os.path.exists(db_path):
-                geoip_reader = geoip2.database.Reader(db_path)
-                logger.info(f"GeoIP database loaded from: {db_path}")
-                return True
+        # Alternative paths to check
+        alternative_paths = {
+            'ip2location': [
+                '/var/db/GeoIP/IP2LOCATION-LITE-DB1.MMDB',
+                '/usr/share/GeoIP/IP2LOCATION-LITE-DB1.MMDB'
+            ],
+            'geolite2_country': [
+                '/var/db/GeoIP/GeoLite2-Country.mmdb',
+                '/usr/share/GeoIP/GeoLite2-Country.mmdb'
+            ],
+            'geolite2_city': [
+                '/var/db/GeoIP/GeoLite2-City.mmdb',
+                '/usr/share/GeoIP/GeoLite2-City.mmdb'
+            ]
+        }
         
-        logger.warning("GeoIP database not found in standard locations")
-        return False
+        loaded_databases = []
+        
+        # Try to load IP2Location database
+        ip2location_loaded = False
+        for path in [databases['ip2location']] + alternative_paths['ip2location']:
+            if os.path.exists(path):
+                try:
+                    geoip_reader['ip2location'] = geoip2.database.Reader(path)
+                    logger.info(f"IP2Location database loaded from: {path}")
+                    loaded_databases.append('IP2Location')
+                    ip2location_loaded = True
+                    break
+                except Exception as e:
+                    logger.error(f"Failed to load IP2Location from {path}: {e}")
+                    continue
+        
+        if not ip2location_loaded:
+            logger.warning("IP2Location database not found or failed to load")
+        
+        # Try to load GeoLite2 Country database
+        geolite2_country_loaded = False
+        for path in [databases['geolite2_country']] + alternative_paths['geolite2_country']:
+            if os.path.exists(path):
+                try:
+                    geoip_reader['geolite2_country'] = geoip2.database.Reader(path)
+                    logger.info(f"GeoLite2 Country database loaded from: {path}")
+                    loaded_databases.append('GeoLite2-Country')
+                    geolite2_country_loaded = True
+                    break
+                except Exception as e:
+                    logger.error(f"Failed to load GeoLite2 Country from {path}: {e}")
+                    continue
+        
+        if not geolite2_country_loaded:
+            logger.warning("GeoLite2 Country database not found or failed to load")
+        
+        # Try to load GeoLite2 City database (optional, for more detailed info)
+        geolite2_city_loaded = False
+        for path in [databases['geolite2_city']] + alternative_paths['geolite2_city']:
+            if os.path.exists(path):
+                try:
+                    geoip_reader['geolite2_city'] = geoip2.database.Reader(path)
+                    logger.info(f"GeoLite2 City database loaded from: {path}")
+                    loaded_databases.append('GeoLite2-City')
+                    geolite2_city_loaded = True
+                    break
+                except Exception as e:
+                    logger.error(f"Failed to load GeoLite2 City from {path}: {e}")
+                    continue
+        
+        if not geolite2_city_loaded:
+            logger.info("GeoLite2 City database not found (optional)")
+        
+        if loaded_databases:
+            logger.info(f"GeoIP databases initialized successfully: {', '.join(loaded_databases)}")
+            return True
+        else:
+            logger.error("No GeoIP databases could be loaded")
+            geoip_reader = None
+            return False
         
     except Exception as e:
-        logger.error(f"Failed to initialize GeoIP database: {e}")
+        logger.error(f"Failed to initialize GeoIP databases: {e}")
+        geoip_reader = None
         return False
 
 def get_country_info(ip_address):
-    """Get country information for IP address using GeoIP2"""
+    """Get country information for IP address using multiple GeoIP databases with fallback"""
     if not geoip_reader:
-        return {'country_code': 'XX', 'country_name': 'Unknown', 'is_private': False}
+        return {'country_code': 'XX', 'country_name': 'Unknown', 'is_private': False, 'source': 'no_database'}
     
     try:
         import ipaddress
         ip_obj = ipaddress.ip_address(ip_address)
-        if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_multicast:
-            return {'country_code': 'PR', 'country_name': 'Private', 'is_private': True}
         
-        response = geoip_reader.country(ip_address)
-        country_info = {
-            'country_code': response.country.iso_code or 'XX',
-            'country_name': response.country.name or 'Unknown',
-            'continent_code': response.continent.code or 'XX',
-            'continent_name': response.continent.name or 'Unknown',
-            'is_private': False
-        }
+        # Check if it's a private/local IP
+        if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_multicast or ip_obj.is_link_local:
+            return {'country_code': 'PR', 'country_name': 'Private', 'is_private': True, 'source': 'private'}
         
-        geo_stats[country_info['country_code']] += 1
-        logger.debug(f"GeoIP lookup for {ip_address}: {country_info['country_name']} ({country_info['country_code']})")
-        return country_info
+        # Check if it's not a global IP
+        if not ip_obj.is_global:
+            return {'country_code': 'LO', 'country_name': 'Local', 'is_private': True, 'source': 'local'}
         
-    except geoip2.errors.AddressNotFoundError:
-        logger.debug(f"IP address {ip_address} not found in GeoIP database")
-        return {'country_code': 'XX', 'country_name': 'Unknown', 'is_private': False}
+        # Try IP2Location first (usually more accurate for some regions)
+        if 'ip2location' in geoip_reader:
+            try:
+                response = geoip_reader['ip2location'].country(ip_address)
+                country_name = getattr(response.country, 'name', None)
+                country_code = getattr(response.country, 'iso_code', None)
+                
+                if country_name and country_name != '-' and country_name.strip():
+                    country_info = {
+                        'country_code': country_code or 'XX',
+                        'country_name': country_name.strip(),
+                        'continent_code': getattr(response.continent, 'code', 'XX'),
+                        'continent_name': getattr(response.continent, 'name', 'Unknown'),
+                        'is_private': False,
+                        'source': 'IP2Location'
+                    }
+                    
+                    geo_stats[country_info['country_code']] += 1
+                    logger.debug(f"IP2Location lookup for {ip_address}: {country_info['country_name']} ({country_info['country_code']})")
+                    return country_info
+                else:
+                    logger.debug(f"IP2Location returned empty/dash for {ip_address}")
+                    
+            except geoip2.errors.AddressNotFoundError:
+                logger.debug(f"IP address {ip_address} not found in IP2Location database")
+            except Exception as e:
+                logger.error(f"Error looking up IP {ip_address} in IP2Location: {e}")
+        
+        # Fallback to GeoLite2 Country
+        if 'geolite2_country' in geoip_reader:
+            try:
+                response = geoip_reader['geolite2_country'].country(ip_address)
+                country_info = {
+                    'country_code': response.country.iso_code or 'XX',
+                    'country_name': response.country.name or 'Unknown',
+                    'continent_code': response.continent.code or 'XX',
+                    'continent_name': response.continent.name or 'Unknown',
+                    'is_private': False,
+                    'source': 'GeoLite2-Country'
+                }
+                
+                geo_stats[country_info['country_code']] += 1
+                logger.debug(f"GeoLite2 Country lookup for {ip_address}: {country_info['country_name']} ({country_info['country_code']})")
+                return country_info
+                
+            except geoip2.errors.AddressNotFoundError:
+                logger.debug(f"IP address {ip_address} not found in GeoLite2 Country database")
+            except Exception as e:
+                logger.error(f"Error looking up IP {ip_address} in GeoLite2 Country: {e}")
+        
+        # If we have GeoLite2 City, try that as well (last resort)
+        if 'geolite2_city' in geoip_reader:
+            try:
+                response = geoip_reader['geolite2_city'].city(ip_address)
+                country_info = {
+                    'country_code': response.country.iso_code or 'XX',
+                    'country_name': response.country.name or 'Unknown',
+                    'continent_code': response.continent.code or 'XX',
+                    'continent_name': response.continent.name or 'Unknown',
+                    'city_name': response.city.name or 'Unknown',
+                    'is_private': False,
+                    'source': 'GeoLite2-City'
+                }
+                
+                geo_stats[country_info['country_code']] += 1
+                logger.debug(f"GeoLite2 City lookup for {ip_address}: {country_info['country_name']} ({country_info['country_code']})")
+                return country_info
+                
+            except geoip2.errors.AddressNotFoundError:
+                logger.debug(f"IP address {ip_address} not found in GeoLite2 City database")
+            except Exception as e:
+                logger.error(f"Error looking up IP {ip_address} in GeoLite2 City: {e}")
+        
+        # If all databases failed
+        logger.debug(f"IP address {ip_address} not found in any GeoIP database")
+        return {'country_code': 'XX', 'country_name': 'Unknown', 'is_private': False, 'source': 'not_found'}
+        
+    except ValueError:
+        logger.error(f"Invalid IP address format: {ip_address}")
+        return {'country_code': 'XX', 'country_name': 'Invalid', 'is_private': False, 'source': 'invalid'}
     except Exception as e:
-        logger.error(f"Error looking up IP {ip_address}: {e}")
-        return {'country_code': 'XX', 'country_name': 'Unknown', 'is_private': False}
+        logger.error(f"Error processing IP {ip_address}: {e}")
+        return {'country_code': 'XX', 'country_name': 'Error', 'is_private': False, 'source': 'error'}
 
 def analyze_geographic_patterns():
-    """Analyze geographic patterns in threats using GeoIP2"""
+    """Analyze geographic patterns in threats using multiple GeoIP databases"""
     try:
         if not geoip_reader:
             return
@@ -304,15 +447,22 @@ def analyze_geographic_patterns():
         country_threat_counts = defaultdict(int)
         country_severity_scores = defaultdict(list)
         high_risk_countries = set()
+        source_stats = defaultdict(int)  # Track which database resolved which IPs
         
         for source_ip, target, threat_type, severity, timestamp in recent_threats:
             try:
                 country_info = get_country_info(source_ip)
                 country_code = country_info['country_code']
+                source_db = country_info.get('source', 'unknown')
+                
+                # Skip private/local IPs
+                if country_info.get('is_private', False):
+                    continue
                 
                 country_threat_counts[country_code] += 1
                 severity_score = {'low': 1, 'medium': 2, 'high': 3, 'critical': 4}.get(severity, 1)
                 country_severity_scores[country_code].append(severity_score)
+                source_stats[source_db] += 1
                 
                 if severity_score >= 3:
                     high_risk_countries.add(country_code)
@@ -331,6 +481,7 @@ def analyze_geographic_patterns():
                 'time_period': '1h',
                 'total_threats': len(recent_threats),
                 'countries_involved': len(country_threat_counts),
+                'database_sources': dict(source_stats),
                 'top_threat_countries': []
             }
             
@@ -339,7 +490,7 @@ def analyze_geographic_patterns():
                 
                 country_data = {
                     'country_code': country_code,
-                    'country_name': country_code,
+                    'country_name': country_code,  # Could be enhanced to store actual country name
                     'threat_count': threat_count,
                     'avg_severity': round(avg_severity, 2),
                     'is_high_risk': country_code in high_risk_countries
@@ -348,6 +499,9 @@ def analyze_geographic_patterns():
             
             with open(BEHAVIORAL_LOG, 'a') as f:
                 f.write(json.dumps(geo_log_entry) + '\n')
+            
+            # Log database usage statistics
+            logger.info(f"Geographic analysis completed using databases: {dict(source_stats)}")
             
             for country_code, threat_count in sorted_countries[:5]:
                 if threat_count > 10:
@@ -369,6 +523,27 @@ def analyze_geographic_patterns():
         
     except Exception as e:
         logger.error(f"Error in geographic pattern analysis: {e}")
+
+def close_geoip_databases():
+    """Close all GeoIP database connections"""
+    global geoip_reader
+    
+    if geoip_reader and isinstance(geoip_reader, dict):
+        for db_name, reader in geoip_reader.items():
+            try:
+                reader.close()
+                logger.info(f"GeoIP database {db_name} connection closed")
+            except Exception as e:
+                logger.error(f"Error closing GeoIP database {db_name}: {e}")
+    elif geoip_reader:
+        # Handle legacy single reader case
+        try:
+            geoip_reader.close()
+            logger.info("GeoIP database connection closed")
+        except Exception as e:
+            logger.error(f"Error closing GeoIP database: {e}")
+    
+    geoip_reader = None
 
 def load_config():
     """Load WebGuard engine configuration using export_config"""
@@ -1143,12 +1318,8 @@ def main():
         logger.info("Shutting down WebGuard Engine...")
         running = False
         
-        if geoip_reader:
-            try:
-                geoip_reader.close()
-                logger.info("GeoIP database connection closed")
-            except Exception as e:
-                logger.error(f"Error closing GeoIP database: {e}")
+        # Close GeoIP databases
+        close_geoip_databases()
         
         try:
             final_engine_stats = get_engine_stats()
