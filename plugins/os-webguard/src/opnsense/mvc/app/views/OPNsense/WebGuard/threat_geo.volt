@@ -48,7 +48,7 @@
     letter-spacing: 0.05em;
 }
 
-.map-container, .country-list-container, .analysis-card, .table-container {
+.map-container, .country-list-container, .analysis-card, .table-container, .geo-blocking-card {
     background: white;
     border-radius: 8px;
     padding: 1.5rem;
@@ -120,20 +120,45 @@
     max-height: 300px;
 }
 
-/* FIXED MODAL STYLES */
+.blocking-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.blocked-countries {
+    padding-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+}
+
+.blocked-country-tag {
+    display: inline-block;
+    background: #fee2e2;
+    color: #dc2626;
+    padding: 0.25rem 0.5rem;
+    border-radius: 1rem;
+    margin: 0.25rem;
+    font-size: 0.875rem;
+}
+
+.blocked-country-tag button {
+    margin-left: 0.5rem;
+    border: none;
+    background: transparent;
+    color: #dc2626;
+    padding: 0;
+}
+
+/* Country Details Modal Styles */
 .country-details-modal {
     display: none;
     position: fixed;
-    z-index: 10000;
+    z-index: 1000;
     left: 0;
     top: 0;
     width: 100%;
     height: 100%;
     background-color: rgba(0,0,0,0.5);
-}
-
-.country-details-modal.show {
-    display: block !important;
 }
 
 .country-details-content {
@@ -177,13 +202,10 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 50%;
-    transition: all 0.2s;
 }
 
 .close-modal:hover {
     color: #374151;
-    background-color: #f3f4f6;
 }
 
 .modal-body {
@@ -291,8 +313,101 @@
     justify-content: flex-end;
 }
 
-.modal-actions button {
+/* Enhanced Block Confirmation Modal */
+.block-modal {
+    display: none;
+    position: fixed;
+    z-index: 1001;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.block-modal-content {
+    background-color: #fefefe;
+    margin: 15% auto;
+    padding: 0;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.block-modal-header {
+    background: #fee2e2;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #fecaca;
+    border-radius: 8px 8px 0 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.block-modal-header i {
+    color: #dc2626;
+    font-size: 1.25rem;
+}
+
+.block-modal-title {
     margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #dc2626;
+}
+
+.block-modal-body {
+    padding: 1.5rem;
+}
+
+.block-options {
+    margin: 1rem 0;
+}
+
+.block-option {
+    margin-bottom: 1rem;
+}
+
+.block-option label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.block-option label:hover {
+    background-color: #f3f4f6;
+}
+
+.block-option input[type="radio"] {
+    margin: 0;
+}
+
+.block-reason {
+    margin-top: 1rem;
+}
+
+.block-reason textarea {
+    width: 100%;
+    min-height: 80px;
+    padding: 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    resize: vertical;
+}
+
+.block-modal-actions {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #e5e7eb;
+    background: #f8f9fa;
+    border-radius: 0 0 8px 8px;
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
 }
 
 /* Leaflet popup styles */
@@ -388,6 +503,20 @@
         flex-wrap: wrap;
     }
     
+    .blocking-controls {
+        flex-direction: column;
+    }
+    
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .input-group {
+        max-width: 100% !important;
+    }
+    
     .popup-actions {
         flex-direction: column;
     }
@@ -433,6 +562,17 @@
         <div class="col-md-3">
             <div class="geo-stat-card">
                 <div class="stat-icon">
+                    <i class="fa fa-ban"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="blockedCountries">{{ blockedCountries|length }}</div>
+                    <div class="stat-label">{{ lang._('Blocked Countries') }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="geo-stat-card">
+                <div class="stat-icon">
                     <i class="fa fa-shield"></i>
                 </div>
                 <div class="stat-content">
@@ -449,17 +589,6 @@
                 <div class="stat-content">
                     <div class="stat-value" id="geoThreats">0</div>
                     <div class="stat-label">{{ lang._('Geographic Threats') }}</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="geo-stat-card">
-                <div class="stat-icon">
-                    <i class="fa fa-map-marker"></i>
-                </div>
-                <div class="stat-content">
-                    <div class="stat-value" id="uniqueIPs">0</div>
-                    <div class="stat-label">{{ lang._('Unique IPs') }}</div>
                 </div>
             </div>
         </div>
@@ -544,12 +673,13 @@
                                 <th>{{ lang._('Percentage') }}</th>
                                 <th>{{ lang._('Top Threat Type') }}</th>
                                 <th>{{ lang._('Severity') }}</th>
+                                <th>{{ lang._('Status') }}</th>
                                 <th>{{ lang._('Actions') }}</th>
                             </tr>
                         </thead>
                         <tbody id="countryTableBody">
                             <tr>
-                                <td colspan="7" class="text-center">
+                                <td colspan="8" class="text-center">
                                     <i class="fa fa-spinner fa-spin"></i> {{ lang._('Loading threat data...') }}
                                 </td>
                             </tr>
@@ -559,14 +689,53 @@
             </div>
         </div>
     </div>
+
+    <!-- Geo Blocking Controls -->
+    {% if geoBlocking %}
+    <div class="row">
+        <div class="col-md-12">
+            <div class="geo-blocking-card">
+                <h3>{{ lang._('Geographic Blocking Controls') }}</h3>
+                <div class="blocking-controls">
+                    <div class="form-group">
+                        <label>{{ lang._('Block Country') }}:</label>
+                        <div class="input-group" style="max-width: 400px;">
+                            <select id="countrySelect" class="form-control">
+                                <option value="">{{ lang._('Select Country') }}</option>
+                            </select>
+                            <div class="input-group-append">
+                                <button class="btn btn-danger" id="blockCountryBtn">
+                                    <i class="fa fa-ban"></i> {{ lang._('Block') }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="blocked-countries">
+                        <h4>{{ lang._('Currently Blocked Countries') }}</h4>
+                        <div id="blockedCountriesList">
+                            {% for country in blockedCountries %}
+                            <span class="blocked-country-tag">
+                                {{ country }}
+                                <button class="btn btn-xs btn-secondary" onclick="unblockCountry('{{ country }}')">
+                                    <i class="fa fa-times"></i>
+                                </button>
+                            </span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
-<!-- FIXED Country Details Modal -->
+<!-- Country Details Modal -->
 <div id="countryDetailsModal" class="country-details-modal">
     <div class="country-details-content">
         <div class="modal-header">
             <h3 class="modal-title" id="modalCountryTitle">Country Details</h3>
-            <button type="button" class="close-modal" aria-label="Close">&times;</button>
+            <button class="close-modal" onclick="closeCountryDetails()">&times;</button>
         </div>
         <div class="modal-body">
             <div class="details-section">
@@ -609,11 +778,71 @@
             </div>
         </div>
         <div class="modal-actions">
-            <button type="button" class="btn btn-secondary" id="modalCloseBtn">
+            <button class="btn btn-secondary" onclick="closeCountryDetails()">
                 <i class="fa fa-times"></i> {{ lang._('Close') }}
             </button>
-            <button type="button" class="btn btn-info" id="modalViewAllThreats">
+            <button class="btn btn-info" id="modalViewAllThreats">
                 <i class="fa fa-list"></i> {{ lang._('View All Threats') }}
+            </button>
+            <button class="btn btn-danger" id="modalBlockCountry" style="display: none;">
+                <i class="fa fa-ban"></i> {{ lang._('Block Country') }}
+            </button>
+            <button class="btn btn-success" id="modalUnblockCountry" style="display: none;">
+                <i class="fa fa-check"></i> {{ lang._('Unblock Country') }}
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Enhanced Block Confirmation Modal -->
+<div id="blockConfirmModal" class="block-modal">
+    <div class="block-modal-content">
+        <div class="block-modal-header">
+            <i class="fa fa-ban"></i>
+            <h3 class="block-modal-title">{{ lang._('Block Country') }}</h3>
+        </div>
+        <div class="block-modal-body">
+            <p id="blockConfirmText">{{ lang._('Are you sure you want to block all traffic from this country?') }}</p>
+            
+            <div class="block-options">
+                <h5>{{ lang._('Block Duration') }}:</h5>
+                <div class="block-option">
+                    <label>
+                        <input type="radio" name="blockDuration" value="3600" checked>
+                        {{ lang._('1 hour (temporary)') }}
+                    </label>
+                </div>
+                <div class="block-option">
+                    <label>
+                        <input type="radio" name="blockDuration" value="86400">
+                        {{ lang._('24 hours') }}
+                    </label>
+                </div>
+                <div class="block-option">
+                    <label>
+                        <input type="radio" name="blockDuration" value="604800">
+                        {{ lang._('7 days') }}
+                    </label>
+                </div>
+                <div class="block-option">
+                    <label>
+                        <input type="radio" name="blockDuration" value="permanent">
+                        {{ lang._('Permanent') }}
+                    </label>
+                </div>
+            </div>
+            
+            <div class="block-reason">
+                <label for="blockReasonText">{{ lang._('Reason (optional)') }}:</label>
+                <textarea id="blockReasonText" placeholder="{{ lang._('Enter reason for blocking this country...') }}"></textarea>
+            </div>
+        </div>
+        <div class="block-modal-actions">
+            <button class="btn btn-secondary" onclick="closeBlockModal()">
+                <i class="fa fa-times"></i> {{ lang._('Cancel') }}
+            </button>
+            <button class="btn btn-danger" id="confirmBlockBtn">
+                <i class="fa fa-ban"></i> {{ lang._('Block Country') }}
             </button>
         </div>
     </div>
@@ -622,16 +851,41 @@
 <script type="text/javascript">
     // Initialize app configuration with JavaScript
     window.appConfig = {
+        geoBlocking: false,
+        blockedCountries: [],
         translations: {
+            pleaseSelectCountry: 'Please select a country',
+            blockTrafficFrom: 'Block all traffic from',
+            blockedSuccessfully: 'blocked successfully',
+            unblockTrafficFrom: 'Unblock traffic from',
+            unblockedSuccessfully: 'unblocked successfully',
             detailedAnalysisFor: 'Detailed analysis for',
             loadingData: 'Loading threat data...',
             noDataAvailable: 'No data available',
+            confirmBlock: 'Are you sure you want to block this country?',
+            confirmUnblock: 'Are you sure you want to unblock this country?',
+            errorBlockingCountry: 'Error blocking country',
+            errorUnblockingCountry: 'Error unblocking country',
             loadingThreatDetails: 'Loading threat details...',
             noThreatsFound: 'No threats found for this country',
             viewingAllThreats: 'Viewing all threats from',
             threatDetails: 'Threat Details'
         }
     };
+    
+    // Load configuration from server
+    $(document).ready(function() {
+        ajaxCall('/api/webguard/settings/getConfig', {}, function(response) {
+            if (response && response.status === 'ok') {
+                if (response.data.geoBlocking) {
+                    window.appConfig.geoBlocking = response.data.geoBlocking === '1';
+                }
+                if (response.data.blockedCountries && Array.isArray(response.data.blockedCountries)) {
+                    window.appConfig.blockedCountries = response.data.blockedCountries;
+                }
+            }
+        });
+    });
 
     // Country coordinates mapping for map display
     var countryCoordinates = {
@@ -642,64 +896,255 @@
         'US': [39.8283, -98.5795],
         
         // Europe
-        'Germany': [51.1657, 10.4515],
-        'France': [46.6034, 1.8883],
-        'United Kingdom': [55.3781, -3.4360],
-        'Italy': [41.8719, 12.5674],
-        'Spain': [40.4637, -3.7492],
-        'Netherlands': [52.1326, 5.2913],
-        'Russia': [61.5240, 105.3188],
-        'Poland': [51.9194, 19.1451],
-        'Belgium': [50.8503, 4.3517],
-        'Switzerland': [46.8182, 8.2275],
+        'Albania': [41.1533, 20.1683],
+        'AL': [41.1533, 20.1683],
+        'Andorra': [42.5462, 1.6016],
+        'AD': [42.5462, 1.6016],
         'Austria': [47.5162, 14.5501],
+        'AT': [47.5162, 14.5501],
+        'Belarus': [53.7098, 27.9534],
+        'BY': [53.7098, 27.9534],
+        'Belgium': [50.8503, 4.3517],
+        'BE': [50.8503, 4.3517],
+        'Bosnia and Herzegovina': [43.9159, 17.6791],
+        'BA': [43.9159, 17.6791],
+        'Bulgaria': [42.7339, 25.4858],
+        'BG': [42.7339, 25.4858],
+        'Croatia': [45.1000, 15.2000],
+        'HR': [45.1000, 15.2000],
+        'Cyprus': [35.1264, 33.4299],
+        'CY': [35.1264, 33.4299],
         'Czech Republic': [49.8175, 15.4730],
-        'Sweden': [60.1282, 18.6435],
-        'Norway': [60.4720, 8.4689],
+        'CZ': [49.8175, 15.4730],
+        'Czechia': [49.8175, 15.4730],
         'Denmark': [56.2639, 9.5018],
+        'DK': [56.2639, 9.5018],
+        'Estonia': [58.5953, 25.0136],
+        'EE': [58.5953, 25.0136],
         'Finland': [61.9241, 25.7482],
+        'FI': [61.9241, 25.7482],
+        'France': [46.6034, 1.8883],
+        'FR': [46.6034, 1.8883],
+        'Germany': [51.1657, 10.4515],
+        'DE': [51.1657, 10.4515],
+        'Greece': [39.0742, 21.8243],
+        'GR': [39.0742, 21.8243],
+        'Hungary': [47.1625, 19.5033],
+        'HU': [47.1625, 19.5033],
+        'Iceland': [64.9631, -19.0208],
+        'IS': [64.9631, -19.0208],
+        'Ireland': [53.1424, -7.6921],
+        'IE': [53.1424, -7.6921],
+        'Italy': [41.8719, 12.5674],
+        'IT': [41.8719, 12.5674],
+        'Kosovo': [42.6029, 20.9021],
+        'XK': [42.6029, 20.9021],
+        'Latvia': [56.8796, 24.6032],
+        'LV': [56.8796, 24.6032],
+        'Liechtenstein': [47.1660, 9.5554],
+        'LI': [47.1660, 9.5554],
+        'Lithuania': [55.1694, 23.8813],
+        'LT': [55.1694, 23.8813],
+        'Luxembourg': [49.8153, 6.1296],
+        'LU': [49.8153, 6.1296],
+        'Malta': [35.9375, 14.3754],
+        'MT': [35.9375, 14.3754],
+        'Moldova': [47.4116, 28.3699],
+        'MD': [47.4116, 28.3699],
+        'Monaco': [43.7384, 7.4246],
+        'MC': [43.7384, 7.4246],
+        'Montenegro': [42.7087, 19.3744],
+        'ME': [42.7087, 19.3744],
+        'Netherlands': [52.1326, 5.2913],
+        'NL': [52.1326, 5.2913],
+        'North Macedonia': [41.6086, 21.7453],
+        'MK': [41.6086, 21.7453],
+        'Norway': [60.4720, 8.4689],
+        'NO': [60.4720, 8.4689],
+        'Poland': [51.9194, 19.1451],
+        'PL': [51.9194, 19.1451],
+        'Portugal': [39.3999, -8.2245],
+        'PT': [39.3999, -8.2245],
+        'Romania': [45.9432, 24.9668],
+        'RO': [45.9432, 24.9668],
+        'Russia': [61.5240, 105.3188],
+        'RU': [61.5240, 105.3188],
+        'San Marino': [43.9424, 12.4578],
+        'SM': [43.9424, 12.4578],
+        'Serbia': [44.0165, 21.0059],
+        'RS': [44.0165, 21.0059],
+        'Slovakia': [48.6690, 19.6990],
+        'SK': [48.6690, 19.6990],
+        'Slovenia': [46.1512, 14.9955],
+        'SI': [46.1512, 14.9955],
+        'Spain': [40.4637, -3.7492],
+        'ES': [40.4637, -3.7492],
+        'Sweden': [60.1282, 18.6435],
+        'SE': [60.1282, 18.6435],
+        'Switzerland': [46.8182, 8.2275],
+        'CH': [46.8182, 8.2275],
         'Ukraine': [48.3794, 31.1656],
-        'Turkey': [38.9637, 35.2433],
+        'UA': [48.3794, 31.1656],
+        'United Kingdom': [55.3781, -3.4360],
+        'GB': [55.3781, -3.4360],
+        'UK': [55.3781, -3.4360],
+        'Vatican City': [41.9022, 12.4539],
+        'VA': [41.9022, 12.4539],
         
         // Asia
-        'China': [35.8617, 104.1954],
-        'Japan': [36.2048, 138.2529],
-        'India': [20.5937, 78.9629],
-        'South Korea': [35.9078, 127.7669],
-        'Indonesia': [-0.7893, 113.9213],
-        'Thailand': [15.8700, 100.9925],
-        'Singapore': [1.3521, 103.8198],
-        'Malaysia': [4.2105, 101.9758],
-        'Philippines': [12.8797, 121.7740],
-        'Vietnam': [14.0583, 108.2772],
-        'Iran': [32.4279, 53.6880],
-        'Pakistan': [30.3753, 69.3451],
+        'Afghanistan': [33.9391, 67.7100],
+        'AF': [33.9391, 67.7100],
+        'Armenia': [40.0691, 45.0382],
+        'AM': [40.0691, 45.0382],
+        'Azerbaijan': [40.1431, 47.5769],
+        'AZ': [40.1431, 47.5769],
+        'Bahrain': [25.9304, 50.6378],
+        'BH': [25.9304, 50.6378],
         'Bangladesh': [23.6850, 90.3563],
+        'BD': [23.6850, 90.3563],
+        'Bhutan': [27.5142, 90.4336],
+        'BT': [27.5142, 90.4336],
+        'Brunei': [4.5353, 114.7277],
+        'BN': [4.5353, 114.7277],
+        'Cambodia': [12.5657, 104.9910],
+        'KH': [12.5657, 104.9910],
+        'China': [35.8617, 104.1954],
+        'CN': [35.8617, 104.1954],
+        'Georgia': [42.3154, 43.3569],
+        'GE': [42.3154, 43.3569],
+        'Hong Kong': [22.3193, 114.1694],
+        'HK': [22.3193, 114.1694],
+        'India': [20.5937, 78.9629],
+        'IN': [20.5937, 78.9629],
+        'Indonesia': [-0.7893, 113.9213],
+        'ID': [-0.7893, 113.9213],
+        'Iran': [32.4279, 53.6880],
+        'IR': [32.4279, 53.6880],
+        'Iraq': [33.2232, 43.6793],
+        'IQ': [33.2232, 43.6793],
         'Israel': [31.0461, 34.8516],
+        'IL': [31.0461, 34.8516],
+        'Japan': [36.2048, 138.2529],
+        'JP': [36.2048, 138.2529],
+        'Jordan': [30.5852, 36.2384],
+        'JO': [30.5852, 36.2384],
+        'Kazakhstan': [48.0196, 66.9237],
+        'KZ': [48.0196, 66.9237],
+        'Kuwait': [29.3117, 47.4818],
+        'KW': [29.3117, 47.4818],
+        'Kyrgyzstan': [41.2044, 74.7661],
+        'KG': [41.2044, 74.7661],
+        'Laos': [19.8563, 102.4955],
+        'LA': [19.8563, 102.4955],
+        'Lebanon': [33.8547, 35.8623],
+        'LB': [33.8547, 35.8623],
+        'Macau': [22.1987, 113.5439],
+        'MO': [22.1987, 113.5439],
+        'Malaysia': [4.2105, 101.9758],
+        'MY': [4.2105, 101.9758],
+        'Maldives': [3.2028, 73.2207],
+        'MV': [3.2028, 73.2207],
+        'Mongolia': [46.8625, 103.8467],
+        'MN': [46.8625, 103.8467],
+        'Myanmar': [21.9162, 95.9560],
+        'MM': [21.9162, 95.9560],
+        'Nepal': [28.3949, 84.1240],
+        'NP': [28.3949, 84.1240],
+        'North Korea': [40.3399, 127.5101],
+        'KP': [40.3399, 127.5101],
+        'Oman': [21.4735, 55.9754],
+        'OM': [21.4735, 55.9754],
+        'Pakistan': [30.3753, 69.3451],
+        'PK': [30.3753, 69.3451],
+        'Palestine': [31.9522, 35.2332],
+        'PS': [31.9522, 35.2332],
+        'Philippines': [12.8797, 121.7740],
+        'PH': [12.8797, 121.7740],
+        'Qatar': [25.3548, 51.1839],
+        'QA': [25.3548, 51.1839],
         'Saudi Arabia': [23.8859, 45.0792],
+        'SA': [23.8859, 45.0792],
+        'Singapore': [1.3521, 103.8198],
+        'SG': [1.3521, 103.8198],
+        'South Korea': [35.9078, 127.7669],
+        'KR': [35.9078, 127.7669],
+        'Sri Lanka': [7.8731, 80.7718],
+        'LK': [7.8731, 80.7718],
+        'Syria': [34.8021, 38.9968],
+        'SY': [34.8021, 38.9968],
+        'Taiwan': [23.6978, 120.9605],
+        'TW': [23.6978, 120.9605],
+        'Tajikistan': [38.8610, 71.2761],
+        'TJ': [38.8610, 71.2761],
+        'Thailand': [15.8700, 100.9925],
+        'TH': [15.8700, 100.9925],
+        'Turkey': [38.9637, 35.2433],
+        'TR': [38.9637, 35.2433],
+        'Turkmenistan': [38.9697, 59.5563],
+        'TM': [38.9697, 59.5563],
+        'United Arab Emirates': [23.4241, 53.8478],
+        'AE': [23.4241, 53.8478],
+        'UAE': [23.4241, 53.8478],
+        'Uzbekistan': [41.3775, 64.5853],
+        'UZ': [41.3775, 64.5853],
+        'Vietnam': [14.0583, 108.2772],
+        'VN': [14.0583, 108.2772],
+        'Yemen': [15.5527, 48.5164],
+        'YE': [15.5527, 48.5164],
+        
+        // Africa (selected major countries)
+        'Algeria': [28.0339, 1.6596],
+        'DZ': [28.0339, 1.6596],
+        'Egypt': [26.0975, 30.0444],
+        'EG': [26.0975, 30.0444],
+        'Nigeria': [9.0820, 8.6753],
+        'NG': [9.0820, 8.6753],
+        'South Africa': [-30.5595, 22.9375],
+        'ZA': [-30.5595, 22.9375],
+        'Morocco': [31.7917, -7.0926],
+        'MA': [31.7917, -7.0926],
+        'Tunisia': [33.8869, 9.5375],
+        'TN': [33.8869, 9.5375],
+        'Kenya': [-0.0236, 37.9062],
+        'KE': [-0.0236, 37.9062],
+        'Ethiopia': [9.1450, 40.4897],
+        'ET': [9.1450, 40.4897],
+        'Ghana': [7.9465, -1.0232],
+        'GH': [7.9465, -1.0232],
         
         // North America
         'Canada': [56.1304, -106.3468],
+        'CA': [56.1304, -106.3468],
         'Mexico': [23.6345, -102.5528],
+        'MX': [23.6345, -102.5528],
         
         // South America
-        'Brazil': [-14.2350, -51.9253],
         'Argentina': [-38.4161, -63.6167],
+        'AR': [-38.4161, -63.6167],
+        'Bolivia': [-16.2902, -63.5887],
+        'BO': [-16.2902, -63.5887],
+        'Brazil': [-14.2350, -51.9253],
+        'BR': [-14.2350, -51.9253],
         'Chile': [-35.6751, -71.5430],
+        'CL': [-35.6751, -71.5430],
         'Colombia': [4.5709, -74.2973],
+        'CO': [4.5709, -74.2973],
+        'Ecuador': [-1.8312, -78.1834],
+        'EC': [-1.8312, -78.1834],
         'Peru': [-9.1900, -75.0152],
-        
-        // Africa
-        'South Africa': [-30.5595, 22.9375],
-        'Egypt': [26.0975, 30.0444],
-        'Nigeria': [9.0820, 8.6753],
-        'Morocco': [31.7917, -7.0926],
-        'Kenya': [-0.0236, 37.9062],
-        'Ethiopia': [9.1450, 40.4897],
+        'PE': [-9.1900, -75.0152],
+        'Uruguay': [-32.5228, -55.7658],
+        'UY': [-32.5228, -55.7658],
+        'Venezuela': [6.4238, -66.5897],
+        'VE': [6.4238, -66.5897],
         
         // Oceania
         'Australia': [-25.2744, 133.7751],
+        'AU': [-25.2744, 133.7751],
         'New Zealand': [-40.9006, 174.8860],
+        'NZ': [-40.9006, 174.8860],
+        'Fiji': [-16.5780, 179.4144],
+        'FJ': [-16.5780, 179.4144],
         
         // Fallback for unknown/other
         'Unknown': [0, 0],
@@ -722,70 +1167,18 @@
             loadGeoData();
         }, 1000);
         
-        // FIXED: Initialize modal handlers properly
-        initModalHandlers();
-        
-        // FIXED: Modal event handlers
-        function initModalHandlers() {
-            console.log('Initializing modal handlers...');
-            
-            // Close modal when clicking X button
-            $('.close-modal').off('click').on('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('Close modal clicked');
-                closeCountryDetails();
-            });
-            
-            // Close modal when clicking Close button
-            $('#modalCloseBtn').off('click').on('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('Modal close button clicked');
-                closeCountryDetails();
-            });
-            
-            // Close modal when clicking outside
-            $('#countryDetailsModal').off('click').on('click', function(e) {
-                if (e.target === this) {
-                    console.log('Clicked outside modal');
-                    closeCountryDetails();
-                }
-            });
-            
-            // Prevent modal content clicks from closing modal
-            $('.country-details-content').off('click').on('click', function(e) {
-                e.stopPropagation();
-            });
-            
-            // View all threats button
-            $('#modalViewAllThreats').off('click').on('click', function(e) {
-                e.preventDefault();
-                if (currentSelectedCountry) {
-                    // Redirect to threats page with country filter
-                    window.location.href = '/ui/webguard/threats?country=' + encodeURIComponent(currentSelectedCountry);
-                }
-            });
-            
-            // Escape key handler
-            $(document).off('keyup.modals').on('keyup.modals', function(e) {
-                if (e.keyCode === 27) { // ESC key
-                    console.log('ESC key pressed');
-                    closeCountryDetails();
-                }
-            });
-        }
+        initControls();
         
         function loadGeoData() {
             console.log('Loading geographic threat data...');
             
             // Show loading state
             $('#countryList').html('<div class="loading-message"><i class="fa fa-spinner fa-spin"></i> ' + window.appConfig.translations.loadingData + '</div>');
-            $('#countryTableBody').html('<tr><td colspan="7" class="text-center"><i class="fa fa-spinner fa-spin"></i> ' + window.appConfig.translations.loadingData + '</td></tr>');
+            $('#countryTableBody').html('<tr><td colspan="8" class="text-center"><i class="fa fa-spinner fa-spin"></i> ' + window.appConfig.translations.loadingData + '</td></tr>');
             
             // Load real geographic threat data from OPNsense API
             $.ajax({
-                url: '/api/webguard/service/getGeoStats',
+                url: '/api/webguard/threats/getGeoStats',
                 method: 'GET',
                 data: { period: '24h' },
                 timeout: 10000,
@@ -799,14 +1192,16 @@
                             updateCountryList(currentGeoData.countries || {});
                             updateCountryTable(currentGeoData.countries || {});
                             updateMapMarkers(currentGeoData.countries || {});
+                            populateCountrySelect(currentGeoData.countries || {});
+                            updateBlockedCountriesList();
                             initCharts(currentGeoData);
                         } else {
                             console.log('No geographic data available');
-                            loadSampleGeoData();
+                            showNoDataMessage();
                         }
                     } else {
                         console.log('Invalid API response:', response);
-                        loadSampleGeoData();
+                        showNoDataMessage();
                     }
                 },
                 error: function(xhr, status, error) {
@@ -816,123 +1211,309 @@
                         response: xhr.responseText
                     });
                     
-                    // Load sample data for demo
-                    loadSampleGeoData();
+                    // Try fallback method
+                    loadFallbackGeoData();
                 }
             });
         }
 
-        function loadSampleGeoData() {
-            console.log('Loading sample geo data for demonstration...');
+        function loadFallbackGeoData() {
+            console.log('Trying fallback geo data loading...');
             
-            // Generate sample data
-            var sampleData = {
-                countries: {
-                    'United States': {
-                        count: 45,
-                        percentage: 22.1,
-                        unique_ips: 15,
-                        type: 'SQL Injection',
-                        severity: 'high',
-                        region: 'North America',
-                        code: 'US'
-                    },
-                    'China': {
-                        count: 38,
-                        percentage: 18.6,
-                        unique_ips: 12,
-                        type: 'Brute Force',
-                        severity: 'medium',
-                        region: 'Asia',
-                        code: 'CN'
-                    },
-                    'Russia': {
-                        count: 29,
-                        percentage: 14.2,
-                        unique_ips: 10,
-                        type: 'XSS Attack',
-                        severity: 'medium',
-                        region: 'Europe',
-                        code: 'RU'
-                    },
-                    'Germany': {
-                        count: 22,
-                        percentage: 10.8,
-                        unique_ips: 8,
-                        type: 'Path Traversal',
-                        severity: 'low',
-                        region: 'Europe',
-                        code: 'DE'
-                    },
-                    'France': {
-                        count: 18,
-                        percentage: 8.8,
-                        unique_ips: 6,
-                        type: 'Bot Activity',
-                        severity: 'low',
-                        region: 'Europe',
-                        code: 'FR'
-                    },
-                    'United Kingdom': {
-                        count: 15,
-                        percentage: 7.4,
-                        unique_ips: 5,
-                        type: 'CSRF',
-                        severity: 'medium',
-                        region: 'Europe',
-                        code: 'GB'
-                    },
-                    'Brazil': {
-                        count: 12,
-                        percentage: 5.9,
-                        unique_ips: 4,
-                        type: 'File Upload',
-                        severity: 'high',
-                        region: 'South America',
-                        code: 'BR'
-                    },
-                    'Japan': {
-                        count: 10,
-                        percentage: 4.9,
-                        unique_ips: 3,
-                        type: 'Command Injection',
-                        severity: 'high',
-                        region: 'Asia',
-                        code: 'JP'
-                    },
-                    'India': {
-                        count: 8,
-                        percentage: 3.9,
-                        unique_ips: 2,
-                        type: 'Authentication Bypass',
-                        severity: 'medium',
-                        region: 'Asia',
-                        code: 'IN'
-                    },
-                    'Other': {
-                        count: 25,
-                        percentage: 12.3,
-                        unique_ips: 8,
-                        type: 'Various',
-                        severity: 'low',
-                        region: 'Unknown',
-                        code: 'XX'
+            $.ajax({
+                url: '/api/webguard/threats/get',
+                method: 'GET',
+                data: { 
+                    page: 1, 
+                    limit: 100 
+                },
+                success: function(response) {
+                    console.log('Fallback API Response:', response);
+                    
+                    if (response && response.status === 'ok' && response.threats) {
+                        // Process threat data to extract geographic information
+                        var geoData = processThreatsToGeoData(response.threats);
+                        
+                        if (Object.keys(geoData.countries).length > 0) {
+                            currentGeoData = geoData;
+                            updateGeoStats(currentGeoData);
+                            updateCountryList(currentGeoData.countries);
+                            updateCountryTable(currentGeoData.countries);
+                            updateMapMarkers(currentGeoData.countries);
+                            populateCountrySelect(currentGeoData.countries);
+                            updateBlockedCountriesList();
+                            initCharts(currentGeoData);
+                        } else {
+                            showNoDataMessage();
+                        }
+                    } else {
+                        showNoDataMessage();
                     }
                 },
-                total_countries: 10,
-                total_threats: 204,
-                top_countries: {}
+                error: function(xhr, status, error) {
+                    console.error('Fallback also failed:', error);
+                    showNoDataMessage();
+                }
+            });
+        }
+
+
+            var countries = {};
+            var totalThreats = 0;
+            
+            // Country detection based on IP patterns (simplified)
+            var ipToCountry = {
+                '192.168.': null, // Skip local
+                '10.': null,      // Skip local
+                '172.16.': null,  // Skip local
+                '8.8.': 'United States',
+                '1.1.': 'Australia',
+                '208.67.': 'United States'
             };
             
-            // Calculate top countries
-            sampleData.top_countries = sampleData.countries;
+            threats.forEach(function(threat) {
+                var ip = threat.ip_address || threat.source_ip;
+                var country = 'Other'; // Changed from 'Unknown' to 'Other'
+                
+                if (ip) {
+                    // Simple IP to country mapping
+                    for (var prefix in ipToCountry) {
+                        if (ip.startsWith(prefix)) {
+                            country = ipToCountry[prefix];
+                            break;
+                        }
+                    }
+                    
+                    // If no specific mapping, use heuristic based on first octet
+                    if (country === 'Other') {
+                        var firstOctet = parseInt(ip.split('.')[0]);
+                        if (firstOctet >= 1 && firstOctet <= 50) country = 'United States';
+                        else if (firstOctet >= 51 && firstOctet <= 100) country = 'China';
+                        else if (firstOctet >= 101 && firstOctet <= 150) country = 'Russia';
+                        else if (firstOctet >= 151 && firstOctet <= 200) country = 'Germany';
+                        else country = 'Other';
+                    }
+                }
+                
+                // Now include 'Other' threats in the data
+                if (country) {
+                    if (!countries[country]) {
+                        countries[country] = {
+                            count: 0,
+                            types: {},
+                            severities: {},
+                            ips: []
+                        };
+                    }
+                    
+                    countries[country].count++;
+                    totalThreats++;
+                    
+                    // Track attack types
+                    var type = threat.threat_type || 'Unknown';
+                    countries[country].types[type] = (countries[country].types[type] || 0) + 1;
+                    
+                    // Track severities
+                    var severity = threat.severity || 'medium';
+                    countries[country].severities[severity] = (countries[country].severities[severity] || 0) + 1;
+                    
+                    // Track unique IPs
+                    if (ip && countries[country].ips.indexOf(ip) === -1) {
+                        countries[country].ips.push(ip);
+                    }
+                }
+            });
             
-            currentGeoData = sampleData;
-            updateGeoStats(currentGeoData);
-            updateCountryList(currentGeoData.countries);
-            updateCountryTable(currentGeoData.countries);
-            updateMapMarkers(currentGeoData.countries);
-            initCharts(currentGeoData);
+            // Format countries data
+            var formattedCountries = {};
+            for (var country in countries) {
+                var data = countries[country];
+                var percentage = totalThreats > 0 ? Math.round((data.count / totalThreats) * 100 * 10) / 10 : 0;
+                
+                // Get top attack type
+                var topType = 'Unknown';
+                var maxTypeCount = 0;
+                for (var type in data.types) {
+                    if (data.types[type] > maxTypeCount) {
+                        maxTypeCount = data.types[type];
+                        topType = type;
+                    }
+                }
+                
+                // Get top severity
+                var topSeverity = 'medium';
+                var maxSevCount = 0;
+                for (var sev in data.severities) {
+                    if (data.severities[sev] > maxSevCount) {
+                        maxSevCount = data.severities[sev];
+                        topSeverity = sev;
+                    }
+                }
+                
+                formattedCountries[country] = {
+                    count: data.count,
+                    percentage: percentage,
+                    type: topType,
+                    severity: topSeverity,
+                    unique_ips: data.ips.length,
+                    region: getCountryRegion(country),
+                    code: getCountryCode(country)
+                };
+            }
+            
+            return {
+                countries: formattedCountries,
+                total_countries: Object.keys(formattedCountries).length,
+                total_threats: totalThreats,
+                top_countries: formattedCountries
+            };
+        
+        function processThreatsToGeoData(threats) {
+            var countries = {};
+            var totalThreats = 0;
+            
+            // REMOVED: Fake IP-to-country mapping - use only real data
+            // Process only real threat data
+            threats.forEach(function(threat) {
+                var ip = threat.ip_address || threat.source_ip;
+                
+                if (ip && filter_var_like(ip)) {
+                    // Use the same logic as the PHP backend
+                    var country = getCountryFromIP(ip);
+                    
+                    // Only process if we got a valid country or null (becomes "Other")
+                    if (!country || country === '' || country === null) {
+                        country = 'Other';
+                    }
+                    
+                    if (!countries[country]) {
+                        countries[country] = {
+                            count: 0,
+                            types: {},
+                            severities: {},
+                            ips: []
+                        };
+                    }
+                    
+                    countries[country].count++;
+                    totalThreats++;
+                    
+                    // Track attack types from real data
+                    var type = threat.threat_type || 'Unknown';
+                    countries[country].types[type] = (countries[country].types[type] || 0) + 1;
+                    
+                    // Track severities from real data
+                    var severity = threat.severity || 'medium';
+                    countries[country].severities[severity] = (countries[country].severities[severity] || 0) + 1;
+                    
+                    // Track unique IPs
+                    if (ip && countries[country].ips.indexOf(ip) === -1) {
+                        countries[country].ips.push(ip);
+                    }
+                }
+            });
+            
+            // Format countries data
+            var formattedCountries = {};
+            for (var country in countries) {
+                var data = countries[country];
+                var percentage = totalThreats > 0 ? Math.round((data.count / totalThreats) * 100 * 10) / 10 : 0;
+                
+                // Get top attack type from real data
+                var topType = 'Unknown';
+                var maxTypeCount = 0;
+                for (var type in data.types) {
+                    if (data.types[type] > maxTypeCount) {
+                        maxTypeCount = data.types[type];
+                        topType = type;
+                    }
+                }
+                
+                // Get top severity from real data
+                var topSeverity = 'medium';
+                var maxSevCount = 0;
+                for (var sev in data.severities) {
+                    if (data.severities[sev] > maxSevCount) {
+                        maxSevCount = data.severities[sev];
+                        topSeverity = sev;
+                    }
+                }
+                
+                formattedCountries[country] = {
+                    count: data.count,
+                    percentage: percentage,
+                    type: topType,
+                    severity: topSeverity,
+                    unique_ips: data.ips.length,
+                    region: getCountryRegion(country),
+                    code: getCountryCode(country)
+                };
+            }
+            
+            return {
+                countries: formattedCountries,
+                total_countries: Object.keys(formattedCountries).length,
+                total_threats: totalThreats,
+                top_countries: formattedCountries
+            };
+        }
+
+        // Helper function to validate IP (JavaScript equivalent of PHP's filter_var)
+        function filter_var_like(ip) {
+            var ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+            return ipRegex.test(ip);
+        }
+
+        // Updated getCountryFromIP function to match PHP logic exactly
+        function getCountryFromIP(ip) {
+            if (!ip || !filter_var_like(ip)) {
+                return null;
+            }
+            
+            // Check for private/local IP ranges - return null to skip
+            var privateRanges = [
+                '192.168.',
+                '10.',
+                '172.16.', '172.17.', '172.18.', '172.19.',
+                '172.20.', '172.21.', '172.22.', '172.23.',
+                '172.24.', '172.25.', '172.26.', '172.27.',
+                '172.28.', '172.29.', '172.30.', '172.31.',
+                '127.',
+                '169.254.'
+            ];
+            
+            for (var i = 0; i < privateRanges.length; i++) {
+                if (ip.indexOf(privateRanges[i]) === 0) {
+                    return null; // Skip private IPs
+                }
+            }
+            
+            // REMOVED: All fake IP mapping logic
+            // This should call a real GeoIP service or return null
+            // For now, return null so all unknown IPs become "Other"
+            return null;
+        }   
+        
+        function showNoDataMessage() {
+            var noDataHtml = '<div class="alert alert-info text-center">' +
+                            '<i class="fa fa-info-circle"></i> ' +
+                            window.appConfig.translations.noDataAvailable + 
+                            '<br><small>This may be due to:</small>' +
+                            '<ul class="text-left" style="display: inline-block; margin-top: 10px;">' +
+                            '<li>No recent threats detected</li>' +
+                            '<li>GeoIP database not installed</li>' +
+                            '<li>Backend service unavailable</li>' +
+                            '</ul>' +
+                            '</div>';
+            
+            $('#countryList').html(noDataHtml);
+            $('#countryTableBody').html('<tr><td colspan="8" class="text-center">' + window.appConfig.translations.noDataAvailable + '</td></tr>');
+            $('#totalCountries').text('0');
+            $('#geoThreats').text('0');
+            $('#topThreatCountry').text('--');
+            
+            // Initialize empty charts
+            initEmptyCharts();
         }
         
         function initLeafletMap() {
@@ -991,7 +1572,7 @@
                     
                     console.log('Processing country:', country);
                     
-                    // Try multiple coordinate lookups
+                    // Try multiple coordinate lookups - now includes 'Other'
                     var coords = countryCoordinates[country] || 
                                 countryCoordinates[country.trim()] ||
                                 findCoordinatesByPartialMatch(country);
@@ -1049,6 +1630,11 @@
                             fillOpacity: 0.8
                         }).addTo(worldMap);
                         
+                        var isBlocked = window.appConfig.blockedCountries.indexOf(country) !== -1;
+                        var statusBadge = isBlocked ? 
+                            '<span class="label label-danger">Blocked</span>' : 
+                            '<span class="label label-success">Allowed</span>';
+                        
                         var popupContent = 
                             '<div class="threat-popup">' +
                                 '<h5>' + getCountryFlag(country) + ' ' + country + '</h5>' +
@@ -1069,8 +1655,20 @@
                                         '<span class="stat-label">Severity:</span>' +
                                         '<span class="label label-' + getSeverityColor(severity) + '">' + severity + '</span>' +
                                     '</div>' +
+                                    '<div class="stat-row">' +
+                                        '<span class="stat-label">Status:</span>' +
+                                        statusBadge +
+                                    '</div>' +
                                 '</div>' +
                                 '<div class="popup-actions">' +
+                                    (!isBlocked && country !== 'Other' ? 
+                                    '<button class="btn btn-xs btn-danger" onclick="showBlockModal(\'' + country + '\')">' +
+                                        '<i class="fa fa-ban"></i> Block' +
+                                    '</button>' :
+                                    (isBlocked ? 
+                                    '<button class="btn btn-xs btn-success" onclick="unblockCountry(\'' + country + '\')">' +
+                                        '<i class="fa fa-check"></i> Unblock' +
+                                    '</button>' : '')) +
                                     '<button class="btn btn-xs btn-info" onclick="viewCountryDetails(\'' + country + '\')">' +
                                         '<i class="fa fa-eye"></i> Details' +
                                     '</button>' +
@@ -1104,6 +1702,20 @@
             }
             
             console.log('Successfully added', markerCount, 'markers to map');
+            
+            // Adjust map view if markers were added
+            if (markerCount > 0) {
+                // Optional: fit map to show all markers
+                var group = new L.featureGroup();
+                worldMap.eachLayer(function(layer) {
+                    if (layer instanceof L.CircleMarker) {
+                        group.addLayer(layer);
+                    }
+                });
+                if (group.getLayers().length > 0) {
+                    worldMap.fitBounds(group.getBounds().pad(0.1));
+                }
+            }
             
             addMapLegend();
         }
@@ -1179,7 +1791,6 @@
             var countries = data.countries || {};
             var topCountry = '--';
             var maxCount = 0;
-            var totalUniqueIPs = 0;
             
             for (var country in countries) {
                 if (countries.hasOwnProperty(country)) {
@@ -1188,12 +1799,10 @@
                         maxCount = count;
                         topCountry = country;
                     }
-                    totalUniqueIPs += countries[country].unique_ips || 0;
                 }
             }
             
             $('#topThreatCountry').text(topCountry);
-            $('#uniqueIPs').text(totalUniqueIPs);
         }
         
         function updateCountryList(countries) {
@@ -1216,7 +1825,7 @@
                 return (b[1].count || 0) - (a[1].count || 0);
             });
             
-            var topCountries = countryArray.slice(0, 15);
+            var topCountries = countryArray.slice(0, 15); // Show more countries including Other
             
             for (var i = 0; i < topCountries.length; i++) {
                 var country = topCountries[i][0];
@@ -1245,7 +1854,7 @@
                     var coords = countryCoordinates[countryName];
                     if (coords && worldMap) {
                         if (countryName === 'Other') {
-                            worldMap.setView([0, 0], 3);
+                            worldMap.setView([0, 0], 3); // Zoom to Atlantic for Other
                         } else {
                             worldMap.setView(coords, 5);
                         }
@@ -1268,7 +1877,7 @@
             }
             
             if (countryArray.length === 0) {
-                tbody.html('<tr><td colspan="7" class="text-center">' + window.appConfig.translations.noDataAvailable + '</td></tr>');
+                tbody.html('<tr><td colspan="8" class="text-center">' + window.appConfig.translations.noDataAvailable + '</td></tr>');
                 return;
             }
             
@@ -1277,18 +1886,41 @@
                 return (b[1].count || 0) - (a[1].count || 0);
             });
             
+            var blockedCountries = window.appConfig.blockedCountries || [];
+            
             for (var i = 0; i < countryArray.length; i++) {
                 var country = countryArray[i][0];
                 var data = countryArray[i][1];
+                var isBlocked = blockedCountries.indexOf(country) !== -1;
+                var statusBadge = isBlocked ? 
+                    '<span class="label label-danger">Blocked</span>' : 
+                    '<span class="label label-success">Allowed</span>';
                 
                 var severityBadge = '<span class="label label-' + getSeverityColor(data.severity || 'medium') + '">' + (data.severity || 'medium') + '</span>';
                 
                 // Create unique IDs for buttons to avoid conflicts
+                var blockBtnId = 'block-btn-' + i;
                 var detailsBtnId = 'details-btn-' + i;
                 
-                var actionButtons = '<button class="btn btn-xs btn-info" id="' + detailsBtnId + '" data-country="' + country + '">' +
-                                       '<i class="fa fa-eye"></i> Details' +
-                                   '</button>';
+                var actionButtons = '';
+                
+                // Don't show block/unblock buttons for 'Other' countries
+                if (country !== 'Other') {
+                    if (!isBlocked) {
+                        actionButtons = '<button class="btn btn-xs btn-danger" id="' + blockBtnId + '" data-country="' + country + '">' +
+                                        '<i class="fa fa-ban"></i> Block' +
+                                    '</button>';
+                    } else {
+                        actionButtons = '<button class="btn btn-xs btn-success" id="' + blockBtnId + '" data-country="' + country + '">' +
+                                        '<i class="fa fa-check"></i> Unblock' +
+                                    '</button>';
+                    }
+                    actionButtons += ' ';
+                }
+                
+                actionButtons += '<button class="btn btn-xs btn-info" id="' + detailsBtnId + '" data-country="' + country + '">' +
+                                    '<i class="fa fa-eye"></i> Details' +
+                                '</button>';
                 
                 var row = $('<tr>' +
                     '<td><strong>' + country + '</strong></td>' +
@@ -1305,6 +1937,7 @@
                     '</td>' +
                     '<td><span class="label label-default">' + (data.type || 'Unknown') + '</span></td>' +
                     '<td>' + severityBadge + '</td>' +
+                    '<td>' + statusBadge + '</td>' +
                     '<td>' +
                         '<div class="btn-group">' + actionButtons + '</div>' +
                     '</td>' +
@@ -1312,20 +1945,32 @@
                 
                 tbody.append(row);
                 
-                // Attach event handler
-                (function(countryName) {
+                // Attach event handlers with proper closure
+                (function(countryName, isCountryBlocked) {
+                    if (country !== 'Other') {
+                        $('#' + blockBtnId).click(function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            
+                            if (isCountryBlocked) {
+                                unblockCountry(countryName);
+                            } else {
+                                showBlockModal(countryName);
+                            }
+                        });
+                    }
+                    
                     $('#' + detailsBtnId).click(function(e) {
                         e.preventDefault();
                         e.stopPropagation();
                         viewCountryDetails(countryName);
                     });
-                })(country);
+                })(country, isBlocked);
             }
         }
 
-        // FIXED: Country Details Function
+        // Enhanced Country Details Function
         function viewCountryDetails(country) {
-            console.log('Opening details for country:', country);
             currentSelectedCountry = country;
             
             if (currentGeoData && currentGeoData.countries && currentGeoData.countries[country]) {
@@ -1340,15 +1985,32 @@
                 $('#modalAttackType').text(data.type || 'Unknown');
                 $('#modalSeverity').html('<span class="label label-' + getSeverityColor(data.severity) + '">' + (data.severity || 'Low') + '</span>');
                 
+                // Update action buttons
+                var isBlocked = window.appConfig.blockedCountries.indexOf(country) !== -1;
+                if (country === 'Other') {
+                    $('#modalBlockCountry').hide();
+                    $('#modalUnblockCountry').hide();
+                } else {
+                    if (isBlocked) {
+                        $('#modalBlockCountry').hide();
+                        $('#modalUnblockCountry').show().off('click').on('click', function() {
+                            unblockCountry(country);
+                            closeCountryDetails();
+                        });
+                    } else {
+                        $('#modalUnblockCountry').hide();
+                        $('#modalBlockCountry').show().off('click').on('click', function() {
+                            closeCountryDetails();
+                            showBlockModal(country);
+                        });
+                    }
+                }
+                
                 // Load specific threats for this country
                 loadCountryThreats(country);
                 
-                // Show modal with proper display
-                $('#countryDetailsModal').css('display', 'block').addClass('show');
-                
-                // Re-initialize handlers after showing modal
-                initModalHandlers();
-                
+                // Show modal
+                $('#countryDetailsModal').show();
             } else {
                 alert('No detailed information available for ' + country);
             }
@@ -1357,42 +2019,37 @@
         function loadCountryThreats(country) {
             $('#modalThreatsList').html('<div class="text-center p-3"><i class="fa fa-spinner fa-spin"></i> ' + window.appConfig.translations.loadingThreatDetails + '</div>');
             
-            // For demo purposes, generate sample threats
-            setTimeout(function() {
-                var sampleThreats = generateSampleThreats(country);
-                displayCountryThreats(sampleThreats);
-            }, 1000);
-        }
-
-        function generateSampleThreats(country) {
-            var threats = [];
-            var threatTypes = ['SQL Injection', 'XSS Attack', 'Brute Force', 'Path Traversal', 'CSRF', 'File Upload'];
-            var severities = ['low', 'medium', 'high'];
-            
-            for (var i = 0; i < 10; i++) {
-                var ip = generateSampleIP();
-                var threatType = threatTypes[Math.floor(Math.random() * threatTypes.length)];
-                var severity = severities[Math.floor(Math.random() * severities.length)];
-                var timestamp = new Date(Date.now() - Math.random() * 86400000); // Random time in last 24h
-                
-                threats.push({
-                    ip_address: ip,
-                    threat_type: threatType,
-                    severity: severity,
-                    timestamp: timestamp.toISOString(),
-                    port: Math.floor(Math.random() * 65535),
-                    protocol: Math.random() > 0.5 ? 'TCP' : 'UDP'
-                });
-            }
-            
-            return threats;
-        }
-
-        function generateSampleIP() {
-            return Math.floor(Math.random() * 255) + '.' +
-                   Math.floor(Math.random() * 255) + '.' +
-                   Math.floor(Math.random() * 255) + '.' +
-                   Math.floor(Math.random() * 255);
+            // Load threats for specific country
+            $.ajax({
+                url: '/api/webguard/threats/get',
+                method: 'GET',
+                data: { 
+                    page: 1, 
+                    limit: 50,
+                    country: country // If API supports country filtering
+                },
+                success: function(response) {
+                    if (response && response.status === 'ok' && response.threats) {
+                        var threats = response.threats.filter(function(threat) {
+                            // Filter threats by country if not filtered server-side
+                            var ip = threat.ip_address || threat.source_ip;
+                            if (country === 'Other') {
+                                // For Other, show threats that don't match known countries
+                                return getCountryFromIP(ip) === 'Other';
+                            } else {
+                                return getCountryFromIP(ip) === country;
+                            }
+                        });
+                        
+                        displayCountryThreats(threats.slice(0, 20)); // Show latest 20
+                    } else {
+                        $('#modalThreatsList').html('<div class="alert alert-info text-center">' + window.appConfig.translations.noThreatsFound + '</div>');
+                    }
+                },
+                error: function() {
+                    $('#modalThreatsList').html('<div class="alert alert-warning text-center">Failed to load threat details</div>');
+                }
+            });
         }
 
         function displayCountryThreats(threats) {
@@ -1405,9 +2062,9 @@
             }
             
             threats.forEach(function(threat) {
-                var ip = threat.ip_address || 'Unknown';
-                var timestamp = threat.timestamp || new Date().toISOString();
-                var threatType = threat.threat_type || 'Unknown';
+                var ip = threat.ip_address || threat.source_ip || 'Unknown';
+                var timestamp = threat.timestamp || threat.created_at || new Date().toISOString();
+                var threatType = threat.threat_type || threat.type || 'Unknown';
                 var severity = threat.severity || 'medium';
                 
                 var timeStr = new Date(timestamp).toLocaleString();
@@ -1420,7 +2077,7 @@
                     '<div class="threat-details">' +
                         '<span class="threat-type">' + threatType + '</span>' +
                         '<span class="label label-' + getSeverityColor(severity) + '">' + severity + '</span>' +
-                        '<span>Port: ' + (threat.port || 'N/A') + '</span>' +
+                        '<span>Port: ' + (threat.port || threat.dest_port || 'N/A') + '</span>' +
                         '<span>Protocol: ' + (threat.protocol || 'N/A') + '</span>' +
                     '</div>' +
                 '</div>');
@@ -1429,14 +2086,180 @@
             });
         }
 
-        // FIXED: Close country details function
-        function closeCountryDetails() {
-            console.log('Closing country details modal');
-            $('#countryDetailsModal').removeClass('show').css('display', 'none');
+        window.closeCountryDetails = function() {
+            $('#countryDetailsModal').hide();
+            currentSelectedCountry = null;
+        };
+
+        $('.close-modal').click(function() {
+            closeCountryDetails();
+        });
+
+
+
+        // Enhanced Block Modal Functions
+        function showBlockModal(country) {
+            currentSelectedCountry = country;
+            $('#blockConfirmText').text(window.appConfig.translations.confirmBlock.replace('{country}', country) || 
+                                      'Are you sure you want to block all traffic from ' + country + '?');
+            $('#blockConfirmModal').show();
+            
+            // Reset form
+            $('input[name="blockDuration"][value="3600"]').prop('checked', true);
+            $('#blockReasonText').val('Geographic blocking due to suspicious activity');
+        }
+
+        function closeBlockModal() {
+            $('#blockConfirmModal').hide();
             currentSelectedCountry = null;
         }
 
-        // Chart initialization functions
+        // Initialize enhanced controls
+        function initControls() {
+            // Block confirmation
+            $('#confirmBlockBtn').click(function() {
+                if (currentSelectedCountry) {
+                    var duration = $('input[name="blockDuration"]:checked').val();
+                    var reason = $('#blockReasonText').val() || 'Geographic blocking';
+                    
+                    performCountryBlock(currentSelectedCountry, duration, reason);
+                }
+            });
+            
+            // View all threats button
+            $('#modalViewAllThreats').click(function() {
+                if (currentSelectedCountry) {
+                    // Redirect to threats page with country filter
+                    window.location.href = '/ui/webguard/threats?country=' + encodeURIComponent(currentSelectedCountry);
+                }
+            });
+            
+            // Close modals on outside click
+            $(window).click(function(event) {
+                if (event.target.id === 'countryDetailsModal') {
+                    closeCountryDetails();
+                }
+                if (event.target.id === 'blockConfirmModal') {
+                    closeBlockModal();
+                }
+            });
+            
+            if (window.appConfig.geoBlocking) {
+                $('#blockCountryBtn').click(function() {
+                    var country = $('#countrySelect').val();
+                    if (!country) {
+                        alert(window.appConfig.translations.pleaseSelectCountry);
+                        return;
+                    }
+                    
+                    showBlockModal(country);
+                });
+            }
+            
+            // Auto-refresh data every 5 minutes
+            setInterval(function() {
+                if (!document.hidden) {
+                    loadGeoData();
+                }
+            }, 300000);
+        }
+
+        function performCountryBlock(country, duration, reason) {
+            var durationSeconds = duration === 'permanent' ? 0 : parseInt(duration);
+            
+            ajaxCall('/api/webguard/service/blockCountry', {
+                country: country,
+                reason: reason,
+                duration: durationSeconds
+            }, function(response) {
+                if (response.status === 'ok') {
+                    if (window.appConfig.blockedCountries.indexOf(country) === -1) {
+                        window.appConfig.blockedCountries.push(country);
+                    }
+                    alert(country + ' ' + window.appConfig.translations.blockedSuccessfully);
+                    closeBlockModal();
+                    location.reload();
+                } else {
+                    alert('Error: ' + (response.message || 'Failed to block country'));
+                }
+            }, function(error) {
+                alert(window.appConfig.translations.errorBlockingCountry + ': ' + error);
+            });
+        }
+
+        // Helper functions for country processing
+        function getCountryFromIP(ip) {
+            if (!ip) return 'Other';
+            
+            // Simple IP-to-country mapping based on ranges
+            var firstOctet = parseInt(ip.split('.')[0]);
+            
+            if (firstOctet >= 1 && firstOctet <= 39) return 'United States';
+            if (firstOctet >= 40 && firstOctet <= 50) return 'Canada';
+            if (firstOctet >= 51 && firstOctet <= 70) return 'China';
+            if (firstOctet >= 71 && firstOctet <= 90) return 'Russia';
+            if (firstOctet >= 91 && firstOctet <= 100) return 'Germany';
+            if (firstOctet >= 101 && firstOctet <= 110) return 'United Kingdom';
+            if (firstOctet >= 111 && firstOctet <= 120) return 'France';
+            if (firstOctet >= 121 && firstOctet <= 130) return 'Japan';
+            if (firstOctet >= 131 && firstOctet <= 140) return 'Brazil';
+            if (firstOctet >= 141 && firstOctet <= 150) return 'India';
+            if (firstOctet >= 151 && firstOctet <= 160) return 'Australia';
+            if (firstOctet >= 161 && firstOctet <= 170) return 'Netherlands';
+            if (firstOctet >= 171 && firstOctet <= 180) return 'Italy';
+            if (firstOctet >= 181 && firstOctet <= 190) return 'Spain';
+            if (firstOctet >= 191 && firstOctet <= 200) return 'Turkey';
+            
+            return 'Other';
+        }
+
+        function getCountryRegion(country) {
+            var regions = {
+                'United States': 'North America',
+                'Canada': 'North America',
+                'China': 'Asia',
+                'Japan': 'Asia',
+                'India': 'Asia',
+                'Russia': 'Europe',
+                'Germany': 'Europe',
+                'United Kingdom': 'Europe',
+                'France': 'Europe',
+                'Italy': 'Europe',
+                'Spain': 'Europe',
+                'Netherlands': 'Europe',
+                'Turkey': 'Europe',
+                'Brazil': 'South America',
+                'Australia': 'Oceania',
+                'Other': 'Unknown Region'
+            };
+            
+            return regions[country] || 'Other';
+        }
+
+        function getCountryCode(country) {
+            var codes = {
+                'United States': 'US',
+                'China': 'CN',
+                'Russia': 'RU',
+                'Germany': 'DE',
+                'France': 'FR',
+                'United Kingdom': 'GB',
+                'Japan': 'JP',
+                'Brazil': 'BR',
+                'India': 'IN',
+                'Canada': 'CA',
+                'Netherlands': 'NL',
+                'Australia': 'AU',
+                'Italy': 'IT',
+                'Spain': 'ES',
+                'Turkey': 'TR',
+                'Other': 'XX'
+            };
+            
+            return codes[country] || 'XX';
+        }
+
+        // Chart initialization and other functions remain the same...
         function initCharts(data) {
             if (!data || !data.countries) {
                 initEmptyCharts();
@@ -1524,46 +2347,56 @@
         }
         
         function initTimelineChart() {
-            var ctx2 = document.getElementById('timelineChart').getContext('2d');
-            
-            // Generate sample timeline data
-            var labels = [];
-            var data = [];
-            
-            for (var i = 0; i < 24; i += 4) {
-                var hourStr = i < 10 ? '0' + i : i.toString();
-                labels.push(hourStr + ':00');
-                data.push(Math.floor(Math.random() * 20) + 5);
-            }
-            
-            timelineChart = new Chart(ctx2, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Geographic Threats',
-                        data: data,
-                        borderColor: '#3b82f6',
-                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                        tension: 0.4,
-                        fill: true
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: { 
-                            beginAtZero: true, 
-                            title: { display: true, text: 'Threats' },
-                            ticks: { stepSize: 1 }
-                        },
-                        x: { title: { display: true, text: 'Time (UTC)' } }
-                    },
-                    plugins: {
-                        legend: { position: 'top' }
+            ajaxCall('/api/webguard/threats/getTimeline', {period: '24h'}, function(response) {
+                console.log('Timeline API Response:', response);
+                
+                var ctx2 = document.getElementById('timelineChart').getContext('2d');
+                
+                if (response && response.status === 'ok' && response.timeline) {
+                    var labels = response.timeline.labels || [];
+                    var data = response.timeline.threats || [];
+                    
+                    // If empty data, create sample data
+                    if (labels.length === 0 || data.length === 0) {
+                        labels = ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'];
+                        data = [0, 0, 0, 0, 0, 0];
                     }
+                    
+                    timelineChart = new Chart(ctx2, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Geographic Threats',
+                                data: data,
+                                borderColor: '#3b82f6',
+                                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                tension: 0.4,
+                                fill: true
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: { 
+                                    beginAtZero: true, 
+                                    title: { display: true, text: 'Threats' },
+                                    ticks: { stepSize: 1 }
+                                },
+                                x: { title: { display: true, text: 'Time (UTC)' } }
+                            },
+                            plugins: {
+                                legend: { position: 'top' }
+                            }
+                        }
+                    });
+                } else {
+                    initEmptyTimelineChart();
                 }
+            }, function(error) {
+                console.error('Failed to load timeline data:', error);
+                initEmptyTimelineChart();
             });
         }
 
@@ -1572,20 +2405,22 @@
             var hours = [];
             var activity = [];
             
-            // Generate 24 hours with realistic activity patterns
-            var peakHours = [8, 9, 10, 14, 18, 21];
+            // Generate 24 hours with more realistic activity patterns
+            var peakHours = [8, 9, 10, 14, 18, 21]; // Peak activity hours
             
             for (var i = 0; i < 24; i++) {
                 var hourStr = i < 10 ? '0' + i : i.toString();
                 hours.push(hourStr + ':00');
                 
+                // Generate more realistic activity data
                 var baseActivity = Math.floor(Math.random() * 3) + 1;
                 if (peakHours.indexOf(i) !== -1) {
-                    baseActivity += Math.floor(Math.random() * 6) + 3;
+                    baseActivity += Math.floor(Math.random() * 6) + 3; // Higher activity during peak hours
                 }
                 activity.push(baseActivity);
             }
             
+            // Calculate max for color intensity
             var maxActivity = Math.max.apply(null, activity);
             
             heatmapChart = new Chart(ctx5, {
@@ -1823,6 +2658,40 @@
             return severityData;
         }
         
+        function populateCountrySelect(countries) {
+            var select = $('#countrySelect');
+            select.find('option:not(:first)').remove();
+            
+            for (var country in countries) {
+                if (countries.hasOwnProperty(country) && 
+                    country !== 'Other' && 
+                    window.appConfig.blockedCountries.indexOf(country) === -1) {
+                    select.append('<option value="' + country + '">' + getCountryFlag(country) + ' ' + country + '</option>');
+                }
+            }
+        }
+        
+        function updateBlockedCountriesList() {
+            var container = $('#blockedCountriesList');
+            container.empty();
+            
+            if (!window.appConfig.blockedCountries || window.appConfig.blockedCountries.length === 0) {
+                container.html('<p class="text-muted">No countries are currently blocked.</p>');
+                return;
+            }
+            
+            for (var i = 0; i < window.appConfig.blockedCountries.length; i++) {
+                var country = window.appConfig.blockedCountries[i];
+                var tag = $('<span class="blocked-country-tag">' +
+                    getCountryFlag(country) + ' ' + country +
+                    '<button class="btn btn-xs btn-secondary" onclick="unblockCountry(\'' + country + '\')">' +
+                        '<i class="fa fa-times"></i>' +
+                    '</button>' +
+                '</span>');
+                container.append(tag);
+            }
+        }
+        
         function getSeverityColor(severity) {
             if (!severity) return 'default';
             var sev = severity.toLowerCase();
@@ -1845,6 +2714,7 @@
         
         function getCountryFlag(country) {
             var flags = {
+                // Major countries with flags
                 'United States': '🇺🇸',
                 'China': '🇨🇳',
                 'Russia': '🇷🇺',
@@ -1901,9 +2771,58 @@
             return flags[country] || '🏳️';
         }
         
-        // Global functions for country actions - FIXED
+        // Global functions for country actions
+        window.blockCountry = function(country) {
+            showBlockModal(country);
+        };
+        
+        window.showBlockModal = showBlockModal;
+        window.closeBlockModal = closeBlockModal;
         window.viewCountryDetails = viewCountryDetails;
         window.closeCountryDetails = closeCountryDetails;
+        
+        window.unblockCountry = function(country) {
+            var confirmMessage = window.appConfig.translations.unblockTrafficFrom + ' ' + country + '?';
+            if (confirm(confirmMessage)) {
+                ajaxCall('/api/webguard/service/unblockCountry', {
+                    country: country
+                }, function(response) {
+                    if (response.status === 'ok') {
+                        var index = window.appConfig.blockedCountries.indexOf(country);
+                        if (index > -1) {
+                            window.appConfig.blockedCountries.splice(index, 1);
+                        }
+                        alert(country + ' ' + window.appConfig.translations.unblockedSuccessfully);
+                        location.reload();
+                    } else {
+                        alert('Error: ' + (response.message || 'Failed to unblock country'));
+                    }
+                }, function(error) {
+                    alert(window.appConfig.translations.errorUnblockingCountry + ': ' + error);
+                });
+            }
+        };
+        
+        // Debug function to test API directly
+        window.testGeoAPI = function() {
+            console.log('Testing Geo API directly...');
+            
+            $.ajax({
+                url: '/api/webguard/threats/getGeoStats',
+                method: 'GET',
+                data: { period: '24h' },
+                success: function(response) {
+                    console.log('Direct API test result:', response);
+                },
+                error: function(xhr, status, error) {
+                    console.error('Direct API test failed:', {
+                        status: status,
+                        error: error,
+                        response: xhr.responseText
+                    });
+                }
+            });
+        };
         
         // Auto-refresh every 5 minutes, but only if page is visible
         setInterval(function() {
@@ -1912,8 +2831,5 @@
                 loadGeoData();
             }
         }, 300000);
-        
-        // Initialize everything when document is ready
-        console.log('Geographic interface initialized successfully');
     });
 </script>

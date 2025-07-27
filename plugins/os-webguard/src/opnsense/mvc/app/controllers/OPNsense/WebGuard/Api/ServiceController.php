@@ -1173,6 +1173,78 @@ class ServiceController extends ApiMutableServiceControllerBase
         return ['status' => 'error', 'message' => 'Failed to retrieve threat feed', 'data' => []];
     }
 
+
+    /* ===== GEO BLOCKING ===== */
+
+    public function blockCountryAction()
+    {
+        if (!$this->request->isPost()) {
+            return ['status' => 'error', 'message' => 'POST required'];
+        }
+
+        $country = trim($this->request->getPost('country', 'string', ''));
+        $duration = (int)$this->request->getPost('duration', 'int', 3600);
+        $reason = $this->argSafe($this->request->getPost('reason', 'string', 'Geographic blocking'));
+        
+        if (empty($country)) {
+            return ['status' => 'error', 'message' => 'Country name required'];
+        }
+
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', [
+            'block_country', 
+            $country, 
+            (string)$duration, 
+            $reason
+        ]));
+
+        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
+            return ['status' => 'ok', 'message' => 'Country blocked successfully'];
+        }
+        
+        return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
+    }
+
+    public function unblockCountryAction()
+    {
+        if (!$this->request->isPost()) {
+            return ['status' => 'error', 'message' => 'POST required'];
+        }
+
+        $country = trim($this->request->getPost('country', 'string', ''));
+        
+        if (empty($country)) {
+            return ['status' => 'error', 'message' => 'Country name required'];
+        }
+
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', [
+            'unblock_country', 
+            $country
+        ]));
+
+        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
+            return ['status' => 'ok', 'message' => 'Country unblocked successfully'];
+        }
+        
+        return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
+    }
+
+    public function getBlockedCountriesAction()
+    {
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['get_blocked_countries']));
+
+        if ($out && $out !== '') {
+            $data = json_decode($out, true);
+            if (is_array($data)) {
+                return ['status' => 'ok', 'data' => $data];
+            }
+        }
+        
+        return ['status' => 'error', 'message' => 'Failed to retrieve blocked countries', 'data' => []];
+    }
+
     /* ===== HELPER METHODS ===== */
 
     private function svcCmd(string $cmd): array
