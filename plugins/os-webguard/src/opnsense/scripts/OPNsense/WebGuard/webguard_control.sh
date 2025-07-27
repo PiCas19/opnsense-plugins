@@ -496,6 +496,61 @@ case "$1" in
             echo '{"message": "WebGuard statistics", "status": "ok", "blocked_count": 0, "whitelist_count": 0, "active_blocks": 0, "temp_blocks": 0}'
         fi
         ;;
+
+    # Add these cases to the existing switch statement
+block_country)
+    if [ -z "$2" ]; then
+        echo "ERROR: Country name required"
+        exit 1
+    fi
+    
+    COUNTRY="$2"
+    DURATION="${3:-3600}"
+    REASON="${4:-Geographic blocking}"
+    
+    # Use the Python script
+    result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_geo_blocking.py" block "$COUNTRY" "$DURATION" "$REASON" 2>&1)
+    if [ $? -eq 0 ]; then
+        log_action "Blocked country: $COUNTRY (duration: $DURATION, reason: $REASON)"
+        echo "OK: $COUNTRY blocked"
+    else
+        log_action "Failed to block country: $COUNTRY - $result"
+        echo "ERROR: $result"
+        exit 1
+    fi
+    ;;
+    
+    unblock_country)
+        if [ -z "$2" ]; then
+            echo "ERROR: Country name required"
+            exit 1
+        fi
+        
+        COUNTRY="$2"
+        REASON="${3:-Manual unblock}"
+        
+        # Use the Python script
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_geo_blocking.py" unblock "$COUNTRY" "$REASON" 2>&1)
+        if [ $? -eq 0 ]; then
+            log_action "Unblocked country: $COUNTRY (reason: $REASON)"
+            echo "OK: $COUNTRY unblocked"
+        else
+            log_action "Failed to unblock country: $COUNTRY - $result"
+            echo "ERROR: $result"
+            exit 1
+        fi
+        ;;
+        
+    get_blocked_countries)
+        # Use the Python script to get blocked countries in JSON format
+        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_geo_blocking.py" list 2>&1)
+        if [ $? -eq 0 ]; then
+            echo "$result"
+        else
+            echo '{"status": "error", "message": "Failed to retrieve blocked countries", "data": []}'
+            exit 1
+        fi
+        ;;
     test)
         echo "Testing WebGuard control script..."
         echo "PATH: $PATH"
@@ -553,6 +608,10 @@ case "$1" in
         echo "  clear_old_threats <days> [severity]"
         echo "  add_sample_threats"
         echo ""
+        echo "Country Management Commands:"
+        echo "  block_country <country_name> [duration] [reason]"
+        echo "  unblock_country <country_name> [reason]"
+        echo "  get_blocked_countries"
         echo "Utility:"
         echo "  clear_logs"
         echo "  get_stats [type]"
