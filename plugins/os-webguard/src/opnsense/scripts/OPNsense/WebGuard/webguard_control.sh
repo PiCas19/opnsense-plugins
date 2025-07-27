@@ -496,7 +496,6 @@ case "$1" in
             echo '{"message": "WebGuard statistics", "status": "ok", "blocked_count": 0, "whitelist_count": 0, "active_blocks": 0, "temp_blocks": 0}'
         fi
         ;;
-        
     test)
         echo "Testing WebGuard control script..."
         echo "PATH: $PATH"
@@ -508,11 +507,15 @@ case "$1" in
         ls -la "$SCRIPTS_DIR"/*.py 2>/dev/null || echo "No Python scripts found"
         echo ""
         echo "Testing database connection..."
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_blocking.py" list 1 2>&1)
-        if [ $? -eq 0 ]; then
-            echo "Database connection: OK"
+        if [ -f "$SCRIPTS_DIR/manage_blocking.py" ]; then
+            result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_blocking.py" list 1 2>&1)
+            if [ $? -eq 0 ]; then
+                echo "Database connection: OK"
+            else
+                echo "Database connection: ERROR - $result"
+            fi
         else
-            echo "Database connection: ERROR - $result"
+            echo "Database connection: SKIP - manage_blocking.py not found"
         fi
         echo "Test complete"
         ;;
