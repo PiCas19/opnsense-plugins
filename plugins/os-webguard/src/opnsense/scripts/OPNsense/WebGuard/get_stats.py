@@ -232,7 +232,6 @@ def get_blocking_stats(period='24h'):
         
     except Exception as e:
         return {'error': f'Failed to get blocking stats: {e}'}
-
 def get_geo_stats(period='24h'):
     """Get geographic statistics for threats using GeoIP-compatible MMDB"""
     if not os.path.exists(DB_FILE):
@@ -269,41 +268,74 @@ def get_geo_stats(period='24h'):
         else:
             start_time = int(time.time() - 86400)
 
+        # FIXED: Get ALL threats with their IPs, not just distinct IPs
         cursor = conn.execute('''
-            SELECT DISTINCT source_ip FROM threats 
-            WHERE timestamp >= ?
+            SELECT source_ip, COUNT(*) as threat_count FROM threats 
+            WHERE timestamp >= ? AND source_ip IS NOT NULL AND source_ip != ''
+            GROUP BY source_ip
         ''', (start_time,))
-        ips = [row[0] for row in cursor.fetchall()]
+        
+        ip_counts = cursor.fetchall()
         conn.close()
 
         countries = {}
-        for ip in ips:
+        total_threats = 0
+        
+        for ip, threat_count in ip_counts:
+            # Skip private IPs
+            if (ip.startswith('192.168.') or ip.startswith('10.') or 
+                ip.startswith('172.16.') or ip.startswith('127.')):
+                continue
+                
             try:
                 response = geoip_reader.country(ip)
-                country_code = response.country.iso_code or 'unknown'
-                country_name = response.country.name or 'Unknown'
+                country_code = response.country.iso_code or 'XX'
+                country_name = response.country.name or 'Other'
+                
+                # Normalize country name
+                if country_name == 'Unknown' or country_name == '' or not country_name:
+                    country_name = 'Other'
+                    country_code = 'XX'
 
-                if country_code not in countries:
-                    countries[country_code] = {
+                if country_name not in countries:
+                    countries[country_name] = {
                         'name': country_name,
                         'code': country_code,
-                        'count': 0
+                        'count': 0,
+                        'unique_ips': 0
                     }
-                countries[country_code]['count'] += 1
-            except:
-                if 'unknown' not in countries:
-                    countries['unknown'] = {
-                        'name': 'Unknown',
-                        'code': 'unknown',
-                        'count': 0
+                
+                # FIXED: Add the actual threat count, not just 1
+                countries[country_name]['count'] += threat_count
+                countries[country_name]['unique_ips'] += 1
+                total_threats += threat_count
+                
+            except Exception as e:
+                # GeoIP lookup failed - classify as "Other"
+                if 'Other' not in countries:
+                    countries['Other'] = {
+                        'name': 'Other',
+                        'code': 'XX',
+                        'count': 0,
+                        'unique_ips': 0
                     }
-                countries['unknown']['count'] += 1
+                countries['Other']['count'] += threat_count
+                countries['Other']['unique_ips'] += 1
+                total_threats += threat_count
+
+        # Calculate percentages and sort
+        for country_name in countries:
+            if total_threats > 0:
+                countries[country_name]['percentage'] = round((countries[country_name]['count'] / total_threats) * 100, 1)
+            else:
+                countries[country_name]['percentage'] = 0
 
         top_countries = sorted(countries.values(), key=lambda x: x['count'], reverse=True)[:10]
 
         stats = {
             'countries': list(countries.values()),
             'total_countries': len(countries),
+            'total_threats': total_threats,
             'top_countries': top_countries,
             'source': os.path.basename(geoip_path)
         }
@@ -312,8 +344,8 @@ def get_geo_stats(period='24h'):
         return stats
 
     except Exception as e:
+        geoip_reader.close()
         return {'error': f'Failed to get geo stats: {e}'}
-
 
 
 def main():
