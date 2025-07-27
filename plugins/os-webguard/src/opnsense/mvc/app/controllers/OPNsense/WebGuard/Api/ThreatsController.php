@@ -351,8 +351,9 @@ class ThreatsController extends ApiControllerBase
         }
     }
 
+
     /**
-     * Transform raw geo data to frontend format - FIXED VERSION
+     * Transform raw geo data to frontend format - FIXED with country name normalization
      * @param array $rawData
      * @return array
      */
@@ -376,12 +377,15 @@ class ThreatsController extends ApiControllerBase
             
             // Second pass: build countries array with percentages
             foreach ($rawData['countries'] as $countryData) {
-                $name = $countryData['name'] ?? 'Unknown';
+                $rawName = $countryData['name'] ?? 'Unknown';
                 $count = (int)($countryData['count'] ?? 0);
                 $code = $countryData['code'] ?? 'XX';
                 
+                // Normalize country name
+                $name = $this->normalizeCountryName($rawName);
+                
                 // Skip Unknown entries but process all others
-                if ($count > 0) {
+                if ($count > 0 && $name !== 'Unknown') {
                     $percentage = $totalThreats > 0 ? round(($count / $totalThreats) * 100, 1) : 0;
                     
                     $countries[$name] = [
@@ -390,8 +394,10 @@ class ThreatsController extends ApiControllerBase
                         'type' => $this->guessAttackType($name),
                         'severity' => $this->calculateSeverity($count, $totalThreats),
                         'region' => $this->getCountryRegion($name),
-                        'code' => $code
+                        'code' => $this->normalizeCountryCode($code, $name)
                     ];
+                    
+                    error_log("Processed country: $rawName -> $name (code: $code, count: $count)");
                 }
             }
         }
@@ -410,11 +416,405 @@ class ThreatsController extends ApiControllerBase
             'last_updated' => time()
         ];
         
-        // Debug log
-        error_log("Transformed geo data: " . json_encode($result));
+        error_log("Final transformed geo data: " . json_encode($result));
         
         return $result;
     }
+
+
+    /**
+     * Normalize country codes to ensure consistency - COMPLETE VERSION
+     * @param string $code
+     * @param string $countryName
+     * @return string
+     */
+    private function normalizeCountryCode($code, $countryName)
+    {
+        // If we have a valid 2-letter code, use it
+        if (strlen($code) === 2 && $code !== 'XX' && $code !== 'unknown') {
+            return strtoupper($code);
+        }
+        
+        // Comprehensive country name to ISO code mapping
+        $codeMapping = [
+            // North America
+            'United States of America' => 'US',
+            'United States' => 'US',
+            'Canada' => 'CA',
+            'Mexico' => 'MX',
+            
+            // Europe
+            'United Kingdom' => 'GB',
+            'Germany' => 'DE',
+            'France' => 'FR',
+            'Italy' => 'IT',
+            'Spain' => 'ES',
+            'Netherlands' => 'NL',
+            'Belgium' => 'BE',
+            'Switzerland' => 'CH',
+            'Austria' => 'AT',
+            'Sweden' => 'SE',
+            'Norway' => 'NO',
+            'Denmark' => 'DK',
+            'Finland' => 'FI',
+            'Iceland' => 'IS',
+            'Ireland' => 'IE',
+            'Portugal' => 'PT',
+            'Greece' => 'GR',
+            'Poland' => 'PL',
+            'Czech Republic' => 'CZ',
+            'Slovakia' => 'SK',
+            'Hungary' => 'HU',
+            'Romania' => 'RO',
+            'Bulgaria' => 'BG',
+            'Croatia' => 'HR',
+            'Slovenia' => 'SI',
+            'Serbia' => 'RS',
+            'Montenegro' => 'ME',
+            'Bosnia and Herzegovina' => 'BA',
+            'North Macedonia' => 'MK',
+            'Albania' => 'AL',
+            'Kosovo' => 'XK',
+            'Moldova' => 'MD',
+            'Ukraine' => 'UA',
+            'Belarus' => 'BY',
+            'Lithuania' => 'LT',
+            'Latvia' => 'LV',
+            'Estonia' => 'EE',
+            'Russia' => 'RU',
+            'Turkey' => 'TR',
+            'Cyprus' => 'CY',
+            'Malta' => 'MT',
+            'Luxembourg' => 'LU',
+            'Liechtenstein' => 'LI',
+            'Monaco' => 'MC',
+            'San Marino' => 'SM',
+            'Vatican City' => 'VA',
+            'Andorra' => 'AD',
+            
+            // Asia
+            'China' => 'CN',
+            'Japan' => 'JP',
+            'South Korea' => 'KR',
+            'North Korea' => 'KP',
+            'India' => 'IN',
+            'Indonesia' => 'ID',
+            'Pakistan' => 'PK',
+            'Bangladesh' => 'BD',
+            'Vietnam' => 'VN',
+            'Thailand' => 'TH',
+            'Myanmar' => 'MM',
+            'Malaysia' => 'MY',
+            'Singapore' => 'SG',
+            'Philippines' => 'PH',
+            'Cambodia' => 'KH',
+            'Laos' => 'LA',
+            'Brunei' => 'BN',
+            'Sri Lanka' => 'LK',
+            'Nepal' => 'NP',
+            'Bhutan' => 'BT',
+            'Maldives' => 'MV',
+            'Afghanistan' => 'AF',
+            'Iran' => 'IR',
+            'Iraq' => 'IQ',
+            'Israel' => 'IL',
+            'Palestine' => 'PS',
+            'Jordan' => 'JO',
+            'Lebanon' => 'LB',
+            'Syria' => 'SY',
+            'Saudi Arabia' => 'SA',
+            'United Arab Emirates' => 'AE',
+            'Qatar' => 'QA',
+            'Kuwait' => 'KW',
+            'Bahrain' => 'BH',
+            'Oman' => 'OM',
+            'Yemen' => 'YE',
+            'Georgia' => 'GE',
+            'Armenia' => 'AM',
+            'Azerbaijan' => 'AZ',
+            'Kazakhstan' => 'KZ',
+            'Uzbekistan' => 'UZ',
+            'Turkmenistan' => 'TM',
+            'Tajikistan' => 'TJ',
+            'Kyrgyzstan' => 'KG',
+            'Mongolia' => 'MN',
+            'Taiwan' => 'TW',
+            'Hong Kong' => 'HK',
+            'Macau' => 'MO',
+            
+            // Africa
+            'Nigeria' => 'NG',
+            'Ethiopia' => 'ET',
+            'Egypt' => 'EG',
+            'Democratic Republic of the Congo' => 'CD',
+            'Tanzania' => 'TZ',
+            'South Africa' => 'ZA',
+            'Kenya' => 'KE',
+            'Uganda' => 'UG',
+            'Algeria' => 'DZ',
+            'Sudan' => 'SD',
+            'Morocco' => 'MA',
+            'Angola' => 'AO',
+            'Ghana' => 'GH',
+            'Mozambique' => 'MZ',
+            'Madagascar' => 'MG',
+            'Cameroon' => 'CM',
+            'Ivory Coast' => 'CI',
+            'Niger' => 'NE',
+            'Burkina Faso' => 'BF',
+            'Mali' => 'ML',
+            'Malawi' => 'MW',
+            'Zambia' => 'ZM',
+            'Senegal' => 'SN',
+            'Somalia' => 'SO',
+            'Chad' => 'TD',
+            'Zimbabwe' => 'ZW',
+            'Guinea' => 'GN',
+            'Rwanda' => 'RW',
+            'Benin' => 'BJ',
+            'Burundi' => 'BI',
+            'Tunisia' => 'TN',
+            'South Sudan' => 'SS',
+            'Togo' => 'TG',
+            'Sierra Leone' => 'SL',
+            'Libya' => 'LY',
+            'Liberia' => 'LR',
+            'Central African Republic' => 'CF',
+            'Mauritania' => 'MR',
+            'Eritrea' => 'ER',
+            'Gambia' => 'GM',
+            'Botswana' => 'BW',
+            'Namibia' => 'NA',
+            'Gabon' => 'GA',
+            'Lesotho' => 'LS',
+            'Guinea-Bissau' => 'GW',
+            'Equatorial Guinea' => 'GQ',
+            'Mauritius' => 'MU',
+            'Eswatini' => 'SZ',
+            'Djibouti' => 'DJ',
+            'Comoros' => 'KM',
+            'Cape Verde' => 'CV',
+            'Sao Tome and Principe' => 'ST',
+            'Seychelles' => 'SC',
+            'Congo' => 'CG',
+            
+            // South America
+            'Brazil' => 'BR',
+            'Argentina' => 'AR',
+            'Chile' => 'CL',
+            'Colombia' => 'CO',
+            'Peru' => 'PE',
+            'Venezuela' => 'VE',
+            'Ecuador' => 'EC',
+            'Bolivia' => 'BO',
+            'Paraguay' => 'PY',
+            'Uruguay' => 'UY',
+            'Guyana' => 'GY',
+            'Suriname' => 'SR',
+            
+            // Central America & Caribbean
+            'Guatemala' => 'GT',
+            'Cuba' => 'CU',
+            'Haiti' => 'HT',
+            'Dominican Republic' => 'DO',
+            'Honduras' => 'HN',
+            'Nicaragua' => 'NI',
+            'Costa Rica' => 'CR',
+            'Panama' => 'PA',
+            'El Salvador' => 'SV',
+            'Belize' => 'BZ',
+            'Jamaica' => 'JM',
+            'Trinidad and Tobago' => 'TT',
+            'Bahamas' => 'BS',
+            'Barbados' => 'BB',
+            'Saint Lucia' => 'LC',
+            'Grenada' => 'GD',
+            'Saint Vincent and the Grenadines' => 'VC',
+            'Antigua and Barbuda' => 'AG',
+            'Dominica' => 'DM',
+            'Saint Kitts and Nevis' => 'KN',
+            
+            // Oceania
+            'Australia' => 'AU',
+            'Papua New Guinea' => 'PG',
+            'New Zealand' => 'NZ',
+            'Fiji' => 'FJ',
+            'Solomon Islands' => 'SB',
+            'Vanuatu' => 'VU',
+            'Samoa' => 'WS',
+            'Micronesia' => 'FM',
+            'Tonga' => 'TO',
+            'Kiribati' => 'KI',
+            'Palau' => 'PW',
+            'Marshall Islands' => 'MH',
+            'Tuvalu' => 'TV',
+            'Nauru' => 'NR',
+            
+            // Special territories
+            'Puerto Rico' => 'PR',
+            'Greenland' => 'GL',
+            'Faroe Islands' => 'FO',
+            'American Samoa' => 'AS',
+            'Guam' => 'GU',
+            'Northern Mariana Islands' => 'MP',
+            'Virgin Islands' => 'VI',
+            'British Virgin Islands' => 'VG',
+            'Cayman Islands' => 'KY',
+            'Bermuda' => 'BM',
+            'Gibraltar' => 'GI',
+            'Jersey' => 'JE',
+            'Guernsey' => 'GG',
+            'Isle of Man' => 'IM'
+        ];
+        
+        return $codeMapping[$countryName] ?? 'XX';
+    }
+
+
+    /**
+     * Normalize country names to consistent format - COMPLETE VERSION
+     * @param string $rawName
+     * @return string
+     */
+    private function normalizeCountryName($rawName)
+    {
+        // Comprehensive mapping of various country name formats to standardized names
+        $nameMapping = [
+            // United States variations
+            'United States of America' => 'United States of America',
+            'United States' => 'United States of America', 
+            'USA' => 'United States of America',
+            'US' => 'United States of America',
+            'America' => 'United States of America',
+            
+            // United Kingdom variations
+            'UK' => 'United Kingdom',
+            'Great Britain' => 'United Kingdom',
+            'Britain' => 'United Kingdom',
+            'England' => 'United Kingdom',
+            'Scotland' => 'United Kingdom',
+            'Wales' => 'United Kingdom',
+            'Northern Ireland' => 'United Kingdom',
+            
+            // UAE variations
+            'UAE' => 'United Arab Emirates',
+            'United Arab Emirates' => 'United Arab Emirates',
+            
+            // Korea variations
+            'South Korea' => 'South Korea',
+            'Republic of Korea' => 'South Korea',
+            'Korea' => 'South Korea',
+            'North Korea' => 'North Korea',
+            'Democratic People\'s Republic of Korea' => 'North Korea',
+            'DPRK' => 'North Korea',
+            
+            // Czech variations
+            'Czech Republic' => 'Czech Republic',
+            'Czechia' => 'Czech Republic',
+            
+            // China variations
+            'China' => 'China',
+            'People\'s Republic of China' => 'China',
+            'PRC' => 'China',
+            
+            // Russia variations
+            'Russia' => 'Russia',
+            'Russian Federation' => 'Russia',
+            'USSR' => 'Russia', // Historical
+            
+            // Congo variations
+            'Congo' => 'Congo',
+            'Republic of Congo' => 'Congo',
+            'Democratic Republic of Congo' => 'Democratic Republic of the Congo',
+            'Democratic Republic of the Congo' => 'Democratic Republic of the Congo',
+            'DRC' => 'Democratic Republic of the Congo',
+            'DR Congo' => 'Democratic Republic of the Congo',
+            
+            // Vietnam variations
+            'Vietnam' => 'Vietnam',
+            'Viet Nam' => 'Vietnam',
+            
+            // Myanmar variations
+            'Myanmar' => 'Myanmar',
+            'Burma' => 'Myanmar',
+            
+            // Iran variations
+            'Iran' => 'Iran',
+            'Islamic Republic of Iran' => 'Iran',
+            'Persia' => 'Iran',
+            
+            // Macedonia variations
+            'North Macedonia' => 'North Macedonia',
+            'Macedonia' => 'North Macedonia',
+            'FYROM' => 'North Macedonia',
+            
+            // Ivory Coast variations
+            'Ivory Coast' => 'Ivory Coast',
+            'Côte d\'Ivoire' => 'Ivory Coast',
+            'Cote d\'Ivoire' => 'Ivory Coast',
+            
+            // Cape Verde variations
+            'Cape Verde' => 'Cape Verde',
+            'Cabo Verde' => 'Cape Verde',
+            
+            // Eswatini variations
+            'Eswatini' => 'Eswatini',
+            'Swaziland' => 'Eswatini',
+            
+            // East Timor variations
+            'East Timor' => 'East Timor',
+            'Timor-Leste' => 'East Timor',
+            'Timor Leste' => 'East Timor',
+            
+            // Palestine variations
+            'Palestine' => 'Palestine',
+            'Palestinian Territories' => 'Palestine',
+            'West Bank' => 'Palestine',
+            'Gaza' => 'Palestine',
+            
+            // Netherlands variations
+            'Netherlands' => 'Netherlands',
+            'Holland' => 'Netherlands',
+            
+            // Other common variations
+            'Bosnia and Herzegovina' => 'Bosnia and Herzegovina',
+            'Bosnia' => 'Bosnia and Herzegovina',
+            'Herzegovina' => 'Bosnia and Herzegovina',
+            
+            // Special territories
+            'Hong Kong' => 'Hong Kong',
+            'Hong Kong SAR' => 'Hong Kong',
+            'Macau' => 'Macau',
+            'Macao' => 'Macau',
+            'Taiwan' => 'Taiwan',
+            'Republic of China' => 'Taiwan',
+            
+            // Handle Unknown/empty
+            'Unknown' => 'Unknown',
+            '' => 'Unknown',
+            null => 'Unknown'
+        ];
+        
+        // Trim whitespace and normalize case
+        $cleanName = trim($rawName);
+        
+        // Check direct mapping first (case sensitive)
+        if (isset($nameMapping[$cleanName])) {
+            return $nameMapping[$cleanName];
+        }
+        
+        // Try case-insensitive lookup
+        foreach ($nameMapping as $key => $value) {
+            if (strcasecmp($key, $cleanName) === 0) {
+                return $value;
+            }
+        }
+        
+        // Return as-is if no mapping found
+        return $cleanName;
+    }
+
+
 
     /**
      * Calculate severity based on threat count
@@ -579,33 +979,227 @@ class ThreatsController extends ApiControllerBase
 
 
     /**
-     * Get country region - UPDATED with Belgium
+     * Get country region - COMPLETE VERSION
      * @param string $country
      * @return string
      */
     private function getCountryRegion($country)
     {
         $regions = [
-            'United States' => 'North America',
+            // North America
             'United States of America' => 'North America',
+            'United States' => 'North America',
             'Canada' => 'North America',
             'Mexico' => 'North America',
-            'China' => 'Asia',
-            'India' => 'Asia',
-            'Japan' => 'Asia',
-            'South Korea' => 'Asia',
-            'Russia' => 'Europe',
+            
+            // Europe
+            'United Kingdom' => 'Europe',
             'Germany' => 'Europe',
             'France' => 'Europe',
-            'United Kingdom' => 'Europe',
-            'Belgium' => 'Europe', 
-            'Netherlands' => 'Europe',
             'Italy' => 'Europe',
             'Spain' => 'Europe',
+            'Netherlands' => 'Europe',
+            'Belgium' => 'Europe',
+            'Switzerland' => 'Europe',
+            'Austria' => 'Europe',
+            'Sweden' => 'Europe',
+            'Norway' => 'Europe',
+            'Denmark' => 'Europe',
+            'Finland' => 'Europe',
+            'Iceland' => 'Europe',
+            'Ireland' => 'Europe',
+            'Portugal' => 'Europe',
+            'Greece' => 'Europe',
+            'Poland' => 'Europe',
+            'Czech Republic' => 'Europe',
+            'Slovakia' => 'Europe',
+            'Hungary' => 'Europe',
+            'Romania' => 'Europe',
+            'Bulgaria' => 'Europe',
+            'Croatia' => 'Europe',
+            'Slovenia' => 'Europe',
+            'Serbia' => 'Europe',
+            'Montenegro' => 'Europe',
+            'Bosnia and Herzegovina' => 'Europe',
+            'North Macedonia' => 'Europe',
+            'Albania' => 'Europe',
+            'Kosovo' => 'Europe',
+            'Moldova' => 'Europe',
+            'Ukraine' => 'Europe',
+            'Belarus' => 'Europe',
+            'Lithuania' => 'Europe',
+            'Latvia' => 'Europe',
+            'Estonia' => 'Europe',
+            'Russia' => 'Europe',
+            'Turkey' => 'Europe',
+            'Cyprus' => 'Europe',
+            'Malta' => 'Europe',
+            'Luxembourg' => 'Europe',
+            'Liechtenstein' => 'Europe',
+            'Monaco' => 'Europe',
+            'San Marino' => 'Europe',
+            'Vatican City' => 'Europe',
+            'Andorra' => 'Europe',
+            
+            // Asia
+            'China' => 'Asia',
+            'India' => 'Asia',
+            'Indonesia' => 'Asia',
+            'Pakistan' => 'Asia',
+            'Bangladesh' => 'Asia',
+            'Japan' => 'Asia',
+            'Philippines' => 'Asia',
+            'Vietnam' => 'Asia',
+            'Turkey' => 'Asia', // Transcontinental
+            'Iran' => 'Asia',
+            'Thailand' => 'Asia',
+            'Myanmar' => 'Asia',
+            'South Korea' => 'Asia',
+            'Iraq' => 'Asia',
+            'Afghanistan' => 'Asia',
+            'Saudi Arabia' => 'Asia',
+            'Uzbekistan' => 'Asia',
+            'Malaysia' => 'Asia',
+            'Nepal' => 'Asia',
+            'Yemen' => 'Asia',
+            'North Korea' => 'Asia',
+            'Sri Lanka' => 'Asia',
+            'Kazakhstan' => 'Asia',
+            'Syria' => 'Asia',
+            'Cambodia' => 'Asia',
+            'Jordan' => 'Asia',
+            'Azerbaijan' => 'Asia',
+            'United Arab Emirates' => 'Asia',
+            'Tajikistan' => 'Asia',
+            'Israel' => 'Asia',
+            'Laos' => 'Asia',
+            'Singapore' => 'Asia',
+            'Lebanon' => 'Asia',
+            'Oman' => 'Asia',
+            'Kuwait' => 'Asia',
+            'Georgia' => 'Asia',
+            'Mongolia' => 'Asia',
+            'Armenia' => 'Asia',
+            'Qatar' => 'Asia',
+            'Bahrain' => 'Asia',
+            'East Timor' => 'Asia',
+            'Palestine' => 'Asia',
+            'Turkmenistan' => 'Asia',
+            'Kyrgyzstan' => 'Asia',
+            'Bhutan' => 'Asia',
+            'Brunei' => 'Asia',
+            'Maldives' => 'Asia',
+            'Taiwan' => 'Asia',
+            'Hong Kong' => 'Asia',
+            'Macau' => 'Asia',
+            
+            // Africa
+            'Nigeria' => 'Africa',
+            'Ethiopia' => 'Africa',
+            'Egypt' => 'Africa',
+            'Democratic Republic of the Congo' => 'Africa',
+            'Tanzania' => 'Africa',
+            'South Africa' => 'Africa',
+            'Kenya' => 'Africa',
+            'Uganda' => 'Africa',
+            'Algeria' => 'Africa',
+            'Sudan' => 'Africa',
+            'Morocco' => 'Africa',
+            'Angola' => 'Africa',
+            'Ghana' => 'Africa',
+            'Mozambique' => 'Africa',
+            'Madagascar' => 'Africa',
+            'Cameroon' => 'Africa',
+            'Ivory Coast' => 'Africa',
+            'Niger' => 'Africa',
+            'Burkina Faso' => 'Africa',
+            'Mali' => 'Africa',
+            'Malawi' => 'Africa',
+            'Zambia' => 'Africa',
+            'Senegal' => 'Africa',
+            'Somalia' => 'Africa',
+            'Chad' => 'Africa',
+            'Zimbabwe' => 'Africa',
+            'Guinea' => 'Africa',
+            'Rwanda' => 'Africa',
+            'Benin' => 'Africa',
+            'Burundi' => 'Africa',
+            'Tunisia' => 'Africa',
+            'South Sudan' => 'Africa',
+            'Togo' => 'Africa',
+            'Sierra Leone' => 'Africa',
+            'Libya' => 'Africa',
+            'Liberia' => 'Africa',
+            'Central African Republic' => 'Africa',
+            'Mauritania' => 'Africa',
+            'Eritrea' => 'Africa',
+            'Gambia' => 'Africa',
+            'Botswana' => 'Africa',
+            'Namibia' => 'Africa',
+            'Gabon' => 'Africa',
+            'Lesotho' => 'Africa',
+            'Guinea-Bissau' => 'Africa',
+            'Equatorial Guinea' => 'Africa',
+            'Mauritius' => 'Africa',
+            'Eswatini' => 'Africa',
+            'Djibouti' => 'Africa',
+            'Comoros' => 'Africa',
+            'Cape Verde' => 'Africa',
+            'Sao Tome and Principe' => 'Africa',
+            'Seychelles' => 'Africa',
+            'Congo' => 'Africa',
+            
+            // South America
             'Brazil' => 'South America',
             'Argentina' => 'South America',
+            'Chile' => 'South America',
+            'Colombia' => 'South America',
+            'Peru' => 'South America',
+            'Venezuela' => 'South America',
+            'Ecuador' => 'South America',
+            'Bolivia' => 'South America',
+            'Paraguay' => 'South America',
+            'Uruguay' => 'South America',
+            'Guyana' => 'South America',
+            'Suriname' => 'South America',
+            
+            // Central America & Caribbean
+            'Guatemala' => 'Central America',
+            'Cuba' => 'Caribbean',
+            'Haiti' => 'Caribbean',
+            'Dominican Republic' => 'Caribbean',
+            'Honduras' => 'Central America',
+            'Nicaragua' => 'Central America',
+            'Costa Rica' => 'Central America',
+            'Panama' => 'Central America',
+            'El Salvador' => 'Central America',
+            'Belize' => 'Central America',
+            'Jamaica' => 'Caribbean',
+            'Trinidad and Tobago' => 'Caribbean',
+            'Bahamas' => 'Caribbean',
+            'Barbados' => 'Caribbean',
+            'Saint Lucia' => 'Caribbean',
+            'Grenada' => 'Caribbean',
+            'Saint Vincent and the Grenadines' => 'Caribbean',
+            'Antigua and Barbuda' => 'Caribbean',
+            'Dominica' => 'Caribbean',
+            'Saint Kitts and Nevis' => 'Caribbean',
+            
+            // Oceania
             'Australia' => 'Oceania',
-            'South Africa' => 'Africa'
+            'Papua New Guinea' => 'Oceania',
+            'New Zealand' => 'Oceania',
+            'Fiji' => 'Oceania',
+            'Solomon Islands' => 'Oceania',
+            'Vanuatu' => 'Oceania',
+            'Samoa' => 'Oceania',
+            'Micronesia' => 'Oceania',
+            'Tonga' => 'Oceania',
+            'Kiribati' => 'Oceania',
+            'Palau' => 'Oceania',
+            'Marshall Islands' => 'Oceania',
+            'Tuvalu' => 'Oceania',
+            'Nauru' => 'Oceania'
         ];
         
         return $regions[$country] ?? 'Other';

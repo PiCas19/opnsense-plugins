@@ -496,42 +496,458 @@
 
     // Country coordinates mapping for map display
     var countryCoordinates = {
-        'China': [35.8617, 104.1954],
-        'Russia': [61.5240, 105.3188],
-        'United States': [37.0902, -95.7129],
-        'Brazil': [-14.2350, -51.9253],
-        'India': [20.5937, 78.9629],
-        'Germany': [51.1657, 10.4515],
-        'France': [46.6034, 1.8883],
-        'United Kingdom': [55.3781, -3.4360],
-        'Japan': [36.2048, 138.2529],
-        'South Korea': [35.9078, 127.7669],
-        'Turkey': [38.9637, 35.2433],
-        'Iran': [32.4279, 53.6880],
-        'Ukraine': [48.3794, 31.1656],
-        'Poland': [51.9194, 19.1451],
-        'Vietnam': [14.0583, 108.2772],
-        'Italy': [41.8719, 12.5674],
-        'Spain': [40.4637, -3.7492],
-        'Netherlands': [52.1326, 5.2913],
-        'Canada': [56.1304, -106.3468],
-        'Australia': [-25.2744, 133.7751],
-        'Mexico': [23.6345, -102.5528],
-        'Argentina': [-38.4161, -63.6167],
-        'South Africa': [-30.5595, 22.9375],
-        'Egypt': [26.0975, 30.0444],
-        'Nigeria': [9.0820, 8.6753],
-        'Israel': [31.0461, 34.8516],
-        'Saudi Arabia': [23.8859, 45.0792],
-        'Thailand': [15.8700, 100.9925],
-        'Singapore': [1.3521, 103.8198],
-        'Indonesia': [-0.7893, 113.9213],
-        'North Korea': [40.3399, 127.5101],
-        'Pakistan': [30.3753, 69.3451],
+        // United States variations
+        'United States': [39.8283, -98.5795],
+        'United States of America': [39.8283, -98.5795],
+        'USA': [39.8283, -98.5795],
+        'US': [39.8283, -98.5795],
+        
+        // Europe
+        'Albania': [41.1533, 20.1683],
+        'AL': [41.1533, 20.1683],
+        'Andorra': [42.5462, 1.6016],
+        'AD': [42.5462, 1.6016],
+        'Austria': [47.5162, 14.5501],
+        'AT': [47.5162, 14.5501],
+        'Belarus': [53.7098, 27.9534],
+        'BY': [53.7098, 27.9534],
         'Belgium': [50.8503, 4.3517],
-        'Unknown': [0, 0]
+        'BE': [50.8503, 4.3517],
+        'Bosnia and Herzegovina': [43.9159, 17.6791],
+        'BA': [43.9159, 17.6791],
+        'Bulgaria': [42.7339, 25.4858],
+        'BG': [42.7339, 25.4858],
+        'Croatia': [45.1000, 15.2000],
+        'HR': [45.1000, 15.2000],
+        'Cyprus': [35.1264, 33.4299],
+        'CY': [35.1264, 33.4299],
+        'Czech Republic': [49.8175, 15.4730],
+        'CZ': [49.8175, 15.4730],
+        'Czechia': [49.8175, 15.4730],
+        'Denmark': [56.2639, 9.5018],
+        'DK': [56.2639, 9.5018],
+        'Estonia': [58.5953, 25.0136],
+        'EE': [58.5953, 25.0136],
+        'Finland': [61.9241, 25.7482],
+        'FI': [61.9241, 25.7482],
+        'France': [46.6034, 1.8883],
+        'FR': [46.6034, 1.8883],
+        'Germany': [51.1657, 10.4515],
+        'DE': [51.1657, 10.4515],
+        'Greece': [39.0742, 21.8243],
+        'GR': [39.0742, 21.8243],
+        'Hungary': [47.1625, 19.5033],
+        'HU': [47.1625, 19.5033],
+        'Iceland': [64.9631, -19.0208],
+        'IS': [64.9631, -19.0208],
+        'Ireland': [53.1424, -7.6921],
+        'IE': [53.1424, -7.6921],
+        'Italy': [41.8719, 12.5674],
+        'IT': [41.8719, 12.5674],
+        'Kosovo': [42.6029, 20.9021],
+        'XK': [42.6029, 20.9021],
+        'Latvia': [56.8796, 24.6032],
+        'LV': [56.8796, 24.6032],
+        'Liechtenstein': [47.1660, 9.5554],
+        'LI': [47.1660, 9.5554],
+        'Lithuania': [55.1694, 23.8813],
+        'LT': [55.1694, 23.8813],
+        'Luxembourg': [49.8153, 6.1296],
+        'LU': [49.8153, 6.1296],
+        'Malta': [35.9375, 14.3754],
+        'MT': [35.9375, 14.3754],
+        'Moldova': [47.4116, 28.3699],
+        'MD': [47.4116, 28.3699],
+        'Monaco': [43.7384, 7.4246],
+        'MC': [43.7384, 7.4246],
+        'Montenegro': [42.7087, 19.3744],
+        'ME': [42.7087, 19.3744],
+        'Netherlands': [52.1326, 5.2913],
+        'NL': [52.1326, 5.2913],
+        'North Macedonia': [41.6086, 21.7453],
+        'MK': [41.6086, 21.7453],
+        'Norway': [60.4720, 8.4689],
+        'NO': [60.4720, 8.4689],
+        'Poland': [51.9194, 19.1451],
+        'PL': [51.9194, 19.1451],
+        'Portugal': [39.3999, -8.2245],
+        'PT': [39.3999, -8.2245],
+        'Romania': [45.9432, 24.9668],
+        'RO': [45.9432, 24.9668],
+        'Russia': [61.5240, 105.3188],
+        'RU': [61.5240, 105.3188],
+        'San Marino': [43.9424, 12.4578],
+        'SM': [43.9424, 12.4578],
+        'Serbia': [44.0165, 21.0059],
+        'RS': [44.0165, 21.0059],
+        'Slovakia': [48.6690, 19.6990],
+        'SK': [48.6690, 19.6990],
+        'Slovenia': [46.1512, 14.9955],
+        'SI': [46.1512, 14.9955],
+        'Spain': [40.4637, -3.7492],
+        'ES': [40.4637, -3.7492],
+        'Sweden': [60.1282, 18.6435],
+        'SE': [60.1282, 18.6435],
+        'Switzerland': [46.8182, 8.2275],
+        'CH': [46.8182, 8.2275],
+        'Ukraine': [48.3794, 31.1656],
+        'UA': [48.3794, 31.1656],
+        'United Kingdom': [55.3781, -3.4360],
+        'GB': [55.3781, -3.4360],
+        'UK': [55.3781, -3.4360],
+        'Vatican City': [41.9022, 12.4539],
+        'VA': [41.9022, 12.4539],
+        
+        // Asia
+        'Afghanistan': [33.9391, 67.7100],
+        'AF': [33.9391, 67.7100],
+        'Armenia': [40.0691, 45.0382],
+        'AM': [40.0691, 45.0382],
+        'Azerbaijan': [40.1431, 47.5769],
+        'AZ': [40.1431, 47.5769],
+        'Bahrain': [25.9304, 50.6378],
+        'BH': [25.9304, 50.6378],
+        'Bangladesh': [23.6850, 90.3563],
+        'BD': [23.6850, 90.3563],
+        'Bhutan': [27.5142, 90.4336],
+        'BT': [27.5142, 90.4336],
+        'Brunei': [4.5353, 114.7277],
+        'BN': [4.5353, 114.7277],
+        'Cambodia': [12.5657, 104.9910],
+        'KH': [12.5657, 104.9910],
+        'China': [35.8617, 104.1954],
+        'CN': [35.8617, 104.1954],
+        'Georgia': [42.3154, 43.3569],
+        'GE': [42.3154, 43.3569],
+        'Hong Kong': [22.3193, 114.1694],
+        'HK': [22.3193, 114.1694],
+        'India': [20.5937, 78.9629],
+        'IN': [20.5937, 78.9629],
+        'Indonesia': [-0.7893, 113.9213],
+        'ID': [-0.7893, 113.9213],
+        'Iran': [32.4279, 53.6880],
+        'IR': [32.4279, 53.6880],
+        'Iraq': [33.2232, 43.6793],
+        'IQ': [33.2232, 43.6793],
+        'Israel': [31.0461, 34.8516],
+        'IL': [31.0461, 34.8516],
+        'Japan': [36.2048, 138.2529],
+        'JP': [36.2048, 138.2529],
+        'Jordan': [30.5852, 36.2384],
+        'JO': [30.5852, 36.2384],
+        'Kazakhstan': [48.0196, 66.9237],
+        'KZ': [48.0196, 66.9237],
+        'Kuwait': [29.3117, 47.4818],
+        'KW': [29.3117, 47.4818],
+        'Kyrgyzstan': [41.2044, 74.7661],
+        'KG': [41.2044, 74.7661],
+        'Laos': [19.8563, 102.4955],
+        'LA': [19.8563, 102.4955],
+        'Lebanon': [33.8547, 35.8623],
+        'LB': [33.8547, 35.8623],
+        'Macau': [22.1987, 113.5439],
+        'MO': [22.1987, 113.5439],
+        'Malaysia': [4.2105, 101.9758],
+        'MY': [4.2105, 101.9758],
+        'Maldives': [3.2028, 73.2207],
+        'MV': [3.2028, 73.2207],
+        'Mongolia': [46.8625, 103.8467],
+        'MN': [46.8625, 103.8467],
+        'Myanmar': [21.9162, 95.9560],
+        'MM': [21.9162, 95.9560],
+        'Nepal': [28.3949, 84.1240],
+        'NP': [28.3949, 84.1240],
+        'North Korea': [40.3399, 127.5101],
+        'KP': [40.3399, 127.5101],
+        'Oman': [21.4735, 55.9754],
+        'OM': [21.4735, 55.9754],
+        'Pakistan': [30.3753, 69.3451],
+        'PK': [30.3753, 69.3451],
+        'Palestine': [31.9522, 35.2332],
+        'PS': [31.9522, 35.2332],
+        'Philippines': [12.8797, 121.7740],
+        'PH': [12.8797, 121.7740],
+        'Qatar': [25.3548, 51.1839],
+        'QA': [25.3548, 51.1839],
+        'Saudi Arabia': [23.8859, 45.0792],
+        'SA': [23.8859, 45.0792],
+        'Singapore': [1.3521, 103.8198],
+        'SG': [1.3521, 103.8198],
+        'South Korea': [35.9078, 127.7669],
+        'KR': [35.9078, 127.7669],
+        'Sri Lanka': [7.8731, 80.7718],
+        'LK': [7.8731, 80.7718],
+        'Syria': [34.8021, 38.9968],
+        'SY': [34.8021, 38.9968],
+        'Taiwan': [23.6978, 120.9605],
+        'TW': [23.6978, 120.9605],
+        'Tajikistan': [38.8610, 71.2761],
+        'TJ': [38.8610, 71.2761],
+        'Thailand': [15.8700, 100.9925],
+        'TH': [15.8700, 100.9925],
+        'Turkey': [38.9637, 35.2433],
+        'TR': [38.9637, 35.2433],
+        'Turkmenistan': [38.9697, 59.5563],
+        'TM': [38.9697, 59.5563],
+        'United Arab Emirates': [23.4241, 53.8478],
+        'AE': [23.4241, 53.8478],
+        'UAE': [23.4241, 53.8478],
+        'Uzbekistan': [41.3775, 64.5853],
+        'UZ': [41.3775, 64.5853],
+        'Vietnam': [14.0583, 108.2772],
+        'VN': [14.0583, 108.2772],
+        'Yemen': [15.5527, 48.5164],
+        'YE': [15.5527, 48.5164],
+        
+        // Africa
+        'Algeria': [28.0339, 1.6596],
+        'DZ': [28.0339, 1.6596],
+        'Angola': [-11.2027, 17.8739],
+        'AO': [-11.2027, 17.8739],
+        'Benin': [9.3077, 2.3158],
+        'BJ': [9.3077, 2.3158],
+        'Botswana': [-22.3285, 24.6849],
+        'BW': [-22.3285, 24.6849],
+        'Burkina Faso': [12.2383, -1.5616],
+        'BF': [12.2383, -1.5616],
+        'Burundi': [-3.3731, 29.9189],
+        'BI': [-3.3731, 29.9189],
+        'Cameroon': [7.3697, 12.3547],
+        'CM': [7.3697, 12.3547],
+        'Cape Verde': [16.5388, -24.0132],
+        'CV': [16.5388, -24.0132],
+        'Central African Republic': [6.6111, 20.9394],
+        'CF': [6.6111, 20.9394],
+        'Chad': [15.4542, 18.7322],
+        'TD': [15.4542, 18.7322],
+        'Comoros': [-11.6455, 43.3333],
+        'KM': [-11.6455, 43.3333],
+        'Congo': [-0.2280, 15.8277],
+        'CG': [-0.2280, 15.8277],
+        'Democratic Republic of the Congo': [-4.0383, 21.7587],
+        'CD': [-4.0383, 21.7587],
+        'Djibouti': [11.8251, 42.5903],
+        'DJ': [11.8251, 42.5903],
+        'Egypt': [26.0975, 30.0444],
+        'EG': [26.0975, 30.0444],
+        'Equatorial Guinea': [1.6508, 10.2679],
+        'GQ': [1.6508, 10.2679],
+        'Eritrea': [15.1794, 39.7823],
+        'ER': [15.1794, 39.7823],
+        'Eswatini': [-26.5225, 31.4659],
+        'SZ': [-26.5225, 31.4659],
+        'Ethiopia': [9.1450, 40.4897],
+        'ET': [9.1450, 40.4897],
+        'Gabon': [-0.8037, 11.6094],
+        'GA': [-0.8037, 11.6094],
+        'Gambia': [13.4432, -15.3101],
+        'GM': [13.4432, -15.3101],
+        'Ghana': [7.9465, -1.0232],
+        'GH': [7.9465, -1.0232],
+        'Guinea': [9.9456, -9.6966],
+        'GN': [9.9456, -9.6966],
+        'Guinea-Bissau': [11.8037, -15.1804],
+        'GW': [11.8037, -15.1804],
+        'Ivory Coast': [7.5400, -5.5471],
+        'CI': [7.5400, -5.5471],
+        'Kenya': [-0.0236, 37.9062],
+        'KE': [-0.0236, 37.9062],
+        'Lesotho': [-29.6100, 28.2336],
+        'LS': [-29.6100, 28.2336],
+        'Liberia': [6.4281, -9.4295],
+        'LR': [6.4281, -9.4295],
+        'Libya': [26.3351, 17.2283],
+        'LY': [26.3351, 17.2283],
+        'Madagascar': [-18.7669, 46.8691],
+        'MG': [-18.7669, 46.8691],
+        'Malawi': [-13.2543, 34.3015],
+        'MW': [-13.2543, 34.3015],
+        'Mali': [17.5707, -3.9962],
+        'ML': [17.5707, -3.9962],
+        'Mauritania': [21.0079, -10.9408],
+        'MR': [21.0079, -10.9408],
+        'Mauritius': [-20.3484, 57.5522],
+        'MU': [-20.3484, 57.5522],
+        'Morocco': [31.7917, -7.0926],
+        'MA': [31.7917, -7.0926],
+        'Mozambique': [-18.6657, 35.5296],
+        'MZ': [-18.6657, 35.5296],
+        'Namibia': [-22.9576, 18.4904],
+        'NA': [-22.9576, 18.4904],
+        'Niger': [17.6078, 8.0817],
+        'NE': [17.6078, 8.0817],
+        'Nigeria': [9.0820, 8.6753],
+        'NG': [9.0820, 8.6753],
+        'Rwanda': [-1.9403, 29.8739],
+        'RW': [-1.9403, 29.8739],
+        'Sao Tome and Principe': [0.1864, 6.6131],
+        'ST': [0.1864, 6.6131],
+        'Senegal': [14.4974, -14.4524],
+        'SN': [14.4974, -14.4524],
+        'Seychelles': [-4.6796, 55.4920],
+        'SC': [-4.6796, 55.4920],
+        'Sierra Leone': [8.4606, -11.7799],
+        'SL': [8.4606, -11.7799],
+        'Somalia': [5.1521, 46.1996],
+        'SO': [5.1521, 46.1996],
+        'South Africa': [-30.5595, 22.9375],
+        'ZA': [-30.5595, 22.9375],
+        'South Sudan': [6.8770, 31.3070],
+        'SS': [6.8770, 31.3070],
+        'Sudan': [12.8628, 30.2176],
+        'SD': [12.8628, 30.2176],
+        'Tanzania': [-6.3690, 34.8888],
+        'TZ': [-6.3690, 34.8888],
+        'Togo': [8.6195, 0.8248],
+        'TG': [8.6195, 0.8248],
+        'Tunisia': [33.8869, 9.5375],
+        'TN': [33.8869, 9.5375],
+        'Uganda': [1.3733, 32.2903],
+        'UG': [1.3733, 32.2903],
+        'Zambia': [-13.1339, 27.8493],
+        'ZM': [-13.1339, 27.8493],
+        'Zimbabwe': [-19.0154, 29.1549],
+        'ZW': [-19.0154, 29.1549],
+        
+        // North America
+        'Canada': [56.1304, -106.3468],
+        'CA': [56.1304, -106.3468],
+        'Mexico': [23.6345, -102.5528],
+        'MX': [23.6345, -102.5528],
+        
+        // Central America & Caribbean
+        'Antigua and Barbuda': [17.0608, -61.7964],
+        'AG': [17.0608, -61.7964],
+        'Bahamas': [25.0343, -77.3963],
+        'BS': [25.0343, -77.3963],
+        'Barbados': [13.1939, -59.5432],
+        'BB': [13.1939, -59.5432],
+        'Belize': [17.1899, -88.4976],
+        'BZ': [17.1899, -88.4976],
+        'Costa Rica': [9.7489, -83.7534],
+        'CR': [9.7489, -83.7534],
+        'Cuba': [21.5218, -77.7812],
+        'CU': [21.5218, -77.7812],
+        'Dominica': [15.4150, -61.3710],
+        'DM': [15.4150, -61.3710],
+        'Dominican Republic': [18.7357, -70.1627],
+        'DO': [18.7357, -70.1627],
+        'El Salvador': [13.7942, -88.8965],
+        'SV': [13.7942, -88.8965],
+        'Grenada': [12.1165, -61.6790],
+        'GD': [12.1165, -61.6790],
+        'Guatemala': [15.7835, -90.2308],
+        'GT': [15.7835, -90.2308],
+        'Haiti': [18.9712, -72.2852],
+        'HT': [18.9712, -72.2852],
+        'Honduras': [15.2000, -86.2419],
+        'HN': [15.2000, -86.2419],
+        'Jamaica': [18.1096, -77.2975],
+        'JM': [18.1096, -77.2975],
+        'Nicaragua': [12.2651, -85.2072],
+        'NI': [12.2651, -85.2072],
+        'Panama': [8.5380, -80.7821],
+        'PA': [8.5380, -80.7821],
+        'Saint Kitts and Nevis': [17.3578, -62.7830],
+        'KN': [17.3578, -62.7830],
+        'Saint Lucia': [13.9094, -60.9789],
+        'LC': [13.9094, -60.9789],
+        'Saint Vincent and the Grenadines': [12.9843, -61.2872],
+        'VC': [12.9843, -61.2872],
+        'Trinidad and Tobago': [10.6918, -61.2225],
+        'TT': [10.6918, -61.2225],
+        
+        // South America
+        'Argentina': [-38.4161, -63.6167],
+        'AR': [-38.4161, -63.6167],
+        'Bolivia': [-16.2902, -63.5887],
+        'BO': [-16.2902, -63.5887],
+        'Brazil': [-14.2350, -51.9253],
+        'BR': [-14.2350, -51.9253],
+        'Chile': [-35.6751, -71.5430],
+        'CL': [-35.6751, -71.5430],
+        'Colombia': [4.5709, -74.2973],
+        'CO': [4.5709, -74.2973],
+        'Ecuador': [-1.8312, -78.1834],
+        'EC': [-1.8312, -78.1834],
+        'Guyana': [4.8604, -58.9302],
+        'GY': [4.8604, -58.9302],
+        'Paraguay': [-23.4425, -58.4438],
+        'PY': [-23.4425, -58.4438],
+        'Peru': [-9.1900, -75.0152],
+        'PE': [-9.1900, -75.0152],
+        'Suriname': [3.9193, -56.0278],
+        'SR': [3.9193, -56.0278],
+        'Uruguay': [-32.5228, -55.7658],
+        'UY': [-32.5228, -55.7658],
+        'Venezuela': [6.4238, -66.5897],
+        'VE': [6.4238, -66.5897],
+        
+        // Oceania
+        'Australia': [-25.2744, 133.7751],
+        'AU': [-25.2744, 133.7751],
+        'Fiji': [-16.5780, 179.4144],
+        'FJ': [-16.5780, 179.4144],
+        'Kiribati': [-3.3704, -168.7340],
+        'KI': [-3.3704, -168.7340],
+        'Marshall Islands': [7.1315, 171.1845],
+        'MH': [7.1315, 171.1845],
+        'Micronesia': [7.4256, 150.5508],
+        'FM': [7.4256, 150.5508],
+        'Nauru': [-0.5228, 166.9315],
+        'NR': [-0.5228, 166.9315],
+        'New Zealand': [-40.9006, 174.8860],
+        'NZ': [-40.9006, 174.8860],
+        'Palau': [7.5150, 134.5825],
+        'PW': [7.5150, 134.5825],
+        'Papua New Guinea': [-6.3140, 143.9555],
+        'PG': [-6.3140, 143.9555],
+        'Samoa': [-13.7590, -172.1046],
+        'WS': [-13.7590, -172.1046],
+        'Solomon Islands': [-9.6457, 160.1562],
+        'SB': [-9.6457, 160.1562],
+        'Tonga': [-21.1789, -175.1982],
+        'TO': [-21.1789, -175.1982],
+        'Tuvalu': [-7.1095, 177.6493],
+        'TV': [-7.1095, 177.6493],
+        'Vanuatu': [-15.3767, 166.9592],
+        'VU': [-15.3767, 166.9592],
+        
+        // Special territories
+        'Puerto Rico': [18.2208, -66.5901],
+        'PR': [18.2208, -66.5901],
+        'Greenland': [71.7069, -42.6043],
+        'GL': [71.7069, -42.6043],
+        'Faroe Islands': [61.8926, -6.9118],
+        'FO': [61.8926, -6.9118],
+        'American Samoa': [-14.2710, -170.1322],
+        'AS': [-14.2710, -170.1322],
+        'Guam': [13.4443, 144.7937],
+        'GU': [13.4443, 144.7937],
+        'Northern Mariana Islands': [17.3308, 145.3846],
+        'MP': [17.3308, 145.3846],
+        'Virgin Islands': [18.3358, -64.8963],
+        'VI': [18.3358, -64.8963],
+        'British Virgin Islands': [18.4207, -64.6399],
+        'VG': [18.4207, -64.6399],
+        'Cayman Islands': [19.3133, -81.2546],
+        'KY': [19.3133, -81.2546],
+        'Bermuda': [32.3078, -64.7505],
+        'BM': [32.3078, -64.7505],
+        'Gibraltar': [36.1408, -5.3536],
+        'GI': [36.1408, -5.3536],
+        'Jersey': [49.2144, -2.1312],
+        'JE': [49.2144, -2.1312],
+        'Guernsey': [49.4658, -2.5854],
+        'GG': [49.4658, -2.5854],
+        'Isle of Man': [54.2361, -4.5481],
+        'IM': [54.2361, -4.5481],
+        
+        // Fallback
+        'Unknown': [0, 0],
+        'XX': [0, 0],
+        '': [0, 0]
     };
-
     $(document).ready(function() {
         var regionChart, timelineChart, attackTypesChart, severityChart, heatmapChart, worldMap;
         var currentGeoData = null;
@@ -794,6 +1210,7 @@
             mapContainer.appendChild(loadingDiv);
         }
         
+
         function updateMapMarkers(countries) {
             if (!worldMap) {
                 console.warn('World map not initialized');
@@ -812,12 +1229,22 @@
                 }
             });
             
+            console.log('Available countries for mapping:', Object.keys(countries));
+            
             var markerCount = 0;
             
             for (var country in countries) {
                 if (countries.hasOwnProperty(country)) {
                     var data = countries[country];
-                    var coords = countryCoordinates[country];
+                    
+                    console.log('Processing country:', country);
+                    
+                    // Try multiple coordinate lookups
+                    var coords = countryCoordinates[country] || 
+                                countryCoordinates[country.trim()] ||
+                                findCoordinatesByPartialMatch(country);
+                    
+                    console.log('Coordinates found for', country, ':', coords);
                     
                     if (coords && coords.length === 2 && coords[0] !== 0 && coords[1] !== 0) {
                         var lat = coords[0];
@@ -830,28 +1257,33 @@
                         switch (severity) {
                             case 'critical':
                                 color = '#8B0000';
-                                size = Math.min(Math.sqrt(count) * 3, 40);
+                                size = Math.min(Math.sqrt(count) * 4, 50);
                                 break;
                             case 'high':
                                 color = '#dc3545';
-                                size = Math.min(Math.sqrt(count) * 2.5, 35);
+                                size = Math.min(Math.sqrt(count) * 3, 40);
                                 break;
                             case 'medium':
                                 color = '#ffc107';
-                                size = Math.min(Math.sqrt(count) * 2, 30);
+                                size = Math.min(Math.sqrt(count) * 2.5, 35);
                                 break;
                             default:
                                 color = '#28a745';
-                                size = Math.min(Math.sqrt(count) * 1.5, 25);
+                                size = Math.min(Math.sqrt(count) * 2, 30);
                         }
                         
+                        // Ensure minimum size
+                        size = Math.max(size, 15);
+                        
+                        console.log('Creating marker for', country, 'at', [lat, lng], 'with size', size, 'and color', color);
+                        
                         var marker = L.circleMarker([lat, lng], {
-                            radius: Math.max(size, 10),
+                            radius: size,
                             fillColor: color,
                             color: '#ffffff',
-                            weight: 2,
+                            weight: 3,
                             opacity: 1,
-                            fillOpacity: 0.7
+                            fillOpacity: 0.8
                         }).addTo(worldMap);
                         
                         var isBlocked = window.appConfig.blockedCountries.indexOf(country) !== -1;
@@ -905,29 +1337,315 @@
                         
                         marker.on('mouseover', function() {
                             this.setStyle({
-                                weight: 3,
-                                fillOpacity: 0.9
+                                weight: 4,
+                                fillOpacity: 1.0
                             });
                         });
                         
                         marker.on('mouseout', function() {
                             this.setStyle({
-                                weight: 2,
-                                fillOpacity: 0.7
+                                weight: 3,
+                                fillOpacity: 0.8
                             });
                         });
                         
                         markerCount++;
                     } else {
                         console.warn('No coordinates found for country:', country);
+                        console.warn('Available coordinate keys:', Object.keys(countryCoordinates).filter(k => k.toLowerCase().includes(country.toLowerCase().substring(0, 3))));
                     }
                 }
             }
             
-            console.log('Added', markerCount, 'markers to map');
+            console.log('Successfully added', markerCount, 'markers to map');
+            
+            // Adjust map view if markers were added
+            if (markerCount > 0) {
+                // Optional: fit map to show all markers
+                var group = new L.featureGroup();
+                worldMap.eachLayer(function(layer) {
+                    if (layer instanceof L.CircleMarker) {
+                        group.addLayer(layer);
+                    }
+                });
+                if (group.getLayers().length > 0) {
+                    worldMap.fitBounds(group.getBounds().pad(0.1));
+                }
+            }
+            
             addMapLegend();
         }
-       
+
+        function findCoordinatesByPartialMatch(country) {
+            var searchTerm = country.toLowerCase().trim();
+            
+            console.log('Searching coordinates for:', country, '(normalized:', searchTerm, ')');
+            
+            // Step 1: Try exact match first (case insensitive)
+            for (var key in countryCoordinates) {
+                if (key.toLowerCase() === searchTerm) {
+                    console.log('Found exact match:', key);
+                    return countryCoordinates[key];
+                }
+            }
+            
+            // Step 2: Country name normalization and common variations
+            var countryVariations = {
+                // United States variations
+                'united states': ['United States', 'United States of America', 'US', 'USA'],
+                'united states of america': ['United States', 'United States of America', 'US', 'USA'],
+                'america': ['United States', 'United States of America', 'US', 'USA'],
+                'usa': ['United States', 'United States of America', 'US', 'USA'],
+                'us': ['United States', 'United States of America', 'US', 'USA'],
+                
+                // United Kingdom variations
+                'united kingdom': ['United Kingdom', 'UK', 'GB'],
+                'uk': ['United Kingdom', 'UK', 'GB'],
+                'great britain': ['United Kingdom', 'UK', 'GB'],
+                'britain': ['United Kingdom', 'UK', 'GB'],
+                'england': ['United Kingdom', 'UK', 'GB'],
+                
+                // UAE variations
+                'united arab emirates': ['United Arab Emirates', 'UAE', 'AE'],
+                'uae': ['United Arab Emirates', 'UAE', 'AE'],
+                
+                // China variations
+                'china': ['China', 'CN'],
+                'peoples republic of china': ['China', 'CN'],
+                'prc': ['China', 'CN'],
+                
+                // Russia variations
+                'russia': ['Russia', 'RU'],
+                'russian federation': ['Russia', 'RU'],
+                
+                // Korea variations
+                'south korea': ['South Korea', 'KR'],
+                'republic of korea': ['South Korea', 'KR'],
+                'korea': ['South Korea', 'KR'],
+                'north korea': ['North Korea', 'KP'],
+                'democratic peoples republic of korea': ['North Korea', 'KP'],
+                'dprk': ['North Korea', 'KP'],
+                
+                // Czech variations
+                'czech republic': ['Czech Republic', 'CZ'],
+                'czechia': ['Czech Republic', 'CZ'],
+                
+                // Congo variations
+                'congo': ['Congo', 'CG'],
+                'republic of congo': ['Congo', 'CG'],
+                'democratic republic of congo': ['Democratic Republic of the Congo', 'CD'],
+                'drc': ['Democratic Republic of the Congo', 'CD'],
+                'dr congo': ['Democratic Republic of the Congo', 'CD'],
+                
+                // Vietnam variations
+                'vietnam': ['Vietnam', 'VN'],
+                'viet nam': ['Vietnam', 'VN'],
+                
+                // Myanmar variations
+                'myanmar': ['Myanmar', 'MM'],
+                'burma': ['Myanmar', 'MM'],
+                
+                // Iran variations
+                'iran': ['Iran', 'IR'],
+                'islamic republic of iran': ['Iran', 'IR'],
+                'persia': ['Iran', 'IR'],
+                
+                // Macedonia variations
+                'north macedonia': ['North Macedonia', 'MK'],
+                'macedonia': ['North Macedonia', 'MK'],
+                'fyrom': ['North Macedonia', 'MK'],
+                
+                // Ivory Coast variations
+                'ivory coast': ['Ivory Coast', 'CI'],
+                'cote divoire': ['Ivory Coast', 'CI'],
+                "côte d'ivoire": ['Ivory Coast', 'CI'],
+                
+                // Cape Verde variations
+                'cape verde': ['Cape Verde', 'CV'],
+                'cabo verde': ['Cape Verde', 'CV'],
+                
+                // Eswatini variations
+                'eswatini': ['Eswatini', 'SZ'],
+                'swaziland': ['Eswatini', 'SZ'],
+                
+                // East Timor variations
+                'east timor': ['East Timor', 'TL'],
+                'timor leste': ['East Timor', 'TL'],
+                'timor-leste': ['East Timor', 'TL'],
+                
+                // Serbia and Montenegro (historical)
+                'serbia': ['Serbia', 'RS'],
+                'montenegro': ['Montenegro', 'ME'],
+                
+                // Palestine variations
+                'palestine': ['Palestine', 'PS'],
+                'palestinian territories': ['Palestine', 'PS'],
+                'west bank': ['Palestine', 'PS'],
+                'gaza': ['Palestine', 'PS']
+            };
+            
+            // Step 3: Check variations mapping
+            if (countryVariations[searchTerm]) {
+                console.log('Found in variations mapping:', countryVariations[searchTerm]);
+                for (var i = 0; i < countryVariations[searchTerm].length; i++) {
+                    var variation = countryVariations[searchTerm][i];
+                    if (countryCoordinates[variation]) {
+                        console.log('Using variation:', variation);
+                        return countryCoordinates[variation];
+                    }
+                }
+            }
+            
+            // Step 4: Advanced pattern matching
+            
+            // United States specific patterns
+            if ((searchTerm.includes('united') && searchTerm.includes('states')) || 
+                searchTerm.includes('america') || 
+                searchTerm === 'usa' || searchTerm === 'us') {
+                console.log('Matched United States pattern');
+                return countryCoordinates['United States of America'] || countryCoordinates['United States'];
+            }
+            
+            // United Kingdom specific patterns
+            if ((searchTerm.includes('united') && searchTerm.includes('kingdom')) || 
+                searchTerm === 'uk' || searchTerm === 'gb' ||
+                searchTerm.includes('britain') || searchTerm.includes('england')) {
+                console.log('Matched United Kingdom pattern');
+                return countryCoordinates['United Kingdom'];
+            }
+            
+            // Korea patterns
+            if (searchTerm.includes('korea')) {
+                if (searchTerm.includes('north') || searchTerm.includes('democratic')) {
+                    console.log('Matched North Korea pattern');
+                    return countryCoordinates['North Korea'];
+                } else {
+                    console.log('Matched South Korea pattern');
+                    return countryCoordinates['South Korea'];
+                }
+            }
+            
+            // Congo patterns
+            if (searchTerm.includes('congo')) {
+                if (searchTerm.includes('democratic') || searchTerm.includes('dr') || searchTerm.includes('drc')) {
+                    console.log('Matched Democratic Republic of Congo pattern');
+                    return countryCoordinates['Democratic Republic of the Congo'];
+                } else {
+                    console.log('Matched Republic of Congo pattern');
+                    return countryCoordinates['Congo'];
+                }
+            }
+            
+            // Step 5: Fuzzy substring matching
+            var potentialMatches = [];
+            
+            for (var key in countryCoordinates) {
+                var keyLower = key.toLowerCase();
+                
+                // Skip fallback entries
+                if (keyLower === 'unknown' || keyLower === 'xx' || keyLower === '') {
+                    continue;
+                }
+                
+                // Check if key contains search term or vice versa
+                if (keyLower.includes(searchTerm) || searchTerm.includes(keyLower)) {
+                    potentialMatches.push({
+                        key: key,
+                        score: calculateMatchScore(searchTerm, keyLower)
+                    });
+                }
+                
+                // Check for partial word matches
+                var searchWords = searchTerm.split(' ');
+                var keyWords = keyLower.split(' ');
+                var wordMatches = 0;
+                
+                for (var j = 0; j < searchWords.length; j++) {
+                    for (var k = 0; k < keyWords.length; k++) {
+                        if (searchWords[j] === keyWords[k] || 
+                            searchWords[j].includes(keyWords[k]) || 
+                            keyWords[k].includes(searchWords[j])) {
+                            wordMatches++;
+                            break;
+                        }
+                    }
+                }
+                
+                if (wordMatches > 0) {
+                    potentialMatches.push({
+                        key: key,
+                        score: wordMatches / Math.max(searchWords.length, keyWords.length)
+                    });
+                }
+            }
+            
+            // Step 6: Return best match if found
+            if (potentialMatches.length > 0) {
+                // Sort by score (highest first)
+                potentialMatches.sort(function(a, b) {
+                    return b.score - a.score;
+                });
+                
+                var bestMatch = potentialMatches[0];
+                console.log('Best fuzzy match:', bestMatch.key, 'with score:', bestMatch.score);
+                
+                // Only return if score is reasonable
+                if (bestMatch.score > 0.3) {
+                    return countryCoordinates[bestMatch.key];
+                }
+            }
+            
+            // Step 7: Last resort - check common abbreviations and alternate names
+            var commonAbbreviations = {
+                'uae': ['United Arab Emirates', 'AE'],
+                'uk': ['United Kingdom', 'GB'],
+                'usa': ['United States of America', 'US'],
+                'drc': ['Democratic Republic of the Congo', 'CD'],
+                'car': ['Central African Republic', 'CF'],
+                'png': ['Papua New Guinea', 'PG'],
+                'ussr': ['Russia', 'RU'], // Historical
+                'burma': ['Myanmar', 'MM'],
+                'persia': ['Iran', 'IR'],
+                'holland': ['Netherlands', 'NL'],
+                'scotland': ['United Kingdom', 'GB'],
+                'wales': ['United Kingdom', 'GB'],
+                'northern ireland': ['United Kingdom', 'GB']
+            };
+            
+            if (commonAbbreviations[searchTerm]) {
+                console.log('Found in common abbreviations:', commonAbbreviations[searchTerm]);
+                for (var i = 0; i < commonAbbreviations[searchTerm].length; i++) {
+                    var abbrev = commonAbbreviations[searchTerm][i];
+                    if (countryCoordinates[abbrev]) {
+                        console.log('Using abbreviation match:', abbrev);
+                        return countryCoordinates[abbrev];
+                    }
+                }
+            }
+            
+            console.log('No coordinates found for:', country);
+            return null;
+        }
+
+        function calculateMatchScore(search, target) {
+            if (search === target) return 1.0;
+            if (target.includes(search)) return 0.9;
+            if (search.includes(target)) return 0.8;
+            
+            // Calculate character similarity
+            var commonChars = 0;
+            var maxLength = Math.max(search.length, target.length);
+            
+            for (var i = 0; i < Math.min(search.length, target.length); i++) {
+                if (search[i] === target[i]) {
+                    commonChars++;
+                }
+            }
+            
+            return commonChars / maxLength;
+        }
+
+        
         function addMapLegend() {
             if (mapLegend) {
                 worldMap.removeControl(mapLegend);
@@ -1630,19 +2348,464 @@
         
         function getCountryFlag(country) {
             var flags = {
-                'China': '🇨🇳', 'Russia': '🇷🇺', 'United States': '🇺🇸', 'Brazil': '🇧🇷',
-                'India': '🇮🇳', 'Germany': '🇩🇪', 'France': '🇫🇷', 'United Kingdom': '🇬🇧',
-                'Japan': '🇯🇵', 'South Korea': '🇰🇷', 'Turkey': '🇹🇷', 'Iran': '🇮🇷',
-                'Ukraine': '🇺🇦', 'Poland': '🇵🇱', 'Vietnam': '🇻🇳', 'Italy': '🇮🇹',
-                'Spain': '🇪🇸', 'Netherlands': '🇳🇱', 'Canada': '🇨🇦', 'Australia': '🇦🇺',
-                'Mexico': '🇲🇽', 'Argentina': '🇦🇷', 'South Africa': '🇿🇦', 'Egypt': '🇪🇬',
-                'Nigeria': '🇳🇬', 'Israel': '🇮🇱', 'Saudi Arabia': '🇸🇦', 'Thailand': '🇹🇭',
-                'Singapore': '🇸🇬', 'Indonesia': '🇮🇩', 'North Korea': '🇰🇵', 'Pakistan': '🇵🇰',
-                'Belgium': '🇧🇪', 'Unknown': '🏳️'
+                // United States variations
+                'United States': '🇺🇸',
+                'United States of America': '🇺🇸',
+                'USA': '🇺🇸',
+                'US': '🇺🇸',
+                
+                // Major countries with all variations
+                'China': '🇨🇳',
+                'CN': '🇨🇳',
+                'Russia': '🇷🇺',
+                'RU': '🇷🇺',
+                'Brazil': '🇧🇷',
+                'BR': '🇧🇷',
+                'India': '🇮🇳',
+                'IN': '🇮🇳',
+                'Germany': '🇩🇪',
+                'DE': '🇩🇪',
+                'France': '🇫🇷',
+                'FR': '🇫🇷',
+                'United Kingdom': '🇬🇧',
+                'GB': '🇬🇧',
+                'UK': '🇬🇧',
+                'Japan': '🇯🇵',
+                'JP': '🇯🇵',
+                'South Korea': '🇰🇷',
+                'KR': '🇰🇷',
+                'Turkey': '🇹🇷',
+                'TR': '🇹🇷',
+                'Iran': '🇮🇷',
+                'IR': '🇮🇷',
+                'Ukraine': '🇺🇦',
+                'UA': '🇺🇦',
+                'Poland': '🇵🇱',
+                'PL': '🇵🇱',
+                'Vietnam': '🇻🇳',
+                'VN': '🇻🇳',
+                'Italy': '🇮🇹',
+                'IT': '🇮🇹',
+                'Spain': '🇪🇸',
+                'ES': '🇪🇸',
+                'Netherlands': '🇳🇱',
+                'NL': '🇳🇱',
+                'Canada': '🇨🇦',
+                'CA': '🇨🇦',
+                'Australia': '🇦🇺',
+                'AU': '🇦🇺',
+                'Mexico': '🇲🇽',
+                'MX': '🇲🇽',
+                'Argentina': '🇦🇷',
+                'AR': '🇦🇷',
+                'South Africa': '🇿🇦',
+                'ZA': '🇿🇦',
+                'Egypt': '🇪🇬',
+                'EG': '🇪🇬',
+                'Nigeria': '🇳🇬',
+                'NG': '🇳🇬',
+                'Israel': '🇮🇱',
+                'IL': '🇮🇱',
+                'Saudi Arabia': '🇸🇦',
+                'SA': '🇸🇦',
+                'Thailand': '🇹🇭',
+                'TH': '🇹🇭',
+                'Singapore': '🇸🇬',
+                'SG': '🇸🇬',
+                'Indonesia': '🇮🇩',
+                'ID': '🇮🇩',
+                'North Korea': '🇰🇵',
+                'KP': '🇰🇵',
+                'Pakistan': '🇵🇰',
+                'PK': '🇵🇰',
+                'Belgium': '🇧🇪',
+                'BE': '🇧🇪',
+                'Switzerland': '🇨🇭',
+                'CH': '🇨🇭',
+                'Sweden': '🇸🇪',
+                'SE': '🇸🇪',
+                'Norway': '🇳🇴',
+                'NO': '🇳🇴',
+                'Finland': '🇫🇮',
+                'FI': '🇫🇮',
+                'Denmark': '🇩🇰',
+                'DK': '🇩🇰',
+                'Austria': '🇦🇹',
+                'AT': '🇦🇹',
+                'Ireland': '🇮🇪',
+                'IE': '🇮🇪',
+                'Portugal': '🇵🇹',
+                'PT': '🇵🇹',
+                'Greece': '🇬🇷',
+                'GR': '🇬🇷',
+                'Romania': '🇷🇴',
+                'RO': '🇷🇴',
+                'Bulgaria': '🇧🇬',
+                'BG': '🇧🇬',
+                'Hungary': '🇭🇺',
+                'HU': '🇭🇺',
+                'Czech Republic': '🇨🇿',
+                'CZ': '🇨🇿',
+                'Czechia': '🇨🇿',
+                'Slovakia': '🇸🇰',
+                'SK': '🇸🇰',
+                'Croatia': '🇭🇷',
+                'HR': '🇭🇷',
+                'Serbia': '🇷🇸',
+                'RS': '🇷🇸',
+                
+                // Additional European countries
+                'Slovenia': '🇸🇮',
+                'SI': '🇸🇮',
+                'Bosnia and Herzegovina': '🇧🇦',
+                'BA': '🇧🇦',
+                'Montenegro': '🇲🇪',
+                'ME': '🇲🇪',
+                'North Macedonia': '🇲🇰',
+                'MK': '🇲🇰',
+                'Albania': '🇦🇱',
+                'AL': '🇦🇱',
+                'Kosovo': '🇽🇰',
+                'XK': '🇽🇰',
+                'Moldova': '🇲🇩',
+                'MD': '🇲🇩',
+                'Belarus': '🇧🇾',
+                'BY': '🇧🇾',
+                'Lithuania': '🇱🇹',
+                'LT': '🇱🇹',
+                'Latvia': '🇱🇻',
+                'LV': '🇱🇻',
+                'Estonia': '🇪🇪',
+                'EE': '🇪🇪',
+                'Iceland': '🇮🇸',
+                'IS': '🇮🇸',
+                'Luxembourg': '🇱🇺',
+                'LU': '🇱🇺',
+                'Malta': '🇲🇹',
+                'MT': '🇲🇹',
+                'Cyprus': '🇨🇾',
+                'CY': '🇨🇾',
+                
+                // Asian countries
+                'Afghanistan': '🇦🇫',
+                'AF': '🇦🇫',
+                'Bangladesh': '🇧🇩',
+                'BD': '🇧🇩',
+                'Bhutan': '🇧🇹',
+                'BT': '🇧🇹',
+                'Brunei': '🇧🇳',
+                'BN': '🇧🇳',
+                'Cambodia': '🇰🇭',
+                'KH': '🇰🇭',
+                'Hong Kong': '🇭🇰',
+                'HK': '🇭🇰',
+                'Kazakhstan': '🇰🇿',
+                'KZ': '🇰🇿',
+                'Kyrgyzstan': '🇰🇬',
+                'KG': '🇰🇬',
+                'Laos': '🇱🇦',
+                'LA': '🇱🇦',
+                'Macau': '🇲🇴',
+                'MO': '🇲🇴',
+                'Malaysia': '🇲🇾',
+                'MY': '🇲🇾',
+                'Maldives': '🇲🇻',
+                'MV': '🇲🇻',
+                'Mongolia': '🇲🇳',
+                'MN': '🇲🇳',
+                'Myanmar': '🇲🇲',
+                'MM': '🇲🇲',
+                'Nepal': '🇳🇵',
+                'NP': '🇳🇵',
+                'Philippines': '🇵🇭',
+                'PH': '🇵🇭',
+                'Sri Lanka': '🇱🇰',
+                'LK': '🇱🇰',
+                'Taiwan': '🇹🇼',
+                'TW': '🇹🇼',
+                'Tajikistan': '🇹🇯',
+                'TJ': '🇹🇯',
+                'Turkmenistan': '🇹🇲',
+                'TM': '🇹🇲',
+                'Uzbekistan': '🇺🇿',
+                'UZ': '🇺🇿',
+                
+                // African countries
+                'Algeria': '🇩🇿',
+                'DZ': '🇩🇿',
+                'Angola': '🇦🇴',
+                'AO': '🇦🇴',
+                'Benin': '🇧🇯',
+                'BJ': '🇧🇯',
+                'Botswana': '🇧🇼',
+                'BW': '🇧🇼',
+                'Burkina Faso': '🇧🇫',
+                'BF': '🇧🇫',
+                'Burundi': '🇧🇮',
+                'BI': '🇧🇮',
+                'Cameroon': '🇨🇲',
+                'CM': '🇨🇲',
+                'Cape Verde': '🇨🇻',
+                'CV': '🇨🇻',
+                'Central African Republic': '🇨🇫',
+                'CF': '🇨🇫',
+                'Chad': '🇹🇩',
+                'TD': '🇹🇩',
+                'Comoros': '🇰🇲',
+                'KM': '🇰🇲',
+                'Congo': '🇨🇬',
+                'CG': '🇨🇬',
+                'Democratic Republic of the Congo': '🇨🇩',
+                'CD': '🇨🇩',
+                'Djibouti': '🇩🇯',
+                'DJ': '🇩🇯',
+                'Equatorial Guinea': '🇬🇶',
+                'GQ': '🇬🇶',
+                'Eritrea': '🇪🇷',
+                'ER': '🇪🇷',
+                'Eswatini': '🇸🇿',
+                'SZ': '🇸🇿',
+                'Ethiopia': '🇪🇹',
+                'ET': '🇪🇹',
+                'Gabon': '🇬🇦',
+                'GA': '🇬🇦',
+                'Gambia': '🇬🇲',
+                'GM': '🇬🇲',
+                'Ghana': '🇬🇭',
+                'GH': '🇬🇭',
+                'Guinea': '🇬🇳',
+                'GN': '🇬🇳',
+                'Guinea-Bissau': '🇬🇼',
+                'GW': '🇬🇼',
+                'Ivory Coast': '🇨🇮',
+                'CI': '🇨🇮',
+                'Kenya': '🇰🇪',
+                'KE': '🇰🇪',
+                'Lesotho': '🇱🇸',
+                'LS': '🇱🇸',
+                'Liberia': '🇱🇷',
+                'LR': '🇱🇷',
+                'Libya': '🇱🇾',
+                'LY': '🇱🇾',
+                'Madagascar': '🇲🇬',
+                'MG': '🇲🇬',
+                'Malawi': '🇲🇼',
+                'MW': '🇲🇼',
+                'Mali': '🇲🇱',
+                'ML': '🇲🇱',
+                'Mauritania': '🇲🇷',
+                'MR': '🇲🇷',
+                'Mauritius': '🇲🇺',
+                'MU': '🇲🇺',
+                'Morocco': '🇲🇦',
+                'MA': '🇲🇦',
+                'Mozambique': '🇲🇿',
+                'MZ': '🇲🇿',
+                'Namibia': '🇳🇦',
+                'NA': '🇳🇦',
+                'Niger': '🇳🇪',
+                'NE': '🇳🇪',
+                'Rwanda': '🇷🇼',
+                'RW': '🇷🇼',
+                'Sao Tome and Principe': '🇸🇹',
+                'ST': '🇸🇹',
+                'Senegal': '🇸🇳',
+                'SN': '🇸🇳',
+                'Seychelles': '🇸🇨',
+                'SC': '🇸🇨',
+                'Sierra Leone': '🇸🇱',
+                'SL': '🇸🇱',
+                'Somalia': '🇸🇴',
+                'SO': '🇸🇴',
+                'South Sudan': '🇸🇸',
+                'SS': '🇸🇸',
+                'Sudan': '🇸🇩',
+                'SD': '🇸🇩',
+                'Tanzania': '🇹🇿',
+                'TZ': '🇹🇿',
+                'Togo': '🇹🇬',
+                'TG': '🇹🇬',
+                'Tunisia': '🇹🇳',
+                'TN': '🇹🇳',
+                'Uganda': '🇺🇬',
+                'UG': '🇺🇬',
+                'Zambia': '🇿🇲',
+                'ZM': '🇿🇲',
+                'Zimbabwe': '🇿🇼',
+                'ZW': '🇿🇼',
+                
+                // Middle Eastern countries
+                'Bahrain': '🇧🇭',
+                'BH': '🇧🇭',
+                'Iraq': '🇮🇶',
+                'IQ': '🇮🇶',
+                'Jordan': '🇯🇴',
+                'JO': '🇯🇴',
+                'Kuwait': '🇰🇼',
+                'KW': '🇰🇼',
+                'Lebanon': '🇱🇧',
+                'LB': '🇱🇧',
+                'Oman': '🇴🇲',
+                'OM': '🇴🇲',
+                'Palestine': '🇵🇸',
+                'PS': '🇵🇸',
+                'Qatar': '🇶🇦',
+                'QA': '🇶🇦',
+                'Syria': '🇸🇾',
+                'SY': '🇸🇾',
+                'United Arab Emirates': '🇦🇪',
+                'AE': '🇦🇪',
+                'UAE': '🇦🇪',
+                'Yemen': '🇾🇪',
+                'YE': '🇾🇪',
+                
+                // Latin American countries
+                'Antigua and Barbuda': '🇦🇬',
+                'AG': '🇦🇬',
+                'Bahamas': '🇧🇸',
+                'BS': '🇧🇸',
+                'Barbados': '🇧🇧',
+                'BB': '🇧🇧',
+                'Belize': '🇧🇿',
+                'BZ': '🇧🇿',
+                'Bolivia': '🇧🇴',
+                'BO': '🇧🇴',
+                'Chile': '🇨🇱',
+                'CL': '🇨🇱',
+                'Colombia': '🇨🇴',
+                'CO': '🇨🇴',
+                'Costa Rica': '🇨🇷',
+                'CR': '🇨🇷',
+                'Cuba': '🇨🇺',
+                'CU': '🇨🇺',
+                'Dominica': '🇩🇲',
+                'DM': '🇩🇲',
+                'Dominican Republic': '🇩🇴',
+                'DO': '🇩🇴',
+                'Ecuador': '🇪🇨',
+                'EC': '🇪🇨',
+                'El Salvador': '🇸🇻',
+                'SV': '🇸🇻',
+                'Grenada': '🇬🇩',
+                'GD': '🇬🇩',
+                'Guatemala': '🇬🇹',
+                'GT': '🇬🇹',
+                'Guyana': '🇬🇾',
+                'GY': '🇬🇾',
+                'Haiti': '🇭🇹',
+                'HT': '🇭🇹',
+                'Honduras': '🇭🇳',
+                'HN': '🇭🇳',
+                'Jamaica': '🇯🇲',
+                'JM': '🇯🇲',
+                'Nicaragua': '🇳🇮',
+                'NI': '🇳🇮',
+                'Panama': '🇵🇦',
+                'PA': '🇵🇦',
+                'Paraguay': '🇵🇾',
+                'PY': '🇵🇾',
+                'Peru': '🇵🇪',
+                'PE': '🇵🇪',
+                'Saint Kitts and Nevis': '🇰🇳',
+                'KN': '🇰🇳',
+                'Saint Lucia': '🇱🇨',
+                'LC': '🇱🇨',
+                'Saint Vincent and the Grenadines': '🇻🇨',
+                'VC': '🇻🇨',
+                'Suriname': '🇸🇷',
+                'SR': '🇸🇷',
+                'Trinidad and Tobago': '🇹🇹',
+                'TT': '🇹🇹',
+                'Uruguay': '🇺🇾',
+                'UY': '🇺🇾',
+                'Venezuela': '🇻🇪',
+                'VE': '🇻🇪',
+                
+                // Oceania
+                'Fiji': '🇫🇯',
+                'FJ': '🇫🇯',
+                'Kiribati': '🇰🇮',
+                'KI': '🇰🇮',
+                'Marshall Islands': '🇲🇭',
+                'MH': '🇲🇭',
+                'Micronesia': '🇫🇲',
+                'FM': '🇫🇲',
+                'Nauru': '🇳🇷',
+                'NR': '🇳🇷',
+                'New Zealand': '🇳🇿',
+                'NZ': '🇳🇿',
+                'Palau': '🇵🇼',
+                'PW': '🇵🇼',
+                'Papua New Guinea': '🇵🇬',
+                'PG': '🇵🇬',
+                'Samoa': '🇼🇸',
+                'WS': '🇼🇸',
+                'Solomon Islands': '🇸🇧',
+                'SB': '🇸🇧',
+                'Tonga': '🇹🇴',
+                'TO': '🇹🇴',
+                'Tuvalu': '🇹🇻',
+                'TV': '🇹🇻',
+                'Vanuatu': '🇻🇺',
+                'VU': '🇻🇺',
+                
+                // Special territories and regions
+                'Puerto Rico': '🇵🇷',
+                'PR': '🇵🇷',
+                'Greenland': '🇬🇱',
+                'GL': '🇬🇱',
+                'Faroe Islands': '🇫🇴',
+                'FO': '🇫🇴',
+                'American Samoa': '🇦🇸',
+                'AS': '🇦🇸',
+                'Guam': '🇬🇺',
+                'GU': '🇬🇺',
+                'Northern Mariana Islands': '🇲🇵',
+                'MP': '🇲🇵',
+                'Virgin Islands': '🇻🇮',
+                'VI': '🇻🇮',
+                'British Virgin Islands': '🇻🇬',
+                'VG': '🇻🇬',
+                'Cayman Islands': '🇰🇾',
+                'KY': '🇰🇾',
+                'Bermuda': '🇧🇲',
+                'BM': '🇧🇲',
+                'Gibraltar': '🇬🇮',
+                'GI': '🇬🇮',
+                'Jersey': '🇯🇪',
+                'JE': '🇯🇪',
+                'Guernsey': '🇬🇬',
+                'GG': '🇬🇬',
+                'Isle of Man': '🇮🇲',
+                'IM': '🇮🇲',
+                
+                // Fallback
+                'Unknown': '🏳️',
+                'XX': '🏳️',
+                '': '🏳️'
             };
-            return flags[country] || '🏳️';
+            
+            // Try exact match first
+            if (flags[country]) {
+                return flags[country];
+            }
+            
+            // Try uppercase (for country codes)
+            if (flags[country.toUpperCase()]) {
+                return flags[country.toUpperCase()];
+            }
+            
+            // Try lowercase
+            if (flags[country.toLowerCase()]) {
+                return flags[country.toLowerCase()];
+            }
+            
+            // Debug log for unmapped countries
+            console.log('No flag found for country:', country);
+            
+            return '🏳️';
         }
-        
+                
         // Global functions for country actions
         window.blockCountry = function(country) {
             var confirmMessage = window.appConfig.translations.blockTrafficFrom + ' ' + country + '?';
