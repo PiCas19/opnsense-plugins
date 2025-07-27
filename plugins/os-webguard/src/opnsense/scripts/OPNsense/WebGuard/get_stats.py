@@ -233,7 +233,7 @@ def get_blocking_stats(period='24h'):
     except Exception as e:
         return {'error': f'Failed to get blocking stats: {e}'}
 def get_geo_stats(period='24h'):
-    """Get geographic statistics using BOTH IP2Location AND GeoLite2 for maximum coverage"""
+    """DEBUG VERSION - Get geographic statistics with detailed IP analysis"""
     if not os.path.exists(DB_FILE):
         return {'error': 'Database not found'}
 
@@ -243,183 +243,162 @@ def get_geo_stats(period='24h'):
     except ImportError:
         return {'error': 'geoip2 module not installed. Run: pip install geoip2'}
 
-    # Define both database paths
+    # Load databases
     databases = {
         'ip2location': '/usr/local/share/GeoIP/IP2LOCATION-LITE-DB1.MMDB',
         'geolite2': '/usr/local/share/GeoIP/GeoLite2-Country.mmdb'
     }
     
     readers = {}
-    sources_loaded = []
     
     # Load IP2Location
     if os.path.exists(databases['ip2location']):
         try:
             readers['ip2location'] = geoip2.database.Reader(databases['ip2location'])
-            sources_loaded.append('IP2Location-LITE-DB1')
-            print(f"✓ Loaded IP2Location: {databases['ip2location']}", file=sys.stderr)
+            print(f"✓ Loaded IP2Location", file=sys.stderr)
         except Exception as e:
-            print(f"✗ Failed to load IP2Location: {e}", file=sys.stderr)
+            print(f"✗ Failed IP2Location: {e}", file=sys.stderr)
     
     # Load GeoLite2
     if os.path.exists(databases['geolite2']):
         try:
             readers['geolite2'] = geoip2.database.Reader(databases['geolite2'])
-            sources_loaded.append('GeoLite2-Country')
-            print(f"✓ Loaded GeoLite2: {databases['geolite2']}", file=sys.stderr)
+            print(f"✓ Loaded GeoLite2", file=sys.stderr)
         except Exception as e:
-            print(f"✗ Failed to load GeoLite2: {e}", file=sys.stderr)
-    
-    if not readers:
-        return {'error': 'Neither IP2Location nor GeoLite2 databases could be loaded'}
+            print(f"✗ Failed GeoLite2: {e}", file=sys.stderr)
 
-    print(f"Using databases: {', '.join(sources_loaded)}", file=sys.stderr)
-
-    def get_country_from_ip(ip):
-        """Get country using both databases - IP2Location first, then GeoLite2 fallback"""
+    def debug_ip_classification(ip):
+        """Debug function to understand IP classification"""
         try:
-            # Validate IP
             ip_obj = ipaddress.ip_address(ip)
             
-            # Skip private/local IPs
-            if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local or ip_obj.is_multicast:
-                return None, None, 'private'
+            print(f"DEBUG IP {ip}:", file=sys.stderr)
+            print(f"  - is_private: {ip_obj.is_private}", file=sys.stderr)
+            print(f"  - is_loopback: {ip_obj.is_loopback}", file=sys.stderr)
+            print(f"  - is_link_local: {ip_obj.is_link_local}", file=sys.stderr)
+            print(f"  - is_multicast: {ip_obj.is_multicast}", file=sys.stderr)
+            print(f"  - is_reserved: {ip_obj.is_reserved}", file=sys.stderr)
+            print(f"  - is_global: {ip_obj.is_global}", file=sys.stderr)
             
-            country_name = None
-            country_code = None
-            source_used = None
-            
-            # Strategy 1: Try IP2Location first (often more accurate for Asian countries)
-            if 'ip2location' in readers:
-                try:
-                    response = readers['ip2location'].country(ip)
-                    
-                    # IP2Location field access
-                    country_name = getattr(response.country, 'name', None)
-                    country_code = getattr(response.country, 'iso_code', None)
-                    
-                    # Clean IP2Location data
-                    if country_name and country_name.strip() and country_name != '-':
-                        country_name = country_name.strip()
-                        country_code = country_code.strip().upper() if country_code else 'XX'
-                        source_used = 'IP2Location'
-                        return country_name, country_code, source_used
-                    
-                except geoip2.errors.AddressNotFoundError:
-                    pass  # Try next database
-                except Exception as e:
-                    print(f"IP2Location error for {ip}: {e}", file=sys.stderr)
-            
-            # Strategy 2: Try GeoLite2 if IP2Location didn't find it
-            if 'geolite2' in readers and not country_name:
-                try:
-                    response = readers['geolite2'].country(ip)
-                    
-                    # GeoLite2 field access
-                    country_name = response.country.name
-                    country_code = response.country.iso_code
-                    
-                    if country_name and country_name.strip():
-                        country_name = country_name.strip()
-                        country_code = country_code.strip().upper() if country_code else 'XX'
-                        source_used = 'GeoLite2'
-                        return country_name, country_code, source_used
-                    
-                except geoip2.errors.AddressNotFoundError:
-                    pass  # Not found in either database
-                except Exception as e:
-                    print(f"GeoLite2 error for {ip}: {e}", file=sys.stderr)
-            
-            # If neither database found the IP
-            return 'Other', 'XX', 'not_found'
-            
-        except ValueError:
-            # Invalid IP address
-            return None, None, 'invalid'
+            # Check if it's actually a public IP
+            if ip_obj.is_global and not ip_obj.is_private:
+                print(f"  - Classification: PUBLIC IP", file=sys.stderr)
+                return True
+            else:
+                print(f"  - Classification: PRIVATE/LOCAL IP", file=sys.stderr)
+                return False
+                
         except Exception as e:
-            print(f"General error processing {ip}: {e}", file=sys.stderr)
-            return 'Other', 'XX', 'error'
+            print(f"  - Error classifying {ip}: {e}", file=sys.stderr)
+            return False
+
+    def get_country_from_ip(ip):
+        """Get country with detailed debugging"""
+        print(f"\n=== Processing IP: {ip} ===", file=sys.stderr)
+        
+        # First check if it's a valid public IP
+        if not debug_ip_classification(ip):
+            return None, None, 'private'
+        
+        # Now try the databases
+        country_name = None
+        country_code = None
+        
+        # Try IP2Location
+        if 'ip2location' in readers:
+            try:
+                print(f"Trying IP2Location for {ip}...", file=sys.stderr)
+                response = readers['ip2location'].country(ip)
+                
+                print(f"IP2Location raw response: {response}", file=sys.stderr)
+                print(f"Response country: {response.country}", file=sys.stderr)
+                print(f"Country name: {getattr(response.country, 'name', 'NO NAME')}", file=sys.stderr)
+                print(f"Country code: {getattr(response.country, 'iso_code', 'NO CODE')}", file=sys.stderr)
+                
+                country_name = getattr(response.country, 'name', None)
+                country_code = getattr(response.country, 'iso_code', None)
+                
+                if country_name and country_name != '-':
+                    print(f"✓ IP2Location SUCCESS: {ip} -> {country_name} ({country_code})", file=sys.stderr)
+                    return country_name.strip(), country_code.strip() if country_code else 'XX', 'IP2Location'
+                else:
+                    print(f"IP2Location returned empty/dash for {ip}", file=sys.stderr)
+                    
+            except Exception as e:
+                print(f"IP2Location error for {ip}: {e}", file=sys.stderr)
+        
+        # Try GeoLite2
+        if 'geolite2' in readers:
+            try:
+                print(f"Trying GeoLite2 for {ip}...", file=sys.stderr)
+                response = readers['geolite2'].country(ip)
+                
+                print(f"GeoLite2 raw response: {response}", file=sys.stderr)
+                country_name = response.country.name
+                country_code = response.country.iso_code
+                
+                if country_name:
+                    print(f"✓ GeoLite2 SUCCESS: {ip} -> {country_name} ({country_code})", file=sys.stderr)
+                    return country_name.strip(), country_code.strip() if country_code else 'XX', 'GeoLite2'
+                else:
+                    print(f"GeoLite2 returned empty for {ip}", file=sys.stderr)
+                    
+            except Exception as e:
+                print(f"GeoLite2 error for {ip}: {e}", file=sys.stderr)
+        
+        print(f"✗ FAILED: No database could resolve {ip}", file=sys.stderr)
+        return 'Other', 'XX', 'not_found'
 
     try:
         conn = sqlite3.connect(DB_FILE)
 
-        # Calculate time range
         if period == '24h':
             start_time = int(time.time() - 86400)
-        elif period == '7d':
-            start_time = int(time.time() - 604800)
-        elif period == '30d':
-            start_time = int(time.time() - 2592000)
         else:
             start_time = int(time.time() - 86400)
 
-        # Get threats grouped by IP
+        # Get SAMPLE of IPs for debugging (first 10)
         cursor = conn.execute('''
             SELECT source_ip, COUNT(*) as threat_count FROM threats 
             WHERE timestamp >= ? AND source_ip IS NOT NULL AND source_ip != ''
             GROUP BY source_ip
+            LIMIT 10
         ''', (start_time,))
         
         ip_counts = cursor.fetchall()
         conn.close()
 
-        if not ip_counts:
-            # Close readers before returning
-            for reader in readers.values():
-                reader.close()
-            return {
-                'countries': [],
-                'total_countries': 0,
-                'total_threats': 0,
-                'top_countries': [],
-                'sources': sources_loaded,
-                'message': 'No threat data found'
-            }
-
+        print(f"\n=== DEBUGGING {len(ip_counts)} SAMPLE IPs ===", file=sys.stderr)
+        
         countries = {}
         total_threats = 0
-        
-        # Statistics tracking
-        stats_counter = {
-            'processed': 0,
-            'IP2Location': 0,
-            'GeoLite2': 0,
-            'not_found': 0,
-            'private': 0,
-            'invalid': 0,
-            'error': 0
-        }
-        
-        print(f"Processing {len(ip_counts)} unique IPs using dual database lookup...", file=sys.stderr)
+        stats_counter = {'processed': 0, 'IP2Location': 0, 'GeoLite2': 0, 'not_found': 0, 'private': 0}
         
         for ip, threat_count in ip_counts:
-            stats_counter['processed'] += 1
-            
-            if stats_counter['processed'] % 500 == 0:
-                print(f"Progress: {stats_counter['processed']}/{len(ip_counts)} IPs", file=sys.stderr)
+            print(f"\n--- Processing IP {ip} (threats: {threat_count}) ---", file=sys.stderr)
             
             country_name, country_code, source = get_country_from_ip(ip)
             
-            # Update statistics
+            stats_counter['processed'] += 1
             if source in stats_counter:
                 stats_counter[source] += 1
             
-            # Skip private/invalid IPs
             if country_name is None:
+                print(f"SKIPPED: {ip} (private)", file=sys.stderr)
                 continue
             
-            # Aggregate country data
             if country_name not in countries:
-                countries[country_name] = {
-                    'name': country_name,
-                    'code': country_code,
-                    'count': 0,
-                    'unique_ips': 0
-                }
+                countries[country_name] = {'name': country_name, 'code': country_code, 'count': 0, 'unique_ips': 0}
             
             countries[country_name]['count'] += threat_count
             countries[country_name]['unique_ips'] += 1
             total_threats += threat_count
+            
+            print(f"ADDED: {ip} -> {country_name} ({source})", file=sys.stderr)
+
+        print(f"\n=== FINAL DEBUG RESULTS ===", file=sys.stderr)
+        print(f"Countries found: {list(countries.keys())}", file=sys.stderr)
+        print(f"Stats: {stats_counter}", file=sys.stderr)
 
         # Calculate percentages
         for country in countries.values():
@@ -428,57 +407,29 @@ def get_geo_stats(period='24h'):
             else:
                 country['percentage'] = 0
 
-        # Sort by threat count
-        sorted_countries = sorted(countries.values(), key=lambda x: x['count'], reverse=True)
-        
-        # Calculate success rates
-        public_ips = stats_counter['processed'] - stats_counter['private'] - stats_counter['invalid']
-        resolved_ips = stats_counter['IP2Location'] + stats_counter['GeoLite2']
-        resolution_rate = round((resolved_ips / max(public_ips, 1)) * 100, 1)
-        
-        print(f"Resolution Summary:", file=sys.stderr)
-        print(f"  Total IPs: {stats_counter['processed']}", file=sys.stderr)
-        print(f"  IP2Location hits: {stats_counter['IP2Location']}", file=sys.stderr)
-        print(f"  GeoLite2 hits: {stats_counter['GeoLite2']}", file=sys.stderr)
-        print(f"  Not found: {stats_counter['not_found']}", file=sys.stderr)
-        print(f"  Resolution rate: {resolution_rate}%", file=sys.stderr)
-
         result = {
-            'countries': sorted_countries,
+            'countries': list(countries.values()),
             'total_countries': len(countries),
             'total_threats': total_threats,
-            'top_countries': sorted_countries[:10],
-            'sources': sources_loaded,
-            'database_type': 'Dual (IP2Location + GeoLite2)',
-            'statistics': {
-                'total_ips_processed': stats_counter['processed'],
-                'ip2location_hits': stats_counter['IP2Location'],
-                'geolite2_hits': stats_counter['GeoLite2'],
-                'not_found': stats_counter['not_found'],
-                'private_ips_skipped': stats_counter['private'],
-                'resolution_rate_percent': resolution_rate
-            },
-            'coverage': {
-                'primary_source': 'IP2Location',
-                'fallback_source': 'GeoLite2',
-                'combined_coverage': resolution_rate
-            }
+            'top_countries': list(countries.values()),
+            'sources': ['IP2Location-LITE-DB1', 'GeoLite2-Country'],
+            'debug_stats': stats_counter,
+            'sample_size': len(ip_counts)
         }
         
-        # Close all database readers
+        # Close readers
         for reader in readers.values():
             reader.close()
             
         return result
 
     except Exception as e:
-        # Ensure all readers are closed on error
         for reader in readers.values():
             try:
                 reader.close()
             except:
                 pass
-        return {'error': f'Failed to get geo stats: {e}'}
+        return {'error': f'Debug failed: {e}'}
 
 def main():
     if len(sys.argv) > 1:
