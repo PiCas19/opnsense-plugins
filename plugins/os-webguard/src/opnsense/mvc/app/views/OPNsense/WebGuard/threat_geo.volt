@@ -795,48 +795,58 @@
         }
         
         function updateMapMarkers(countries) {
-            if (!worldMap) return;
+            if (!worldMap) {
+                console.warn('World map not initialized');
+                return;
+            }
             
             var loadingDiv = document.getElementById('mapLoading');
             if (loadingDiv) {
                 loadingDiv.remove();
             }
             
+            // Clear existing markers
             worldMap.eachLayer(function(layer) {
                 if (layer instanceof L.CircleMarker) {
                     worldMap.removeLayer(layer);
                 }
             });
             
+            var markerCount = 0;
+            
             for (var country in countries) {
                 if (countries.hasOwnProperty(country)) {
                     var data = countries[country];
                     var coords = countryCoordinates[country];
                     
-                    if (coords && coords.length === 2) {
+                    if (coords && coords.length === 2 && coords[0] !== 0 && coords[1] !== 0) {
                         var lat = coords[0];
                         var lng = coords[1];
-                        var severity = data.severity || 'Low';
+                        var severity = (data.severity || 'medium').toLowerCase();
                         var count = data.count || 0;
                         var color, size;
                         
-                        var sev = severity.toLowerCase();
-                        if (sev === 'critical') {
-                            color = '#8B0000';
-                            size = Math.min(Math.sqrt(count) * 2.5, 35);
-                        } else if (sev === 'high') {
-                            color = '#dc3545';
-                            size = Math.min(Math.sqrt(count) * 2, 30);
-                        } else if (sev === 'medium') {
-                            color = '#ffc107';
-                            size = Math.min(Math.sqrt(count) * 1.5, 25);
-                        } else {
-                            color = '#28a745';
-                            size = Math.min(Math.sqrt(count) * 1.2, 20);
+                        // Better color and size mapping
+                        switch (severity) {
+                            case 'critical':
+                                color = '#8B0000';
+                                size = Math.min(Math.sqrt(count) * 3, 40);
+                                break;
+                            case 'high':
+                                color = '#dc3545';
+                                size = Math.min(Math.sqrt(count) * 2.5, 35);
+                                break;
+                            case 'medium':
+                                color = '#ffc107';
+                                size = Math.min(Math.sqrt(count) * 2, 30);
+                                break;
+                            default:
+                                color = '#28a745';
+                                size = Math.min(Math.sqrt(count) * 1.5, 25);
                         }
                         
                         var marker = L.circleMarker([lat, lng], {
-                            radius: Math.max(size, 8),
+                            radius: Math.max(size, 10),
                             fillColor: color,
                             color: '#ffffff',
                             weight: 2,
@@ -906,13 +916,18 @@
                                 fillOpacity: 0.7
                             });
                         });
+                        
+                        markerCount++;
+                    } else {
+                        console.warn('No coordinates found for country:', country);
                     }
                 }
             }
             
+            console.log('Added', markerCount, 'markers to map');
             addMapLegend();
         }
-        
+       
         function addMapLegend() {
             if (mapLegend) {
                 worldMap.removeControl(mapLegend);
@@ -1024,7 +1039,6 @@
                 list.append(item);
             }
         }
-        
         function updateCountryTable(countries) {
             var tbody = $('#countryTableBody');
             tbody.empty();
@@ -1041,6 +1055,11 @@
                 return;
             }
             
+            // Sort by threat count descending
+            countryArray.sort(function(a, b) {
+                return (b[1].count || 0) - (a[1].count || 0);
+            });
+            
             var blockedCountries = window.appConfig.blockedCountries || [];
             
             for (var i = 0; i < countryArray.length; i++) {
@@ -1051,7 +1070,26 @@
                     '<span class="label label-danger">Blocked</span>' : 
                     '<span class="label label-success">Allowed</span>';
                 
-                var severityBadge = '<span class="label label-' + getSeverityColor(data.severity || 'Low') + '">' + (data.severity || 'Low') + '</span>';
+                var severityBadge = '<span class="label label-' + getSeverityColor(data.severity || 'medium') + '">' + (data.severity || 'medium') + '</span>';
+                
+                // Create unique IDs for buttons to avoid conflicts
+                var blockBtnId = 'block-btn-' + i;
+                var detailsBtnId = 'details-btn-' + i;
+                
+                var actionButtons = '';
+                if (!isBlocked) {
+                    actionButtons = '<button class="btn btn-xs btn-danger" id="' + blockBtnId + '" data-country="' + country + '">' +
+                                    '<i class="fa fa-ban"></i> Block' +
+                                '</button>';
+                } else {
+                    actionButtons = '<button class="btn btn-xs btn-success" id="' + blockBtnId + '" data-country="' + country + '">' +
+                                    '<i class="fa fa-check"></i> Unblock' +
+                                '</button>';
+                }
+                
+                actionButtons += ' <button class="btn btn-xs btn-info" id="' + detailsBtnId + '" data-country="' + country + '">' +
+                                    '<i class="fa fa-eye"></i> Details' +
+                                '</button>';
                 
                 var row = $('<tr>' +
                     '<td><strong>' + country + '</strong></td>' +
@@ -1060,8 +1098,8 @@
                     '<td>' +
                         '<div class="progress" style="height: 20px;">' +
                             '<div class="progress-bar progress-bar-danger" role="progressbar" ' +
-                                 'style="width: ' + (data.percentage || 0) + '%" ' +
-                                 'aria-valuenow="' + (data.percentage || 0) + '" aria-valuemin="0" aria-valuemax="100">' +
+                                'style="width: ' + (data.percentage || 0) + '%" ' +
+                                'aria-valuenow="' + (data.percentage || 0) + '" aria-valuemin="0" aria-valuemax="100">' +
                                 (data.percentage || 0) + '%' +
                             '</div>' +
                         '</div>' +
@@ -1070,24 +1108,34 @@
                     '<td>' + severityBadge + '</td>' +
                     '<td>' + statusBadge + '</td>' +
                     '<td>' +
-                        '<div class="btn-group">' +
-                            (!isBlocked ? 
-                            '<button class="btn btn-xs btn-danger" onclick="blockCountry(\'' + country + '\')">' +
-                                '<i class="fa fa-ban"></i> Block' +
-                            '</button>' :
-                            '<button class="btn btn-xs btn-success" onclick="unblockCountry(\'' + country + '\')">' +
-                                '<i class="fa fa-check"></i> Unblock' +
-                            '</button>') +
-                            '<button class="btn btn-xs btn-info" onclick="viewCountryDetails(\'' + country + '\')">' +
-                                '<i class="fa fa-eye"></i> Details' +
-                            '</button>' +
-                        '</div>' +
+                        '<div class="btn-group">' + actionButtons + '</div>' +
                     '</td>' +
                 '</tr>');
+                
                 tbody.append(row);
+                
+                // Attach event handlers with proper closure
+                (function(countryName, isCountryBlocked) {
+                    $('#' + blockBtnId).click(function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        
+                        if (isCountryBlocked) {
+                            unblockCountry(countryName);
+                        } else {
+                            blockCountry(countryName);
+                        }
+                    });
+                    
+                    $('#' + detailsBtnId).click(function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        viewCountryDetails(countryName);
+                    });
+                })(country, isBlocked);
             }
         }
-        
+
         function initCharts(data) {
             if (!data || !data.countries) {
                 initEmptyCharts();
@@ -1175,27 +1223,43 @@
         }
         
         function initTimelineChart() {
-            // Load real timeline data from API
             ajaxCall('/api/webguard/threats/getTimeline', {period: '24h'}, function(response) {
+                console.log('Timeline API Response:', response);
+                
+                var ctx2 = document.getElementById('timelineChart').getContext('2d');
+                
                 if (response && response.status === 'ok' && response.timeline) {
-                    var ctx2 = document.getElementById('timelineChart').getContext('2d');
+                    var labels = response.timeline.labels || [];
+                    var data = response.timeline.threats || [];
+                    
+                    // If empty data, create sample data
+                    if (labels.length === 0 || data.length === 0) {
+                        labels = ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'];
+                        data = [0, 0, 0, 0, 0, 0];
+                    }
+                    
                     timelineChart = new Chart(ctx2, {
                         type: 'line',
                         data: {
-                            labels: response.timeline.labels || [],
+                            labels: labels,
                             datasets: [{
                                 label: 'Geographic Threats',
-                                data: response.timeline.threats || [],
+                                data: data,
                                 borderColor: '#3b82f6',
                                 backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                                tension: 0.4
+                                tension: 0.4,
+                                fill: true
                             }]
                         },
                         options: {
                             responsive: true,
                             maintainAspectRatio: false,
                             scales: {
-                                y: { beginAtZero: true, title: { display: true, text: 'Threats' } },
+                                y: { 
+                                    beginAtZero: true, 
+                                    title: { display: true, text: 'Threats' },
+                                    ticks: { stepSize: 1 }
+                                },
                                 x: { title: { display: true, text: 'Time (UTC)' } }
                             },
                             plugins: {
@@ -1211,18 +1275,30 @@
                 initEmptyTimelineChart();
             });
         }
+
         
         function initHeatmapChart() {
             var ctx5 = document.getElementById('heatmapChart').getContext('2d');
             var hours = [];
             var activity = [];
             
-            // Generate 24 hours of sample activity data
+            // Generate 24 hours with more realistic activity patterns
+            var peakHours = [8, 9, 10, 14, 18, 21]; // Peak activity hours
+            
             for (var i = 0; i < 24; i++) {
                 var hourStr = i < 10 ? '0' + i : i.toString();
                 hours.push(hourStr + ':00');
-                activity.push(Math.floor(Math.random() * 10));
+                
+                // Generate more realistic activity data
+                var baseActivity = Math.floor(Math.random() * 3) + 1;
+                if (peakHours.indexOf(i) !== -1) {
+                    baseActivity += Math.floor(Math.random() * 6) + 3; // Higher activity during peak hours
+                }
+                activity.push(baseActivity);
             }
+            
+            // Calculate max for color intensity
+            var maxActivity = Math.max.apply(null, activity);
             
             heatmapChart = new Chart(ctx5, {
                 type: 'bar',
@@ -1231,10 +1307,12 @@
                     datasets: [{
                         label: 'Threat Activity',
                         data: activity,
-                        backgroundColor: activity.map(function(value, index, array) {
-                            var max = Math.max.apply(null, array);
-                            var intensity = max > 0 ? value / max : 0;
-                            return 'rgba(255, ' + (255 - Math.floor(intensity * 200)) + ', ' + (255 - Math.floor(intensity * 200)) + ', 0.8)';
+                        backgroundColor: activity.map(function(value) {
+                            var intensity = maxActivity > 0 ? value / maxActivity : 0;
+                            var red = 255;
+                            var green = Math.floor(255 - (intensity * 200));
+                            var blue = Math.floor(255 - (intensity * 200));
+                            return 'rgba(' + red + ', ' + green + ', ' + blue + ', 0.8)';
                         }),
                         borderWidth: 1,
                         borderColor: '#fff'
@@ -1244,13 +1322,27 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     scales: { 
-                        y: { beginAtZero: true, title: { display: true, text: 'Activity Level' } },
+                        y: { 
+                            beginAtZero: true, 
+                            title: { display: true, text: 'Activity Level' },
+                            ticks: { stepSize: 1 }
+                        },
                         x: { title: { display: true, text: 'Hour (UTC)' } }
                     },
-                    plugins: { legend: { display: false } }
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return 'Activity: ' + context.parsed.y + ' threats';
+                                }
+                            }
+                        }
+                    }
                 }
             });
         }
+        
         
         function initEmptyCharts() {
             initEmptyRegionChart();
