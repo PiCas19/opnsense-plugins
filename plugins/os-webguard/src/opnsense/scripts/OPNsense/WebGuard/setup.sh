@@ -1,6 +1,6 @@
 #!/bin/sh
 # WebGuard Clean Setup for OPNsense
-# Only shell - no Python mixed here
+# UPDATED: Dual GeoIP Database Support
 
 set -e
 
@@ -13,7 +13,7 @@ UPDATER="${CONFIG_DIR}/update_rules.py"
 DB_FILE="${DB_DIR}/webguard.db"
 
 echo "=============================================="
-echo "WebGuard Clean Setup"
+echo "WebGuard Clean Setup - Dual GeoIP Support"
 echo "=============================================="
 
 echo "[*] Creating directories..."
@@ -77,25 +77,29 @@ sqlite3 "$DB_FILE" "INSERT INTO blocked_ips (ip_address, block_type, blocked_sin
 
 sqlite3 "$DB_FILE" "INSERT INTO whitelist (ip_address, description, added_at, permanent) VALUES ('192.168.1.1', 'Sample whitelist entry', $CURRENT_TIME, 1);"
 
-echo "[*] Inserting sample threats..."
-for entry in \
-  "$((CURRENT_TIME - 3600))|192.168.1.200|/admin/login.php|POST|SQL Injection|high|85.5|'' OR 1=1 --|rule_1|SQL injection detected" \
-  "$((CURRENT_TIME - 7200))|10.0.0.50|/search?q=<script>|GET|XSS Attack|medium|65.0|<script>alert(\"xss\")</script>|rule_2|Cross-site scripting attempt" \
-  "$((CURRENT_TIME - 10800))|172.16.0.25|/api/users|GET|Path Traversal|medium|70.0|../../../etc/passwd|rule_3|Directory traversal detected" \
-  "$((CURRENT_TIME - 14400))|203.0.113.45|/cmd.php|POST|Command Injection|critical|95.0|; cat /etc/passwd|rule_4|Command injection attempt detected" \
-  "$((CURRENT_TIME - 18000))|198.51.100.33|/login.asp|POST|SQL Injection|high|88.0|UNION SELECT username,password FROM users|rule_5|SQL injection with UNION attack" \
-  "$((CURRENT_TIME - 21600))|93.184.216.34|/comment.php|POST|XSS Attack|medium|72.5|<img src=x onerror=alert(1)>|rule_6|DOM-based XSS attempt" \
-  "$((CURRENT_TIME - 25200))|185.199.108.153|/include.php|GET|File Inclusion|high|82.0|?file=../../../../etc/passwd|rule_7|Local file inclusion detected"
-do
+echo "[*] Inserting REAL PUBLIC IP sample threats for GeoIP testing..."
 
-    IFS='|' read -r ts ip tgt mtd typ sev scr pld rule desc <<EOF
+# Insert real public IPs for GeoIP testing
+for entry in \
+  "$((CURRENT_TIME - 3600))|8.8.8.8|/admin/login.php|POST|SQL Injection|high|blocked|85.5|'' OR 1=1 --|rule_1|Google DNS - SQL injection test" \
+  "$((CURRENT_TIME - 7200))|1.1.1.1|/search?q=<script>|GET|XSS Attack|medium|blocked|65.0|<script>alert(\"xss\")</script>|rule_2|Cloudflare DNS - XSS test" \
+  "$((CURRENT_TIME - 10800))|208.67.222.222|/api/users|GET|Path Traversal|medium|blocked|70.0|../../../etc/passwd|rule_3|OpenDNS - Directory traversal test" \
+  "$((CURRENT_TIME - 14400))|217.0.43.1|/cmd.php|POST|Command Injection|critical|blocked|95.0|; cat /etc/passwd|rule_4|Deutsche Telekom - Command injection test" \
+  "$((CURRENT_TIME - 18000))|80.67.169.12|/login.asp|POST|SQL Injection|high|blocked|88.0|UNION SELECT username,password FROM users|rule_5|Orange France - SQL injection with UNION" \
+  "$((CURRENT_TIME - 21600))|194.168.4.100|/comment.php|POST|XSS Attack|medium|blocked|72.5|<img src=x onerror=alert(1)>|rule_6|BT UK - DOM-based XSS" \
+  "$((CURRENT_TIME - 25200))|212.216.172.62|/include.php|GET|File Inclusion|high|blocked|82.0|?file=../../../../etc/passwd|rule_7|Telecom Italia - LFI attack" \
+  "$((CURRENT_TIME - 25200))|195.121.1.34|/upload.php|POST|File Upload|high|blocked|87.0|shell.php upload attempt|rule_8|KPN Netherlands - Malicious upload" \
+  "$((CURRENT_TIME - 28800))|195.238.2.21|/admin/config.php|GET|Directory Traversal|medium|blocked|75.0|../../admin/config.php|rule_9|Proximus Belgium - Config access" \
+  "$((CURRENT_TIME - 32400))|130.59.31.251|/wp-admin/admin-ajax.php|POST|WordPress Attack|high|blocked|83.0|wp_ajax_nopriv|rule_10|Swisscom - WordPress exploit"
+do
+    IFS='|' read -r ts ip tgt mtd typ sev stat scr pld rule desc <<EOF
 $entry
 EOF
     sqlite3 "$DB_FILE" "INSERT INTO threats (
       timestamp, source_ip, target, method, type, severity, status, score,
       payload, request_headers, rule_matched, description, false_positive
     ) VALUES (
-      $ts, '$ip', '$tgt', '$mtd', '$typ', '$sev', 'blocked', $scr,
+      $ts, '$ip', '$tgt', '$mtd', '$typ', '$sev', '$stat', $scr,
       '$pld', '{}', '$rule', '$desc', 0
     );"
 done
@@ -103,24 +107,83 @@ done
 echo "[*] Installing Python dependencies..."
 $PY -m pip install -q psutil geoip2 requests || echo "[!] pip install errors ignored"
 
+echo "[*] Setting up DUAL GeoIP databases..."
+
+# Download MaxMind GeoLite2
 echo "[*] Downloading MaxMind GeoLite2 database..."
 if fetch -o "${GEOIP_DIR}/GeoLite2-Country.mmdb" "https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-Country.mmdb" 2>/dev/null; then
-    echo "[+] MaxMind GeoLite2 database downloaded."
+    echo "[+] MaxMind GeoLite2 database downloaded successfully"
+    echo "    Location: ${GEOIP_DIR}/GeoLite2-Country.mmdb"
+    echo "    Size: $(ls -lh ${GEOIP_DIR}/GeoLite2-Country.mmdb | awk '{print $5}')"
 else
     echo "[!] GeoLite2 download failed. Manual download from:"
     echo "    https://dev.maxmind.com/geoip/geolite2/"
 fi
 
+# Check for IP2Location LITE database
 echo "[*] Checking for IP2Location LITE database..."
 if [ -f "${GEOIP_DIR}/IP2LOCATION-LITE-DB1.MMDB" ]; then
-    echo "[+] IP2Location LITE database found:"
-    echo "    ${GEOIP_DIR}/IP2LOCATION-LITE-DB1.MMDB"
-    echo "    Source: https://lite.ip2location.com"
+    echo "[+] IP2Location LITE database found"
+    echo "    Location: ${GEOIP_DIR}/IP2LOCATION-LITE-DB1.MMDB"
+    echo "    Size: $(ls -lh ${GEOIP_DIR}/IP2LOCATION-LITE-DB1.MMDB | awk '{print $5}')"
+    echo "    Source: IP2Location LITE Database"
     echo "    Copyright (c) Hexasoft Development Sdn. Bhd."
 else
-    echo "[*] IP2Location LITE database not found."
-    echo "    You may download it from https://lite.ip2location.com"
-    echo "    and place it in: ${GEOIP_DIR}/IP2LOCATION-LITE-DB1.MMDB"
+    echo "[!] IP2Location LITE database not found"
+    echo "    Download from: https://lite.ip2location.com"
+    echo "    Place file at: ${GEOIP_DIR}/IP2LOCATION-LITE-DB1.MMDB"
+    echo "    Note: Both databases will be used for maximum IP resolution coverage"
+fi
+
+# Test GeoIP databases
+echo "[*] Testing GeoIP databases..."
+if $PY -c "
+import geoip2.database
+import sys
+import os
+
+databases_tested = 0
+databases_working = 0
+
+# Test GeoLite2
+geolite_path = '${GEOIP_DIR}/GeoLite2-Country.mmdb'
+if os.path.exists(geolite_path):
+    try:
+        with geoip2.database.Reader(geolite_path) as reader:
+            response = reader.country('8.8.8.8')
+            print(f'  ✓ GeoLite2: 8.8.8.8 -> {response.country.name} ({response.country.iso_code})')
+            databases_working += 1
+    except Exception as e:
+        print(f'  ✗ GeoLite2 test failed: {e}')
+    databases_tested += 1
+
+# Test IP2Location
+ip2location_path = '${GEOIP_DIR}/IP2LOCATION-LITE-DB1.MMDB'
+if os.path.exists(ip2location_path):
+    try:
+        with geoip2.database.Reader(ip2location_path) as reader:
+            response = reader.country('8.8.8.8')
+            country_name = getattr(response.country, 'name', 'Unknown')
+            country_code = getattr(response.country, 'iso_code', 'XX')
+            print(f'  ✓ IP2Location: 8.8.8.8 -> {country_name} ({country_code})')
+            databases_working += 1
+    except Exception as e:
+        print(f'  ✗ IP2Location test failed: {e}')
+    databases_tested += 1
+
+if databases_tested == 0:
+    print('  ✗ No GeoIP databases found')
+    sys.exit(1)
+elif databases_working == 0:
+    print('  ✗ No GeoIP databases are working')
+    sys.exit(1)
+else:
+    print(f'  → {databases_working}/{databases_tested} GeoIP databases working')
+    sys.exit(0)
+"; then
+    echo "[+] GeoIP database test passed"
+else
+    echo "[!] GeoIP database test failed"
 fi
 
 echo "[*] Running rule updater if available..."
@@ -141,16 +204,33 @@ chmod 644 "$DB_FILE"
 
 echo ""
 echo "=============================================="
-echo "WebGuard Setup Complete!"
+echo "WebGuard Setup Complete - Dual GeoIP Ready!"
 echo "=============================================="
 echo "Config:   $CONFIG_DIR"
 echo "Logs:     $LOG_DIR"
 echo "Database: $DB_FILE"
 echo ""
-echo "GeoIP Databases:"
-[ -f "${GEOIP_DIR}/GeoLite2-Country.mmdb" ] && echo "  - GeoLite2: OK"
-[ -f "${GEOIP_DIR}/IP2LOCATION-LITE-DB1.MMDB" ] && echo "  - IP2Location LITE: OK"
+echo "GeoIP Databases Status:"
+if [ -f "${GEOIP_DIR}/GeoLite2-Country.mmdb" ]; then
+    echo "  ✓ GeoLite2-Country: READY"
+else
+    echo "  ✗ GeoLite2-Country: MISSING"
+fi
+
+if [ -f "${GEOIP_DIR}/IP2LOCATION-LITE-DB1.MMDB" ]; then
+    echo "  ✓ IP2Location-LITE: READY"
+else
+    echo "  ✗ IP2Location-LITE: MISSING"
+fi
+
 echo ""
-echo "Test the setup:"
+echo "Sample Data Inserted:"
+echo "  - Real public IP threats for GeoIP testing"
+echo "  - Countries: US, France, Germany, UK, Italy, Netherlands, Belgium, Switzerland"
+echo ""
+echo "Test the GeoIP setup:"
+echo "configctl webguard get_geo_stats last24h"
+echo ""
+echo "Database threat count:"
 echo "sqlite3 $DB_FILE 'SELECT COUNT(*) FROM threats;'"
 echo "=============================================="
