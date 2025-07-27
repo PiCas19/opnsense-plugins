@@ -396,9 +396,17 @@ class ThreatsController extends ApiControllerBase
                 if ($ip && filter_var($ip, FILTER_VALIDATE_IP)) {
                     $country = $this->getCountryFromIP($ip);
                     
-                    // CHANGED: Process ALL countries, including Unknown
-                    if (!$country || $country === 'Unknown') {
-                        $country = 'Other'; // Map unknown to "Other"
+                    // FIXED: Only map to "Other" if country is null/empty, not if it's a valid country name
+                    if (!$country || $country === '' || $country === null) {
+                        $country = 'Other';
+                    } else {
+                        // Normalize the country name but keep valid countries
+                        $country = $this->normalizeCountryName($country);
+                        
+                        // After normalization, if still empty/null, then make it "Other"
+                        if (!$country || $country === '' || $country === null) {
+                            $country = 'Other';
+                        }
                     }
                     
                     if (!isset($countries[$country])) {
@@ -458,7 +466,7 @@ class ThreatsController extends ApiControllerBase
                 ];
             }
             
-            // Sort by threat count
+            // Sort by threat count descending
             uasort($formattedCountries, function($a, $b) {
                 return $b['count'] - $a['count'];
             });
@@ -496,7 +504,7 @@ class ThreatsController extends ApiControllerBase
         
         // Handle the raw data structure from configctl
         if (isset($rawData['countries']) && is_array($rawData['countries'])) {
-            // First pass: calculate total threats INCLUDING unknown
+            // First pass: calculate total threats
             foreach ($rawData['countries'] as $countryData) {
                 $count = (int)($countryData['count'] ?? 0);
                 if ($count > 0) {
@@ -504,47 +512,55 @@ class ThreatsController extends ApiControllerBase
                 }
             }
             
-            // Second pass: build countries array with percentages - INCLUDE ALL COUNTRIES
+            // Second pass: build countries array with percentages
             foreach ($rawData['countries'] as $countryData) {
-                $rawName = $countryData['name'] ?? 'Unknown';
+                $rawName = $countryData['name'] ?? '';
                 $count = (int)($countryData['count'] ?? 0);
                 $code = $countryData['code'] ?? 'XX';
                 
-                // Normalize country name but keep Unknown as "Other"
+                // Skip if no threats
+                if ($count <= 0) {
+                    continue;
+                }
+                
+                // Normalize country name - NO automatic mapping to "Other"
                 $name = $this->normalizeCountryName($rawName);
                 
-                // CHANGED: Process ALL countries with threat count > 0, including Unknown
-                if ($count > 0) {
-                    // Map Unknown to "Other" for better UX
-                    if ($name === 'Unknown' || empty($name) || $name === '') {
-                        $name = 'Other';
-                        $code = 'XX';
-                    }
-                    
-                    $percentage = $totalThreats > 0 ? round(($count / $totalThreats) * 100, 1) : 0;
-                    
-                    // If "Other" already exists, add to its count
-                    if (isset($countries[$name])) {
-                        $countries[$name]['count'] += $count;
-                        $countries[$name]['percentage'] = $totalThreats > 0 ? 
-                            round(($countries[$name]['count'] / $totalThreats) * 100, 1) : 0;
-                    } else {
-                        $countries[$name] = [
-                            'count' => $count,
-                            'percentage' => $percentage,
-                            'type' => $this->guessAttackType($name),
-                            'severity' => $this->calculateSeverity($count, $totalThreats),
-                            'region' => $this->getCountryRegion($name),
-                            'code' => $this->normalizeCountryCode($code, $name)
-                        ];
-                    }
-                    
-                    error_log("Processed country: $rawName -> $name (code: $code, count: $count)");
+                // Only map to "Other" if the country name is actually empty/null or explicitly "Unknown"
+                // Do NOT map valid country names like "United States" to "Other"
+                if (empty($name) || $name === '' || $rawName === '' || $rawName === null) {
+                    $name = 'Other';
+                    $code = 'XX';
+                } elseif ($rawName === 'Unknown') {
+                    // Only if the raw data explicitly says "Unknown"
+                    $name = 'Other'; 
+                    $code = 'XX';
                 }
+                
+                $percentage = $totalThreats > 0 ? round(($count / $totalThreats) * 100, 1) : 0;
+                
+                // Aggregate countries with same name (like multiple "Other" entries)
+                if (isset($countries[$name])) {
+                    $countries[$name]['count'] += $count;
+                    $countries[$name]['percentage'] = $totalThreats > 0 ? 
+                        round(($countries[$name]['count'] / $totalThreats) * 100, 1) : 0;
+                } else {
+                    $countries[$name] = [
+                        'count' => $count,
+                        'percentage' => $percentage,
+                        'type' => $this->guessAttackType($name),
+                        'severity' => $this->calculateSeverity($count, $totalThreats),
+                        'region' => $this->getCountryRegion($name),
+                        'code' => $this->normalizeCountryCode($code, $name),
+                        'unique_ips' => $countryData['unique_ips'] ?? 1
+                    ];
+                }
+                
+                error_log("Processed country: '$rawName' -> '$name' (code: $code, count: $count)");
             }
         }
         
-        // Sort countries by threat count
+        // Sort countries by threat count descending
         uasort($countries, function($a, $b) {
             return $b['count'] - $a['count'];
         });
@@ -562,8 +578,6 @@ class ThreatsController extends ApiControllerBase
         
         return $result;
     }
-
-   
 
     /**
      * Normalize country codes to ensure consistency - COMPLETE VERSION
@@ -823,12 +837,12 @@ class ThreatsController extends ApiControllerBase
     {
         // Comprehensive mapping of various country name formats to standardized names
         $nameMapping = [
-            // United States variations
-            'United States of America' => 'United States of America',
-            'United States' => 'United States of America', 
-            'USA' => 'United States of America',
-            'US' => 'United States of America',
-            'America' => 'United States of America',
+            // United States variations - FIXED: standardize to "United States"
+            'United States of America' => 'United States',
+            'United States' => 'United States', 
+            'USA' => 'United States',
+            'US' => 'United States',
+            'America' => 'United States',
             
             // United Kingdom variations
             'UK' => 'United Kingdom',
@@ -924,6 +938,29 @@ class ThreatsController extends ApiControllerBase
             'Bosnia' => 'Bosnia and Herzegovina',
             'Herzegovina' => 'Bosnia and Herzegovina',
             
+            // Belgium - ADDED
+            'Belgium' => 'Belgium',
+            'BE' => 'Belgium',
+            
+            // Germany variations
+            'Germany' => 'Germany',
+            'Deutschland' => 'Germany',
+            'DE' => 'Germany',
+            
+            // France variations
+            'France' => 'France',
+            'FR' => 'France',
+            
+            // Italy variations
+            'Italy' => 'Italy',
+            'Italia' => 'Italy',
+            'IT' => 'Italy',
+            
+            // Spain variations
+            'Spain' => 'Spain',
+            'España' => 'Spain',
+            'ES' => 'Spain',
+            
             // Special territories
             'Hong Kong' => 'Hong Kong',
             'Hong Kong SAR' => 'Hong Kong',
@@ -932,14 +969,24 @@ class ThreatsController extends ApiControllerBase
             'Taiwan' => 'Taiwan',
             'Republic of China' => 'Taiwan',
             
-            // Handle Unknown/empty
-            'Unknown' => 'Unknown',
-            '' => 'Unknown',
-            null => 'Unknown'
+            // REMOVED: Handle Unknown/empty mapping - let transformGeoData handle this
+            // 'Unknown' => 'Unknown',
+            // '' => 'Unknown',
+            // null => 'Unknown'
         ];
         
-        // Trim whitespace and normalize case
+        // Handle null/empty input - return as-is, let calling method decide
+        if ($rawName === null || $rawName === '') {
+            return $rawName;
+        }
+        
+        // Trim whitespace
         $cleanName = trim($rawName);
+        
+        // Handle empty after trim
+        if ($cleanName === '') {
+            return '';
+        }
         
         // Check direct mapping first (case sensitive)
         if (isset($nameMapping[$cleanName])) {
@@ -953,10 +1000,9 @@ class ThreatsController extends ApiControllerBase
             }
         }
         
-        // Return as-is if no mapping found
+        // Return as-is if no mapping found (preserve original country names)
         return $cleanName;
     }
-
 
 
     /**
@@ -980,38 +1026,236 @@ class ThreatsController extends ApiControllerBase
 
 
     
-
     /**
-    * Get country from IP address (placeholder - integrate with GeoIP)
-    * @param string $ip
-    * @return string
-    */
+     * Get country from IP address (placeholder - integrate with GeoIP)
+     * @param string $ip
+     * @return string|null
+     */
     private function getCountryFromIP($ip)
     {
-        // This should integrate with your GeoIP database
-        // For now, return some sample mappings
-        $ipMapping = [
-            '192.168.' => 'Local Network',
-            '10.' => 'Local Network',
-            '172.16.' => 'Local Network'
+        // Validate IP format
+        if (!$ip || !filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            return null;
+        }
+        
+        // Check for private/local IP ranges - return null to skip
+        $privateRanges = [
+            '192.168.',     // Private Class C
+            '10.',          // Private Class A
+            '172.16.',      // Private Class B start
+            '172.17.',      // Private Class B
+            '172.18.',      // Private Class B
+            '172.19.',      // Private Class B
+            '172.20.',      // Private Class B
+            '172.21.',      // Private Class B
+            '172.22.',      // Private Class B
+            '172.23.',      // Private Class B
+            '172.24.',      // Private Class B
+            '172.25.',      // Private Class B
+            '172.26.',      // Private Class B
+            '172.27.',      // Private Class B
+            '172.28.',      // Private Class B
+            '172.29.',      // Private Class B
+            '172.30.',      // Private Class B
+            '172.31.',      // Private Class B end
+            '127.',         // Loopback
+            '169.254.',     // Link-local
+            '224.',         // Multicast start
+            '239.',         // Multicast end
+            '255.255.255.255' // Broadcast
         ];
         
-        foreach ($ipMapping as $prefix => $country) {
-            if (strpos($ip, $prefix) === 0) {
-                return null; // Skip local IPs
+        foreach ($privateRanges as $range) {
+            if (strpos($ip, $range) === 0) {
+                return null; // Skip private/local IPs
             }
         }
         
-        // Sample country detection based on IP ranges (replace with real GeoIP)
-        $firstOctet = (int)explode('.', $ip)[0];
+        // More realistic country mapping based on known IP ranges
+        // This is a simplified version - in production use MaxMind GeoIP2 or similar
+        $ipParts = explode('.', $ip);
+        $firstOctet = (int)$ipParts[0];
+        $secondOctet = (int)$ipParts[1];
         
-        if ($firstOctet >= 1 && $firstOctet <= 50) return 'United States';
-        if ($firstOctet >= 51 && $firstOctet <= 100) return 'China';
-        if ($firstOctet >= 101 && $firstOctet <= 150) return 'Russia';
-        if ($firstOctet >= 151 && $firstOctet <= 200) return 'Germany';
+        // Known public IP ranges for major countries (simplified examples)
+        $countryRanges = [
+            // United States (major ranges)
+            ['start' => [3, 0], 'end' => [7, 255], 'country' => 'United States'],
+            ['start' => [8, 0], 'end' => [8, 255], 'country' => 'United States'], // Google
+            ['start' => [23, 0], 'end' => [23, 255], 'country' => 'United States'],
+            ['start' => [34, 0], 'end' => [34, 255], 'country' => 'United States'],
+            ['start' => [35, 0], 'end' => [35, 255], 'country' => 'United States'],
+            ['start' => [40, 0], 'end' => [40, 255], 'country' => 'United States'],
+            ['start' => [44, 0], 'end' => [44, 255], 'country' => 'United States'],
+            ['start' => [50, 0], 'end' => [50, 255], 'country' => 'United States'],
+            ['start' => [63, 0], 'end' => [63, 255], 'country' => 'United States'],
+            ['start' => [64, 0], 'end' => [67, 255], 'country' => 'United States'],
+            ['start' => [72, 0], 'end' => [75, 255], 'country' => 'United States'],
+            ['start' => [96, 0], 'end' => [99, 255], 'country' => 'United States'],
+            ['start' => [173, 0], 'end' => [173, 255], 'country' => 'United States'],
+            ['start' => [184, 0], 'end' => [185, 255], 'country' => 'United States'],
+            ['start' => [192, 0], 'end' => [192, 167], 'country' => 'United States'], // Exclude 192.168.x
+            ['start' => [192, 169], 'end' => [192, 255], 'country' => 'United States'],
+            ['start' => [198, 0], 'end' => [199, 255], 'country' => 'United States'],
+            ['start' => [208, 0], 'end' => [209, 255], 'country' => 'United States'],
+            
+            // China (major ranges)
+            ['start' => [1, 0], 'end' => [1, 255], 'country' => 'China'],
+            ['start' => [14, 0], 'end' => [14, 255], 'country' => 'China'],
+            ['start' => [27, 0], 'end' => [27, 255], 'country' => 'China'],
+            ['start' => [36, 0], 'end' => [36, 255], 'country' => 'China'],
+            ['start' => [42, 0], 'end' => [42, 255], 'country' => 'China'],
+            ['start' => [58, 0], 'end' => [61, 255], 'country' => 'China'],
+            ['start' => [101, 0], 'end' => [103, 255], 'country' => 'China'],
+            ['start' => [110, 0], 'end' => [112, 255], 'country' => 'China'],
+            ['start' => [113, 0], 'end' => [115, 255], 'country' => 'China'],
+            ['start' => [116, 0], 'end' => [119, 255], 'country' => 'China'],
+            ['start' => [120, 0], 'end' => [125, 255], 'country' => 'China'],
+            ['start' => [163, 0], 'end' => [163, 255], 'country' => 'China'],
+            ['start' => [171, 0], 'end' => [171, 255], 'country' => 'China'],
+            ['start' => [175, 0], 'end' => [175, 255], 'country' => 'China'],
+            ['start' => [180, 0], 'end' => [183, 255], 'country' => 'China'],
+            ['start' => [202, 0], 'end' => [203, 255], 'country' => 'China'],
+            ['start' => [210, 0], 'end' => [211, 255], 'country' => 'China'],
+            ['start' => [218, 0], 'end' => [222, 255], 'country' => 'China'],
+            
+            // Russia (major ranges)
+            ['start' => [5, 0], 'end' => [5, 255], 'country' => 'Russia'],
+            ['start' => [31, 0], 'end' => [31, 255], 'country' => 'Russia'],
+            ['start' => [37, 0], 'end' => [37, 255], 'country' => 'Russia'],
+            ['start' => [46, 0], 'end' => [46, 255], 'country' => 'Russia'],
+            ['start' => [62, 0], 'end' => [62, 255], 'country' => 'Russia'],
+            ['start' => [77, 0], 'end' => [79, 255], 'country' => 'Russia'],
+            ['start' => [80, 0], 'end' => [81, 255], 'country' => 'Russia'],
+            ['start' => [82, 0], 'end' => [82, 255], 'country' => 'Russia'],
+            ['start' => [83, 0], 'end' => [83, 255], 'country' => 'Russia'],
+            ['start' => [84, 0], 'end' => [84, 255], 'country' => 'Russia'],
+            ['start' => [85, 0], 'end' => [85, 255], 'country' => 'Russia'],
+            ['start' => [86, 0], 'end' => [86, 255], 'country' => 'Russia'],
+            ['start' => [87, 0], 'end' => [87, 255], 'country' => 'Russia'],
+            ['start' => [88, 0], 'end' => [88, 255], 'country' => 'Russia'],
+            ['start' => [89, 0], 'end' => [89, 255], 'country' => 'Russia'],
+            ['start' => [90, 0], 'end' => [95, 255], 'country' => 'Russia'],
+            ['start' => [109, 0], 'end' => [109, 255], 'country' => 'Russia'],
+            ['start' => [128, 0], 'end' => [128, 255], 'country' => 'Russia'],
+            ['start' => [176, 0], 'end' => [176, 255], 'country' => 'Russia'],
+            ['start' => [188, 0], 'end' => [188, 255], 'country' => 'Russia'],
+            ['start' => [213, 0], 'end' => [213, 255], 'country' => 'Russia'],
+            
+            // Germany (major ranges)
+            ['start' => [2, 0], 'end' => [2, 255], 'country' => 'Germany'],
+            ['start' => [15, 0], 'end' => [15, 255], 'country' => 'Germany'],
+            ['start' => [24, 0], 'end' => [24, 255], 'country' => 'Germany'],
+            ['start' => [62, 0], 'end' => [62, 255], 'country' => 'Germany'],
+            ['start' => [78, 0], 'end' => [78, 255], 'country' => 'Germany'],
+            ['start' => [134, 0], 'end' => [134, 255], 'country' => 'Germany'],
+            ['start' => [141, 0], 'end' => [141, 255], 'country' => 'Germany'],
+            ['start' => [176, 0], 'end' => [176, 255], 'country' => 'Germany'],
+            ['start' => [217, 0], 'end' => [217, 255], 'country' => 'Germany'],
+            
+            // United Kingdom (major ranges)
+            ['start' => [25, 0], 'end' => [25, 255], 'country' => 'United Kingdom'],
+            ['start' => [51, 0], 'end' => [51, 255], 'country' => 'United Kingdom'],
+            ['start' => [80, 0], 'end' => [80, 255], 'country' => 'United Kingdom'],
+            ['start' => [81, 0], 'end' => [81, 255], 'country' => 'United Kingdom'],
+            ['start' => [82, 0], 'end' => [82, 255], 'country' => 'United Kingdom'],
+            ['start' => [86, 0], 'end' => [86, 255], 'country' => 'United Kingdom'],
+            ['start' => [87, 0], 'end' => [87, 255], 'country' => 'United Kingdom'],
+            ['start' => [151, 0], 'end' => [151, 255], 'country' => 'United Kingdom'],
+            ['start' => [217, 0], 'end' => [217, 255], 'country' => 'United Kingdom'],
+            
+            // France (major ranges)
+            ['start' => [80, 0], 'end' => [80, 255], 'country' => 'France'],
+            ['start' => [81, 0], 'end' => [81, 255], 'country' => 'France'],
+            ['start' => [82, 0], 'end' => [82, 255], 'country' => 'France'],
+            ['start' => [83, 0], 'end' => [83, 255], 'country' => 'France'],
+            ['start' => [90, 0], 'end' => [90, 255], 'country' => 'France'],
+            ['start' => [193, 0], 'end' => [193, 255], 'country' => 'France'],
+            ['start' => [194, 0], 'end' => [194, 255], 'country' => 'France'],
+            
+            // Belgium (major ranges)
+            ['start' => [57, 0], 'end' => [57, 255], 'country' => 'Belgium'],
+            ['start' => [81, 0], 'end' => [81, 255], 'country' => 'Belgium'],
+            ['start' => [91, 0], 'end' => [91, 255], 'country' => 'Belgium'],
+            ['start' => [193, 0], 'end' => [193, 255], 'country' => 'Belgium'],
+            
+            // Canada (major ranges)
+            ['start' => [24, 0], 'end' => [24, 255], 'country' => 'Canada'],
+            ['start' => [64, 0], 'end' => [64, 255], 'country' => 'Canada'],
+            ['start' => [65, 0], 'end' => [65, 255], 'country' => 'Canada'],
+            ['start' => [66, 0], 'end' => [66, 255], 'country' => 'Canada'],
+            ['start' => [70, 0], 'end' => [70, 255], 'country' => 'Canada'],
+            ['start' => [142, 0], 'end' => [142, 255], 'country' => 'Canada'],
+            ['start' => [206, 0], 'end' => [206, 255], 'country' => 'Canada'],
+            
+            // Japan (major ranges)
+            ['start' => [126, 0], 'end' => [126, 255], 'country' => 'Japan'],
+            ['start' => [133, 0], 'end' => [133, 255], 'country' => 'Japan'],
+            ['start' => [153, 0], 'end' => [153, 255], 'country' => 'Japan'],
+            ['start' => [160, 0], 'end' => [161, 255], 'country' => 'Japan'],
+            ['start' => [202, 0], 'end' => [202, 255], 'country' => 'Japan'],
+            ['start' => [210, 0], 'end' => [210, 255], 'country' => 'Japan'],
+            
+            // Brazil (major ranges)
+            ['start' => [168, 0], 'end' => [168, 255], 'country' => 'Brazil'],
+            ['start' => [186, 0], 'end' => [187, 255], 'country' => 'Brazil'],
+            ['start' => [189, 0], 'end' => [191, 255], 'country' => 'Brazil'],
+            ['start' => [200, 0], 'end' => [201, 255], 'country' => 'Brazil'],
+            
+            // India (major ranges)
+            ['start' => [49, 0], 'end' => [49, 255], 'country' => 'India'],
+            ['start' => [103, 0], 'end' => [103, 255], 'country' => 'India'],
+            ['start' => [106, 0], 'end' => [106, 255], 'country' => 'India'],
+            ['start' => [117, 0], 'end' => [117, 255], 'country' => 'India'],
+            ['start' => [121, 0], 'end' => [121, 255], 'country' => 'India'],
+            ['start' => [157, 0], 'end' => [157, 255], 'country' => 'India'],
+            ['start' => [182, 0], 'end' => [182, 255], 'country' => 'India'],
+            
+            // Australia (major ranges)
+            ['start' => [1, 0], 'end' => [1, 255], 'country' => 'Australia'],
+            ['start' => [14, 0], 'end' => [14, 255], 'country' => 'Australia'],
+            ['start' => [27, 0], 'end' => [27, 255], 'country' => 'Australia'],
+            ['start' => [101, 0], 'end' => [101, 255], 'country' => 'Australia'],
+            ['start' => [110, 0], 'end' => [110, 255], 'country' => 'Australia'],
+            ['start' => [150, 0], 'end' => [150, 255], 'country' => 'Australia'],
+            ['start' => [203, 0], 'end' => [203, 255], 'country' => 'Australia']
+        ];
         
-        return 'Unknown';
+        // Check against country ranges
+        foreach ($countryRanges as $range) {
+            $startFirst = $range['start'][0];
+            $startSecond = $range['start'][1];
+            $endFirst = $range['end'][0];
+            $endSecond = $range['end'][1];
+            
+            // Check if IP falls within this range
+            if ($firstOctet >= $startFirst && $firstOctet <= $endFirst) {
+                if ($firstOctet == $startFirst && $firstOctet == $endFirst) {
+                    // Same first octet, check second octet
+                    if ($secondOctet >= $startSecond && $secondOctet <= $endSecond) {
+                        return $range['country'];
+                    }
+                } elseif ($firstOctet == $startFirst) {
+                    // At start range, check if second octet is >= start
+                    if ($secondOctet >= $startSecond) {
+                        return $range['country'];
+                    }
+                } elseif ($firstOctet == $endFirst) {
+                    // At end range, check if second octet is <= end
+                    if ($secondOctet <= $endSecond) {
+                        return $range['country'];
+                    }
+                } else {
+                    // Between start and end, any second octet is valid
+                    return $range['country'];
+                }
+            }
+        }
+        
+        // If no match found, return null (will become "Other" in calling method)
+        return "Other";
     }
+        
 
 
     /**
