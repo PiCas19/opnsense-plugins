@@ -1257,7 +1257,7 @@
             });
         }
 
-        function processThreatsToGeoData(threats) {
+
             var countries = {};
             var totalThreats = 0;
             
@@ -1367,7 +1367,132 @@
                 total_threats: totalThreats,
                 top_countries: formattedCountries
             };
+        
+        function processThreatsToGeoData(threats) {
+            var countries = {};
+            var totalThreats = 0;
+            
+            // REMOVED: Fake IP-to-country mapping - use only real data
+            // Process only real threat data
+            threats.forEach(function(threat) {
+                var ip = threat.ip_address || threat.source_ip;
+                
+                if (ip && filter_var_like(ip)) {
+                    // Use the same logic as the PHP backend
+                    var country = getCountryFromIP(ip);
+                    
+                    // Only process if we got a valid country or null (becomes "Other")
+                    if (!country || country === '' || country === null) {
+                        country = 'Other';
+                    }
+                    
+                    if (!countries[country]) {
+                        countries[country] = {
+                            count: 0,
+                            types: {},
+                            severities: {},
+                            ips: []
+                        };
+                    }
+                    
+                    countries[country].count++;
+                    totalThreats++;
+                    
+                    // Track attack types from real data
+                    var type = threat.threat_type || 'Unknown';
+                    countries[country].types[type] = (countries[country].types[type] || 0) + 1;
+                    
+                    // Track severities from real data
+                    var severity = threat.severity || 'medium';
+                    countries[country].severities[severity] = (countries[country].severities[severity] || 0) + 1;
+                    
+                    // Track unique IPs
+                    if (ip && countries[country].ips.indexOf(ip) === -1) {
+                        countries[country].ips.push(ip);
+                    }
+                }
+            });
+            
+            // Format countries data
+            var formattedCountries = {};
+            for (var country in countries) {
+                var data = countries[country];
+                var percentage = totalThreats > 0 ? Math.round((data.count / totalThreats) * 100 * 10) / 10 : 0;
+                
+                // Get top attack type from real data
+                var topType = 'Unknown';
+                var maxTypeCount = 0;
+                for (var type in data.types) {
+                    if (data.types[type] > maxTypeCount) {
+                        maxTypeCount = data.types[type];
+                        topType = type;
+                    }
+                }
+                
+                // Get top severity from real data
+                var topSeverity = 'medium';
+                var maxSevCount = 0;
+                for (var sev in data.severities) {
+                    if (data.severities[sev] > maxSevCount) {
+                        maxSevCount = data.severities[sev];
+                        topSeverity = sev;
+                    }
+                }
+                
+                formattedCountries[country] = {
+                    count: data.count,
+                    percentage: percentage,
+                    type: topType,
+                    severity: topSeverity,
+                    unique_ips: data.ips.length,
+                    region: getCountryRegion(country),
+                    code: getCountryCode(country)
+                };
+            }
+            
+            return {
+                countries: formattedCountries,
+                total_countries: Object.keys(formattedCountries).length,
+                total_threats: totalThreats,
+                top_countries: formattedCountries
+            };
         }
+
+        // Helper function to validate IP (JavaScript equivalent of PHP's filter_var)
+        function filter_var_like(ip) {
+            var ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+            return ipRegex.test(ip);
+        }
+
+        // Updated getCountryFromIP function to match PHP logic exactly
+        function getCountryFromIP(ip) {
+            if (!ip || !filter_var_like(ip)) {
+                return null;
+            }
+            
+            // Check for private/local IP ranges - return null to skip
+            var privateRanges = [
+                '192.168.',
+                '10.',
+                '172.16.', '172.17.', '172.18.', '172.19.',
+                '172.20.', '172.21.', '172.22.', '172.23.',
+                '172.24.', '172.25.', '172.26.', '172.27.',
+                '172.28.', '172.29.', '172.30.', '172.31.',
+                '127.',
+                '169.254.'
+            ];
+            
+            for (var i = 0; i < privateRanges.length; i++) {
+                if (ip.indexOf(privateRanges[i]) === 0) {
+                    return null; // Skip private IPs
+                }
+            }
+            
+            // REMOVED: All fake IP mapping logic
+            // This should call a real GeoIP service or return null
+            // For now, return null so all unknown IPs become "Other"
+            return null;
+        }   
         
         function showNoDataMessage() {
             var noDataHtml = '<div class="alert alert-info text-center">' +
