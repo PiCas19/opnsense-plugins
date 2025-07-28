@@ -77,33 +77,29 @@ class ServiceController extends ApiMutableServiceControllerBase
         ];
     }
 
-    /* ===== STATISTICS WITH REAL-TIME UPDATES ===== */
+    /* ===== STATISTICS ===== */
 
     public function getStatsAction()
     {
         $backend = new Backend();
         
-        // Get fresh stats from the backend
+        // USA configdpRun per i comandi applicativi
         $statsOut = trim($backend->configdpRun('webguard', ['get_stats', '']));
         
         if ($statsOut && $statsOut !== '') {
             $stats = json_decode($statsOut, true);
             if (is_array($stats)) {
-                // Add timestamp for cache busting
-                $stats['updated_at'] = time();
                 return ['status' => 'ok', 'data' => $stats];
             }
         }
         
-        // Fallback: get counts manually with fresh data
+        // Fallback: get counts manually
         $blockedOut = trim($backend->configdpRun('webguard', ['get_blocked_ips', '1']));
         $whitelistOut = trim($backend->configdpRun('webguard', ['get_whitelist', '1', '100']));
-        $countriesOut = trim($backend->configdpRun('webguard', ['get_blocked_countries']));
         
         $blockedCount = 0;
         $whitelistCount = 0;
         $activeBlocks = 0;
-        $blockedCountriesCount = 0;
         
         if ($blockedOut) {
             $blockedData = json_decode($blockedOut, true);
@@ -124,22 +120,13 @@ class ServiceController extends ApiMutableServiceControllerBase
             }
         }
         
-        if ($countriesOut) {
-            $countriesData = json_decode($countriesOut, true);
-            if (is_array($countriesData)) {
-                $blockedCountriesCount = count($countriesData);
-            }
-        }
-        
         return [
             'status' => 'ok',
             'data' => [
                 'blocked_count' => $blockedCount,
                 'whitelist_count' => $whitelistCount,
                 'active_blocks' => $activeBlocks,
-                'temp_blocks' => $activeBlocks,
-                'blocked_countries_count' => $blockedCountriesCount,
-                'updated_at' => time()
+                'temp_blocks' => $activeBlocks
             ]
         ];
     }
@@ -390,252 +377,6 @@ class ServiceController extends ApiMutableServiceControllerBase
         ];
     }
 
-    /* ===== GEO BLOCKING WITH REAL-TIME UPDATES ===== */
-
-    public function blockCountryAction()
-    {
-        if (!$this->request->isPost()) {
-            return ['status' => 'error', 'message' => 'POST required'];
-        }
-
-        $country = trim($this->request->getPost('country', 'string', ''));
-        $duration = (int)$this->request->getPost('duration', 'int', 3600);
-        $reason = $this->argSafe($this->request->getPost('reason', 'string', 'Geographic_blocking'));
-        
-        if (empty($country)) {
-            return ['status' => 'error', 'message' => 'Country name required'];
-        }
-
-        $backend = new Backend();
-        $out = trim($backend->configdpRun('webguard', [
-            'block_country', 
-            $country, 
-            (string)$duration, 
-            $reason
-        ]));
-
-        if (strpos($out, 'OK:') === 0 || 
-            strpos($out, 'Success') !== false || 
-            strpos($out, 'blocked') !== false ||
-            strpos($out, 'added') !== false ||
-            empty($out) || 
-            strpos($out, 'ERROR:') === false) {
-            
-            // Force backend sync after successful block
-            $this->syncCountryBlocks();
-            
-            return [
-                'status' => 'ok', 
-                'message' => 'Country blocked successfully',
-                'country' => $country,
-                'timestamp' => time()
-            ];
-        }
-        
-        return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
-    }
-
-    public function unblockCountryAction()
-    {
-        if (!$this->request->isPost()) {
-            return ['status' => 'error', 'message' => 'POST required'];
-        }
-
-        $country = trim($this->request->getPost('country', 'string', ''));
-        if (empty($country)) {
-            return ['status' => 'error', 'message' => 'Country name required'];
-        }
-        
-        $backend = new Backend();
-        
-        // Try multiple approaches to ensure unblock works
-        $attempts = [
-            ['unblock_country', $country],
-            ['unblock_country', "'" . $country . "'"],
-            ['unblock_country', '"' . $country . '"']
-        ];
-        
-        $success = false;
-        $lastOut = '';
-        
-        foreach ($attempts as $params) {
-            $out = trim($backend->configdpRun('webguard', $params));
-            $lastOut = $out;
-            
-            if (strpos($out, 'OK:') === 0 || 
-                strpos($out, 'Success') !== false ||
-                strpos($out, 'unblocked') !== false ||
-                strpos($out, 'removed') !== false ||
-                empty($out) || 
-                strpos($out, 'ERROR:') === false) {
-                $success = true;
-                break;
-            }
-        }
-
-        if ($success) {
-            // Force backend sync after successful unblock
-            $this->syncCountryBlocks();
-            
-            return [
-                'status' => 'ok', 
-                'message' => 'Country unblocked successfully',
-                'country' => $country,
-                'timestamp' => time()
-            ];
-        }
-
-        return ['status' => 'error', 'message' => $this->cleanErrorMessage($lastOut)];
-    }
-
-    /**
-     * Get blocked countries with forced refresh
-     */
-    public function getBlockedCountriesAction()
-    {
-        $backend = new Backend();
-        
-        // Force fresh data from backend
-        $out = trim($backend->configdpRun('webguard', ['get_blocked_countries']));
-
-        if ($out && $out !== '') {
-            $data = json_decode($out, true);
-            if (is_array($data)) {
-                return [
-                    'status' => 'ok', 
-                    'data' => $data,
-                    'count' => count($data),
-                    'timestamp' => time()
-                ];
-            }
-        }
-        
-        // Return empty but valid response if no data
-        return [
-            'status' => 'ok', 
-            'data' => [],
-            'count' => 0,
-            'timestamp' => time()
-        ];
-    }
-
-    /**
-     * Get blocked countries count with forced refresh
-     */
-    public function getBlockedCountriesCountAction()
-    {
-        if (!$this->request->isGet()) {
-            return ['status' => 'error', 'message' => 'GET required', 'count' => 0];
-        }
-        
-        try {
-            $backend = new Backend();
-            
-            // Force fresh data from backend
-            $out = trim($backend->configdpRun('webguard', ['get_blocked_countries']));
-            
-            if ($out && $out !== '') {
-                $data = json_decode($out, true);
-                if (is_array($data)) {
-                    return [
-                        'status' => 'ok', 
-                        'count' => count($data),
-                        'data' => $data,
-                        'timestamp' => time()
-                    ];
-                }
-            }
-            
-            return [
-                'status' => 'ok', 
-                'count' => 0, 
-                'data' => [],
-                'timestamp' => time()
-            ];
-            
-        } catch (\Exception $e) {
-            return [
-                'status' => 'error', 
-                'message' => 'Failed to count blocked countries', 
-                'count' => 0,
-                'timestamp' => time()
-            ];
-        }
-    }
-
-    /**
-     * Force synchronization of country blocks
-     */
-    private function syncCountryBlocks()
-    {
-        $backend = new Backend();
-        
-        // Trigger backend sync commands
-        $backend->configdpRun('webguard', ['sync_country_blocks']);
-        $backend->configdpRun('webguard', ['reload_firewall_rules']);
-        
-        // Small delay to allow backend processing
-        usleep(500000); // 0.5 seconds
-    }
-
-    /**
-     * Real-time stats endpoint that forces fresh data
-     */
-    public function getRealtimeStatsAction()
-    {
-        // Force backend to refresh all stats
-        $this->syncCountryBlocks();
-        
-        $backend = new Backend();
-        
-        // Get completely fresh data
-        $stats = [];
-        
-        // Blocked IPs
-        $blockedOut = trim($backend->configdpRun('webguard', ['get_blocked_ips', '1']));
-        if ($blockedOut) {
-            $blockedData = json_decode($blockedOut, true);
-            $stats['blocked_ips'] = $blockedData['total'] ?? 0;
-            $stats['active_blocks'] = isset($blockedData['blocked_ips']) ? 
-                count(array_filter($blockedData['blocked_ips'], function($item) {
-                    return !($item['expired'] ?? false);
-                })) : 0;
-        }
-        
-        // Whitelist
-        $whitelistOut = trim($backend->configdpRun('webguard', ['get_whitelist', '1', '1']));
-        if ($whitelistOut) {
-            $whitelistData = json_decode($whitelistOut, true);
-            $stats['whitelist_count'] = $whitelistData['total'] ?? 0;
-        }
-        
-        // Blocked countries
-        $countriesOut = trim($backend->configdpRun('webguard', ['get_blocked_countries']));
-        if ($countriesOut) {
-            $countriesData = json_decode($countriesOut, true);
-            $stats['blocked_countries'] = is_array($countriesData) ? $countriesData : [];
-            $stats['count'] = is_array($countriesData) ? count($countriesData) : 0;
-        } else {
-            $stats['blocked_countries'] = [];
-            $stats['count'] = 0;
-        }
-        
-        // Threats
-        $threatsOut = trim($backend->configdpRun('webguard', ['get_threats', '1']));
-        if ($threatsOut) {
-            $threatsData = json_decode($threatsOut, true);
-            $stats['threats_count'] = $threatsData['total'] ?? 0;
-        }
-        
-        $stats['timestamp'] = time();
-        $stats['last_updated'] = date('Y-m-d H:i:s');
-        
-        return [
-            'status' => 'ok',
-            'data' => $stats
-        ];
-    }
-
     /* ===== THREATS MANAGEMENT ===== */
 
     public function getThreatsAction()
@@ -728,8 +469,8 @@ class ServiceController extends ApiMutableServiceControllerBase
                      (strpos($status, 'webguard is running') !== false) ||
                      (strpos($status, 'active') !== false);
 
-        // Get fresh stats with forced refresh
-        $statsOut = trim($backend->configdpRun('webguard', ['get_stats', 'force_refresh']));
+        // Get basic stats
+        $statsOut = trim($backend->configdpRun('webguard', ['get_stats', '']));
         $stats = [];
         
         if ($statsOut && $statsOut !== '') {
@@ -746,8 +487,7 @@ class ServiceController extends ApiMutableServiceControllerBase
                 'service_status' => $status,
                 'stats' => $stats,
                 'version' => 'WebGuard 1.0.0',
-                'last_updated' => date('Y-m-d H:i:s'),
-                'timestamp' => time()
+                'last_updated' => date('Y-m-d H:i:s')
             ]
         ];
     }
@@ -1431,6 +1171,78 @@ class ServiceController extends ApiMutableServiceControllerBase
         }
         
         return ['status' => 'error', 'message' => 'Failed to retrieve threat feed', 'data' => []];
+    }
+
+
+    /* ===== GEO BLOCKING ===== */
+
+    public function blockCountryAction()
+    {
+        if (!$this->request->isPost()) {
+            return ['status' => 'error', 'message' => 'POST required'];
+        }
+
+        $country = trim($this->request->getPost('country', 'string', ''));
+        $duration = (int)$this->request->getPost('duration', 'int', 3600);
+        $reason = $this->argSafe($this->request->getPost('reason', 'string', 'Geographic blocking'));
+        
+        if (empty($country)) {
+            return ['status' => 'error', 'message' => 'Country name required'];
+        }
+
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', [
+            'block_country', 
+            $country, 
+            (string)$duration, 
+            $reason
+        ]));
+
+        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
+            return ['status' => 'ok', 'message' => 'Country blocked successfully'];
+        }
+        
+        return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
+    }
+
+    public function unblockCountryAction()
+    {
+        if (!$this->request->isPost()) {
+            return ['status' => 'error', 'message' => 'POST required'];
+        }
+
+        $country = trim($this->request->getPost('country', 'string', ''));
+        
+        if (empty($country)) {
+            return ['status' => 'error', 'message' => 'Country name required'];
+        }
+
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', [
+            'unblock_country', 
+            $country
+        ]));
+
+        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
+            return ['status' => 'ok', 'message' => 'Country unblocked successfully'];
+        }
+        
+        return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
+    }
+
+    public function getBlockedCountriesAction()
+    {
+        $backend = new Backend();
+        $out = trim($backend->configdpRun('webguard', ['get_blocked_countries']));
+
+        if ($out && $out !== '') {
+            $data = json_decode($out, true);
+            if (is_array($data)) {
+                return ['status' => 'ok', 'data' => $data];
+            }
+        }
+        
+        return ['status' => 'error', 'message' => 'Failed to retrieve blocked countries', 'data' => []];
     }
 
     /* ===== HELPER METHODS ===== */
