@@ -326,7 +326,7 @@ class ThreatsController extends ApiControllerBase
             return $this->getEmptyGeoStatsResponse();
         }
         
-        $period = $this->validatePeriod($this->request->getQuery('period', 'string', '24h'));
+        $period = $this->validatePeriod($this->request->getQuery('period', 'string', '30d'));
         
         try {
             $backend = new Backend();
