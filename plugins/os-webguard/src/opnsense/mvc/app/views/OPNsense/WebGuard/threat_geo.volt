@@ -843,7 +843,7 @@
 
 <script type="text/javascript">
     // Initialize app configuration with JavaScript
-    window.appConfig = {
+     window.appConfig = {
         geoBlocking: false,
         blockedCountries: [],
         translations: {
@@ -1309,11 +1309,21 @@
 
         // Funzione per sbloccare paese - CORRECTED API
         window.unblockCountry = function(country) {
+            console.log('Unblocking country:', country);
+            
             var confirmMessage = 'Unblock traffic from ' + country + '?';
             if (confirm(confirmMessage)) {
+                // Show loading state
+                var button = $('button[data-country="' + country + '"]');
+                if (button.length) {
+                    button.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Unblocking...');
+                }
+                
                 ajaxCall('/api/webguard/service/unblockCountry', { 
                     country: country
                 }, function(response) {
+                    console.log('Unblock response:', response);
+                    
                     if (response.status === 'ok') {
                         // Remove from local list immediately
                         var index = window.appConfig.blockedCountries.indexOf(country);
@@ -1324,20 +1334,33 @@
                         // Update the counter immediately
                         $('#blockedCountries').text(window.appConfig.blockedCountries.length);
                         
-                        // FIXED: Force immediate UI update
+                        // Force immediate UI update
                         updateBlockedCountriesList();
                         
-                        // Force reload all UI components after a short delay
-                        setTimeout(function() {
-                            updateBlockedCountriesCount();
-                        }, 1000);
+                        // FIXED: Force reload table and map to reflect new state
+                        if (currentGeoData && currentGeoData.countries) {
+                            updateCountryTable(currentGeoData.countries);
+                            updateMapMarkers(currentGeoData.countries);
+                            populateCountrySelect(currentGeoData.countries);
+                        }
                         
                         alert(country + ' unblocked successfully');
                     } else {
                         alert('Error: ' + (response.message || 'Failed to unblock country'));
+                        
+                        // Restore button state on error
+                        if (button.length) {
+                            button.prop('disabled', false).html('<i class="fa fa-check"></i> Unblock');
+                        }
                     }
                 }, function(error) {
+                    console.error('Unblock error:', error);
                     alert('Error unblocking country: ' + error);
+                    
+                    // Restore button state on error
+                    if (button.length) {
+                        button.prop('disabled', false).html('<i class="fa fa-check"></i> Unblock');
+                    }
                 });
             }
         };
@@ -1377,21 +1400,21 @@
             }, 100);
         }
         
-        function loadGeoData() {
-            console.log('Loading geographic threat data...');
+       function loadGeoData() {
+            console.log('Loading geographic threat data for last 30 days...');
             
             // Show loading state
             $('#countryList').html('<div class="loading-message"><i class="fa fa-spinner fa-spin"></i> ' + (window.appConfig.translations.loadingData || 'Loading data...') + '</div>');
             $('#countryTableBody').html('<tr><td colspan="8" class="text-center"><i class="fa fa-spinner fa-spin"></i> ' + (window.appConfig.translations.loadingData || 'Loading data...') + '</td></tr>');
             
-            // Carica anche il contatore dei paesi bloccati
+            // Update blocked countries count
             updateBlockedCountriesCount();
             
-            // Load real geographic threat data from OPNsense API
+            // FIXED: Changed from 24d to 30d period
             $.ajax({
                 url: '/api/webguard/threats/getGeoStats',
                 method: 'GET',
-                data: { period: '30d' },
+                data: { period: '30d' }, // CHANGED: Was 24h, now 30d
                 timeout: 10000,
                 success: function(response) {
                     console.log('API Response:', response);
@@ -1879,7 +1902,7 @@
             }
         }
 
-        function updateCountryTable(countries) {
+       function updateCountryTable(countries) {
             var tbody = $('#countryTableBody');
             tbody.empty();
             
@@ -1900,7 +1923,7 @@
                 return (b[1].count || 0) - (a[1].count || 0);
             });
             
-            // FIXED: Get fresh blocked countries list from current config
+            // Get fresh blocked countries list from current config
             var blockedCountries = window.appConfig.blockedCountries || [];
             console.log('Current blocked countries for table update:', blockedCountries);
             
@@ -1908,10 +1931,8 @@
                 var country = countryArray[i][0];
                 var data = countryArray[i][1];
                 
-                // FIXED: Check if country is blocked using proper array comparison
+                // Check if country is blocked
                 var isBlocked = blockedCountries.indexOf(country) !== -1;
-                
-                console.log('Country:', country, 'isBlocked:', isBlocked, 'blockedList:', blockedCountries);
                 
                 var statusBadge = isBlocked ? 
                     '<span class="label label-danger">Blocked</span>' : 
@@ -1919,29 +1940,29 @@
                 
                 var severityBadge = '<span class="label label-' + getSeverityColor(data.severity || 'medium') + '">' + (data.severity || 'medium') + '</span>';
                 
-                // Create unique IDs for buttons
-                var blockBtnId = 'block-btn-' + i + '-' + Date.now(); // Add timestamp to ensure uniqueness
-                var detailsBtnId = 'details-btn-' + i + '-' + Date.now();
-                
+                // FIXED: Improved button creation with better data attributes
                 var actionButtons = '';
                 
                 // Don't show block/unblock buttons for 'Other' countries
                 if (country !== 'Other') {
                     if (!isBlocked) {
-                        actionButtons = '<button class="btn btn-xs btn-danger" id="' + blockBtnId + '" data-country="' + country + '">' +
-                                        '<i class="fa fa-ban"></i> Block' +
-                                    '</button>';
+                        actionButtons = '<button class="btn btn-xs btn-danger country-action-btn block-btn" ' +
+                                      'data-country="' + country + '" data-action="block">' +
+                                      '<i class="fa fa-ban"></i> Block' +
+                                      '</button>';
                     } else {
-                        actionButtons = '<button class="btn btn-xs btn-success" id="' + blockBtnId + '" data-country="' + country + '">' +
-                                        '<i class="fa fa-check"></i> Unblock' +
-                                    '</button>';
+                        actionButtons = '<button class="btn btn-xs btn-success country-action-btn unblock-btn" ' +
+                                      'data-country="' + country + '" data-action="unblock">' +
+                                      '<i class="fa fa-check"></i> Unblock' +
+                                      '</button>';
                     }
                     actionButtons += ' ';
                 }
                 
-                actionButtons += '<button class="btn btn-xs btn-info" id="' + detailsBtnId + '" data-country="' + country + '">' +
-                                    '<i class="fa fa-eye"></i> Details' +
-                                '</button>';
+                actionButtons += '<button class="btn btn-xs btn-info country-action-btn details-btn" ' +
+                               'data-country="' + country + '" data-action="details">' +
+                               '<i class="fa fa-eye"></i> Details' +
+                               '</button>';
                 
                 var row = $('<tr>' +
                     '<td><strong>' + country + '</strong></td>' +
@@ -1965,32 +1986,38 @@
                 '</tr>');
                 
                 tbody.append(row);
-                
-                // FIXED: Attach event handlers with proper closure and current state
-                (function(countryName, isCountryBlocked, blockButtonId, detailsButtonId) {
-                    if (countryName !== 'Other') {
-                        $('#' + blockButtonId).off('click').on('click', function(e) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            
-                            // FIXED: Check current state from global config at click time
-                            var currentlyBlocked = window.appConfig.blockedCountries.indexOf(countryName) !== -1;
-                            
-                            if (currentlyBlocked) {
-                                unblockCountry(countryName);
-                            } else {
-                                showBlockModal(countryName);
-                            }
-                        });
-                    }
-                    
-                    $('#' + detailsButtonId).off('click').on('click', function(e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        viewCountryDetails(countryName);
-                    });
-                })(country, isBlocked, blockBtnId, detailsBtnId);
             }
+            
+            // FIXED: Use event delegation for dynamically created buttons
+            // Remove old handlers first
+            $(document).off('click', '.country-action-btn');
+            
+            // Add new handlers with event delegation
+            $(document).on('click', '.country-action-btn', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                var $button = $(this);
+                var country = $button.data('country');
+                var action = $button.data('action');
+                
+                console.log('Button clicked:', action, 'for country:', country);
+                
+                if (action === 'block') {
+                    showBlockModal(country);
+                } else if (action === 'unblock') {
+                    // Check current state before unblocking
+                    var currentlyBlocked = window.appConfig.blockedCountries.indexOf(country) !== -1;
+                    if (currentlyBlocked) {
+                        window.unblockCountry(country);
+                    } else {
+                        console.warn('Country', country, 'is not currently blocked');
+                        alert('Country is not currently blocked');
+                    }
+                } else if (action === 'details') {
+                    viewCountryDetails(country);
+                }
+            });
         }
         // Enhanced Country Details Function
         function viewCountryDetails(country) {
@@ -2349,7 +2376,8 @@
         }
         
         function initTimelineChart() {
-            ajaxCall('/api/webguard/threats/getTimeline', {period: '24h'}, function(response) {
+            // FIXED: Changed from 24h to 30d period
+            ajaxCall('/api/webguard/threats/getTimeline', {period: '30d'}, function(response) {
                 console.log('Timeline API Response:', response);
                 
                 var ctx2 = document.getElementById('timelineChart').getContext('2d');
@@ -2358,10 +2386,18 @@
                     var labels = response.timeline.labels || [];
                     var data = response.timeline.threats || [];
                     
-                    // If empty data, create sample data
+                    // If empty data, create sample data for 30 days
                     if (labels.length === 0 || data.length === 0) {
-                        labels = ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'];
-                        data = [0, 0, 0, 0, 0, 0];
+                        labels = [];
+                        data = [];
+                        
+                        // Generate last 30 days
+                        for (var i = 29; i >= 0; i--) {
+                            var date = new Date();
+                            date.setDate(date.getDate() - i);
+                            labels.push(date.toLocaleDateString());
+                            data.push(0);
+                        }
                     }
                     
                     timelineChart = new Chart(ctx2, {
@@ -2369,7 +2405,7 @@
                         data: {
                             labels: labels,
                             datasets: [{
-                                label: 'Geographic Threats',
+                                label: 'Geographic Threats (30 days)',
                                 data: data,
                                 borderColor: '#3b82f6',
                                 backgroundColor: 'rgba(59, 130, 246, 0.1)',
@@ -2386,7 +2422,7 @@
                                     title: { display: true, text: 'Threats' },
                                     ticks: { stepSize: 1 }
                                 },
-                                x: { title: { display: true, text: 'Time (UTC)' } }
+                                x: { title: { display: true, text: 'Date' } }
                             },
                             plugins: {
                                 legend: { position: 'top' }
@@ -2497,15 +2533,26 @@
             });
         }
         
-        function initEmptyTimelineChart() {
+          function initEmptyTimelineChart() {
             var ctx2 = document.getElementById('timelineChart').getContext('2d');
+            var labels = [];
+            var data = [];
+            
+            // Generate last 30 days
+            for (var i = 29; i >= 0; i--) {
+                var date = new Date();
+                date.setDate(date.getDate() - i);
+                labels.push(date.toLocaleDateString());
+                data.push(0);
+            }
+            
             timelineChart = new Chart(ctx2, {
                 type: 'line',
                 data: {
-                    labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'],
+                    labels: labels,
                     datasets: [{
-                        label: 'No Data Available',
-                        data: [0, 0, 0, 0, 0, 0],
+                        label: 'No Data Available (30 days)',
+                        data: data,
                         borderColor: '#ddd',
                         backgroundColor: 'rgba(221, 221, 221, 0.1)',
                         tension: 0.4
@@ -2516,11 +2563,12 @@
                     maintainAspectRatio: false,
                     scales: {
                         y: { beginAtZero: true, title: { display: true, text: 'Threats' } },
-                        x: { title: { display: true, text: 'Time (UTC)' } }
+                        x: { title: { display: true, text: 'Date' } }
                     }
                 }
             });
         }
+       
         
         function initEmptyAttackTypesChart() {
             var ctx3 = document.getElementById('attackTypesChart').getContext('2d');
@@ -2823,6 +2871,10 @@
                     });
                 }
             });
+        };
+
+         window.blockCountry = function(country) {
+            showBlockModal(country);
         };
 
         // Debug function to test API directly
