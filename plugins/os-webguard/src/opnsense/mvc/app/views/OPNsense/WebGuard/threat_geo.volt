@@ -1154,7 +1154,7 @@
         // Funzione per aggiornare il contatore dei paesi bloccati - CORRECTED API
         function updateBlockedCountriesCount() {
             $.ajax({
-                url: '/api/webguard/service/getBlockedCountries', // Use the full list endpoint
+                url: '/api/webguard/service/getBlockedCountries',
                 method: 'GET',
                 success: function(response) {
                     console.log('Blocked countries response:', response);
@@ -1162,10 +1162,22 @@
                         var count = 0;
                         var countries = [];
                         
+                        // FIXED: Handle the actual API response structure
                         if (response.data && Array.isArray(response.data)) {
                             count = response.data.length;
+                            // Extract country names from the response data
                             countries = response.data.map(function(item) {
-                                return item.country || item;
+                                // The API returns objects with 'country' property
+                                if (typeof item === 'object' && item.country) {
+                                    return item.country;
+                                }
+                                // If it's just a string, return it directly
+                                if (typeof item === 'string') {
+                                    return item;
+                                }
+                                return null;
+                            }).filter(function(country) {
+                                return country !== null;
                             });
                         } else if (response.count !== undefined) {
                             count = response.count;
@@ -1182,6 +1194,12 @@
                         
                         console.log('Updated blocked countries count to:', count);
                         console.log('Countries list:', countries);
+                        
+                        // FIXED: Force update of table and map after count update
+                        if (currentGeoData && currentGeoData.countries) {
+                            updateCountryTable(currentGeoData.countries);
+                            updateMapMarkers(currentGeoData.countries);
+                        }
                     }
                 },
                 error: function(xhr, status, error) {
@@ -1192,30 +1210,54 @@
 
         // Funzione per caricare la configurazione iniziale - CORRECTED API  
         function loadInitialConfiguration() {
-            // Carica la lista dei paesi bloccati
-            ajaxCall('/api/webguard/service/getBlockedCountries', {}, function(response) { // CHANGED: service API
-                if (response && response.status === 'ok') {
-                    if (response.data && Array.isArray(response.data)) {
-                        window.appConfig.blockedCountries = response.data;
-                        
-                        // Aggiorna il contatore immediatamente
-                        $('#blockedCountries').text(response.count || response.data.length || 0);
-                        
-                        // Aggiorna la lista visuale
-                        updateBlockedCountriesList();
+            // Load blocked countries list
+            $.ajax({
+                url: '/api/webguard/service/getBlockedCountries',
+                method: 'GET',
+                success: function(response) {
+                    console.log('Initial blocked countries response:', response);
+                    if (response && response.status === 'ok') {
+                        if (response.data && Array.isArray(response.data)) {
+                            // FIXED: Extract country names properly
+                            var countries = response.data.map(function(item) {
+                                if (typeof item === 'object' && item.country) {
+                                    return item.country;
+                                }
+                                if (typeof item === 'string') {
+                                    return item;
+                                }
+                                return null;
+                            }).filter(function(country) {
+                                return country !== null;
+                            });
+                            
+                            window.appConfig.blockedCountries = countries;
+                            
+                            // Update counter immediately
+                            $('#blockedCountries').text(countries.length);
+                            
+                            // Update visual list
+                            updateBlockedCountriesList();
+                            
+                            console.log('Loaded blocked countries:', countries);
+                        }
                     }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Failed to load initial blocked countries:', error);
                 }
             });
 
-            // Carica altre configurazioni se necessario
+            // Load other configurations if needed
             ajaxCall('/api/webguard/settings/getConfig', {}, function(response) {
                 if (response && response.status === 'ok') {
-                    if (response.data.geoBlocking) {
+                    if (response.data && response.data.geoBlocking) {
                         window.appConfig.geoBlocking = response.data.geoBlocking === '1';
                     }
                 }
             });
         }
+                
 
         // Funzione per eseguire il blocco del paese - CORRECTED API
         function performCountryBlock(country, duration, reason) {
@@ -1241,18 +1283,13 @@
                     // Update the counter immediately
                     $('#blockedCountries').text(window.appConfig.blockedCountries.length);
                     
-                    // Force reload all UI components
+                    // FIXED: Force immediate UI update
+                    updateBlockedCountriesList();
+                    
+                    // Force reload all UI components after a short delay
                     setTimeout(function() {
                         updateBlockedCountriesCount();
-                        
-                        // Reload geographic data to update buttons
-                        if (currentGeoData) {
-                            updateCountryTable(currentGeoData.countries || {});
-                            updateCountryList(currentGeoData.countries || {});
-                            updateMapMarkers(currentGeoData.countries || {});
-                            populateCountrySelect(currentGeoData.countries || {});
-                        }
-                    }, 500);
+                    }, 1000);
                     
                     alert(country + ' blocked successfully');
                 } else {
@@ -1285,18 +1322,13 @@
                         // Update the counter immediately
                         $('#blockedCountries').text(window.appConfig.blockedCountries.length);
                         
-                        // Force reload all UI components
+                        // FIXED: Force immediate UI update
+                        updateBlockedCountriesList();
+                        
+                        // Force reload all UI components after a short delay
                         setTimeout(function() {
                             updateBlockedCountriesCount();
-                            
-                            // Reload geographic data to update buttons
-                            if (currentGeoData) {
-                                updateCountryTable(currentGeoData.countries || {});
-                                updateCountryList(currentGeoData.countries || {});
-                                updateMapMarkers(currentGeoData.countries || {});
-                                populateCountrySelect(currentGeoData.countries || {});
-                            }
-                        }, 500);
+                        }, 1000);
                         
                         alert(country + ' unblocked successfully');
                     } else {
@@ -1540,6 +1572,7 @@
             loadingDiv.style.borderRadius = '5px';
             mapContainer.appendChild(loadingDiv);
         }
+
         function updateMapMarkers(countries) {
             if (!worldMap) {
                 console.warn('World map not initialized');
@@ -1559,6 +1592,7 @@
             });
             
             var markerCount = 0;
+            // FIXED: Get fresh blocked countries list
             var blockedCountries = window.appConfig.blockedCountries || [];
             
             for (var country in countries) {
@@ -1611,6 +1645,7 @@
                             fillOpacity: 0.8
                         }).addTo(worldMap);
                         
+                        // FIXED: Check current blocked state
                         var isBlocked = blockedCountries.indexOf(country) !== -1;
                         var statusBadge = isBlocked ? 
                             '<span class="label label-danger">Blocked</span>' : 
@@ -1842,7 +1877,7 @@
             }
         }
 
-       function updateCountryTable(countries) {
+        function updateCountryTable(countries) {
             var tbody = $('#countryTableBody');
             tbody.empty();
             
@@ -1863,16 +1898,18 @@
                 return (b[1].count || 0) - (a[1].count || 0);
             });
             
-            // Get fresh blocked countries list
+            // FIXED: Get fresh blocked countries list from current config
             var blockedCountries = window.appConfig.blockedCountries || [];
             console.log('Current blocked countries for table update:', blockedCountries);
             
             for (var i = 0; i < countryArray.length; i++) {
                 var country = countryArray[i][0];
                 var data = countryArray[i][1];
+                
+                // FIXED: Check if country is blocked using proper array comparison
                 var isBlocked = blockedCountries.indexOf(country) !== -1;
                 
-                console.log('Country:', country, 'isBlocked:', isBlocked);
+                console.log('Country:', country, 'isBlocked:', isBlocked, 'blockedList:', blockedCountries);
                 
                 var statusBadge = isBlocked ? 
                     '<span class="label label-danger">Blocked</span>' : 
@@ -1881,8 +1918,8 @@
                 var severityBadge = '<span class="label label-' + getSeverityColor(data.severity || 'medium') + '">' + (data.severity || 'medium') + '</span>';
                 
                 // Create unique IDs for buttons
-                var blockBtnId = 'block-btn-' + i;
-                var detailsBtnId = 'details-btn-' + i;
+                var blockBtnId = 'block-btn-' + i + '-' + Date.now(); // Add timestamp to ensure uniqueness
+                var detailsBtnId = 'details-btn-' + i + '-' + Date.now();
                 
                 var actionButtons = '';
                 
@@ -1927,14 +1964,17 @@
                 
                 tbody.append(row);
                 
-                // Attach event handlers with proper closure
-                (function(countryName, isCountryBlocked) {
-                    if (country !== 'Other') {
-                        $('#' + blockBtnId).click(function(e) {
+                // FIXED: Attach event handlers with proper closure and current state
+                (function(countryName, isCountryBlocked, blockButtonId, detailsButtonId) {
+                    if (countryName !== 'Other') {
+                        $('#' + blockButtonId).off('click').on('click', function(e) {
                             e.preventDefault();
                             e.stopPropagation();
                             
-                            if (isCountryBlocked) {
+                            // FIXED: Check current state from global config at click time
+                            var currentlyBlocked = window.appConfig.blockedCountries.indexOf(countryName) !== -1;
+                            
+                            if (currentlyBlocked) {
                                 unblockCountry(countryName);
                             } else {
                                 showBlockModal(countryName);
@@ -1942,12 +1982,12 @@
                         });
                     }
                     
-                    $('#' + detailsBtnId).click(function(e) {
+                    $('#' + detailsButtonId).off('click').on('click', function(e) {
                         e.preventDefault();
                         e.stopPropagation();
                         viewCountryDetails(countryName);
                     });
-                })(country, isBlocked);
+                })(country, isBlocked, blockBtnId, detailsBtnId);
             }
         }
         // Enhanced Country Details Function
@@ -2651,7 +2691,12 @@
                 container.append(tag);
             }
         }
-        
+
+        function validateIP(ip) {
+            var regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+            return regex.test(ip);
+        }
+                
         function getSeverityColor(severity) {
             if (!severity) return 'default';
             var sev = severity.toLowerCase();
