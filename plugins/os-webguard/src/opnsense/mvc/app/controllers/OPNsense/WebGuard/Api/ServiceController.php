@@ -1212,21 +1212,24 @@ class ServiceController extends ApiMutableServiceControllerBase
         }
 
         $country = trim($this->request->getPost('country', 'string', ''));
-        
+
         if (empty($country)) {
             return ['status' => 'error', 'message' => 'Country name required'];
         }
 
+        // Sostituisci gli spazi con underscore per allinearsi con la codifica dello script
+        $encodedCountry = str_replace(' ', '_', $country);
+
         $backend = new Backend();
         $out = trim($backend->configdpRun('webguard', [
-            'unblock_country', 
-            $country
+            'unblock_country',
+            $encodedCountry
         ]));
 
         if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
             return ['status' => 'ok', 'message' => 'Country unblocked successfully'];
         }
-        
+
         return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
     }
 

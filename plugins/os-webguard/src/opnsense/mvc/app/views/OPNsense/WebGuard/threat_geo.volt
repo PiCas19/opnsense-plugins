@@ -1163,15 +1163,13 @@
                         var countries = [];
                         
                         // FIXED: Handle the actual API response structure
-                        if (response.data && Array.isArray(response.data)) {
-                            count = response.data.length;
-                            // Extract country names from the response data
-                            countries = response.data.map(function(item) {
-                                // The API returns objects with 'country' property
+                        if (response.data && response.data.blocked_countries && Array.isArray(response.data.blocked_countries)) {
+                            // Use the blocked_countries array from the nested data object
+                            count = response.data.blocked_countries.length;
+                            countries = response.data.blocked_countries.map(function(item) {
                                 if (typeof item === 'object' && item.country) {
                                     return item.country;
                                 }
-                                // If it's just a string, return it directly
                                 if (typeof item === 'string') {
                                     return item;
                                 }
@@ -1179,7 +1177,11 @@
                             }).filter(function(country) {
                                 return country !== null;
                             });
+                        } else if (response.data && response.data.count !== undefined) {
+                            // Fallback to count field if available
+                            count = response.data.count;
                         } else if (response.count !== undefined) {
+                            // Final fallback to root count
                             count = response.count;
                         }
                         
@@ -1217,9 +1219,9 @@
                 success: function(response) {
                     console.log('Initial blocked countries response:', response);
                     if (response && response.status === 'ok') {
-                        if (response.data && Array.isArray(response.data)) {
+                        if (response.data && response.data.blocked_countries && Array.isArray(response.data.blocked_countries)) {
                             // FIXED: Extract country names properly
-                            var countries = response.data.map(function(item) {
+                            var countries = response.data.blocked_countries.map(function(item) {
                                 if (typeof item === 'object' && item.country) {
                                     return item.country;
                                 }
@@ -1230,7 +1232,7 @@
                             }).filter(function(country) {
                                 return country !== null;
                             });
-                            
+                                                    
                             window.appConfig.blockedCountries = countries;
                             
                             // Update counter immediately
