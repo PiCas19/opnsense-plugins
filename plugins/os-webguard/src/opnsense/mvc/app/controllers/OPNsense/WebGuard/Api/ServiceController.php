@@ -1231,13 +1231,12 @@ class ServiceController extends ApiMutableServiceControllerBase
             return ['status' => 'error', 'message' => 'Country name required'];
         }
 
-        // Sostituisci gli spazi con underscore per allinearsi con la codifica dello script
-        $encodedCountry = str_replace(' ', '_', $country);
-
+        // Rimuovi qualsiasi normalizzazione (non convertire spazi in underscore)
+        // Il nome del paese viene passato così com'è al backend
         $backend = new Backend();
         $out = trim($backend->configdpRun('webguard', [
             'unblock_country',
-            $encodedCountry
+            $country // Passa il nome originale con spazi
         ]));
 
         if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
