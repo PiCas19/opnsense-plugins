@@ -1319,8 +1319,9 @@
                     button.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Unblocking...');
                 }
                 
+                // Invia il nome del paese così com'è (con spazi)
                 ajaxCall('/api/webguard/service/unblockCountry', { 
-                    country: country
+                    country: country // Non normalizzare, mantieni spazi
                 }, function(response) {
                     console.log('Unblock response:', response);
                     
@@ -1337,7 +1338,7 @@
                         // Force immediate UI update
                         updateBlockedCountriesList();
                         
-                        // FIXED: Force reload table and map to reflect new state
+                        // Aggiorna la tabella e la mappa
                         if (currentGeoData && currentGeoData.countries) {
                             updateCountryTable(currentGeoData.countries);
                             updateMapMarkers(currentGeoData.countries);
@@ -1364,7 +1365,6 @@
                 });
             }
         };
-
         // Funzioni per gestire la chiusura dei modal - FIXED
         window.closeCountryDetails = function() {
             $('#countryDetailsModal').hide();
@@ -2884,7 +2884,7 @@
             $.ajax({
                 url: '/api/webguard/threats/getGeoStats',
                 method: 'GET',
-                data: { period: '24h' },
+                data: { period: '30d' },
                 success: function(response) {
                     console.log('Direct API test result:', response);
                 },
