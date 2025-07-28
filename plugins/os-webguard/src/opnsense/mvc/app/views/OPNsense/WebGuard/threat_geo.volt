@@ -1251,7 +1251,7 @@
         window.unblockCountry = function(country) {
             var confirmMessage = (window.appConfig.translations.unblockTrafficFrom || 'Unblock traffic from') + ' ' + country + '?';
             if (confirm(confirmMessage)) {
-                ajaxCall('/api/webguard/service/unblockCountry', { // CHANGED: service API
+                ajaxCall('/api/webguard/service/unblockCountry', { 
                     country: country
                 }, function(response) {
                     if (response.status === 'ok') {
