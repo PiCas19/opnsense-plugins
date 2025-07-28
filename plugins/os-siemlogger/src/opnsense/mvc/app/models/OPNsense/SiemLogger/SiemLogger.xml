@@ -1,0 +1,241 @@
+<model>
+    <mount>//OPNsense/SiemLogger</mount>
+    <description>SIEM Logger configuration</description>
+    <version>1.0.0</version>
+    
+    <items>
+        <general>
+            <enabled type="BooleanField">
+                <default>0</default>
+                <Required>Y</Required>
+            </enabled>
+            
+            <log_level type="OptionField">
+                <default>INFO</default>
+                <Required>Y</Required>
+                <OptionValues>
+                    <DEBUG>DEBUG</DEBUG>
+                    <INFO>INFO</INFO>
+                    <WARNING>WARNING</WARNING>
+                    <ERROR>ERROR</ERROR>
+                    <CRITICAL>CRITICAL</CRITICAL>
+                </OptionValues>
+            </log_level>
+            
+            <max_log_size type="IntegerField">
+                <default>100</default>
+                <MinimumValue>10</MinimumValue>
+                <MaximumValue>1000</MaximumValue>
+                <ValidationMessage>Size must be between 10 and 1000 MB</ValidationMessage>
+            </max_log_size>
+            
+            <retention_days type="IntegerField">
+                <default>30</default>
+                <MinimumValue>1</MinimumValue>
+                <MaximumValue>365</MaximumValue>
+                <ValidationMessage>Retention must be between 1 and 365 days</ValidationMessage>
+            </retention_days>
+        </general>
+        
+        <siem_export>
+            <export_enabled type="BooleanField">
+                <default>0</default>
+                <Required>Y</Required>
+            </export_enabled>
+            
+            <export_format type="OptionField">
+                <default>syslog</default>
+                <Required>Y</Required>
+                <OptionValues>
+                    <syslog>Syslog (RFC5424)</syslog>
+                    <json>JSON</json>
+                    <cef>Common Event Format (CEF)</cef>
+                    <leef>Log Event Extended Format (LEEF)</leef>
+                </OptionValues>
+            </export_format>
+            
+            <siem_server type="HostnameField">
+                <default></default>
+                <Required>N</Required>
+                <ValidationMessage>Enter valid hostname or IP address</ValidationMessage>
+            </siem_server>
+            
+            <siem_port type="PortField">
+                <default>514</default>
+                <Required>Y</Required>
+            </siem_port>
+            
+            <protocol type="OptionField">
+                <default>udp</default>
+                <Required>Y</Required>
+                <OptionValues>
+                    <udp>UDP</udp>
+                    <tcp>TCP</tcp>
+                    <tls>TCP with TLS</tls>
+                </OptionValues>
+            </protocol>
+            
+            <facility type="OptionField">
+                <default>local0</default>
+                <Required>Y</Required>
+                <OptionValues>
+                    <local0>Local0</local0>
+                    <local1>Local1</local1>
+                    <local2>Local2</local2>
+                    <local3>Local3</local3>
+                    <local4>Local4</local4>
+                    <local5>Local5</local5>
+                    <local6>Local6</local6>
+                    <local7>Local7</local7>
+                </OptionValues>
+            </facility>
+            
+            <tls_cert type="CertificateField">
+                <default></default>
+                <Required>N</Required>
+            </tls_cert>
+            
+            <batch_size type="IntegerField">
+                <default>100</default>
+                <MinimumValue>1</MinimumValue>
+                <MaximumValue>1000</MaximumValue>
+            </batch_size>
+            
+            <export_interval type="IntegerField">
+                <default>60</default>
+                <MinimumValue>10</MinimumValue>
+                <MaximumValue>3600</MaximumValue>
+                <ValidationMessage>Interval must be between 10 and 3600 seconds</ValidationMessage>
+            </export_interval>
+        </siem_export>
+        
+        <logging_rules>
+            <log_authentication type="BooleanField">
+                <default>1</default>
+                <Required>Y</Required>
+            </log_authentication>
+            
+            <log_authorization type="BooleanField">
+                <default>1</default>
+                <Required>Y</Required>
+            </log_authorization>
+            
+            <log_configuration_changes type="BooleanField">
+                <default>1</default>
+                <Required>Y</Required>
+            </log_configuration_changes>
+            
+            <log_network_events type="BooleanField">
+                <default>1</default>
+                <Required>Y</Required>
+            </log_network_events>
+            
+            <log_system_events type="BooleanField">
+                <default>1</default>
+                <Required>Y</Required>
+            </log_system_events>
+            
+            <log_firewall_events type="BooleanField">
+                <default>1</default>
+                <Required>Y</Required>
+            </log_firewall_events>
+            
+            <log_vpn_events type="BooleanField">
+                <default>1</default>
+                <Required>Y</Required>
+            </log_vpn_events>
+            
+            <custom_log_paths type="CSVListField">
+                <default></default>
+                <Required>N</Required>
+                <ValidationMessage>Enter comma-separated log file paths</ValidationMessage>
+            </custom_log_paths>
+        </logging_rules>
+        
+        <audit_settings>
+            <audit_enabled type="BooleanField">
+                <default>1</default>
+                <Required>Y</Required>
+            </audit_enabled>
+            
+            <audit_failed_logins type="BooleanField">
+                <default>1</default>
+                <Required>Y</Required>
+            </audit_failed_logins>
+            
+            <audit_admin_actions type="BooleanField">
+                <default>1</default>
+                <Required>Y</Required>
+            </audit_admin_actions>
+            
+            <audit_privilege_escalation type="BooleanField">
+                <default>1</default>
+                <Required>Y</Required>
+            </audit_privilege_escalation>
+            
+            <audit_file_access type="BooleanField">
+                <default>0</default>
+                <Required>Y</Required>
+            </audit_file_access>
+            
+            <suspicious_activity_threshold type="IntegerField">
+                <default>5</default>
+                <MinimumValue>1</MinimumValue>
+                <MaximumValue>100</MaximumValue>
+            </suspicious_activity_threshold>
+        </audit_settings>
+        
+        <notifications>
+            <email_alerts type="BooleanField">
+                <default>0</default>
+                <Required>Y</Required>
+            </email_alerts>
+            
+            <email_recipients type="CSVListField">
+                <default></default>
+                <Required>N</Required>
+                <ValidationMessage>Enter comma-separated email addresses</ValidationMessage>
+            </email_recipients>
+            
+            <alert_on_failed_export type="BooleanField">
+                <default>1</default>
+                <Required>Y</Required>
+            </alert_on_failed_export>
+            
+            <alert_on_suspicious_activity type="BooleanField">
+                <default>1</default>
+                <Required>Y</Required>
+            </alert_on_suspicious_activity>
+            
+            <webhook_url type="TextField">
+                <default></default>
+                <Required>N</Required>
+                <ValidationMessage>Enter valid webhook URL</ValidationMessage>
+            </webhook_url>
+        </notifications>
+        
+        <monitoring>
+            <health_check_interval type="IntegerField">
+                <default>300</default>
+                <MinimumValue>60</MinimumValue>
+                <MaximumValue>3600</MaximumValue>
+            </health_check_interval>
+            
+            <metrics_collection type="BooleanField">
+                <default>1</default>
+                <Required>Y</Required>
+            </metrics_collection>
+            
+            <performance_monitoring type="BooleanField">
+                <default>1</default>
+                <Required>Y</Required>
+            </performance_monitoring>
+            
+            <disk_usage_threshold type="IntegerField">
+                <default>80</default>
+                <MinimumValue>50</MinimumValue>
+                <MaximumValue>95</MaximumValue>
+            </disk_usage_threshold>
+        </monitoring>
+    </items>
+</model>

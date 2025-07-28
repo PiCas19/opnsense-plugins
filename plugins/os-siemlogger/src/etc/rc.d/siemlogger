@@ -1,0 +1,113 @@
+#!/bin/sh
+
+. /etc/rc.subr
+
+name="siemlogger"
+rcvar="${name}_enable"
+
+pidfile="/var/run/${name}.pid"
+command="/usr/local/bin/python3.11"
+command_args="/usr/local/opnsense/scripts/OPNsense/SiemLogger/siemlogger_control.sh"
+procname="/usr/local/bin/python3.11"
+
+load_rc_config $name
+: ${siemlogger_enable:=NO}
+
+start_precmd="${name}_prestart"
+start_cmd="${name}_start"
+stop_cmd="${name}_stop"
+status_cmd="${name}_status"
+restart_cmd="${name}_restart"
+
+siemlogger_prestart() {
+    # Ensure the run directory exists
+    [ -d /var/run ] || install -d -m 755 /var/run
+    # Ensure the log directory exists
+    [ -d /var/log/siemlogger ] || install -d -m 750 /var/log/siemlogger
+}
+
+siemlogger_start() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting ${name}..." >> /var/log/siemlogger/service.log
+
+    # Check if already running
+    if [ -f "${pidfile}" ] && kill -0 $(cat ${pidfile}) 2>/dev/null; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ${name} is already running with PID $(cat ${pidfile})" >> /var/log/siemlogger/service.log
+        return 0
+    fi
+
+    # Start the service
+    ${command} ${command_args} >> /var/log/siemlogger/stdout.log 2>> /var/log/siemlogger/stderr.log &
+    echo $! > "${pidfile}"
+
+    # Wait a moment for the process to start
+    sleep 2
+
+    # Verify the process is running
+    if ! kill -0 $(cat ${pidfile}) 2>/dev/null; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Failed to start ${name} (process died)" >> /var/log/siemlogger/service.log
+        rm -f "${pidfile}"
+        return 1
+    fi
+
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ${name} started successfully with PID $(cat ${pidfile})" >> /var/log/siemlogger/service.log
+    return 0
+}
+
+siemlogger_stop() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Stopping ${name}..." >> /var/log/siemlogger/service.log
+
+    if [ ! -f "${pidfile}" ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] No PID file found for ${name}" >> /var/log/siemlogger/service.log
+        return 0
+    fi
+
+    PID=$(cat "${pidfile}")
+    if kill "${PID}" 2>/dev/null; then
+        # Wait for process to terminate
+        for i in $(seq 1 10); do
+            if ! kill -0 "${PID}" 2>/dev/null; then
+                break
+            fi
+            sleep 1
+        done
+
+        if kill -0 "${PID}" 2>/dev/null; then
+            # Force kill if still running
+            kill -9 "${PID}"
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] ${name} (PID ${PID}) was forcefully stopped" >> /var/log/siemlogger/service.log
+        else
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] ${name} (PID ${PID}) stopped gracefully" >> /var/log/siemlogger/service.log
+        fi
+
+        rm -f "${pidfile}"
+    else
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ${name} (PID ${PID}) was not running" >> /var/log/siemlogger/service.log
+        rm -f "${pidfile}"
+    fi
+
+    return 0
+}
+
+siemlogger_status() {
+    if [ -f "${pidfile}" ]; then
+        PID=$(cat "${pidfile}")
+        if kill -0 "${PID}" 2>/dev/null; then
+            echo "${name} is running as PID ${PID}"
+            return 0
+        else
+            echo "${name} PID file exists (PID ${PID}) but process is not running"
+            return 1
+        fi
+    else
+        echo "${name} is not running"
+        return 3
+    fi
+}
+
+siemlogger_restart() {
+    siemlogger_stop
+    sleep 2
+    siemlogger_start
+}
+
+run_rc_command "$1"

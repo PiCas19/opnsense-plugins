@@ -1,0 +1,32 @@
+<field>
+    <id>siemlogger.notifications.email_alerts</id>
+    <label>Enable Email Alerts</label>
+    <type>checkbox</type>
+    <help>Enable email notifications for alerts</help>
+</field>
+<field>
+    <id>siemlogger.notifications.email_recipients</id>
+    <label>Email Recipients</label>
+    <type>textarea</type>
+    <help>Comma-separated list of email addresses for alerts (optional)</help>
+    <style>height:150px;width:100%;</style>
+</field>
+<field>
+    <id>siemlogger.notifications.alert_on_failed_export</id>
+    <label>Alert on Failed Export</label>
+    <type>checkbox</type>
+    <help>Send alerts when SIEM export fails</help>
+</field>
+<field>
+    <id>siemlogger.notifications.alert_on_suspicious_activity</id>
+    <label>Alert on Suspicious Activity</label>
+    <type>checkbox</type>
+    <help>Send alerts for suspicious activities</help>
+</field>
+<field>
+    <id>siemlogger.notifications.webhook_url</id>
+    <label>Webhook URL</label>
+    <type>text</type>
+    <help>Webhook URL for real-time notifications (optional)</help>
+    <style>width:100%;</style>
+</field>

@@ -1,0 +1,16 @@
+<menu>
+    <Services>
+        <SiemLogger cssClass="fa fa-list-alt" order="260">
+            <Dashboard url="/ui/siemlogger/dashboard" order="10"/>
+            <Settings url="/ui/siemlogger/settings/index" order="20">
+                <General url="/ui/siemlogger/settings/general" order="10"/>
+                <SiemExport url="/ui/siemlogger/settings/siem_export" order="20"/>
+                <LoggingRules url="/ui/siemlogger/settings/logging_rules" order="30"/>
+                <AuditSettings url="/ui/siemlogger/settings/audit_settings" order="40"/>
+                <Notifications url="/ui/siemlogger/settings/notifications" order="50"/>
+                <Monitoring url="/ui/siemlogger/settings/monitoring" order="60"/>
+            </Settings>
+            <Logs url="/ui/siemlogger/logs" order="30"/>
+        </SiemLogger>
+    </Services>
+</menu>
