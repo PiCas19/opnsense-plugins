@@ -521,27 +521,28 @@ block_country)
     ;;
     
    unblock_country)
-        if [ -z "$2" ]; then
-            echo "ERROR: Country name required"
-            exit 1
-        fi
-        
-        # Combina tutti gli argomenti successivi al comando in un unico parametro
-        shift 1
-        COUNTRY="$*"
-        REASON="${2:-Manual unblock}"
-        
-        # Use the Python script
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_geo_blocking.py" unblock "$COUNTRY" "$REASON" 2>&1)
-        if [ $? -eq 0 ]; then
-            log_action "Unblocked country: $COUNTRY (reason: $REASON)"
-            echo "OK: $COUNTRY unblocked"
-        else
-            log_action "Failed to unblock country: $COUNTRY - $result"
-            echo "ERROR: $result"
-            exit 1
-        fi
-        ;;
+    if [ -z "$2" ]; then
+        echo "ERROR: Country name required"
+        exit 1
+    fi
+    
+    # Combina tutti gli argomenti successivi al comando in un unico parametro
+    shift 1
+    COUNTRY="$*"
+    REASON="${2:-Manual unblock}"
+    
+    echo "Debug: COUNTRY='$COUNTRY', REASON='$REASON'"  # Aggiungi questa linea per debug
+    # Use the Python script
+    result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_geo_blocking.py" unblock "$COUNTRY" "$REASON" 2>&1)
+    if [ $? -eq 0 ]; then
+        log_action "Unblocked country: $COUNTRY (reason: $REASON)"
+        echo "OK: $COUNTRY unblocked"
+    else
+        log_action "Failed to unblock country: $COUNTRY - $result"
+        echo "ERROR: $result"
+        exit 1
+    fi
+    ;;
         
     get_blocked_countries)
         # Use the Python script to get blocked countries in JSON format
