@@ -614,10 +614,10 @@ class ServiceController extends ApiMutableServiceControllerBase
         if ($countriesOut) {
             $countriesData = json_decode($countriesOut, true);
             $stats['blocked_countries'] = is_array($countriesData) ? $countriesData : [];
-            $stats['blocked_countries_count'] = is_array($countriesData) ? count($countriesData) : 0;
+            $stats['count'] = is_array($countriesData) ? count($countriesData) : 0;
         } else {
             $stats['blocked_countries'] = [];
-            $stats['blocked_countries_count'] = 0;
+            $stats['count'] = 0;
         }
         
         // Threats
