@@ -520,14 +520,16 @@ block_country)
     fi
     ;;
     
-    unblock_country)
+   unblock_country)
         if [ -z "$2" ]; then
             echo "ERROR: Country name required"
             exit 1
         fi
         
-        COUNTRY="$2"
-        REASON="${3:-Manual unblock}"
+        # Combina tutti gli argomenti successivi al comando in un unico parametro
+        shift 1
+        COUNTRY="$*"
+        REASON="${2:-Manual unblock}"
         
         # Use the Python script
         result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_geo_blocking.py" unblock "$COUNTRY" "$REASON" 2>&1)
