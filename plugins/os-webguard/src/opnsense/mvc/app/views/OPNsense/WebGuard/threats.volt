@@ -1124,7 +1124,7 @@ $(document).ready(function() {
     
     // Functions
     function loadThreatStats() {
-        ajaxGet('/api/webguard/threats/getStats', {period: '24h'}, function(data) {            
+        ajaxGet('/api/webguard/threats/getStats', {period: '30days'}, function(data) {            
             const totalThreats = data.total_threats || 0;
             const threats24h = data.threats_24h || 0;
             const blockedToday = data.blocked_today || 0;

@@ -139,8 +139,8 @@ class ServiceController extends ApiMutableServiceControllerBase
                 'whitelist_count' => $whitelistCount,
                 'active_blocks' => $activeBlocks,
                 'temp_blocks' => $activeBlocks,
-                'threats_total' => $threatsCount, // NUOVO
-                'total_threats' => $threatsCount  // NUOVO - per compatibilità
+                'threats_total' => $threatsCount, 
+                'total_threats' => $threatsCount 
             ]
         ];
     }
