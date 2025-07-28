@@ -1391,7 +1391,7 @@
             $.ajax({
                 url: '/api/webguard/threats/getGeoStats',
                 method: 'GET',
-                data: { period: '24h' },
+                data: { period: '30d' },
                 timeout: 10000,
                 success: function(response) {
                     console.log('API Response:', response);
