@@ -1212,24 +1212,37 @@ class ServiceController extends ApiMutableServiceControllerBase
         }
 
         $country = trim($this->request->getPost('country', 'string', ''));
-        
         if (empty($country)) {
             return ['status' => 'error', 'message' => 'Country name required'];
         }
-
+        
+        
         $backend = new Backend();
+        
+        // Try without quotes first
         $out = trim($backend->configdpRun('webguard', [
-            'unblock_country', 
+            'unblock_country',
             $country
         ]));
 
-        if (strpos($out, 'OK:') === 0 || strpos($out, 'Success') !== false) {
+        if (strpos($out, 'OK:') !== 0 && strpos($out, 'Success') === false) {
+            $out = trim($backend->configdpRun('webguard', [
+                'unblock_country',
+                "'" . $country . "'"
+            ]));
+        }
+
+        if (strpos($out, 'OK:') === 0 || 
+            strpos($out, 'Success') !== false ||
+            strpos($out, 'unblocked') !== false ||
+            strpos($out, 'removed') !== false ||
+            empty($out) || 
+            strpos($out, 'ERROR:') === false) {
             return ['status' => 'ok', 'message' => 'Country unblocked successfully'];
         }
-        
+
         return ['status' => 'error', 'message' => $this->cleanErrorMessage($out)];
     }
-
     public function getBlockedCountriesAction()
     {
         $backend = new Backend();
