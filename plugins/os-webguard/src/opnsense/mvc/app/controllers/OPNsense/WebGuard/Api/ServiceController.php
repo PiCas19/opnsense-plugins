@@ -1245,6 +1245,40 @@ class ServiceController extends ApiMutableServiceControllerBase
         return ['status' => 'error', 'message' => 'Failed to retrieve blocked countries', 'data' => []];
     }
 
+
+    /**
+     * Get blocked countries count
+     * @return array
+     */
+    public function getBlockedCountriesCountAction()
+    {
+        if (!$this->request->isGet()) {
+            return ['status' => 'error', 'message' => 'GET required', 'count' => 0];
+        }
+        
+        try {
+            $backend = new Backend();
+            $out = trim($backend->configdpRun('webguard', ['get_blocked_countries']));
+            
+            if ($out && $out !== '') {
+                $data = json_decode($out, true);
+                if (is_array($data)) {
+                    return [
+                        'status' => 'ok', 
+                        'count' => count($data),
+                        'data' => $data
+                    ];
+                }
+            }
+            
+            return ['status' => 'ok', 'count' => 0, 'data' => []];
+            
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Failed to count blocked countries', 'count' => 0];
+        }
+    }
+
+
     /* ===== HELPER METHODS ===== */
 
     private function svcCmd(string $cmd): array
