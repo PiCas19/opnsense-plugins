@@ -528,10 +528,10 @@ block_country)
     
     # Combina tutti gli argomenti successivi al comando in un unico parametro
     shift 1
-    COUNTRY="$*"
+    COUNTRY=$(echo "$*" | sed 's/_/ /g')  # Sostituisce _ con spazio
     REASON="${2:-Manual unblock}"
     
-    echo "Debug: COUNTRY='$COUNTRY', REASON='$REASON'"  # Aggiungi questa linea per debug
+    echo "Debug: COUNTRY='$COUNTRY', REASON='$REASON'"  # Debug
     # Use the Python script
     result=$($PYTHON_BIN "$SCRIPTS_DIR/manage_geo_blocking.py" unblock "$COUNTRY" "$REASON" 2>&1)
     if [ $? -eq 0 ]; then
