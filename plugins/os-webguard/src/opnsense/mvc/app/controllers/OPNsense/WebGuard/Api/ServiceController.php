@@ -97,9 +97,13 @@ class ServiceController extends ApiMutableServiceControllerBase
         $blockedOut = trim($backend->configdpRun('webguard', ['get_blocked_ips', '1']));
         $whitelistOut = trim($backend->configdpRun('webguard', ['get_whitelist', '1', '100']));
         
+        // AGGIUNTO: Recupera il conteggio delle minacce
+        $threatsOut = trim($backend->configdpRun('webguard', ['get_threats', '1']));
+        
         $blockedCount = 0;
         $whitelistCount = 0;
         $activeBlocks = 0;
+        $threatsCount = 0; // NUOVO
         
         if ($blockedOut) {
             $blockedData = json_decode($blockedOut, true);
@@ -120,13 +124,23 @@ class ServiceController extends ApiMutableServiceControllerBase
             }
         }
         
+        // AGGIUNTO: Calcola il conteggio delle minacce
+        if ($threatsOut) {
+            $threatsData = json_decode($threatsOut, true);
+            if (isset($threatsData['total'])) {
+                $threatsCount = (int)$threatsData['total'];
+            }
+        }
+        
         return [
             'status' => 'ok',
             'data' => [
                 'blocked_count' => $blockedCount,
                 'whitelist_count' => $whitelistCount,
                 'active_blocks' => $activeBlocks,
-                'temp_blocks' => $activeBlocks
+                'temp_blocks' => $activeBlocks,
+                'threats_total' => $threatsCount, // NUOVO
+                'total_threats' => $threatsCount  // NUOVO - per compatibilità
             ]
         ];
     }
