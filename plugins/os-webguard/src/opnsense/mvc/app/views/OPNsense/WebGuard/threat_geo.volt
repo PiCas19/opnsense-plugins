@@ -1541,180 +1541,144 @@
             mapContainer.appendChild(loadingDiv);
         }
 
-        function updateMapMarkers(countries) {
-            if (!worldMap) {
-                console.warn('World map not initialized');
-                return;
+       function updateMapMarkers(countries) {
+        if (!worldMap) {
+            console.warn('World map not initialized');
+            return;
+        }
+        
+        var loadingDiv = document.getElementById('mapLoading');
+        if (loadingDiv) {
+            loadingDiv.remove();
+        }
+        
+        // Clear existing markers
+        worldMap.eachLayer(function(layer) {
+            if (layer instanceof L.CircleMarker) {
+                worldMap.removeLayer(layer);
             }
-            
-            var loadingDiv = document.getElementById('mapLoading');
-            if (loadingDiv) {
-                loadingDiv.remove();
-            }
-            
-            // Clear existing markers
-            worldMap.eachLayer(function(layer) {
-                if (layer instanceof L.CircleMarker) {
-                    worldMap.removeLayer(layer);
+        });
+        
+        var markerCount = 0;
+        var blockedCountries = window.appConfig.blockedCountries || [];
+        
+        for (var country in countries) {
+            if (countries.hasOwnProperty(country)) {
+                var data = countries[country];
+                var coords = countryCoordinates[country] || findCoordinatesByPartialMatch(country);
+                
+                if (country === 'Other' && (!coords || (coords[0] === 0 && coords[1] === 0))) {
+                    coords = [0, 0];
                 }
-            });
-            
-            console.log('Available countries for mapping:', Object.keys(countries));
-            
-            var markerCount = 0;
-            
-            for (var country in countries) {
-                if (countries.hasOwnProperty(country)) {
-                    var data = countries[country];
+                
+                if (coords && coords.length === 2) {
+                    var lat = coords[0];
+                    var lng = coords[1];
+                    var severity = (data.severity || 'medium').toLowerCase();
+                    var count = data.count || 0;
+                    var color, size;
                     
-                    console.log('Processing country:', country);
-                    
-                    // Try multiple coordinate lookups - now includes 'Other'
-                    var coords = countryCoordinates[country] || 
-                                countryCoordinates[country.trim()] ||
-                                findCoordinatesByPartialMatch(country);
-                    
-                    // For 'Other' countries, place marker at a neutral location
-                    if (country === 'Other' && (!coords || (coords[0] === 0 && coords[1] === 0))) {
-                        coords = [0, 0]; // Equator, Atlantic Ocean
+                    switch (severity) {
+                        case 'critical':
+                            color = '#8B0000';
+                            size = Math.min(Math.sqrt(count) * 4, 50);
+                            break;
+                        case 'high':
+                            color = '#dc3545';
+                            size = Math.min(Math.sqrt(count) * 3, 40);
+                            break;
+                        case 'medium':
+                            color = '#ffc107';
+                            size = Math.min(Math.sqrt(count) * 2.5, 35);
+                            break;
+                        default:
+                            color = '#28a745';
+                            size = Math.min(Math.sqrt(count) * 2, 30);
                     }
                     
-                    console.log('Coordinates found for', country, ':', coords);
+                    if (country === 'Other') {
+                        color = '#6c757d';
+                        size = Math.min(Math.sqrt(count) * 2, 25);
+                    }
                     
-                    if (coords && coords.length === 2) {
-                        var lat = coords[0];
-                        var lng = coords[1];
-                        var severity = (data.severity || 'medium').toLowerCase();
-                        var count = data.count || 0;
-                        var color, size;
-                        
-                        // Better color and size mapping
-                        switch (severity) {
-                            case 'critical':
-                                color = '#8B0000';
-                                size = Math.min(Math.sqrt(count) * 4, 50);
-                                break;
-                            case 'high':
-                                color = '#dc3545';
-                                size = Math.min(Math.sqrt(count) * 3, 40);
-                                break;
-                            case 'medium':
-                                color = '#ffc107';
-                                size = Math.min(Math.sqrt(count) * 2.5, 35);
-                                break;
-                            default:
-                                color = '#28a745';
-                                size = Math.min(Math.sqrt(count) * 2, 30);
-                        }
-                        
-                        // Special styling for 'Other' countries
-                        if (country === 'Other') {
-                            color = '#6c757d'; // Gray color for unknown locations
-                            size = Math.min(Math.sqrt(count) * 2, 25);
-                        }
-                        
-                        // Ensure minimum size
-                        size = Math.max(size, 10);
-                        
-                        console.log('Creating marker for', country, 'at', [lat, lng], 'with size', size, 'and color', color);
-                        
-                        var marker = L.circleMarker([lat, lng], {
-                            radius: size,
-                            fillColor: color,
-                            color: '#ffffff',
+                    size = Math.max(size, 10);
+                    
+                    var marker = L.circleMarker([lat, lng], {
+                        radius: size,
+                        fillColor: color,
+                        color: '#ffffff',
+                        weight: 3,
+                        opacity: 1,
+                        fillOpacity: 0.8
+                    }).addTo(worldMap);
+                    
+                    var isBlocked = blockedCountries.indexOf(country) !== -1;
+                    var statusBadge = isBlocked ? 
+                        '<span class="label label-danger">Blocked</span>' : 
+                        '<span class="label label-success">Allowed</span>';
+                    
+                    var popupContent = 
+                        '<div class="threat-popup">' +
+                            '<h5>' + getCountryFlag(country) + ' ' + country + '</h5>' +
+                            '<div class="popup-stats">' +
+                                '<div class="stat-row">' +
+                                    '<span class="stat-label">Threats:</span>' +
+                                    '<span class="stat-value">' + count.toLocaleString() + '</span>' +
+                                '</div>' +
+                                '<div class="stat-row">' +
+                                    '<span class="stat-label">Percentage:</span>' +
+                                    '<span class="stat-value">' + (data.percentage || '0') + '%</span>' +
+                                '</div>' +
+                                '<div class="stat-row">' +
+                                    '<span class="stat-label">Top Attack:</span>' +
+                                    '<span class="stat-value">' + (data.type || 'Unknown') + '</span>' +
+                                '</div>' +
+                                '<div class="stat-row">' +
+                                    '<span class="stat-label">Severity:</span>' +
+                                    '<span class="label label-' + getSeverityColor(severity) + '">' + severity + '</span>' +
+                                '</div>' +
+                                '<div class="stat-row">' +
+                                    '<span class="stat-label">Status:</span>' +
+                                    statusBadge +
+                                '</div>' +
+                            '</div>' +
+                            '<div class="popup-actions">' +
+                                (!isBlocked && country !== 'Other' ? 
+                                '<button class="btn btn-xs btn-danger" onclick="showBlockModal(\'' + country + '\')">' +
+                                    '<i class="fa fa-ban"></i> Block' +
+                                '</button>' :
+                                (isBlocked ? 
+                                '<button class="btn btn-xs btn-success" onclick="unblockCountry(\'' + country + '\')">' +
+                                    '<i class="fa fa-check"></i> Unblock' +
+                                '</button>' : '')) +
+                                '<button class="btn btn-xs btn-info" onclick="viewCountryDetails(\'' + country + '\')">' +
+                                    '<i class="fa fa-eye"></i> Details' +
+                                '</button>' +
+                            '</div>' +
+                        '</div>';
+                    
+                    marker.bindPopup(popupContent, {
+                        maxWidth: 300,
+                        className: 'threat-marker-popup'
+                    });
+                    
+                    marker.on('mouseover', function() {
+                        this.setStyle({
+                            weight: 4,
+                            fillOpacity: 1.0
+                        });
+                    });
+                    
+                    marker.on('mouseout', function() {
+                        this.setStyle({
                             weight: 3,
-                            opacity: 1,
                             fillOpacity: 0.8
-                        }).addTo(worldMap);
-                        
-                        var isBlocked = window.appConfig.blockedCountries.indexOf(country) !== -1;
-                        var statusBadge = isBlocked ? 
-                            '<span class="label label-danger">Blocked</span>' : 
-                            '<span class="label label-success">Allowed</span>';
-                        
-                        var popupContent = 
-                            '<div class="threat-popup">' +
-                                '<h5>' + getCountryFlag(country) + ' ' + country + '</h5>' +
-                                '<div class="popup-stats">' +
-                                    '<div class="stat-row">' +
-                                        '<span class="stat-label">Threats:</span>' +
-                                        '<span class="stat-value">' + count.toLocaleString() + '</span>' +
-                                    '</div>' +
-                                    '<div class="stat-row">' +
-                                        '<span class="stat-label">Percentage:</span>' +
-                                        '<span class="stat-value">' + (data.percentage || '0') + '%</span>' +
-                                    '</div>' +
-                                    '<div class="stat-row">' +
-                                        '<span class="stat-label">Top Attack:</span>' +
-                                        '<span class="stat-value">' + (data.type || 'Unknown') + '</span>' +
-                                    '</div>' +
-                                    '<div class="stat-row">' +
-                                        '<span class="stat-label">Severity:</span>' +
-                                        '<span class="label label-' + getSeverityColor(severity) + '">' + severity + '</span>' +
-                                    '</div>' +
-                                    '<div class="stat-row">' +
-                                        '<span class="stat-label">Status:</span>' +
-                                        statusBadge +
-                                    '</div>' +
-                                '</div>' +
-                                '<div class="popup-actions">' +
-                                    (!isBlocked && country !== 'Other' ? 
-                                    '<button class="btn btn-xs btn-danger" onclick="showBlockModal(\'' + country + '\')">' +
-                                        '<i class="fa fa-ban"></i> Block' +
-                                    '</button>' :
-                                    (isBlocked ? 
-                                    '<button class="btn btn-xs btn-success" onclick="unblockCountry(\'' + country + '\')">' +
-                                        '<i class="fa fa-check"></i> Unblock' +
-                                    '</button>' : '')) +
-                                    '<button class="btn btn-xs btn-info" onclick="viewCountryDetails(\'' + country + '\')">' +
-                                        '<i class="fa fa-eye"></i> Details' +
-                                    '</button>' +
-                                '</div>' +
-                            '</div>';
-                        
-                        marker.bindPopup(popupContent, {
-                            maxWidth: 300,
-                            className: 'threat-marker-popup'
                         });
-                        
-                        marker.on('mouseover', function() {
-                            this.setStyle({
-                                weight: 4,
-                                fillOpacity: 1.0
-                            });
-                        });
-                        
-                        marker.on('mouseout', function() {
-                            this.setStyle({
-                                weight: 3,
-                                fillOpacity: 0.8
-                            });
-                        });
-                        
-                        markerCount++;
-                    } else {
-                        console.warn('No coordinates found for country:', country);
-                    }
+                    });
+                    
+                    markerCount++;
                 }
             }
-            
-            console.log('Successfully added', markerCount, 'markers to map');
-            
-            // Adjust map view if markers were added
-            if (markerCount > 0) {
-                // Optional: fit map to show all markers
-                var group = new L.featureGroup();
-                worldMap.eachLayer(function(layer) {
-                    if (layer instanceof L.CircleMarker) {
-                        group.addLayer(layer);
-                    }
-                });
-                if (group.getLayers().length > 0) {
-                    worldMap.fitBounds(group.getBounds().pad(0.1));
-                }
-            }
-            
-            addMapLegend();
         }
 
         function findCoordinatesByPartialMatch(country) {
