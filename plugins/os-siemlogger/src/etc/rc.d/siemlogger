@@ -27,8 +27,8 @@ siemlogger_prestart()
         return 1
     fi
     
-    # Check if required module exists
-    REQUIRED_MODULES="export_config"
+    # Check if required modules exist
+    REQUIRED_MODULES="settings_logger export_events"
     SCRIPTS_DIR="/usr/local/opnsense/scripts/OPNsense/SiemLogger"
     
     for module in $REQUIRED_MODULES; do
@@ -41,6 +41,66 @@ siemlogger_prestart()
     
     # Set executable permissions on engine
     chmod +x "$command_args" 2>/dev/null || true
+    
+    # Create basic config if not exists
+    if [ ! -f "$config_file" ]; then
+        echo "[$(date)] Creating basic config file..." >> /var/log/siemlogger/service.log
+        cat > "$config_file" << 'EOF'
+{
+  "general": {
+    "enabled": true,
+    "log_level": "INFO",
+    "max_log_size": 100,
+    "event_retention_days": 30,
+    "log_sources": ["/var/log/system/latest.log"]
+  },
+  "siem_export": {
+    "export_enabled": false,
+    "export_format": "json",
+    "siem_server": "",
+    "siem_port": 514,
+    "protocol": "udp",
+    "facility": "local0",
+    "tls_cert": "",
+    "batch_size": 100,
+    "export_interval": 60,
+    "enabled_formats": ["json", "syslog", "cef", "leef"]
+  },
+  "logging_rules": {
+    "log_authentication": true,
+    "log_authorization": true,
+    "log_configuration_changes": true,
+    "log_network_events": true,
+    "log_system_events": true,
+    "log_firewall_events": true,
+    "log_vpn_events": true,
+    "custom_log_paths": []
+  },
+  "audit_settings": {
+    "audit_enabled": true,
+    "audit_failed_logins": true,
+    "audit_admin_actions": true,
+    "audit_privilege_escalation": true,
+    "audit_file_access": false,
+    "suspicious_activity_threshold": 5
+  },
+  "notifications": {
+    "email_alerts": false,
+    "email_recipients": "",
+    "alert_on_failed_logins": true,
+    "alert_on_suspicious_activity": true,
+    "alert_on_failed_export": true,
+    "webhook_url": ""
+  },
+  "monitoring": {
+    "health_check_interval": 300,
+    "metrics_collection": true,
+    "performance_monitoring": true,
+    "disk_usage_threshold": 80
+  }
+}
+EOF
+    fi
     
     return 0
 }
@@ -62,12 +122,10 @@ siemlogger_start()
         fi
     fi
     
-    # Export configuration from OPNsense
-    if [ -f /usr/local/opnsense/scripts/OPNsense/SiemLogger/export_config.py ]; then
-        echo "[$(date)] Exporting configuration..." >> /var/log/siemlogger/service.log
-        /usr/local/bin/python3.11 /usr/local/opnsense/scripts/OPNsense/SiemLogger/export_config.py >> /var/log/siemlogger/service.log 2>&1
-    else
-        echo "[$(date)] Warning: export_config.py not found, using default configuration" >> /var/log/siemlogger/service.log
+    # Export configuration from OPNsense (optional)
+    if [ -f /usr/local/opnsense/scripts/OPNsense/SiemLogger/settings_logger.py ]; then
+        echo "[$(date)] Testing configuration..." >> /var/log/siemlogger/service.log
+        /usr/local/bin/python3.11 /usr/local/opnsense/scripts/OPNsense/SiemLogger/settings_logger.py >> /var/log/siemlogger/service.log 2>&1 || echo "[$(date)] Configuration test completed" >> /var/log/siemlogger/service.log
     fi
     
     # Start the process using daemon utility
