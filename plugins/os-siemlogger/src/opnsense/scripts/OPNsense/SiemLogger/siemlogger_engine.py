@@ -227,8 +227,8 @@ class SiemLoggerEngine:
         try:
             timestamp = int(time.time())
             event_type = 'unknown'
-            source_ip = ''
-            user = 'unknown'
+            source_ip = None  # CORREZIONE: None invece di stringa vuota
+            user = None       # CORREZIONE: None invece di 'unknown'
             description = 'System event'
             severity = 'info'
             details = {'log_line': line.strip()}
@@ -290,15 +290,25 @@ class SiemLoggerEngine:
                     severity = 'info'
                     details['command'] = command
             
-            # Configuration Changes
+            # Configuration Changes (MIGLIORATO per OPNsense)
             if logging_rules.get('log_configuration_changes', True):
-                config_match = re.search(r'configd.*user=([^\s]+).*changed', line, re.IGNORECASE)
-                if config_match:
-                    user = config_match.group(1)
-                    event_type = 'configuration'
-                    description = 'Configuration change detected'
-                    severity = 'info'
-                    stats['configuration_changes'] += 1
+                # Pattern più specifici per OPNsense
+                config_patterns = [
+                    r'configd.*user[=:]([^\s]+).*changed',
+                    r'config.*user[=:]([^\s]+).*reload',
+                    r'webgui.*action=save.*user=([^\s]+)',
+                    r'system.*configuration.*changed.*user[=:]([^\s]+)'
+                ]
+                
+                for pattern in config_patterns:
+                    config_match = re.search(pattern, line, re.IGNORECASE)
+                    if config_match:
+                        user = config_match.group(1)
+                        event_type = 'configuration'
+                        description = 'Configuration change detected'
+                        severity = 'info'
+                        stats['configuration_changes'] += 1
+                        break
             
             # Network Events
             if logging_rules.get('log_network_events', True):
@@ -323,6 +333,58 @@ class SiemLoggerEngine:
                     stats['firewall_blocks'] += 1
                     stats['threats_detected'] += 1
             
+            # PATTERN AGGIUNTIVI PER OPNSENSE - MIGLIORA IL PARSING
+            
+            # Pattern per log di sistema generici
+            if event_type == 'unknown':
+                # Prova a estrarre IP da vari formati
+                ip_patterns = [
+                    r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})',
+                    r'from\s+([\d\.]+)',
+                    r'src[=:\s]+([\d\.]+)',
+                    r'client\s+([\d\.]+)'
+                ]
+                
+                for ip_pattern in ip_patterns:
+                    ip_match = re.search(ip_pattern, line)
+                    if ip_match:
+                        potential_ip = ip_match.group(1)
+                        # Verifica che sia un IP valido
+                        try:
+                            ipaddress.ip_address(potential_ip)
+                            if not source_ip:  # Solo se non già trovato
+                                source_ip = potential_ip
+                            break
+                        except ValueError:
+                            continue
+                
+                # Prova a estrarre username da vari formati
+                user_patterns = [
+                    r'user[=:\s]+([^\s,]+)',
+                    r'for\s+([^\s]+)\s+from',
+                    r'login[=:\s]+([^\s]+)'
+                ]
+                
+                for user_pattern in user_patterns:
+                    user_match = re.search(user_pattern, line)
+                    if user_match:
+                        potential_user = user_match.group(1)
+                        if not user:  # Solo se non già trovato
+                            user = potential_user
+                        break
+                
+                # Classifica il tipo di evento basato sul contenuto
+                if any(keyword in line.lower() for keyword in ['login', 'auth', 'ssh', 'webgui']):
+                    event_type = 'authentication'
+                elif any(keyword in line.lower() for keyword in ['config', 'reload', 'save']):
+                    event_type = 'configuration'
+                elif any(keyword in line.lower() for keyword in ['firewall', 'filter', 'block']):
+                    event_type = 'firewall'
+                elif any(keyword in line.lower() for keyword in ['vpn', 'openvpn', 'wireguard']):
+                    event_type = 'network'
+                else:
+                    event_type = 'system'
+            
             # Get geolocation if available
             geo_info = {}
             if source_ip:
@@ -335,10 +397,11 @@ class SiemLoggerEngine:
                 severity = 'critical'
                 stats['threats_detected'] += 1
             
+            # CORREZIONE FINALE: Gestire valori None/vuoti correttamente
             event = {
                 'timestamp': timestamp,
-                'source_ip': source_ip,
-                'user': user,
+                'source_ip': source_ip if source_ip else None,        # None se vuoto
+                'user': user if user else None,                      # None se vuoto
                 'event_type': event_type,
                 'description': description,
                 'details': json.dumps(details),
@@ -358,7 +421,7 @@ class SiemLoggerEngine:
             return False
         
         threshold = config.get('audit_settings', {}).get('suspicious_activity_threshold', 5)
-        key = f"{source_ip}:{user}"
+        key = f"{source_ip or 'unknown'}:{user or 'unknown'}"
         
         # Track failed login attempts
         if event_type == 'authentication' and 'failed' in description.lower():
@@ -398,7 +461,7 @@ class SiemLoggerEngine:
             event_buffer.append(event)
             stats['events_processed'] += 1
             
-            self.logger.debug(f"Event stored: {event['event_type']} from {event['source_ip']}")
+            self.logger.debug(f"Event stored: {event['event_type']} from {event.get('source_ip', 'N/A')}")
             
         except Exception as e:
             self.logger.error(f"Error storing event: {e}")
