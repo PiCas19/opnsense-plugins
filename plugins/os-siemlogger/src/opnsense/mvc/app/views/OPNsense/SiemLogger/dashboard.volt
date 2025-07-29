@@ -465,6 +465,7 @@ $(document).ready(function() {
         $('#notifications').append(notification);
         setTimeout(() => notification.alert('close'), 5000);
     }
+});
 </script>
 
 <style>
