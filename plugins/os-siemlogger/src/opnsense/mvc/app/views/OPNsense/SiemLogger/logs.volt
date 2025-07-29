@@ -256,58 +256,91 @@ function exportLogs() {
     var originalText = exportBtn.html();
     exportBtn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Exporting...');
     
-    // Use AJAX instead of direct window.location to handle the response properly
+    // Use AJAX to get export data
     ajaxCall('/api/siemlogger/service/exportLogs', {'format': 'json'}, function(data, status) {
         exportBtn.prop('disabled', false).html(originalText);
         
         if (status === "success" && data && data.status === 'ok') {
             if (data.export_file) {
-                // If server returns a file path, try to download it
+                // Se il server ha creato un file, scaricalo tramite l'endpoint di download
                 var downloadUrl = '/api/siemlogger/service/downloadExport?file=' + encodeURIComponent(data.export_file);
-                window.open(downloadUrl, '_blank');
-                showNotification('Export completed successfully', 'success');
-            } else if (data.data) {
-                // If server returns data directly, create a download
-                downloadJson(data.data, 'siemlogger_export_' + new Date().toISOString().slice(0,10) + '.json');
-                showNotification('Export completed successfully', 'success');
+                
+                // Crea un iframe nascosto per il download
+                var iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                iframe.src = downloadUrl;
+                document.body.appendChild(iframe);
+                
+                // Rimuovi l'iframe dopo il download
+                setTimeout(function() {
+                    document.body.removeChild(iframe);
+                }, 5000);
+                
+                showNotification('Export file download started', 'success');
+                
+            } else if (data.data || data.download_ready) {
+                // Se il server ritorna i dati direttamente, crea il download lato client
+                var exportData = data.data || data;
+                var filename = 'siemlogger_export_' + new Date().toISOString().slice(0,10) + '.json';
+                
+                downloadJsonData(exportData, filename);
+                showNotification('Export completed successfully (' + (data.records_exported || 0) + ' records)', 'success');
+                
             } else {
-                showNotification('Export completed but no download link provided', 'warning');
+                showNotification('Export completed but no data returned', 'warning');
             }
         } else {
             showNotification('Export failed: ' + (data.message || 'Unknown error'), 'error');
         }
+        
     }, function(xhr, status, error) {
         exportBtn.prop('disabled', false).html(originalText);
         
-        // Try to parse response as JSON for direct download
+        // Se la risposta è JSON con dati, prova a scaricarla comunque
         try {
-            var response = JSON.parse(xhr.responseText);
-            if (response && (response.logs || response.data)) {
-                downloadJson(response, 'siemlogger_export_' + new Date().toISOString().slice(0,10) + '.json');
-                showNotification('Export completed successfully', 'success');
-                return;
+            if (xhr.responseText) {
+                var response = JSON.parse(xhr.responseText);
+                if (response && (response.logs || response.data)) {
+                    var filename = 'siemlogger_export_' + new Date().toISOString().slice(0,10) + '.json';
+                    downloadJsonData(response, filename);
+                    showNotification('Export completed successfully', 'success');
+                    return;
+                }
             }
         } catch (e) {
-            // Not JSON, handle as error
+            // Non è JSON, gestisci come errore normale
         }
         
         showNotification('Export failed: ' + error, 'error');
     });
 }
 
-function downloadJson(data, filename) {
-    var jsonStr = JSON.stringify(data, null, 2);
-    var blob = new Blob([jsonStr], {type: 'application/json'});
-    var url = window.URL.createObjectURL(blob);
-    
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
+function downloadJsonData(data, filename) {
+    try {
+        var jsonStr = JSON.stringify(data, null, 2);
+        var blob = new Blob([jsonStr], {type: 'application/json'});
+        var url = window.URL.createObjectURL(blob);
+        
+        var a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = filename;
+        
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        
+        // Pulisci l'URL dopo il download
+        setTimeout(function() {
+            window.URL.revokeObjectURL(url);
+        }, 1000);
+        
+    } catch (e) {
+        console.error('Download error:', e);
+        showNotification('Download failed: ' + e.message, 'error');
+    }
 }
+
 
 function showNotification(message, type) {
     var alertClass = type === 'success' ? 'alert-success' : (type === 'warning' ? 'alert-warning' : 'alert-danger');
