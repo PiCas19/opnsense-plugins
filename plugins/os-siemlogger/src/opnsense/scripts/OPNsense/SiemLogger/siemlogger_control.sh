@@ -42,10 +42,19 @@ start_service() {
 
     # Check if enabled in config
     if [ -f "$CONFIG_FILE" ]; then
-        enabled=$(jq -r '.general.enabled' "$CONFIG_FILE" 2>/dev/null)
-        if [ "$enabled" = "false" ]; then
-            echo "SIEM Logger is disabled in configuration"
-            return 0
+        # Use a more robust method to check config without jq dependency
+        if command -v jq >/dev/null 2>&1; then
+            enabled=$(jq -r '.general.enabled' "$CONFIG_FILE" 2>/dev/null)
+            if [ "$enabled" = "false" ]; then
+                echo "SIEM Logger is disabled in configuration"
+                return 0
+            fi
+        else
+            # Fallback without jq
+            if grep -q '"enabled".*:.*false' "$CONFIG_FILE" 2>/dev/null; then
+                echo "SIEM Logger appears to be disabled in configuration"
+                return 0
+            fi
         fi
     fi
 
@@ -116,10 +125,14 @@ status_service() {
         
         # Get additional status info if available
         if [ -f "$LOG_DIR/stats.json" ]; then
-            events=$(jq -r '.events_processed // 0' "$LOG_DIR/stats.json" 2>/dev/null)
-            threats=$(jq -r '.threats_detected // 0' "$LOG_DIR/stats.json" 2>/dev/null)
-            [ -n "$events" ] && echo "Events processed: $events"
-            [ -n "$threats" ] && echo "Threats detected: $threats"
+            if command -v jq >/dev/null 2>&1; then
+                events=$(jq -r '.events_processed // 0' "$LOG_DIR/stats.json" 2>/dev/null)
+                threats=$(jq -r '.threats_detected // 0' "$LOG_DIR/stats.json" 2>/dev/null)
+                [ -n "$events" ] && echo "Events processed: $events"
+                [ -n "$threats" ] && echo "Threats detected: $threats"
+            else
+                echo "Statistics file exists: $LOG_DIR/stats.json"
+            fi
         fi
         
         return 0
