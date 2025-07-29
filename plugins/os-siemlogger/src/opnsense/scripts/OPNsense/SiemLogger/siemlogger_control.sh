@@ -202,6 +202,46 @@ get_logs() {
     fi
 }
 
+# Function to clear logs
+clear_logs() {
+    log_action "Clearing logs"
+    
+    # Clear log files
+    for logfile in events.log audit.log engine.log export_events.log health_check.log stats.json stdout.log stderr.log export.log service.log; do
+        if [ -f "$LOG_DIR/$logfile" ]; then
+            > "$LOG_DIR/$logfile"
+            echo "Cleared $logfile"
+        fi
+    done
+    
+    # Call engine clear_logs if available
+    "$PYTHON_BIN" "$ENGINE_SCRIPT" clear_logs >> "$LOG_DIR/service.log" 2>&1
+    
+    log_action "Logs cleared successfully"
+    echo "OK: Logs cleared"
+    return 0
+}
+
+# Function to test export
+test_export() {
+    format="${1:-json}"
+    log_action "Testing export in $format format"
+    
+    result=$("$PYTHON_BIN" "$ENGINE_SCRIPT" test_export "$format" 2>&1)
+    exit_code=$?
+    
+    if [ $exit_code -eq 0 ]; then
+        echo "$result"
+        log_action "Export test completed successfully"
+        return 0
+    else
+        echo "Export test failed (code $exit_code)"
+        echo "$result"
+        log_action "Export test failed with code $exit_code"
+        return $exit_code
+    fi
+}
+
 # Main command handling
 case "$1" in
     start)
@@ -233,6 +273,12 @@ case "$1" in
     logs)
         get_logs "$2" "$3"
         ;;
+    clear_logs)
+        clear_logs
+        ;;
+    test_export)
+        test_export "$2"
+        ;;
     test)
         echo "Testing SIEM Logger control script:"
         echo "Python: $PYTHON_BIN"
@@ -249,7 +295,7 @@ case "$1" in
         fi
         ;;
     *)
-        echo "Usage: $0 {start|stop|status|restart|reconfigure|export [format]|stats [type]|logs [page] [limit]|test}"
+        echo "Usage: $0 {start|stop|status|restart|reconfigure|export [format]|stats [type]|logs [page] [limit]|clear_logs|test_export [format]|test}"
         echo ""
         echo "Service Commands:"
         echo "  start                     Start the SIEM Logger service"
@@ -262,6 +308,8 @@ case "$1" in
         echo "  export [format]           Export events (json|syslog|cef|leef)"
         echo "  stats [type]              Get statistics (summary|detailed|threats)"
         echo "  logs [page] [limit]       Get log entries with pagination"
+        echo "  clear_logs                Clear all log files"
+        echo "  test_export [format]      Test export configuration"
         echo ""
         echo "Utility:"
         echo "  test                      Test the control script and configuration"
