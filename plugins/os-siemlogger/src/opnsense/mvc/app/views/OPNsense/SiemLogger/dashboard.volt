@@ -280,20 +280,84 @@ $(document).ready(function() {
         $('#retentionDays').text('{{ retentionDays }} days');
     }
 
+    
     function updateServiceStatus(data) {
         const isRunning = data.running;
+        const isEnabled = data.enabled;
+        const statusElement = $('#serviceStatus');
+        const infoElement = $('#serviceStatusInfo');
+        
+        // Aggiorna il badge principale
         if (isRunning) {
-            $('#serviceStatus').removeClass('badge-secondary badge-danger')
-                              .addClass('badge-success')
-                              .text('{{ lang._("Running") }}');
-            $('#serviceStatusInfo').text('{{ lang._("Active") }}');
+            statusElement.removeClass('badge-secondary badge-danger')
+                        .addClass('badge-success')
+                        .text('Running');
         } else {
-            $('#serviceStatus').removeClass('badge-secondary badge-success')
-                              .addClass('badge-danger')
-                              .text('{{ lang._("Stopped") }}');
-            $('#serviceStatusInfo').text('{{ lang._("Inactive") }}');
+            statusElement.removeClass('badge-secondary badge-success')
+                        .addClass('badge-danger')
+                        .text('Stopped');
         }
+        
+        // Aggiorna le informazioni dettagliate
+        if (isRunning) {
+            infoElement.removeClass('text-danger text-warning')
+                    .addClass('text-success')
+                    .text('Active');
+            
+            // Mostra PID e uptime se disponibili
+            if (data.pid) {
+                $('#servicePid').text('PID: ' + data.pid);
+            }
+            if (data.uptime) {
+                $('#serviceUptime').text('Uptime: ' + data.uptime);
+            }
+        } else {
+            infoElement.removeClass('text-success text-warning')
+                    .addClass('text-danger')
+                    .text('Inactive');
+        }
+        
+        // Aggiorna lo stato dei pulsanti di controllo
+        updateServiceControlButtons(isRunning, isEnabled);
+        
+        // Log per debug
+        console.log('Service Status Updated:', {
+            running: isRunning,
+            enabled: isEnabled,
+            pid: data.pid,
+            uptime: data.uptime
+        });
     }
+
+    function updateServiceControlButtons(isRunning, isEnabled) {
+        const startBtn = $('#startService');
+        const stopBtn = $('#stopService');
+        const restartBtn = $('#restartService');
+        const testBtn = $('#testConnection');
+        
+        if (isRunning) {
+            // Servizio in esecuzione
+            startBtn.prop('disabled', true).removeClass('btn-success').addClass('btn-default');
+            stopBtn.prop('disabled', false).removeClass('btn-default').addClass('btn-danger');
+            restartBtn.prop('disabled', false).removeClass('btn-default').addClass('btn-warning');
+            testBtn.prop('disabled', false);
+        } else {
+            // Servizio fermato
+            startBtn.prop('disabled', false).removeClass('btn-default').addClass('btn-success');
+            stopBtn.prop('disabled', true).removeClass('btn-danger').addClass('btn-default');
+            restartBtn.prop('disabled', true).removeClass('btn-warning').addClass('btn-default');
+            testBtn.prop('disabled', true);
+        }
+        
+        // Se non è abilitato, disabilita tutti tranne start
+        if (!isEnabled && !isRunning) {
+            startBtn.prop('disabled', false);
+            stopBtn.prop('disabled', true);
+            restartBtn.prop('disabled', true);
+            testBtn.prop('disabled', true);
+        }
+}
+
 
     function loadRecentEvents() {
         ajaxCall('/api/siemlogger/service/getLogs', {'page': 1, 'limit': 10}, function(data) {
