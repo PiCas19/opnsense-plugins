@@ -24,13 +24,28 @@ echo "[*] Creating empty log files..."
 : > "${LOG_DIR}/export_events.log"
 : > "${LOG_DIR}/health_check.log"
 
-echo "[*] Copying scripts..."
+echo "[*] Checking and copying scripts (if needed)..."
 for script in siemlogger_engine.py export_events.py health_check.py settings_logger.py siemlogger_control.sh; do
-    if [ -f "$script" ]; then
-        cp "$script" "${SCRIPTS_DIR}/$script"
-        chmod 755 "${SCRIPTS_DIR}/$script"
+    if [ -f "${SCRIPTS_DIR}/$script" ]; then
+        if [ -f "$script" ]; then
+            if ! cmp -s "$script" "${SCRIPTS_DIR}/$script"; then
+                cp "$script" "${SCRIPTS_DIR}/$script" || echo "[!] Warning: Failed to copy $script, proceeding anyway"
+                chmod 755 "${SCRIPTS_DIR}/$script"
+                echo "[*] $script updated in ${SCRIPTS_DIR}"
+            else
+                echo "[*] $script in ${SCRIPTS_DIR} is identical, skipping copy"
+            fi
+        else
+            echo "[!] Warning: $script not found in current directory, skipping"
+        fi
     else
-        echo "[!] Warning: $script not found in current directory"
+        if [ -f "$script" ]; then
+            cp "$script" "${SCRIPTS_DIR}/$script" || echo "[!] Warning: Failed to copy $script, proceeding anyway"
+            chmod 755 "${SCRIPTS_DIR}/$script"
+            echo "[*] $script copied to ${SCRIPTS_DIR}"
+        else
+            echo "[!] Warning: $script not found in current directory or ${SCRIPTS_DIR}, skipping"
+        fi
     fi
 done
 
