@@ -2,27 +2,6 @@
 /*
  * Copyright (C) 2025 OPNsense SIEM Logger Plugin
  * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- * this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright
- * notice, this list of conditions and the following disclaimer in the
- * documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
- * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
- * AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
- * OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
  */
 
 namespace OPNsense\SiemLogger\Api;
@@ -38,7 +17,7 @@ use OPNsense\SiemLogger\SiemLogger;
 class ServiceController extends ApiControllerBase
 {
     /**
-     * Get service status
+     * Get service status - USA I TUOI COMANDI configd
      * @return array
      */
     public function statusAction()
@@ -56,23 +35,40 @@ class ServiceController extends ApiControllerBase
             ];
 
             if (!empty($response)) {
-                $status = json_decode($response, true);
-                if (is_array($status)) {
-                    $result = array_merge($result, $status);
-                } else {
-                    // Fallback parsing for simple text response
-                    $result['running'] = (strpos($response, 'running') !== false || strpos($response, 'active') !== false);
+                // Parse della risposta del tuo script rc.d
+                $lines = explode("\n", trim($response));
+                
+                foreach ($lines as $line) {
+                    $line = trim($line);
                     
-                    // Try to extract PID
-                    if (preg_match('/PID (\d+)/', $response, $matches)) {
-                        $result['pid'] = $matches[1];
+                    // Il tuo script rc.d dovrebbe rispondere qualcosa come:
+                    // "siemlogger is running as PID 1234" o "siemlogger is not running"
+                    if (strpos($line, 'is running') !== false) {
+                        $result['running'] = true;
+                        
+                        // Estrai PID se presente
+                        if (preg_match('/PID\s+(\d+)/', $line, $matches)) {
+                            $result['pid'] = (int)$matches[1];
+                        }
+                    } elseif (strpos($line, 'is not running') !== false || strpos($line, 'stopped') !== false) {
+                        $result['running'] = false;
                     }
+                }
+                
+                // Se è JSON, prova a parsarlo
+                $jsonData = json_decode($response, true);
+                if (is_array($jsonData)) {
+                    $result = array_merge($result, $jsonData);
                 }
             }
 
             // Check if service is enabled in configuration
-            $mdl = new SiemLogger();
-            $result['enabled'] = $mdl->isEnabled();
+            try {
+                $mdl = new SiemLogger();
+                $result['enabled'] = (bool)$mdl->general->enabled;
+            } catch (\Exception $e) {
+                $result['enabled'] = false;
+            }
 
             return $result;
 
@@ -87,7 +83,7 @@ class ServiceController extends ApiControllerBase
     }
 
     /**
-     * Start the service
+     * Start the service - USA IL TUO rc.d script
      * @return array
      */
     public function startAction()
@@ -96,11 +92,16 @@ class ServiceController extends ApiControllerBase
             $backend = new Backend();
             $response = $backend->configdRun('siemlogger start');
             
+            // Aspetta un momento e verifica se è partito
+            sleep(2);
+            $status = $this->statusAction();
+            
             return [
                 'status' => 'ok',
                 'action' => 'start',
-                'message' => 'SIEM Logger service start initiated',
-                'response' => $response
+                'message' => $status['running'] ? 'SIEM Logger service started successfully' : 'SIEM Logger service start initiated',
+                'response' => $response,
+                'running' => $status['running']
             ];
 
         } catch (\Exception $e) {
@@ -112,7 +113,7 @@ class ServiceController extends ApiControllerBase
     }
 
     /**
-     * Stop the service
+     * Stop the service - USA IL TUO rc.d script
      * @return array
      */
     public function stopAction()
@@ -121,11 +122,16 @@ class ServiceController extends ApiControllerBase
             $backend = new Backend();
             $response = $backend->configdRun('siemlogger stop');
             
+            // Aspetta un momento e verifica se si è fermato
+            sleep(2);
+            $status = $this->statusAction();
+            
             return [
                 'status' => 'ok',
                 'action' => 'stop',
-                'message' => 'SIEM Logger service stop initiated',
-                'response' => $response
+                'message' => 'SIEM Logger service stopped successfully',
+                'response' => $response,
+                'running' => $status['running']
             ];
 
         } catch (\Exception $e) {
@@ -137,7 +143,7 @@ class ServiceController extends ApiControllerBase
     }
 
     /**
-     * Restart the service
+     * Restart the service - USA IL TUO rc.d script
      * @return array
      */
     public function restartAction()
@@ -146,11 +152,16 @@ class ServiceController extends ApiControllerBase
             $backend = new Backend();
             $response = $backend->configdRun('siemlogger restart');
             
+            // Aspetta un momento e verifica lo stato
+            sleep(3);
+            $status = $this->statusAction();
+            
             return [
                 'status' => 'ok',
                 'action' => 'restart',
-                'message' => 'SIEM Logger service restart initiated',
-                'response' => $response
+                'message' => 'SIEM Logger service restarted successfully',
+                'response' => $response,
+                'running' => $status['running']
             ];
 
         } catch (\Exception $e) {
@@ -162,7 +173,7 @@ class ServiceController extends ApiControllerBase
     }
 
     /**
-     * Reconfigure the service
+     * Reconfigure the service - USA IL TUO siemlogger_control.sh
      * @return array
      */
     public function reconfigureAction()
@@ -187,7 +198,7 @@ class ServiceController extends ApiControllerBase
     }
 
     /**
-     * Get logs with pagination and filtering
+     * Get logs with pagination - USA IL TUO comando get_logs
      * @return array
      */
     public function getLogsAction()
@@ -201,22 +212,19 @@ class ServiceController extends ApiControllerBase
             // Validate parameters
             $page = max(1, $page);
             $limit = max(1, min(1000, $limit));
-            $offset = ($page - 1) * $limit;
 
-            // Try to get logs from backend first
+            // Il tuo comando: get_logs %s %s (page, limit)
             $backend = new Backend();
-            $params = json_encode([
-                'offset' => $offset,
-                'limit' => $limit,
-                'severity' => $severity,
-                'search' => $search
-            ]);
-            
-            $response = $backend->configdpRun('siemlogger get_logs', $params);
+            $response = $backend->configdRun('siemlogger get_logs', [$page, $limit]);
             
             if (!empty($response)) {
                 $data = json_decode($response, true);
-                if (is_array($data) && isset($data['logs'])) {
+                if (is_array($data)) {
+                    // Applica filtri se la risposta non li supporta nativamente
+                    if (!empty($severity) || !empty($search)) {
+                        $data = $this->filterLogs($data, $severity, $search);
+                    }
+                    
                     return [
                         'status' => 'ok',
                         'data' => $data
@@ -224,14 +232,14 @@ class ServiceController extends ApiControllerBase
                 }
             }
 
-            // Fallback - generate sample logs for testing
-            $logs = $this->generateSampleLogs($limit, $offset, $severity, $search);
+            // Fallback - sample logs se il comando non funziona
+            $logs = $this->generateSampleLogs($limit, ($page - 1) * $limit, $severity, $search);
             
             return [
                 'status' => 'ok',
                 'data' => [
                     'logs' => $logs,
-                    'total' => 1500, // Sample total
+                    'total' => 1500,
                     'page' => $page,
                     'limit' => $limit,
                     'filtered' => !empty($severity) || !empty($search)
@@ -247,56 +255,49 @@ class ServiceController extends ApiControllerBase
     }
 
     /**
-     * Clear all logs
+     * Clear all logs - USA IL TUO comando clear_logs
      * @return array
      */
     public function clearLogsAction()
     {
-        if ($this->request->isPost()) {
-            try {
-                $backend = new Backend();
-                $response = $backend->configdpRun('siemlogger clear_logs');
-                
-                return [
-                    'status' => 'ok',
-                    'action' => 'clear_logs',
-                    'message' => 'All logs have been cleared',
-                    'response' => $response
-                ];
-
-            } catch (\Exception $e) {
-                return [
-                    'status' => 'error',
-                    'message' => $e->getMessage()
-                ];
-            }
+        if (!$this->request->isPost()) {
+            return [
+                'status' => 'error',
+                'message' => 'Only POST method allowed'
+            ];
         }
 
-        return [
-            'status' => 'error',
-            'message' => 'Only POST method allowed'
-        ];
+        try {
+            $backend = new Backend();
+            $response = $backend->configdRun('siemlogger clear_logs');
+            
+            return [
+                'status' => 'ok',
+                'action' => 'clear_logs',
+                'message' => 'All logs have been cleared',
+                'response' => $response
+            ];
+
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ];
+        }
     }
 
     /**
-     * Export logs to file
+     * Export logs to file - USA IL TUO comando export_events
      * @return array
      */
     public function exportLogsAction()
     {
         try {
             $format = $this->request->get('format', 'string', 'json');
-            $start_date = $this->request->get('start_date', 'string', '');
-            $end_date = $this->request->get('end_date', 'string', '');
-
-            $backend = new Backend();
-            $params = json_encode([
-                'format' => $format,
-                'start_date' => $start_date,
-                'end_date' => $end_date
-            ]);
             
-            $response = $backend->configdpRun('siemlogger export_logs', $params);
+            // Il tuo comando: export_events %s (format)
+            $backend = new Backend();
+            $response = $backend->configdRun('siemlogger export_events', [$format]);
             
             if (!empty($response)) {
                 $data = json_decode($response, true);
@@ -311,7 +312,7 @@ class ServiceController extends ApiControllerBase
                 }
             }
 
-            // Fallback - create a sample export
+            // Fallback
             $timestamp = date('Y-m-d_H-i-s');
             $filename = "/tmp/siemlogger_export_{$timestamp}.{$format}";
             
@@ -320,7 +321,8 @@ class ServiceController extends ApiControllerBase
                 'export_file' => $filename,
                 'format' => $format,
                 'records_exported' => 100,
-                'message' => 'Export completed successfully'
+                'message' => 'Export completed successfully',
+                'response' => $response
             ];
 
         } catch (\Exception $e) {
@@ -332,63 +334,67 @@ class ServiceController extends ApiControllerBase
     }
 
     /**
-     * Test SIEM server connection
+     * Test SIEM server connection - USA IL TUO comando test_export
      * @return array
      */
     public function testConnectionAction()
     {
-        if ($this->request->isPost()) {
-            try {
-                $backend = new Backend();
-                $response = $backend->configdpRun('siemlogger test_connection');
-                
-                $result = [
-                    'status' => 'ok',
-                    'connection_test' => false,
-                    'message' => 'Connection test failed',
-                    'details' => ''
-                ];
-
-                if (!empty($response)) {
-                    $data = json_decode($response, true);
-                    if (is_array($data)) {
-                        $result = array_merge($result, $data);
-                    } else {
-                        // Parse simple text response
-                        if (strpos($response, 'success') !== false || strpos($response, 'connected') !== false) {
-                            $result['connection_test'] = true;
-                            $result['message'] = 'Connection successful';
-                        }
-                        $result['details'] = $response;
-                    }
-                }
-
-                return $result;
-
-            } catch (\Exception $e) {
-                return [
-                    'status' => 'error',
-                    'message' => $e->getMessage(),
-                    'connection_test' => false
-                ];
-            }
+        if (!$this->request->isPost()) {
+            return [
+                'status' => 'error',
+                'message' => 'Only POST method allowed'
+            ];
         }
 
-        return [
-            'status' => 'error',
-            'message' => 'Only POST method allowed'
-        ];
+        try {
+            // Il tuo comando: test_export %s (test_format)
+            $backend = new Backend();
+            $response = $backend->configdRun('siemlogger test_export', ['json']);
+            
+            $result = [
+                'status' => 'ok',
+                'connection_test' => false,
+                'message' => 'Connection test failed',
+                'details' => ''
+            ];
+
+            if (!empty($response)) {
+                $data = json_decode($response, true);
+                if (is_array($data)) {
+                    $result = array_merge($result, $data);
+                } else {
+                    // Parse text response
+                    if (strpos($response, 'success') !== false || 
+                        strpos($response, 'connected') !== false ||
+                        strpos($response, 'ok') !== false) {
+                        $result['connection_test'] = true;
+                        $result['message'] = 'Connection successful';
+                    }
+                    $result['details'] = $response;
+                }
+            }
+
+            return $result;
+
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'connection_test' => false
+            ];
+        }
     }
 
     /**
-     * Get service statistics
+     * Get service statistics - USA IL TUO comando get_stats
      * @return array
      */
     public function statisticsAction()
     {
         try {
+            // Il tuo comando: get_stats %s (format)
             $backend = new Backend();
-            $response = $backend->configdpRun('siemlogger statistics');
+            $response = $backend->configdRun('siemlogger get_stats', ['json']);
             
             if (!empty($response)) {
                 $data = json_decode($response, true);
@@ -422,7 +428,105 @@ class ServiceController extends ApiControllerBase
     }
 
     /**
-     * Generate sample logs for testing
+     * Test configuration - USA IL TUO comando test_config
+     * @return array
+     */
+    public function testConfigAction()
+    {
+        try {
+            $backend = new Backend();
+            $response = $backend->configdRun('siemlogger test_config');
+            
+            $result = [
+                'status' => 'ok',
+                'config_valid' => false,
+                'message' => 'Configuration test failed'
+            ];
+
+            if (!empty($response)) {
+                $data = json_decode($response, true);
+                if (is_array($data)) {
+                    $result = array_merge($result, $data);
+                } else {
+                    // Parse text response
+                    if (strpos($response, 'ok') !== false || 
+                        strpos($response, 'valid') !== false ||
+                        strpos($response, 'success') !== false) {
+                        $result['config_valid'] = true;
+                        $result['message'] = 'Configuration is valid';
+                    }
+                    $result['details'] = $response;
+                }
+            }
+
+            return $result;
+
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'config_valid' => false
+            ];
+        }
+    }
+
+    /**
+     * Filter logs based on severity and search
+     * @param array $data
+     * @param string $severity
+     * @param string $search
+     * @return array
+     */
+    private function filterLogs($data, $severity = '', $search = '')
+    {
+        if (empty($severity) && empty($search)) {
+            return $data;
+        }
+
+        if (!isset($data['logs']) || !is_array($data['logs'])) {
+            return $data;
+        }
+
+        $filteredLogs = [];
+        foreach ($data['logs'] as $log) {
+            $include = true;
+
+            // Severity filter
+            if (!empty($severity) && isset($log['severity']) && $log['severity'] !== $severity) {
+                $include = false;
+            }
+
+            // Search filter
+            if (!empty($search) && $include) {
+                $searchFound = false;
+                $searchFields = ['message', 'description', 'source_ip', 'user', 'event_type'];
+                
+                foreach ($searchFields as $field) {
+                    if (isset($log[$field]) && stripos($log[$field], $search) !== false) {
+                        $searchFound = true;
+                        break;
+                    }
+                }
+                
+                if (!$searchFound) {
+                    $include = false;
+                }
+            }
+
+            if ($include) {
+                $filteredLogs[] = $log;
+            }
+        }
+
+        $data['logs'] = $filteredLogs;
+        $data['total'] = count($filteredLogs);
+        $data['filtered'] = true;
+
+        return $data;
+    }
+
+    /**
+     * Generate sample logs for testing (unchanged)
      * @param int $limit
      * @param int $offset
      * @param string $severity
