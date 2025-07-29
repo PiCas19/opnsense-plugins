@@ -104,7 +104,7 @@ siemlogger_start()
     else
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] Failed to start ${name} (no PID file created)" >> "${log_file}" 2>/dev/null
         return 1
-    end
+    fi
 }
 
 siemlogger_stop()
