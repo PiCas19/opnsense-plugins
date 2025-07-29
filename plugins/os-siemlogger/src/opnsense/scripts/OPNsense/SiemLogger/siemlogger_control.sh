@@ -28,6 +28,7 @@ is_running() {
             return 0
         else
             rm -f "$PIDFILE"
+            return 1
         fi
     fi
     return 1
@@ -36,40 +37,34 @@ is_running() {
 # Function to start the service
 start_service() {
     if is_running; then
-        echo "SIEM Logger is already running (PID $(cat "$PIDFILE"))"
+        PID=$(cat "$PIDFILE")
+        echo "SIEM Logger is already running (PID $PID)"
+        log_action "Service already running (PID $PID)"
         return 0
     fi
 
     # Check if enabled in config
     if [ -f "$CONFIG_FILE" ]; then
-        # Use a more robust method to check config without jq dependency
         if command -v jq >/dev/null 2>&1; then
             enabled=$(jq -r '.general.enabled' "$CONFIG_FILE" 2>/dev/null)
-            if [ "$enabled" = "false" ]; then
-                echo "SIEM Logger is disabled in configuration"
-                return 0
-            fi
+            [ "$enabled" = "false" ] && { echo "SIEM Logger is disabled in configuration"; log_action "Service disabled in config"; return 0; }
         else
-            # Fallback without jq
-            if grep -q '"enabled".*:.*false' "$CONFIG_FILE" 2>/dev/null; then
-                echo "SIEM Logger appears to be disabled in configuration"
-                return 0
-            fi
+            grep -q '"enabled".*:.*false' "$CONFIG_FILE" 2>/dev/null && { echo "SIEM Logger appears to be disabled in configuration"; log_action "Service disabled in config (no jq)"; return 0; }
         fi
     fi
 
     echo "Starting SIEM Logger service..."
     log_action "Starting service"
 
-    # Start the engine in background
     "$PYTHON_BIN" "$ENGINE_SCRIPT" >> "$LOG_DIR/stdout.log" 2>> "$LOG_DIR/stderr.log" &
     echo $! > "$PIDFILE"
 
-    sleep 2  # Give it time to start
+    sleep 2
 
     if is_running; then
-        echo "SIEM Logger started successfully (PID $(cat "$PIDFILE"))"
-        log_action "Service started successfully with PID $(cat "$PIDFILE")"
+        PID=$(cat "$PIDFILE")
+        echo "SIEM Logger started successfully (PID $PID)"
+        log_action "Service started successfully (PID $PID)"
         return 0
     else
         echo "Failed to start SIEM Logger"
@@ -83,6 +78,7 @@ start_service() {
 stop_service() {
     if ! is_running; then
         echo "SIEM Logger is not running"
+        log_action "Service not running"
         return 0
     fi
 
@@ -92,7 +88,6 @@ stop_service() {
     PID=$(cat "$PIDFILE")
     kill -TERM "$PID" 2>/dev/null
 
-    # Wait for graceful shutdown
     TIMEOUT=15
     while [ $TIMEOUT -gt 0 ] && is_running; do
         sleep 1
@@ -102,19 +97,13 @@ stop_service() {
     if is_running; then
         kill -KILL "$PID" 2>/dev/null
         sleep 2
-        log_action "Service was forcefully stopped"
+        log_action "Service forcefully stopped"
     fi
 
-    if ! is_running; then
-        rm -f "$PIDFILE"
-        echo "SIEM Logger stopped"
-        log_action "Service stopped successfully"
-        return 0
-    else
-        echo "Failed to stop SIEM Logger"
-        log_action "Failed to stop service"
-        return 1
-    fi
+    rm -f "$PIDFILE"
+    echo "SIEM Logger stopped"
+    log_action "Service stopped successfully"
+    return 0
 }
 
 # Function to get service status
@@ -122,19 +111,16 @@ status_service() {
     if is_running; then
         PID=$(cat "$PIDFILE")
         echo "SIEM Logger is running (PID $PID)"
-        
-        # Get additional status info if available
         if [ -f "$LOG_DIR/stats.json" ]; then
             if command -v jq >/dev/null 2>&1; then
                 events=$(jq -r '.events_processed // 0' "$LOG_DIR/stats.json" 2>/dev/null)
-                threats=$(jq -r '.threats_detected // 0' "$LOG_DIR/stats.json" 2>/dev/null)
+                exported=$(jq -r '.events_exported // 0' "$LOG_DIR/stats.json" 2>/dev/null)
                 [ -n "$events" ] && echo "Events processed: $events"
-                [ -n "$threats" ] && echo "Threats detected: $threats"
+                [ -n "$exported" ] && echo "Events exported: $exported"
             else
                 echo "Statistics file exists: $LOG_DIR/stats.json"
             fi
         fi
-        
         return 0
     else
         echo "SIEM Logger is not running"
@@ -146,18 +132,16 @@ status_service() {
 export_events() {
     format="${1:-json}"
     log_action "Starting event export in $format format"
-    
-    "$PYTHON_BIN" "$ENGINE_SCRIPT" export "$format" >> "$LOG_DIR/export.log" 2>&1
-    result=$?
-    
-    if [ $result -eq 0 ]; then
-        echo "Events exported successfully in $format format"
+
+    result=$("$PYTHON_BIN" "$ENGINE_SCRIPT" export "$format" 2>> "$LOG_DIR/stderr.log")
+    if [ $? -eq 0 ]; then
+        echo "$result"
         log_action "Event export completed successfully"
         return 0
     else
-        echo "Failed to export events (code $result)"
-        log_action "Event export failed with code $result"
-        return $result
+        echo "Failed to export events"
+        log_action "Event export failed"
+        return 1
     fi
 }
 
@@ -165,19 +149,16 @@ export_events() {
 get_stats() {
     type="${1:-summary}"
     log_action "Retrieving statistics: $type"
-    
-    stats=$("$PYTHON_BIN" "$ENGINE_SCRIPT" stats "$type" 2>&1)
-    result=$?
-    
-    if [ $result -eq 0 ]; then
-        echo "$stats"
+
+    result=$("$PYTHON_BIN" "$ENGINE_SCRIPT" stats "$type" 2>> "$LOG_DIR/stderr.log")
+    if [ $? -eq 0 ]; then
+        echo "$result"
         log_action "Statistics retrieved successfully"
         return 0
     else
-        echo "Failed to get statistics (code $result)"
-        echo "$stats"
+        echo "Failed to get statistics"
         log_action "Failed to retrieve statistics"
-        return $result
+        return 1
     fi
 }
 
@@ -186,37 +167,29 @@ get_logs() {
     page="${1:-1}"
     limit="${2:-50}"
     log_action "Retrieving logs (page $page, limit $limit)"
-    
-    logs=$("$PYTHON_BIN" "$ENGINE_SCRIPT" logs "$page" "$limit" 2>&1)
-    result=$?
-    
-    if [ $result -eq 0 ]; then
-        echo "$logs"
+
+    result=$("$PYTHON_BIN" "$ENGINE_SCRIPT" logs "$page" "$limit" 2>> "$LOG_DIR/stderr.log")
+    if [ $? -eq 0 ]; then
+        echo "$result"
         log_action "Logs retrieved successfully"
         return 0
     else
-        echo "Failed to get logs (code $result)"
-        echo "$logs"
+        echo "Failed to get logs"
         log_action "Failed to retrieve logs"
-        return $result
+        return 1
     fi
 }
 
 # Function to clear logs
 clear_logs() {
     log_action "Clearing logs"
-    
-    # Clear log files
+
     for logfile in events.log audit.log engine.log export_events.log health_check.log stats.json stdout.log stderr.log export.log service.log; do
-        if [ -f "$LOG_DIR/$logfile" ]; then
-            > "$LOG_DIR/$logfile"
-            echo "Cleared $logfile"
-        fi
+        [ -f "$LOG_DIR/$logfile" ] && > "$LOG_DIR/$logfile"
     done
-    
-    # Call engine clear_logs if available
+
     "$PYTHON_BIN" "$ENGINE_SCRIPT" clear_logs >> "$LOG_DIR/service.log" 2>&1
-    
+
     log_action "Logs cleared successfully"
     echo "OK: Logs cleared"
     return 0
@@ -226,20 +199,25 @@ clear_logs() {
 test_export() {
     format="${1:-json}"
     log_action "Testing export in $format format"
-    
-    result=$("$PYTHON_BIN" "$ENGINE_SCRIPT" test_export "$format" 2>&1)
-    exit_code=$?
-    
-    if [ $exit_code -eq 0 ]; then
+
+    result=$("$PYTHON_BIN" "$ENGINE_SCRIPT" test_export "$format" 2>> "$LOG_DIR/stderr.log")
+    if [ $? -eq 0 ]; then
         echo "$result"
         log_action "Export test completed successfully"
         return 0
     else
-        echo "Export test failed (code $exit_code)"
-        echo "$result"
-        log_action "Export test failed with code $exit_code"
-        return $exit_code
+        echo "Export test failed"
+        log_action "Export test failed"
+        return 1
     fi
+}
+
+# Function to reconfigure
+reconfigure() {
+    stop_service
+    sleep 2
+    "$PYTHON_BIN" "$ENGINE_SCRIPT" configure >> "$LOG_DIR/service.log" 2>> "$LOG_DIR/stderr.log"
+    start_service
 }
 
 # Main command handling
@@ -259,10 +237,7 @@ case "$1" in
         start_service
         ;;
     reconfigure)
-        stop_service
-        sleep 2
-        "$PYTHON_BIN" "$ENGINE_SCRIPT" configure
-        start_service
+        reconfigure
         ;;
     export)
         export_events "$2"
@@ -286,13 +261,8 @@ case "$1" in
         echo "Config: $CONFIG_FILE"
         echo "Logs: $LOG_DIR"
         echo "PID: $PIDFILE"
-        
-        if [ -f "$ENGINE_SCRIPT" ]; then
-            echo "Engine script exists"
-            "$PYTHON_BIN" "$ENGINE_SCRIPT" test
-        else
-            echo "Engine script missing!"
-        fi
+        [ -f "$ENGINE_SCRIPT" ] && echo "Engine script exists" || echo "Engine script missing!"
+        "$PYTHON_BIN" "$ENGINE_SCRIPT" test 2>> "$LOG_DIR/stderr.log"
         ;;
     *)
         echo "Usage: $0 {start|stop|status|restart|reconfigure|export [format]|stats [type]|logs [page] [limit]|clear_logs|test_export [format]|test}"

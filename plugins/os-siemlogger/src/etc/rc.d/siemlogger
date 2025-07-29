@@ -6,45 +6,47 @@ pidfile="/var/run/${name}.pid"
 command="/usr/local/bin/python3.11"
 command_args="/usr/local/opnsense/scripts/OPNsense/SiemLogger/siemlogger_engine.py"
 config_file="/usr/local/etc/siemlogger/config.json"
+log_dir="/var/log/siemlogger"
+log_file="${log_dir}/service.log"
 
 siemlogger_prestart()
 {
     # Create necessary directories
     [ -d /var/run ] || install -d -m 755 /var/run
-    [ -d /var/log/siemlogger ] || install -d -m 750 /var/log/siemlogger
+    [ -d "$log_dir" ] || install -d -m 750 "$log_dir"
     [ -d /usr/local/etc/siemlogger ] || install -d -m 755 /usr/local/etc/siemlogger
     [ -d /var/db/siemlogger ] || install -d -m 755 /var/db/siemlogger
-    
+
     # Check if Python3 exists
     if [ ! -f "$command" ]; then
-        echo "[$(date)] Error: Python3 not found at $command" >> /var/log/siemlogger/service.log
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Error: Python3 not found at $command" >> "$log_file"
         return 1
     fi
-    
+
     # Check if engine script exists
     if [ ! -f "$command_args" ]; then
-        echo "[$(date)] Error: Engine script not found at $command_args" >> /var/log/siemlogger/service.log
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Error: Engine script not found at $command_args" >> "$log_file"
         return 1
     fi
-    
+
     # Check if required modules exist
-    REQUIRED_MODULES="settings_logger export_events"
+    REQUIRED_MODULES="settings_logger export_events health_check"
     SCRIPTS_DIR="/usr/local/opnsense/scripts/OPNsense/SiemLogger"
-    
+
     for module in $REQUIRED_MODULES; do
         if [ ! -f "${SCRIPTS_DIR}/${module}.py" ]; then
-            echo "[$(date)] Error: Required module not found: ${SCRIPTS_DIR}/${module}.py" >> /var/log/siemlogger/service.log
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Error: Required module not found: ${SCRIPTS_DIR}/${module}.py" >> "$log_file"
             return 1
         fi
         chmod +x "${SCRIPTS_DIR}/${module}.py" 2>/dev/null || true
     done
-    
+
     # Set executable permissions on engine
     chmod +x "$command_args" 2>/dev/null || true
-    
+
     # Create basic config if not exists
     if [ ! -f "$config_file" ]; then
-        echo "[$(date)] Creating basic config file..." >> /var/log/siemlogger/service.log
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Creating basic config file..." >> "$log_file"
         cat > "$config_file" << 'EOF'
 {
   "general": {
@@ -100,62 +102,63 @@ siemlogger_prestart()
   }
 }
 EOF
+        chmod 644 "$config_file"
     fi
-    
+
     return 0
 }
 
 siemlogger_start()
 {
-    echo "[$(date)] Starting ${name}..." >> /var/log/siemlogger/service.log
-    
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting ${name}..." >> "$log_file"
+
     # Check if already running
     if [ -f "${pidfile}" ]; then
-        OLD_PID=$(cat ${pidfile})
+        OLD_PID=$(cat "${pidfile}")
         if kill -0 "${OLD_PID}" 2>/dev/null; then
-            echo "[$(date)] ${name} is already running with PID ${OLD_PID}." >> /var/log/siemlogger/service.log
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] ${name} is already running with PID ${OLD_PID}." >> "$log_file"
             echo "${name} is already running as PID ${OLD_PID}"
             return 1
         else
-            echo "[$(date)] Removing stale PID file" >> /var/log/siemlogger/service.log
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Removing stale PID file" >> "$log_file"
             rm -f "${pidfile}"
         fi
     fi
-    
-    # Export configuration from OPNsense (optional)
+
+    # Export configuration from OPNsense
     if [ -f /usr/local/opnsense/scripts/OPNsense/SiemLogger/settings_logger.py ]; then
-        echo "[$(date)] Testing configuration..." >> /var/log/siemlogger/service.log
-        /usr/local/bin/python3.11 /usr/local/opnsense/scripts/OPNsense/SiemLogger/settings_logger.py >> /var/log/siemlogger/service.log 2>&1 || echo "[$(date)] Configuration test completed" >> /var/log/siemlogger/service.log
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Testing configuration..." >> "$log_file"
+        /usr/local/bin/python3.11 /usr/local/opnsense/scripts/OPNsense/SiemLogger/settings_logger.py >> "$log_file" 2>&1 || echo "[$(date '+%Y-%m-%d %H:%M:%S')] Configuration test completed" >> "$log_file"
     fi
-    
+
     # Start the process using daemon utility
-    echo "[$(date)] Starting engine process..." >> /var/log/siemlogger/service.log
-    
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting engine process..." >> "$log_file"
+
     if command -v daemon >/dev/null 2>&1; then
         /usr/sbin/daemon -p "${pidfile}" -f "${command}" "${command_args}"
     else
-        "${command}" "${command_args}" >> /var/log/siemlogger/stdout.log 2>> /var/log/siemlogger/stderr.log &
+        "${command}" "${command_args}" > /var/log/siemlogger/stdout.log 2> /var/log/siemlogger/stderr.log &
         echo $! > "${pidfile}"
     fi
-    
+
     sleep 5
-    
+
     # Check if process is still running
     if [ -f "${pidfile}" ]; then
-        NEW_PID=$(cat ${pidfile})
+        NEW_PID=$(cat "${pidfile}")
         if kill -0 "${NEW_PID}" 2>/dev/null; then
-            echo "[$(date)] ${name} started successfully with PID ${NEW_PID}" >> /var/log/siemlogger/service.log
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] ${name} started successfully with PID ${NEW_PID}" >> "$log_file"
             echo "${name} started successfully as PID ${NEW_PID}"
             return 0
         else
-            echo "[$(date)] Failed to start ${name} (PID ${NEW_PID} not alive)" >> /var/log/siemlogger/service.log
-            echo "[$(date)] Check /var/log/siemlogger/stderr.log for errors" >> /var/log/siemlogger/service.log
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Failed to start ${name} (PID ${NEW_PID} not alive)" >> "$log_file"
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Check /var/log/siemlogger/stderr.log for errors" >> "$log_file"
             echo "Failed to start ${name}"
             rm -f "${pidfile}"
             return 1
         fi
     else
-        echo "[$(date)] Failed to start ${name} (no PID file created)" >> /var/log/siemlogger/service.log
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Failed to start ${name} (no PID file created)" >> "$log_file"
         echo "Failed to start ${name}"
         return 1
     fi
@@ -163,37 +166,37 @@ siemlogger_start()
 
 siemlogger_stop()
 {
-    echo "[$(date)] Stopping ${name}..." >> /var/log/siemlogger/service.log
-    
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Stopping ${name}..." >> "$log_file"
+
     if [ -f "${pidfile}" ]; then
         PID=$(cat "${pidfile}")
         if kill -0 "${PID}" 2>/dev/null; then
-            echo "[$(date)] Sending TERM signal to PID ${PID}" >> /var/log/siemlogger/service.log
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Sending TERM signal to PID ${PID}" >> "$log_file"
             kill -TERM "${PID}"
-            
+
             TIMEOUT=15
             while [ $TIMEOUT -gt 0 ] && kill -0 "${PID}" 2>/dev/null; do
                 sleep 1
                 TIMEOUT=$((TIMEOUT - 1))
             done
-            
+
             if kill -0 "${PID}" 2>/dev/null; then
-                echo "[$(date)] Process still running, sending KILL signal" >> /var/log/siemlogger/service.log
+                echo "[$(date '+%Y-%m-%d %H:%M:%S')] Process still running, sending KILL signal" >> "$log_file"
                 kill -KILL "${PID}" 2>/dev/null
                 sleep 2
             fi
-            
-            echo "[$(date)] ${name} stopped." >> /var/log/siemlogger/service.log
+
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] ${name} stopped." >> "$log_file"
             echo "${name} stopped"
             rm -f "${pidfile}"
             return 0
         else
-            echo "[$(date)] PID ${PID} not running, removing stale PID file" >> /var/log/siemlogger/service.log
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] PID ${PID} not running, removing stale PID file" >> "$log_file"
             rm -f "${pidfile}"
             return 0
         fi
     else
-        echo "[$(date)] No PID file found. Is ${name} running?" >> /var/log/siemlogger/service.log
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] No PID file found. Is ${name} running?" >> "$log_file"
         echo "${name} is not running"
         return 1
     fi
@@ -205,11 +208,11 @@ siemlogger_status()
         PID=$(cat "${pidfile}")
         if kill -0 "${PID}" 2>/dev/null; then
             echo "${name} is running as PID ${PID}"
-            if [ -f /var/log/siemlogger/stats.json ]; then
-                echo "Statistics available in /var/log/siemlogger/stats.json"
+            if [ -f "$log_dir/stats.json" ]; then
+                echo "Statistics available in $log_dir/stats.json"
                 if command -v jq >/dev/null 2>&1; then
-                    events=$(jq -r '.events_processed // 0' /var/log/siemlogger/stats.json 2>/dev/null)
-                    exported=$(jq -r '.events_exported // 0' /var/log/siemlogger/stats.json 2>/dev/null)
+                    events=$(jq -r '.events_processed // 0' "$log_dir/stats.json" 2>/dev/null)
+                    exported=$(jq -r '.events_exported // 0' "$log_dir/stats.json" 2>/dev/null)
                     echo "Events processed: ${events}, Events exported: ${exported}"
                 fi
             fi
@@ -226,7 +229,7 @@ siemlogger_status()
 
 siemlogger_restart()
 {
-    echo "[$(date)] Restarting ${name}..." >> /var/log/siemlogger/service.log
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Restarting ${name}..." >> "$log_file"
     siemlogger_stop
     sleep 3
     siemlogger_start
