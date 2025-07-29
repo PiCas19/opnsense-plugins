@@ -1,69 +1,100 @@
 {#
-# Copyright (C) 2025 OPNsense SIEM Logger Plugin
-# All rights reserved.
-#}
+ # Copyright (C) 2025 OPNsense SIEM Logger Plugin
+ # All rights reserved.
+ #}
 
 <script>
 $(document).ready(function() {
-    // Initialize the page
-    initLogsPage();
+    var currentPage = 1;
+    var limit = 50;
+    
+    // Load logs on page load
+    loadLogs(currentPage);
+    
+    // Refresh every 30 seconds
+    setInterval(function() {
+        loadLogs(currentPage);
+    }, 30000);
 });
 
-var currentPage = 1;
-var limit = 100;
-
-function initLogsPage() {
-    loadLogs(currentPage);
-}
-
 function loadLogs(page) {
-    $("#responseMsg").removeClass("hidden");
-    $("#responseMsg").html('<div class="alert alert-info">' + 
-        '<i class="fa fa-spinner fa-pulse"></i> Loading logs...' + 
-        '</div>');
+    $("#logsContent").html('<div class="text-center"><i class="fa fa-spinner fa-pulse fa-2x"></i><br>Loading logs...</div>');
     
     ajaxCall('/api/siemlogger/service/getLogs', {
         'page': page || 1,
         'limit': limit
     }, function(data, status) {
-        $("#responseMsg").addClass("hidden");
-        
         if (status === "success" && data && data.status === 'ok') {
             if (data.data && data.data.logs) {
-                updateLogsTable(data.data.logs);
-                updatePagination(data.data.total, page);
+                displayLogs(data.data.logs, data.data.total, page);
             } else {
-                $('#logsTableBody').html('<tr><td colspan="5">No logs found</td></tr>');
+                $("#logsContent").html('<div class="alert alert-info">No logs found</div>');
             }
         } else {
-            $("#responseMsg").removeClass("hidden");
-            $("#responseMsg").html('<div class="alert alert-danger">' + 
-                'Error loading logs: ' + (data.message || 'Unknown error') + 
-                '</div>');
+            $("#logsContent").html('<div class="alert alert-danger">Error loading logs: ' + 
+                (data.message || 'Unknown error') + '</div>');
         }
     });
 }
 
-function updateLogsTable(logs) {
-    var tbody = $('#logsTableBody');
-    tbody.empty();
+function displayLogs(logs, total, page) {
+    var html = '<div class="table-responsive">';
+    html += '<table class="table table-striped table-condensed">';
+    html += '<thead><tr>';
+    html += '<th>Timestamp</th>';
+    html += '<th>Source IP</th>';
+    html += '<th>Event Type</th>';
+    html += '<th>Severity</th>';
+    html += '<th>Message</th>';
+    html += '</tr></thead>';
+    html += '<tbody>';
     
     if (logs.length === 0) {
-        tbody.append('<tr><td colspan="5" class="text-center">No logs available</td></tr>');
-        return;
+        html += '<tr><td colspan="5" class="text-center">No logs available</td></tr>';
+    } else {
+        $.each(logs, function(i, log) {
+            var severityClass = getSeverityClass(log.severity);
+            html += '<tr>';
+            html += '<td>' + (log.timestamp_iso || log.timestamp || 'N/A') + '</td>';
+            html += '<td>' + (log.source_ip || 'Unknown') + '</td>';
+            html += '<td>' + (log.event_type || 'Unknown') + '</td>';
+            html += '<td><span class="label label-' + severityClass + '">' + (log.severity || 'info') + '</span></td>';
+            html += '<td>' + (log.message || 'No message') + '</td>';
+            html += '</tr>';
+        });
     }
     
-    $.each(logs, function(i, log) {
-        var row = '<tr>' +
-            '<td>' + (log.timestamp_iso || log.timestamp || 'N/A') + '</td>' +
-            '<td>' + (log.source_ip || 'Unknown') + '</td>' +
-            '<td>' + (log.event_type || 'Unknown') + '</td>' +
-            '<td><span class="label label-' + getSeverityClass(log.severity) + '">' + 
-                (log.severity || 'info') + '</span></td>' +
-            '<td>' + (log.message || 'No message') + '</td>' +
-            '</tr>';
-        tbody.append(row);
-    });
+    html += '</tbody></table></div>';
+    
+    // Add pagination
+    if (total > limit) {
+        var totalPages = Math.ceil(total / limit);
+        html += '<nav><ul class="pagination">';
+        
+        // Previous button
+        if (page > 1) {
+            html += '<li><a href="#" onclick="loadLogs(' + (page - 1) + ')">&laquo; Previous</a></li>';
+        }
+        
+        // Page numbers (show max 10 pages)
+        var startPage = Math.max(1, page - 5);
+        var endPage = Math.min(totalPages, startPage + 9);
+        
+        for (var i = startPage; i <= endPage; i++) {
+            var activeClass = (i === page) ? ' class="active"' : '';
+            html += '<li' + activeClass + '><a href="#" onclick="loadLogs(' + i + ')">' + i + '</a></li>';
+        }
+        
+        // Next button
+        if (page < totalPages) {
+            html += '<li><a href="#" onclick="loadLogs(' + (page + 1) + ')">Next &raquo;</a></li>';
+        }
+        
+        html += '</ul></nav>';
+    }
+    
+    $("#logsContent").html(html);
+    currentPage = page;
 }
 
 function getSeverityClass(severity) {
@@ -82,64 +113,27 @@ function getSeverityClass(severity) {
     }
 }
 
-function updatePagination(total, currentPage) {
-    var totalPages = Math.ceil(total / limit);
-    var pagination = $('#pagination');
-    pagination.empty();
-    
-    if (totalPages <= 1) {
-        return;
-    }
-    
-    // Previous button
-    if (currentPage > 1) {
-        pagination.append('<li><a href="#" onclick="loadLogs(' + (currentPage - 1) + 
-            ')">&laquo; Previous</a></li>');
-    }
-    
-    // Page numbers
-    for (var i = 1; i <= totalPages; i++) {
-        var activeClass = (i === currentPage) ? ' class="active"' : '';
-        pagination.append('<li' + activeClass + '><a href="#" onclick="loadLogs(' + i + 
-            ')">' + i + '</a></li>');
-    }
-    
-    // Next button
-    if (currentPage < totalPages) {
-        pagination.append('<li><a href="#" onclick="loadLogs(' + (currentPage + 1) + 
-            ')">Next &raquo;</a></li>');
-    }
-}
-
 function clearLogs() {
     if (!confirm('{{ lang._("Are you sure you want to clear all logs?") }}')) {
         return;
     }
     
-    $("#responseMsg").removeClass("hidden");
-    $("#responseMsg").html('<div class="alert alert-info">' + 
-        '<i class="fa fa-spinner fa-pulse"></i> Clearing logs...' + 
-        '</div>');
-    
     ajaxCall('/api/siemlogger/service/clearLogs', {}, function(data, status) {
         if (status === "success" && data && data.status === 'ok') {
-            $("#responseMsg").html('<div class="alert alert-success">' + 
-                'Logs cleared successfully' + 
-                '</div>');
-            setTimeout(function() {
-                $("#responseMsg").addClass("hidden");
-                loadLogs(1);
-            }, 2000);
+            alert('{{ lang._("Logs cleared successfully") }}');
+            loadLogs(1);
         } else {
-            $("#responseMsg").html('<div class="alert alert-danger">' + 
-                'Failed to clear logs: ' + (data.message || 'Unknown error') + 
-                '</div>');
+            alert('{{ lang._("Failed to clear logs") }}: ' + (data.message || 'Unknown error'));
         }
     });
 }
 
 function refreshLogs() {
     loadLogs(currentPage);
+}
+
+function exportLogs() {
+    window.location.href = '/api/siemlogger/service/exportLogs?format=json';
 }
 </script>
 
@@ -151,44 +145,30 @@ function refreshLogs() {
     </div>
     {% endif %}
 
-    <div id="responseMsg" class="alert alert-info hidden" role="alert"></div>
+    <div class="row">
+        <div class="col-md-12">
+            <div class="pull-right" style="margin-bottom: 10px;">
+                <button class="btn btn-default" onclick="refreshLogs()" title="{{ lang._('Refresh logs') }}">
+                    <i class="fa fa-refresh"></i> {{ lang._('Refresh') }}
+                </button>
+                <button class="btn btn-info" onclick="exportLogs()" title="{{ lang._('Export logs') }}">
+                    <i class="fa fa-download"></i> {{ lang._('Export') }}
+                </button>
+                <button class="btn btn-warning" onclick="clearLogs()" title="{{ lang._('Clear all logs') }}">
+                    <i class="fa fa-trash"></i> {{ lang._('Clear Logs') }}
+                </button>
+            </div>
+        </div>
+    </div>
 
-    <div class="tab-content content-box col-xs-12 col-lg-6">
-        <div class="table-responsive">
-            <div class="col-xs-12">
-                <div class="pull-right">
-                    <button class="btn btn-default" onclick="refreshLogs()" title="{{ lang._('Refresh logs') }}">
-                        <i class="fa fa-refresh"></i> {{ lang._('Refresh') }}
-                    </button>
-                    <button class="btn btn-warning" onclick="clearLogs()" title="{{ lang._('Clear all logs') }}">
-                        <i class="fa fa-trash"></i> {{ lang._('Clear Logs') }}
-                    </button>
+    <div class="row">
+        <div class="col-md-12">
+            <div id="logsContent">
+                <div class="text-center">
+                    <i class="fa fa-spinner fa-pulse fa-2x"></i><br>
+                    Loading logs...
                 </div>
             </div>
-            <div class="col-xs-12">
-                <hr/>
-            </div>
-            <table class="table table-condensed table-hover table-striped table-responsive">
-                <thead>
-                    <tr>
-                        <th>{{ lang._('Timestamp') }}</th>
-                        <th>{{ lang._('Source IP') }}</th>
-                        <th>{{ lang._('Event Type') }}</th>
-                        <th>{{ lang._('Severity') }}</th>
-                        <th>{{ lang._('Message') }}</th>
-                    </tr>
-                </thead>
-                <tbody id="logsTableBody">
-                    <tr>
-                        <td colspan="5" class="text-center">
-                            <i class="fa fa-spinner fa-pulse"></i> Loading...
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-            <nav>
-                <ul class="pagination" id="pagination"></ul>
-            </nav>
         </div>
     </div>
 </div>
