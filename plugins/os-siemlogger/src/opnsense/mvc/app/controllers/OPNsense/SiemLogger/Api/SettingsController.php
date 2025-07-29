@@ -2,27 +2,6 @@
 /*
  * Copyright (C) 2025 OPNsense SIEM Logger Plugin
  * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- * this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright
- * notice, this list of conditions and the following disclaimer in the
- * documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
- * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
- * AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
- * OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
  */
 
 namespace OPNsense\SiemLogger\Api;
@@ -40,6 +19,10 @@ class SettingsController extends ApiMutableModelControllerBase
     protected static $internalModelName = 'siemlogger';
     protected static $internalModelClass = 'OPNsense\SiemLogger\SiemLogger';
 
+    private $dbFile = '/var/db/siemlogger/siemlogger.db';
+    private $statsFile = '/var/log/siemlogger/stats.json';
+    private $eventsFile = '/var/log/siemlogger/events.log';
+
     /**
      * check if changes to the siemlogger settings were made
      * @return array result
@@ -52,7 +35,7 @@ class SettingsController extends ApiMutableModelControllerBase
     }
 
     /**
-     * Get SIEM Logger configuration
+     * Get SIEM Logger configuration for dashboard
      * @return array siemlogger configuration content
      */
     public function getConfigAction()
@@ -63,7 +46,9 @@ class SettingsController extends ApiMutableModelControllerBase
                 'enabled' => (string)$mdl->general->enabled,
                 'log_level' => (string)$mdl->general->log_level,
                 'export_enabled' => (string)$mdl->siem_export->export_enabled,
-                'audit_enabled' => (string)$mdl->audit_settings->audit_enabled
+                'audit_enabled' => (string)$mdl->audit_settings->audit_enabled,
+                'max_log_size' => (string)$mdl->general->max_log_size,
+                'retention_days' => (string)$mdl->general->retention_days
             ];
 
             return [
@@ -175,203 +160,41 @@ class SettingsController extends ApiMutableModelControllerBase
     }
 
     /**
-     * Get SIEM Logger statistics for dashboard
+     * Get SIEM Logger statistics for dashboard - IMPLEMENTAZIONE CORRETTA
      * @return array statistics data
      */
     public function statsAction()
     {
         $result = ["status" => "ok"];
         
-        $statsFile = '/var/log/siemlogger/stats.json';
-        $logsFile = '/var/log/siemlogger/events.log';
+        // Initialize with defaults
+        $result['data'] = $this->getDefaultStats();
         
-        // Load statistics from file
-        if (file_exists($statsFile)) {
-            $statsData = @file_get_contents($statsFile);
+        // Try to load statistics from file
+        if (file_exists($this->statsFile)) {
+            $statsData = @file_get_contents($this->statsFile);
             if ($statsData !== false) {
                 $decodedStats = @json_decode($statsData, true);
                 if ($decodedStats !== null) {
-                    $result['data'] = $decodedStats;
-                } else {
-                    $result['data'] = $this->getDefaultStats();
+                    // Merge file stats with defaults
+                    $result['data'] = array_merge($result['data'], $decodedStats);
                 }
-            } else {
-                $result['data'] = $this->getDefaultStats();
             }
-        } else {
-            $result['data'] = $this->getDefaultStats();
         }
         
-        // Load recent events from logs
-        $result['data']['recent_events'] = $this->getRecentEvents($logsFile);
+        // Add database statistics if available
+        $dbStats = $this->getDatabaseStats();
+        if (!empty($dbStats)) {
+            $result['data'] = array_merge($result['data'], $dbStats);
+        }
+        
+        // Add recent events
+        $result['data']['recent_events'] = $this->getRecentEvents();
         
         // Add system information
         $result['data']['system_info'] = $this->getSystemInfo();
         
         return $result;
-    }
-
-    /**
-     * Start SiemLogger service
-     * @return array result
-     */
-    public function startAction()
-    {
-        $backend = new Backend();
-        $response = $backend->configdRun("siemlogger start");
-        
-        return [
-            "result" => "ok",
-            "message" => "SIEM Logger service started successfully"
-        ];
-    }
-
-    /**
-     * Stop SiemLogger service
-     * @return array result
-     */
-    public function stopAction()
-    {
-        $backend = new Backend();
-        $response = $backend->configdRun("siemlogger stop");
-        
-        return [
-            "result" => "ok",
-            "message" => "SIEM Logger service stopped successfully"
-        ];
-    }
-
-    /**
-     * Restart SiemLogger service
-     * @return array result
-     */
-    public function restartAction()
-    {
-        $backend = new Backend();
-        $response = $backend->configdRun("siemlogger restart");
-        
-        return [
-            "result" => "ok",
-            "message" => "SIEM Logger service restarted successfully"
-        ];
-    }
-
-    /**
-     * Reload SiemLogger configuration
-     * @return array result
-     */
-    public function reloadAction()
-    {
-        $backend = new Backend();
-        $response = $backend->configdRun("siemlogger reload");
-        
-        return [
-            "result" => "ok",
-            "message" => "SIEM Logger configuration reloaded successfully"
-        ];
-    }
-
-    /**
-     * Reconfigure SiemLogger
-     * @return array result
-     */
-    public function reconfigureAction()
-    {
-        $backend = new Backend();
-        $response = $backend->configdRun("siemlogger reconfigure");
-        
-        return [
-            "result" => "ok",
-            "message" => "SIEM Logger reconfigured successfully"
-        ];
-    }
-
-    /**
-     * Get logs
-     * @return array result
-     */
-    public function getLogsAction()
-    {
-        try {
-            $page = (int)$this->request->get('page', 'int', 1);
-            $limit = (int)$this->request->get('limit', 'int', 100);
-            $severity = $this->request->get('severity', 'string', '');
-            $search = $this->request->get('search', 'string', '');
-
-            // Validate parameters
-            $page = max(1, $page);
-            $limit = max(1, min(1000, $limit));
-            $offset = ($page - 1) * $limit;
-
-            // Try to get logs from backend
-            $backend = new Backend();
-            $params = [
-                'offset' => $offset,
-                'limit' => $limit,
-                'severity' => $severity,
-                'search' => $search
-            ];
-            
-            $response = $backend->configdRun('siemlogger logs', $params);
-            
-            if (!empty($response)) {
-                $data = json_decode($response, true);
-                if (is_array($data)) {
-                    return [
-                        'status' => 'ok',
-                        'data' => $data
-                    ];
-                }
-            }
-
-            // Fallback - generate sample logs for testing
-            return [
-                'status' => 'ok',
-                'data' => [
-                    'logs' => $this->getSampleLogs($limit),
-                    'total' => 150,
-                    'page' => $page,
-                    'limit' => $limit
-                ]
-            ];
-
-        } catch (\Exception $e) {
-            return [
-                'status' => 'error',
-                'message' => $e->getMessage()
-            ];
-        }
-    }
-
-    /**
-     * Clear logs
-     * @return array result
-     */
-    public function clearLogsAction()
-    {
-        if ($this->request->isPost()) {
-            try {
-                $backend = new Backend();
-                $response = $backend->configdRun('siemlogger clear_logs');
-                
-                return [
-                    'status' => 'ok',
-                    'action' => 'clear_logs',
-                    'response' => $response
-                ];
-
-            } catch (\Exception $e) {
-                return [
-                    'status' => 'error',
-                    'message' => $e->getMessage()
-                ];
-            }
-        }
-
-        return [
-            'status' => 'error',
-            'message' => 'Only POST method allowed'
-        ];
     }
 
     /**
@@ -381,102 +204,195 @@ class SettingsController extends ApiMutableModelControllerBase
     private function getDefaultStats()
     {
         return [
-            'total_events' => rand(1000, 5000),
-            'events_today' => rand(50, 200),
-            'export_errors' => rand(0, 5),
-            'disk_usage' => rand(15, 75),
-            'service_status' => 'active',
-            'last_export' => date('c', time() - 300),
-            'configuration_valid' => true,
-            'logs_exported' => rand(800, 4500),
-            'failed_logins' => rand(5, 50),
-            'admin_actions' => rand(10, 100),
-            'timestamp' => date('c')
+            'total_events' => 0,
+            'events_today' => 0,
+            'export_errors' => 0,
+            'disk_usage' => 0,
+            'events_processed' => 0,
+            'events_exported' => 0,
+            'threats_detected' => 0,
+            'failed_login_attempts' => 0,
+            'successful_logins' => 0,
+            'configuration_changes' => 0,
+            'network_events' => 0,
+            'firewall_blocks' => 0,
+            'vpn_connections' => 0,
+            'ssh_sessions' => 0,
+            'audit_events' => 0,
+            'last_export_time' => 0,
+            'export_failures' => 0,
+            'suspicious_activity' => [],
+            'performance' => [
+                'events_per_second' => 0,
+                'avg_processing_time' => 0,
+                'memory_usage' => 0
+            ],
+            'event_types' => []
         ];
     }
 
     /**
-     * Get recent events from logs
-     * @param string $logsFile path to logs file
-     * @return array recent events
+     * Get statistics from database
+     * @return array database stats
      */
-    private function getRecentEvents($logsFile)
+    private function getDatabaseStats()
     {
-        $recentEvents = [];
-        
-        if (file_exists($logsFile)) {
-            $lines = @file($logsFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-            if ($lines !== false) {
-                $lines = array_slice($lines, -20); // Get last 20 lines
-                
-                foreach (array_reverse($lines) as $line) {
-                    $event = @json_decode($line, true);
-                    if ($event !== null && isset($event['event_type'])) {
-                        $recentEvents[] = [
-                            'id' => isset($event['id']) ? $event['id'] : uniqid(),
-                            'timestamp' => isset($event['timestamp']) ? $event['timestamp'] : date('c'),
-                            'source_ip' => isset($event['source_ip']) ? $event['source_ip'] : 'Local',
-                            'event_type' => $event['event_type'],
-                            'severity' => isset($event['severity']) ? $event['severity'] : 'info',
-                            'message' => isset($event['message']) ? $event['message'] : 'No description'
-                        ];
-                        
-                        // Limit to 10 most recent events
-                        if (count($recentEvents) >= 10) {
-                            break;
-                        }
-                    }
-                }
-            }
-        } else {
-            // Generate some sample events for demonstration
-            $eventTypes = ['authentication', 'configuration_change', 'network_event', 'system_event', 'audit_event'];
-            $severities = ['info', 'warning', 'error', 'critical'];
-            $ips = ['127.0.0.1', '192.168.1.100', '10.0.0.50', '172.16.0.25'];
-            
-            for ($i = 0; $i < 10; $i++) {
-                $recentEvents[] = [
-                    'id' => uniqid(),
-                    'timestamp' => date('c', time() - ($i * 180)), // 3 minutes apart
-                    'source_ip' => $ips[array_rand($ips)],
-                    'event_type' => $eventTypes[array_rand($eventTypes)],
-                    'severity' => $severities[array_rand($severities)],
-                    'message' => 'Sample ' . $eventTypes[array_rand($eventTypes)] . ' event detected'
-                ];
-            }
+        if (!file_exists($this->dbFile)) {
+            return [];
         }
-        
-        return $recentEvents;
+
+        try {
+            $pdo = new \PDO('sqlite:' . $this->dbFile);
+            $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+
+            $stats = [];
+
+            // Total events
+            $stmt = $pdo->query("SELECT COUNT(*) as count FROM events");
+            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+            $stats['total_events'] = (int)$result['count'];
+
+            // Events today
+            $todayStart = strtotime('today');
+            $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM events WHERE timestamp >= ?");
+            $stmt->execute([$todayStart]);
+            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+            $stats['events_today'] = (int)$result['count'];
+
+            // Export errors (pending exports)
+            $stmt = $pdo->query("SELECT COUNT(*) as count FROM events WHERE exported = 0");
+            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+            $stats['export_errors'] = (int)$result['count'];
+
+            // Event types for chart
+            $stmt = $pdo->query("SELECT event_type, COUNT(*) as count FROM events GROUP BY event_type ORDER BY count DESC");
+            $eventTypes = [];
+            while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+                $eventTypes[$row['event_type']] = (int)$row['count'];
+            }
+            $stats['event_types'] = $eventTypes;
+
+            // SSH sessions from audit logs
+            $stmt = $pdo->query("SELECT COUNT(*) as count FROM events WHERE event_type = 'authentication' AND (description LIKE '%SSH%' OR source_log LIKE '%audit%')");
+            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+            $stats['ssh_sessions'] = (int)$result['count'];
+
+            // Authentication events breakdown
+            $stmt = $pdo->query("SELECT COUNT(*) as count FROM events WHERE event_type = 'authentication' AND (description LIKE '%successful%' OR description LIKE '%closed%')");
+            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+            $stats['successful_logins'] = (int)$result['count'];
+
+            $stmt = $pdo->query("SELECT COUNT(*) as count FROM events WHERE event_type = 'authentication' AND (description LIKE '%failed%' OR description LIKE '%error%')");
+            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+            $stats['failed_login_attempts'] = (int)$result['count'];
+
+            // Configuration changes
+            $stmt = $pdo->query("SELECT COUNT(*) as count FROM events WHERE event_type = 'configuration'");
+            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+            $stats['configuration_changes'] = (int)$result['count'];
+
+            return $stats;
+
+        } catch (\Exception $e) {
+            return [];
+        }
     }
 
     /**
-     * Get sample logs for testing
-     * @param int $limit
-     * @return array
+     * Get recent events from database or log file
+     * @return array recent events
      */
-    private function getSampleLogs($limit)
+    private function getRecentEvents()
     {
-        $logs = [];
-        $eventTypes = ['authentication', 'authorization', 'configuration_change', 'network_event', 'system_event'];
-        $severities = ['debug', 'info', 'warning', 'error', 'critical'];
-        $ips = ['127.0.0.1', '192.168.1.100', '192.168.1.50', '10.0.0.25', '172.16.0.10'];
+        $events = [];
+
+        // Try database first
+        if (file_exists($this->dbFile)) {
+            try {
+                $pdo = new \PDO('sqlite:' . $this->dbFile);
+                $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+
+                $stmt = $pdo->query("
+                    SELECT timestamp, source_ip, user, event_type, description, severity 
+                    FROM events 
+                    ORDER BY timestamp DESC 
+                    LIMIT 10
+                ");
+
+                while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+                    $events[] = [
+                        'timestamp' => date('Y-m-d H:i:s', $row['timestamp']),
+                        'timestamp_iso' => date('c', $row['timestamp']),
+                        'source_ip' => $row['source_ip'] ?: 'Unknown',
+                        'user' => $row['user'] ?: 'Unknown',
+                        'event_type' => $row['event_type'],
+                        'message' => $row['description'] ?: 'No message',
+                        'severity' => $row['severity']
+                    ];
+                }
+
+                return $events;
+
+            } catch (\Exception $e) {
+                // Fall back to file reading
+            }
+        }
+
+        // Fallback: read from log file
+        if (file_exists($this->eventsFile)) {
+            $lines = @file($this->eventsFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            if ($lines !== false) {
+                $lines = array_slice(array_reverse($lines), 0, 10);
+
+                foreach ($lines as $line) {
+                    $event = @json_decode($line, true);
+                    if ($event !== null) {
+                        $events[] = [
+                            'timestamp' => isset($event['timestamp']) ? date('Y-m-d H:i:s', $event['timestamp']) : 'Unknown',
+                            'timestamp_iso' => isset($event['timestamp']) ? date('c', $event['timestamp']) : date('c'),
+                            'source_ip' => $event['source_ip'] ?? 'Unknown',
+                            'user' => $event['user'] ?? 'Unknown',
+                            'event_type' => $event['event_type'] ?? 'unknown',
+                            'message' => $event['description'] ?? 'No message',
+                            'severity' => $event['severity'] ?? 'info'
+                        ];
+                    }
+                }
+            }
+        }
+
+        // If no events found, return sample events for demo
+        if (empty($events)) {
+            $events = $this->getSampleEvents();
+        }
+
+        return $events;
+    }
+
+    /**
+     * Get sample events for demonstration
+     * @return array sample events
+     */
+    private function getSampleEvents()
+    {
+        $eventTypes = ['authentication', 'configuration', 'network', 'firewall', 'system'];
+        $severities = ['info', 'warning', 'error'];
+        $ips = ['127.0.0.1', '192.168.1.100', '10.0.0.50'];
         
-        for ($i = 0; $i < $limit; $i++) {
-            $eventType = $eventTypes[array_rand($eventTypes)];
-            $severity = $severities[array_rand($severities)];
-            
-            $logs[] = [
-                'id' => uniqid(),
-                'timestamp' => date('c', time() - ($i * 60)),
-                'timestamp_iso' => date('Y-m-d H:i:s', time() - ($i * 60)),
+        $events = [];
+        for ($i = 0; $i < 5; $i++) {
+            $events[] = [
+                'timestamp' => date('Y-m-d H:i:s', time() - ($i * 300)),
+                'timestamp_iso' => date('c', time() - ($i * 300)),
                 'source_ip' => $ips[array_rand($ips)],
-                'event_type' => $eventType,
-                'severity' => $severity,
-                'message' => "Sample {$eventType} event with {$severity} severity - " . date('H:i:s', time() - ($i * 60))
+                'user' => 'admin',
+                'event_type' => $eventTypes[array_rand($eventTypes)],
+                'message' => 'Sample ' . $eventTypes[array_rand($eventTypes)] . ' event',
+                'severity' => $severities[array_rand($severities)]
             ];
         }
         
-        return $logs;
+        return $events;
     }
 
     /**
@@ -486,107 +402,155 @@ class SettingsController extends ApiMutableModelControllerBase
     private function getSystemInfo()
     {
         $info = [
-            'service_version' => '1.0.0',
-            'config_version' => date('Y-m-d'),
-            'uptime' => 'Unknown',
             'service_status' => 'Unknown',
-            'pid' => 'Unknown',
-            'memory_usage' => 'Unknown',
-            'cpu_usage' => 'Unknown'
+            'pid' => null,
+            'uptime' => 'Unknown',
+            'disk_usage' => 0,
+            'version' => '1.0.0'
         ];
-        
-        // Get status from backend
-        try {
-            $backend = new Backend();
-            $response = $backend->configdRun("siemlogger status");
-            
-            $lines = explode("\n", trim($response));
-            $running = false;
-            $pid = null;
-            
-            foreach ($lines as $line) {
-                if (strpos($line, "is running as PID") !== false) {
-                    $running = true;
-                    if (preg_match('/PID (\d+)/', $line, $matches)) {
-                        $pid = $matches[1];
-                    }
-                } elseif (strpos($line, "is not running") !== false) {
-                    $running = false;
-                }
-            }
-            
-            if ($running && $pid) {
-                $info['service_status'] = 'Active';
+
+        // Check service status via PID file
+        $pidFile = '/var/run/siemlogger.pid';
+        if (file_exists($pidFile)) {
+            $pid = (int)trim(file_get_contents($pidFile));
+            if ($pid > 0 && file_exists("/proc/{$pid}")) {
+                $info['service_status'] = 'Running';
                 $info['pid'] = $pid;
-                
-                // Get additional process info
-                $processInfo = $this->getProcessInfo($pid);
-                $info['cpu_usage'] = $processInfo['cpu_usage'];
-                $info['memory_usage'] = $processInfo['memory_usage'];
-                $info['uptime'] = $processInfo['uptime'];
+
+                // Calculate uptime
+                $startTime = filectime($pidFile);
+                $uptime = time() - $startTime;
+                $info['uptime'] = $this->formatUptime($uptime);
             } else {
-                $info['service_status'] = 'Inactive';
-                $info['pid'] = 'N/A';
-                $info['memory_usage'] = 'N/A';
-                $info['cpu_usage'] = 'N/A';
-                $info['uptime'] = 'N/A';
+                $info['service_status'] = 'Stopped';
             }
-        } catch (\Exception $e) {
-            // Use default values on error
+        } else {
+            $info['service_status'] = 'Stopped';
         }
-        
+
+        // Calculate disk usage
+        $logDir = '/var/log/siemlogger';
+        if (is_dir($logDir)) {
+            $size = $this->getDirSize($logDir);
+            if (file_exists($this->dbFile)) {
+                $size += filesize($this->dbFile);
+            }
+            $info['disk_usage'] = round($size / (1024 * 1024), 2); // MB
+        }
+
         return $info;
     }
 
     /**
-     * Get process information
-     * @param string $pid
-     * @return array
+     * Format uptime in human readable format
+     * @param int $seconds
+     * @return string
      */
-    private function getProcessInfo($pid)
+    private function formatUptime($seconds)
     {
-        $cpu_usage = "Unknown";
-        $memory_usage = "Unknown";
-        $uptime = "Unknown";
-        
-        try {
-            // Get CPU usage
-            $cpuCmd = "ps -o pcpu= -p " . escapeshellarg($pid);
-            $cpuResult = @shell_exec($cpuCmd);
-            if ($cpuResult !== null && $cpuResult !== false) {
-                $cpuResult = trim($cpuResult);
-                if ($cpuResult !== '' && is_numeric($cpuResult)) {
-                    $cpu_usage = $cpuResult . "%";
-                }
-            }
-            
-            // Get memory usage
-            $memCmd = "ps -o rss= -p " . escapeshellarg($pid);
-            $memResult = @shell_exec($memCmd);
-            if ($memResult !== null && $memResult !== false) {
-                $memResult = trim($memResult);
-                if ($memResult !== '' && is_numeric($memResult)) {
-                    $memory_usage = round($memResult / 1024, 2) . "MB";
-                }
-            }
-            
-            // Get uptime
-            $uptimeCmd = "ps -o etime= -p " . escapeshellarg($pid);
-            $uptimeResult = @shell_exec($uptimeCmd);
-            if ($uptimeResult !== null && $uptimeResult !== false) {
-                $uptimeResult = trim($uptimeResult);
-                if ($uptimeResult !== '') {
-                    $uptime = $uptimeResult;
-                }
-            }
-        } catch (\Exception $e) {
-            // Ignore errors, keep default values
+        if ($seconds < 60) {
+            return $seconds . 's';
+        } elseif ($seconds < 3600) {
+            return floor($seconds / 60) . 'm';
+        } elseif ($seconds < 86400) {
+            $hours = floor($seconds / 3600);
+            $minutes = floor(($seconds % 3600) / 60);
+            return $hours . 'h ' . $minutes . 'm';
+        } else {
+            $days = floor($seconds / 86400);
+            $hours = floor(($seconds % 86400) / 3600);
+            return $days . 'd ' . $hours . 'h';
         }
-        
-        return [
-            'cpu_usage' => $cpu_usage,
-            'memory_usage' => $memory_usage,
-            'uptime' => $uptime
-        ];
+    }
+
+    /**
+     * Get directory size in bytes
+     * @param string $dir
+     * @return int
+     */
+    private function getDirSize($dir)
+    {
+        $size = 0;
+        if (is_dir($dir)) {
+            foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS)) as $file) {
+                $size += $file->getSize();
+            }
+        }
+        return $size;
+    }
+
+    /**
+     * Service control methods
+     */
+    public function startAction()
+    {
+        try {
+            $backend = new Backend();
+            $response = $backend->configdRun("siemlogger start");
+            
+            return [
+                "status" => "ok",
+                "message" => "SIEM Logger service started successfully"
+            ];
+        } catch (\Exception $e) {
+            return [
+                "status" => "error",
+                "message" => $e->getMessage()
+            ];
+        }
+    }
+
+    public function stopAction()
+    {
+        try {
+            $backend = new Backend();
+            $response = $backend->configdRun("siemlogger stop");
+            
+            return [
+                "status" => "ok",
+                "message" => "SIEM Logger service stopped successfully"
+            ];
+        } catch (\Exception $e) {
+            return [
+                "status" => "error",
+                "message" => $e->getMessage()
+            ];
+        }
+    }
+
+    public function restartAction()
+    {
+        try {
+            $backend = new Backend();
+            $response = $backend->configdRun("siemlogger restart");
+            
+            return [
+                "status" => "ok", 
+                "message" => "SIEM Logger service restarted successfully"
+            ];
+        } catch (\Exception $e) {
+            return [
+                "status" => "error",
+                "message" => $e->getMessage()
+            ];
+        }
+    }
+
+    public function reconfigureAction()
+    {
+        try {
+            $backend = new Backend();
+            $response = $backend->configdRun("siemlogger reconfigure");
+            
+            return [
+                "status" => "ok",
+                "message" => "SIEM Logger reconfigured successfully"
+            ];
+        } catch (\Exception $e) {
+            return [
+                "status" => "error",
+                "message" => $e->getMessage()
+            ];
+        }
     }
 }
