@@ -2,11 +2,7 @@
 
 """
 SiemLogger Engine - Autonomous SIEM Logger for Access Logging and Event Export
-Copyright (C) 2025 OPNsense SiemLogger Plugin
-All rights reserved.
-
-This is a TRUE ENGINE that runs continuously and autonomously.
-It monitors logs in real-time, processes events, and exports to SIEM/NDR systems.
+VERSIONE CON MONITORAGGIO AUDIT E AUTHENTICATION COMPLETO
 """
 
 import sys
@@ -21,6 +17,7 @@ import re
 import subprocess
 import select
 from collections import deque
+import glob
 
 # Import modules
 try:
@@ -72,6 +69,8 @@ stats = {
     'network_events': 0,
     'firewall_blocks': 0,
     'vpn_connections': 0,
+    'ssh_sessions': 0,
+    'audit_events': 0,
     'last_export_time': 0,
     'last_config_reload': time.time(),
     'export_failures': 0,
@@ -223,15 +222,15 @@ class SiemLoggerEngine:
             return {'country_code': 'XX', 'country_name': 'Unknown'}
     
     def parse_log_line(self, line, source_log):
-        """Parse a log line and extract event information"""
+        """Parse a log line and extract event information - OTTIMIZZATO PER AUDIT/AUTH"""
         try:
             timestamp = int(time.time())
             event_type = 'unknown'
-            source_ip = None  # CORREZIONE: None invece di stringa vuota
-            user = None       # CORREZIONE: None invece di 'unknown'
+            source_ip = None
+            user = None
             description = 'System event'
             severity = 'info'
-            details = {'log_line': line.strip()}
+            details = {'log_line': line.strip(), 'source_file': source_log}
             
             # Skip empty lines
             if not line.strip():
@@ -239,151 +238,177 @@ class SiemLoggerEngine:
             
             logging_rules = config.get('logging_rules', {})
             
-            # SSH Authentication Events
-            if logging_rules.get('log_authentication', True):
-                # SSH successful login
-                ssh_success = re.search(r'sshd.*Accepted .* for (\w+) from ([\d\.]+)', line, re.IGNORECASE)
-                if ssh_success:
-                    user = ssh_success.group(1)
-                    source_ip = ssh_success.group(2)
-                    event_type = 'authentication'
-                    description = 'SSH login successful'
-                    severity = 'info'
-                    stats['successful_logins'] += 1
+            # ============ AUDIT LOG PARSING ============
+            if 'audit' in source_log.lower():
+                if logging_rules.get('log_authentication', True):
+                    # SSH Session Events - FORMATO OPNSENSE AUDIT
+                    if 'sshd-session' in line:
+                        # Estrai session ID
+                        session_match = re.search(r'sshd-session\s+(\d+)', line)
+                        session_id = session_match.group(1) if session_match else 'unknown'
+                        
+                        event_type = 'authentication'
+                        user = 'ssh_user'  
+                        details['session_id'] = session_id
+                        stats['ssh_sessions'] += 1
+                        stats['audit_events'] += 1
+                        
+                        if 'Connection close' in line:
+                            description = f'SSH session {session_id} closed'
+                            severity = 'info'
+                            stats['successful_logins'] += 1  # Session chiusa = login riuscito
+                        elif 'kex_exchange' in line:
+                            description = f'SSH key exchange session {session_id}'
+                            severity = 'info'
+                            if 'error:' in line.lower() or 'Connection closed by remote host' in line:
+                                description = f'SSH session {session_id} failed - key exchange error'
+                                severity = 'warning'
+                                stats['failed_login_attempts'] += 1
+                                stats['threats_detected'] += 1
+                        elif 'error:' in line.lower():
+                            description = f'SSH session {session_id} error'
+                            severity = 'warning'
+                            stats['failed_login_attempts'] += 1
+                        else:
+                            description = f'SSH session {session_id} activity'
+                            severity = 'info'
                     
-                # SSH failed login
-                ssh_failed = re.search(r'sshd.*Failed .* for (\w+) from ([\d\.]+)', line, re.IGNORECASE)
-                if ssh_failed:
-                    user = ssh_failed.group(1)
-                    source_ip = ssh_failed.group(2)
-                    event_type = 'authentication'
-                    description = 'SSH login failed'
-                    severity = 'warning'
-                    stats['failed_login_attempts'] += 1
-                    stats['threats_detected'] += 1
-                
-                # Web GUI login
-                webgui_match = re.search(r'webgui.*action=login.*user=([^\s]+).*src_ip=([^\s]+).*result=(\w+)', line, re.IGNORECASE)
-                if webgui_match:
-                    user = webgui_match.group(1)
-                    source_ip = webgui_match.group(2)
-                    result = webgui_match.group(3)
-                    event_type = 'authentication'
-                    if result.lower() == 'success':
-                        description = 'Web GUI login successful'
+                    # Estrai IP da audit log se presente
+                    if not source_ip and 'sshd-session' in line:
+                        # Cerca IP nel resto della riga
+                        ip_match = re.search(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', line)
+                        if ip_match:
+                            source_ip = ip_match.group(1)
+                            details['extracted_ip'] = source_ip
+                    
+                    # Configuration Events nel audit log
+                    if 'configd.py' in line:
+                        event_type = 'configuration'
+                        description = 'Configuration daemon activity'
+                        severity = 'info'
+                        stats['configuration_changes'] += 1
+                        stats['audit_events'] += 1
+                        
+                        # Estrai action type
+                        if 'action allowed' in line:
+                            details['action'] = 'allowed'
+                        elif 'action denied' in line:
+                            details['action'] = 'denied'
+                            severity = 'warning'
+            
+            # ============ USERLOG PARSING ============ 
+            elif 'userlog' in source_log.lower():
+                if logging_rules.get('log_authentication', True):
+                    # Pattern per userlog: [user:action] details
+                    userlog_match = re.search(r'\[([^:]+):([^\]]+)\]\s+(.+)', line)
+                    if userlog_match:
+                        user = userlog_match.group(1)
+                        action = userlog_match.group(2)
+                        details_text = userlog_match.group(3)
+                        
+                        event_type = 'authorization'
+                        description = f'User {user} action: {action}'
+                        details['action'] = action
+                        details['details'] = details_text
+                        
+                        if 'groupmod' in action or 'useradd' in action or 'userdel' in action:
+                            severity = 'info'
+                            event_type = 'authorization'
+                        else:
+                            severity = 'info'
+            
+            # ============ SYSTEM LOG PARSING ============
+            else:
+                # SSH Authentication Events (traditional)
+                if logging_rules.get('log_authentication', True):
+                    # SSH successful login
+                    ssh_success = re.search(r'sshd.*Accepted .* for (\w+) from ([\d\.]+)', line, re.IGNORECASE)
+                    if ssh_success:
+                        user = ssh_success.group(1)
+                        source_ip = ssh_success.group(2)
+                        event_type = 'authentication'
+                        description = 'SSH login successful'
                         severity = 'info'
                         stats['successful_logins'] += 1
-                    else:
-                        description = 'Web GUI login failed'
+                        
+                    # SSH failed login
+                    ssh_failed = re.search(r'sshd.*Failed .* for (\w+) from ([\d\.]+)', line, re.IGNORECASE)
+                    if ssh_failed:
+                        user = ssh_failed.group(1)
+                        source_ip = ssh_failed.group(2)
+                        event_type = 'authentication'
+                        description = 'SSH login failed'
                         severity = 'warning'
                         stats['failed_login_attempts'] += 1
                         stats['threats_detected'] += 1
-            
-            # Authorization Events
-            if logging_rules.get('log_authorization', True):
-                sudo_match = re.search(r'sudo.*user=([^\s]+).*command=(.+)', line, re.IGNORECASE)
-                if sudo_match:
-                    user = sudo_match.group(1)
-                    command = sudo_match.group(2)
-                    event_type = 'authorization'
-                    description = f'Sudo command executed: {command}'
-                    severity = 'info'
-                    details['command'] = command
-            
-            # Configuration Changes (MIGLIORATO per OPNsense)
-            if logging_rules.get('log_configuration_changes', True):
-                # Pattern più specifici per OPNsense
-                config_patterns = [
-                    r'configd.*user[=:]([^\s]+).*changed',
-                    r'config.*user[=:]([^\s]+).*reload',
-                    r'webgui.*action=save.*user=([^\s]+)',
-                    r'system.*configuration.*changed.*user[=:]([^\s]+)'
-                ]
+                    
+                    # Web GUI login
+                    webgui_match = re.search(r'webgui.*action=login.*user=([^\s]+).*src_ip=([^\s]+).*result=(\w+)', line, re.IGNORECASE)
+                    if webgui_match:
+                        user = webgui_match.group(1)
+                        source_ip = webgui_match.group(2)
+                        result = webgui_match.group(3)
+                        event_type = 'authentication'
+                        if result.lower() == 'success':
+                            description = 'Web GUI login successful'
+                            severity = 'info'
+                            stats['successful_logins'] += 1
+                        else:
+                            description = 'Web GUI login failed'
+                            severity = 'warning'
+                            stats['failed_login_attempts'] += 1
+                            stats['threats_detected'] += 1
                 
-                for pattern in config_patterns:
-                    config_match = re.search(pattern, line, re.IGNORECASE)
-                    if config_match:
-                        user = config_match.group(1)
-                        event_type = 'configuration'
-                        description = 'Configuration change detected'
-                        severity = 'info'
-                        stats['configuration_changes'] += 1
-                        break
-            
-            # Network Events
-            if logging_rules.get('log_network_events', True):
-                # VPN connections
-                vpn_match = re.search(r'(openvpn|wireguard).*client ([\d\.]+)', line, re.IGNORECASE)
-                if vpn_match:
-                    source_ip = vpn_match.group(2)
-                    event_type = 'network'
-                    description = f'{vpn_match.group(1).upper()} client connected'
-                    severity = 'info'
-                    stats['vpn_connections'] += 1
-                    stats['network_events'] += 1
-            
-            # Firewall Events
-            if logging_rules.get('log_firewall_events', True):
-                fw_match = re.search(r'filterlog.*src=([\d\.]+).*blocked', line, re.IGNORECASE)
-                if fw_match:
-                    source_ip = fw_match.group(1)
-                    event_type = 'firewall'
-                    description = 'Traffic blocked by firewall'
-                    severity = 'warning'
-                    stats['firewall_blocks'] += 1
-                    stats['threats_detected'] += 1
-            
-            # PATTERN AGGIUNTIVI PER OPNSENSE - MIGLIORA IL PARSING
-            
-            # Pattern per log di sistema generici
-            if event_type == 'unknown':
-                # Prova a estrarre IP da vari formati
-                ip_patterns = [
-                    r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})',
-                    r'from\s+([\d\.]+)',
-                    r'src[=:\s]+([\d\.]+)',
-                    r'client\s+([\d\.]+)'
-                ]
-                
-                for ip_pattern in ip_patterns:
-                    ip_match = re.search(ip_pattern, line)
-                    if ip_match:
-                        potential_ip = ip_match.group(1)
-                        # Verifica che sia un IP valido
-                        try:
-                            ipaddress.ip_address(potential_ip)
-                            if not source_ip:  # Solo se non già trovato
-                                source_ip = potential_ip
+                # Configuration Changes
+                if logging_rules.get('log_configuration_changes', True):
+                    config_patterns = [
+                        r'Configuration\s+reload\s+request\s+received',
+                        r'config-event:\s+new_config',
+                        r'configd.*user[=:]([^\s]+).*changed',
+                        r'webgui.*action=save.*user=([^\s]+)'
+                    ]
+                    
+                    for pattern in config_patterns:
+                        config_match = re.search(pattern, line, re.IGNORECASE)
+                        if config_match:
+                            groups = config_match.groups()
+                            if groups and groups[0]:
+                                user = groups[0]
+                            
+                            event_type = 'configuration'
+                            if 'reload request' in line:
+                                description = 'Configuration reload requested'
+                            elif 'new_config' in line:
+                                description = 'New configuration file created'
+                            else:
+                                description = 'Configuration change detected'
+                            
+                            severity = 'info'
+                            stats['configuration_changes'] += 1
                             break
-                        except ValueError:
-                            continue
                 
-                # Prova a estrarre username da vari formati
-                user_patterns = [
-                    r'user[=:\s]+([^\s,]+)',
-                    r'for\s+([^\s]+)\s+from',
-                    r'login[=:\s]+([^\s]+)'
-                ]
+                # Network Events
+                if logging_rules.get('log_network_events', True):
+                    # VPN connections
+                    vpn_match = re.search(r'(openvpn|wireguard).*client ([\d\.]+)', line, re.IGNORECASE)
+                    if vpn_match:
+                        source_ip = vpn_match.group(2)
+                        event_type = 'network'
+                        description = f'{vpn_match.group(1).upper()} client connected'
+                        severity = 'info'
+                        stats['vpn_connections'] += 1
+                        stats['network_events'] += 1
                 
-                for user_pattern in user_patterns:
-                    user_match = re.search(user_pattern, line)
-                    if user_match:
-                        potential_user = user_match.group(1)
-                        if not user:  # Solo se non già trovato
-                            user = potential_user
-                        break
-                
-                # Classifica il tipo di evento basato sul contenuto
-                if any(keyword in line.lower() for keyword in ['login', 'auth', 'ssh', 'webgui']):
-                    event_type = 'authentication'
-                elif any(keyword in line.lower() for keyword in ['config', 'reload', 'save']):
-                    event_type = 'configuration'
-                elif any(keyword in line.lower() for keyword in ['firewall', 'filter', 'block']):
-                    event_type = 'firewall'
-                elif any(keyword in line.lower() for keyword in ['vpn', 'openvpn', 'wireguard']):
-                    event_type = 'network'
-                else:
-                    event_type = 'system'
+                # Firewall Events
+                if logging_rules.get('log_firewall_events', True):
+                    fw_match = re.search(r'filterlog.*src=([\d\.]+).*blocked', line, re.IGNORECASE)
+                    if fw_match:
+                        source_ip = fw_match.group(1)
+                        event_type = 'firewall'
+                        description = 'Traffic blocked by firewall'
+                        severity = 'warning'
+                        stats['firewall_blocks'] += 1
+                        stats['threats_detected'] += 1
             
             # Get geolocation if available
             geo_info = {}
@@ -397,11 +422,11 @@ class SiemLoggerEngine:
                 severity = 'critical'
                 stats['threats_detected'] += 1
             
-            # CORREZIONE FINALE: Gestire valori None/vuoti correttamente
+            # Costruisci evento finale
             event = {
                 'timestamp': timestamp,
-                'source_ip': source_ip if source_ip else None,        # None se vuoto
-                'user': user if user else None,                      # None se vuoto
+                'source_ip': source_ip,
+                'user': user,
                 'event_type': event_type,
                 'description': description,
                 'details': json.dumps(details),
@@ -411,6 +436,7 @@ class SiemLoggerEngine:
             }
             
             return event
+            
         except Exception as e:
             self.logger.error(f"Error parsing log line: {line} - {e}")
             return None
@@ -424,7 +450,7 @@ class SiemLoggerEngine:
         key = f"{source_ip or 'unknown'}:{user or 'unknown'}"
         
         # Track failed login attempts
-        if event_type == 'authentication' and 'failed' in description.lower():
+        if event_type == 'authentication' and ('failed' in description.lower() or 'error' in description.lower()):
             if key not in stats['suspicious_activity']:
                 stats['suspicious_activity'][key] = {'count': 0, 'first_seen': time.time()}
             
@@ -461,10 +487,59 @@ class SiemLoggerEngine:
             event_buffer.append(event)
             stats['events_processed'] += 1
             
-            self.logger.debug(f"Event stored: {event['event_type']} from {event.get('source_ip', 'N/A')}")
+            self.logger.debug(f"Event stored: {event['event_type']} from {event.get('source_ip', 'N/A')} - {event['description']}")
             
         except Exception as e:
             self.logger.error(f"Error storing event: {e}")
+    
+    def get_log_sources(self):
+        """Get all log sources including audit logs"""
+        log_sources = []
+        
+        # Base log sources from config
+        base_sources = config.get('general', {}).get('log_sources', ['/var/log/system/latest.log'])
+        if isinstance(base_sources, str):
+            base_sources = base_sources.split(',')
+        
+        log_sources.extend([s.strip() for s in base_sources])
+        
+        # PRIORITÀ: Usa latest.log0 che è il file audit corrente
+        audit_latest = '/var/log/audit/latest.log0'
+        if os.path.exists(audit_latest):
+            log_sources.append(audit_latest)
+            self.logger.info(f"✅ Added current audit log: {audit_latest}")
+        else:
+            # Fallback: cerca il file audit più recente
+            audit_pattern = '/var/log/audit/audit_*.log'
+            audit_files = glob.glob(audit_pattern)
+            if audit_files:
+                # Sort per data e prendi il più recente
+                audit_files.sort(reverse=True)
+                latest_audit = audit_files[0]
+                log_sources.append(latest_audit)
+                self.logger.info(f"✅ Added latest audit file: {latest_audit}")
+        
+        # Aggiungi userlog se esiste
+        userlog_path = '/var/log/userlog'
+        if os.path.exists(userlog_path):
+            log_sources.append(userlog_path)
+            self.logger.info(f"✅ Added userlog: {userlog_path}")
+        
+        # Aggiungi log personalizzati
+        custom_logs = config.get('logging_rules', {}).get('custom_log_paths', [])
+        if isinstance(custom_logs, str):
+            custom_logs = custom_logs.split(',')
+        log_sources.extend([s.strip() for s in custom_logs if s.strip()])
+        
+        # Rimuovi duplicati e file inesistenti
+        unique_sources = []
+        for source in log_sources:
+            if source and source not in unique_sources and os.path.exists(source):
+                unique_sources.append(source)
+            elif source and not os.path.exists(source):
+                self.logger.warning(f"❌ Log file does not exist: {source}")
+        
+        return unique_sources
     
     def start_log_watcher(self, log_file):
         """Start monitoring a log file in real-time"""
@@ -562,7 +637,7 @@ class SiemLoggerEngine:
             except Exception as e:
                 self.logger.error(f"Error in export worker: {e}")
                 stats['export_failures'] += 1
-                time.sleep(60)  # Wait before retrying
+                time.sleep(60)
     
     def stats_worker(self):
         """Background worker for statistics and maintenance"""
@@ -642,7 +717,7 @@ class SiemLoggerEngine:
         # Setup logging
         self.setup_logging()
         self.logger.info("=" * 50)
-        self.logger.info("SIEM Logger Engine Starting")
+        self.logger.info("SIEM Logger Engine Starting - WITH AUDIT MONITORING")
         self.logger.info("=" * 50)
         
         # Check if enabled
@@ -668,18 +743,13 @@ class SiemLoggerEngine:
             self.logger.error(f"Failed to write PID file: {e}")
             return 1
         
-        # Start log watchers for all configured log sources
-        log_sources = config.get('general', {}).get('log_sources', ['/var/log/system/latest.log'])
-        custom_logs = config.get('logging_rules', {}).get('custom_log_paths', [])
-        all_log_sources = log_sources + custom_logs
+        # Get all log sources including audit logs
+        all_log_sources = self.get_log_sources()
         
-        self.logger.info(f"Starting log watchers for {len(all_log_sources)} log sources")
+        self.logger.info(f"Starting log watchers for {len(all_log_sources)} log sources:")
         for log_file in all_log_sources:
-            if os.path.exists(log_file):
-                self.start_log_watcher(log_file)
-                self.logger.info(f"Watching: {log_file}")
-            else:
-                self.logger.warning(f"Log file does not exist: {log_file}")
+            self.start_log_watcher(log_file)
+            self.logger.info(f"  ✓ Watching: {log_file}")
         
         # Start background workers
         self.export_thread = threading.Thread(target=self.export_worker, name="ExportWorker")
@@ -695,9 +765,10 @@ class SiemLoggerEngine:
         self.config_reload_thread.start()
         
         self.logger.info("All workers started successfully")
+        self.logger.info("MONITORING: System, Audit, Authentication, and User logs")
         self.logger.info("SIEM Logger Engine is now running")
         
-        # Main loop - just keep the engine alive
+        # Main loop
         try:
             while running:
                 time.sleep(5)
@@ -766,6 +837,8 @@ class SiemLoggerEngine:
         self.logger.info(f"Events processed: {stats['events_processed']}")
         self.logger.info(f"Events exported: {stats['events_exported']}")
         self.logger.info(f"Threats detected: {stats['threats_detected']}")
+        self.logger.info(f"SSH Sessions: {stats['ssh_sessions']}")
+        self.logger.info(f"Audit Events: {stats['audit_events']}")
         self.logger.info("=" * 50)
         
         return 0
