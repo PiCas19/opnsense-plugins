@@ -11,10 +11,11 @@ import logging
 import socket
 import ssl
 import sys
+import time  
 import requests
 from datetime import datetime
 
-CONFIG_FILE = "/usr/local/etc/siemlogger/config.json"
+CONFIG_FILE = "/usr/local/etc/siemlogger/config.json"  
 LOG_FILE = "/var/log/siemlogger/export_events.log"
 
 logging.basicConfig(filename=LOG_FILE, level=logging.INFO)
@@ -26,7 +27,27 @@ def load_config():
             return json.load(f)
     except Exception as e:
         logging.error(f"{datetime.now().isoformat()}: Failed to load config: {str(e)}")
-        return {}
+        # Ritorna una configurazione di default se il file non esiste
+        return {
+            "siem_export": {
+                "export_enabled": False,
+                "siem_server": "",
+                "siem_port": 514,
+                "protocol": "udp",
+                "export_format": "json",
+                "facility": "local0"
+            },
+            "notifications": {
+                "alert_on_failed_export": False,
+                "email_alerts": False,
+                "email_recipients": "",
+                "webhook_url": ""
+            },
+            "logging_rules": {
+                "log_authentication": True,
+                "log_network_events": True
+            }
+        }
 
 def format_event(event, export_format):
     """Format event for export"""
@@ -78,18 +99,20 @@ def export_to_siem(events, config):
         return {"status": "ok", "message": f"Exported {len(events)} events"}
     except Exception as e:
         logging.error(f"{datetime.now().isoformat()}: Error exporting to SIEM: {str(e)}")
-        if config['notifications']['alert_on_failed_export']:
+        if config.get('notifications', {}).get('alert_on_failed_export', False):
             send_notification(config, f"SIEM export failed: {str(e)}")
         return {"status": "error", "message": str(e)}
 
 def send_notification(config, message):
     """Send notifications via email or webhook"""
-    if config['notifications']['email_alerts']:
-        for recipient in config['notifications']['email_recipients'].split(','):
-            logging.info(f"{datetime.now().isoformat()}: Sending email to {recipient}: {message}")
-    if config['notifications']['webhook_url']:
+    notifications = config.get('notifications', {})
+    if notifications.get('email_alerts', False):
+        for recipient in notifications.get('email_recipients', '').split(','):
+            if recipient.strip():
+                logging.info(f"{datetime.now().isoformat()}: Sending email to {recipient.strip()}: {message}")
+    if notifications.get('webhook_url'):
         try:
-            requests.post(config['notifications']['webhook_url'], json={"message": message})
+            requests.post(notifications['webhook_url'], json={"message": message})
         except Exception as e:
             logging.error(f"{datetime.now().isoformat()}: Webhook notification failed: {str(e)}")
 
@@ -97,9 +120,11 @@ def collect_events(config):
     """Collect sample events for testing"""
     events = []
     logging_rules = config.get('logging_rules', {})
-    if logging_rules.get('log_authentication'):
+    current_timestamp = int(time.time())
+    
+    if logging_rules.get('log_authentication', True):
         events.append({
-            "timestamp": int(time.time()),
+            "timestamp": current_timestamp,
             "event_type": "authentication",
             "user": "admin",
             "source_ip": "127.0.0.1",
@@ -108,10 +133,11 @@ def collect_events(config):
             "severity": "info",
             "source_log": "test"
         })
-    if logging_rules.get('log_network_events'):
+    if logging_rules.get('log_network_events', True):
         events.append({
-            "timestamp": int(time.time()),
+            "timestamp": current_timestamp,
             "event_type": "network",
+            "user": "system",
             "source_ip": "127.0.0.1",
             "description": "Network connection detected",
             "details": json.dumps({"log_line": "Test network event"}),
@@ -153,7 +179,7 @@ if __name__ == "__main__":
     action = sys.argv[1] if len(sys.argv) > 1 else "export"
     
     if action == "export":
-        format = sys.argv[2] if len(sys.argv) > 2 else "json"
+        format_type = sys.argv[2] if len(sys.argv) > 2 else "json"
         events = collect_events(config)
         result = export_to_siem(events, config)
         print(json.dumps(result))
@@ -163,7 +189,7 @@ if __name__ == "__main__":
         result = get_logs(page, limit)
         print(json.dumps(result))
     elif action == "test":
-        format = sys.argv[2] if len(sys.argv) > 2 else "json"
+        format_type = sys.argv[2] if len(sys.argv) > 2 else "json"
         events = [{
             "timestamp": int(time.time()),
             "event_type": "test",
