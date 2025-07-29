@@ -1,353 +1,461 @@
 <?php
-
 /*
  * Copyright (C) 2025 OPNsense SIEM Logger Plugin
  * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
- * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
- * AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
- * OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
  */
 
 namespace OPNsense\SiemLogger\Api;
 
 use OPNsense\Base\ApiMutableModelControllerBase;
-use OPNsense\Core\Config;
+use OPNsense\Base\UserException;
 use OPNsense\Core\Backend;
+use OPNsense\SiemLogger\SiemLogger;
 
 /**
- * Class SettingsController
- * @package OPNsense\SiemLogger
+ * Class SettingsController - API controller for settings management
+ * @package OPNsense\SiemLogger\Api
  */
 class SettingsController extends ApiMutableModelControllerBase
 {
+    protected static $internalModelClass = '\OPNsense\SiemLogger\SiemLogger';
     protected static $internalModelName = 'siemlogger';
-    protected static $internalModelClass = 'OPNsense\SiemLogger\SiemLogger';
 
     /**
-     * Check if changes to the siemlogger settings were made
-     * @return array result
+     * Get SIEM Logger configuration
+     * @return array
      */
-    public function dirtyAction()
+    public function getAction()
     {
-        $result = ['status' => 'ok'];
-        $result['siemlogger']['dirty'] = $this->getModel()->configChanged();
-        return $result;
+        return $this->getBase('siemlogger', 'siemlogger');
     }
 
     /**
-     * Retrieve general settings
-     * @return array siemlogger general settings content
-     * @throws \ReflectionException when not bound to model
-     */
-    public function getGeneralAction()
-    {
-        return ['siemlogger' => $this->getModel()->general->getNodes(), 'result' => 'ok'];
-    }
-
-    /**
-     * Retrieve siem_export settings
-     * @return array siemlogger siem_export settings content
-     * @throws \ReflectionException when not bound to model
-     */
-    public function getSiemExportAction()
-    {
-        return ['siemlogger' => $this->getModel()->siem_export->getNodes(), 'result' => 'ok'];
-    }
-
-    /**
-     * Retrieve logging_rules settings
-     * @return array siemlogger logging_rules settings content
-     * @throws \ReflectionException when not bound to model
-     */
-    public function getLoggingRulesAction()
-    {
-        return ['siemlogger' => $this->getModel()->logging_rules->getNodes(), 'result' => 'ok'];
-    }
-
-    /**
-     * Retrieve audit_settings settings
-     * @return array siemlogger audit_settings settings content
-     * @throws \ReflectionException when not bound to model
-     */
-    public function getAuditSettingsAction()
-    {
-        return ['siemlogger' => $this->getModel()->audit_settings->getNodes(), 'result' => 'ok'];
-    }
-
-    /**
-     * Retrieve notifications settings
-     * @return array siemlogger notifications settings content
-     * @throws \ReflectionException when not bound to model
-     */
-    public function getNotificationsAction()
-    {
-        return ['siemlogger' => $this->getModel()->notifications->getNodes(), 'result' => 'ok'];
-    }
-
-    /**
-     * Retrieve monitoring settings
-     * @return array siemlogger monitoring settings content
-     * @throws \ReflectionException when not bound to model
-     */
-    public function getMonitoringAction()
-    {
-        return ['siemlogger' => $this->getModel()->monitoring->getNodes(), 'result' => 'ok'];
-    }
-
-    /**
-     * Set settings and automatically apply changes
-     * @return array save result + validation output
+     * Set SIEM Logger configuration
+     * @return array
+     * @throws UserException
      */
     public function setAction()
     {
-        $result = ["result" => "failed"];
-        if ($this->request->isPost()) {
-            $mdl = $this->getModel();
-            $mdl->setNodes($this->request->getPost("siemlogger"));
-            $valMsgs = $mdl->performValidation();
-
-            if ($valMsgs->count() > 0) {
-                $result["validations"] = [];
-                foreach ($valMsgs as $msg) {
-                    $field = $msg->getField();
-                    $result["validations"]["siemlogger." . $field] = $msg->getMessage();
-                }
-            } else {
-                $mdl->serializeToConfig();
-                Config::getInstance()->save();
-
-                $backend = new Backend();
-                $backend->configdpRun('siemlogger', ['reconfigure']);
-
-                $mdl->configClean();
-                $result["result"] = "saved";
-            }
-        }
-        return $result;
+        return $this->setBase('siemlogger', 'siemlogger');
     }
 
     /**
-     * Get SIEM Logger statistics for dashboard
-     * @return array statistics data
+     * Get system statistics
+     * @return array
      */
     public function statsAction()
     {
-        $result = ["status" => "ok"];
-        $statsFile = '/var/log/siemlogger/stats.json';
-        $logsFile = '/var/log/siemlogger/events.log';
+        try {
+            $mdl = new SiemLogger();
+            $backend = new Backend();
+            
+            // Get basic stats
+            $stats = [
+                'total_events' => 0,
+                'events_today' => 0,
+                'export_errors' => 0,
+                'disk_usage' => 0,
+                'service_status' => 'unknown',
+                'last_export' => null,
+                'configuration_valid' => true,
+                'recent_events' => []
+            ];
 
-        if (file_exists($statsFile)) {
-            $statsData = @file_get_contents($statsFile);
-            if ($statsData !== false) {
-                $decodedStats = @json_decode($statsData, true);
-                if ($decodedStats !== null) {
-                    $result['data'] = $decodedStats;
-                } else {
-                    $result['data'] = $this->getDefaultStats();
-                }
-            } else {
-                $result['data'] = $this->getDefaultStats();
-            }
-        } else {
-            $result['data'] = $this->getDefaultStats();
-        }
-
-        $result['data']['recent_events'] = $this->getRecentEvents($logsFile);
-        $result['data']['system_info'] = $this->getSystemInfo();
-
-        return $result;
-    }
-
-    /**
-     * Get default statistics structure
-     * @return array default stats
-     */
-    private function getDefaultStats()
-    {
-        return [
-            'events_processed' => rand(1000, 5000),
-            'events_exported' => rand(500, 2000),
-            'audit_events' => rand(50, 200),
-            'suspicious_events' => rand(10, 50),
-            'export_failures' => rand(0, 5),
-            'log_types' => [
-                'authentication' => rand(100, 500),
-                'network' => rand(200, 800),
-                'firewall' => rand(150, 600),
-                'system' => rand(50, 300)
-            ],
-            'performance' => [
-                'cpu_usage' => rand(10, 30),
-                'memory_usage' => rand(128, 256),
-                'disk_usage' => rand(50, 80),
-                'export_latency' => rand(10, 100)
-            ],
-            'timestamp' => date('c')
-        ];
-    }
-
-    /**
-     * Get recent events from logs file
-     * @param string $logsFile path to events log file
-     * @return array recent events
-     */
-    private function getRecentEvents($logsFile)
-    {
-        $recentEvents = [];
-
-        if (file_exists($logsFile)) {
-            $lines = @file($logsFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-            if ($lines !== false) {
-                $lines = array_slice($lines, -50);
-
-                foreach (array_reverse($lines) as $line) {
-                    $event = @json_decode($line, true);
-                    if ($event !== null && isset($event['event_type'])) {
-                        $recentEvents[] = [
-                            'id' => isset($event['id']) ? $event['id'] : uniqid(),
-                            'timestamp' => isset($event['timestamp']) ? $event['timestamp'] : date('c'),
-                            'source_ip' => isset($event['source_ip']) ? $event['source_ip'] : 'Unknown',
-                            'event_type' => $event['event_type'],
-                            'severity' => isset($event['severity']) ? $event['severity'] : 'info',
-                            'message' => isset($event['message']) ? $event['message'] : 'No message'
-                        ];
-
-                        if (count($recentEvents) >= 20) {
-                            break;
-                        }
+            // Try to get real statistics from the backend/service
+            try {
+                $response = $backend->configdRun('siemlogger stats');
+                if (!empty($response)) {
+                    $backendStats = json_decode($response, true);
+                    if (is_array($backendStats)) {
+                        $stats = array_merge($stats, $backendStats);
                     }
                 }
+            } catch (\Exception $e) {
+                // Backend not available, use defaults
+                error_log("SIEM Logger stats backend error: " . $e->getMessage());
             }
-        } else {
-            $eventTypes = ['authentication', 'network', 'firewall', 'system'];
-            $severities = ['info', 'warning', 'error'];
-            $ips = ['192.168.1.100', '10.0.0.50', '172.16.0.25'];
 
-            for ($i = 0; $i < 15; $i++) {
-                $recentEvents[] = [
-                    'id' => uniqid(),
-                    'timestamp' => date('c', time() - ($i * 300)),
-                    'source_ip' => $ips[array_rand($ips)],
-                    'event_type' => $eventTypes[array_rand($eventTypes)],
-                    'severity' => $severities[array_rand($severities)],
-                    'message' => 'Sample ' . $eventTypes[array_rand($eventTypes)] . ' event'
+            // Add configuration validation
+            $issues = $mdl->validateConfiguration();
+            $stats['configuration_valid'] = empty($issues);
+            $stats['configuration_issues'] = $issues;
+
+            return [
+                'status' => 'ok',
+                'data' => $stats
+            ];
+
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Validate the current configuration
+     * @return array
+     */
+    public function validateAction()
+    {
+        try {
+            $mdl = new SiemLogger();
+            $issues = $mdl->validateConfiguration();
+            
+            return [
+                'status' => 'ok',
+                'valid' => empty($issues),
+                'issues' => $issues
+            ];
+
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Get configuration summary
+     * @return array
+     */
+    public function summaryAction()
+    {
+        try {
+            $mdl = new SiemLogger();
+            $summary = $mdl->getConfigurationSummary();
+            
+            return [
+                'status' => 'ok',
+                'data' => $summary
+            ];
+
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ];
+        }
+    }
+}
+
+/**
+ * Class ServiceController - API controller for service management
+ * @package OPNsense\SiemLogger\Api
+ */
+class ServiceController extends \OPNsense\Base\ApiControllerBase
+{
+    /**
+     * Get service status
+     * @return array
+     */
+    public function statusAction()
+    {
+        try {
+            $backend = new Backend();
+            $response = $backend->configdRun('siemlogger status');
+            
+            $result = [
+                'status' => 'ok',
+                'running' => false,
+                'enabled' => false
+            ];
+
+            if (!empty($response)) {
+                $status = json_decode($response, true);
+                if (is_array($status)) {
+                    $result = array_merge($result, $status);
+                } else {
+                    // Fallback parsing for simple text response
+                    $result['running'] = (strpos($response, 'running') !== false);
+                }
+            }
+
+            // Check if service is enabled in configuration
+            $mdl = new SiemLogger();
+            $result['enabled'] = $mdl->isEnabled();
+
+            return $result;
+
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'running' => false,
+                'enabled' => false
+            ];
+        }
+    }
+
+    /**
+     * Start the service
+     * @return array
+     */
+    public function startAction()
+    {
+        try {
+            $backend = new Backend();
+            $response = $backend->configdRun('siemlogger start');
+            
+            return [
+                'status' => 'ok',
+                'action' => 'start',
+                'response' => $response
+            ];
+
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Stop the service
+     * @return array
+     */
+    public function stopAction()
+    {
+        try {
+            $backend = new Backend();
+            $response = $backend->configdRun('siemlogger stop');
+            
+            return [
+                'status' => 'ok',
+                'action' => 'stop',
+                'response' => $response
+            ];
+
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Restart the service
+     * @return array
+     */
+    public function restartAction()
+    {
+        try {
+            $backend = new Backend();
+            $response = $backend->configdRun('siemlogger restart');
+            
+            return [
+                'status' => 'ok',
+                'action' => 'restart',
+                'response' => $response
+            ];
+
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Reconfigure the service
+     * @return array
+     */
+    public function reconfigureAction()
+    {
+        try {
+            $backend = new Backend();
+            $response = $backend->configdRun('siemlogger reconfigure');
+            
+            return [
+                'status' => 'ok',
+                'action' => 'reconfigure',
+                'response' => $response
+            ];
+
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Get logs
+     * @return array
+     */
+    public function getLogsAction()
+    {
+        try {
+            $page = (int)$this->request->get('page', 'int', 1);
+            $limit = (int)$this->request->get('limit', 'int', 100);
+            $severity = $this->request->get('severity', 'string', '');
+            $search = $this->request->get('search', 'string', '');
+
+            // Validate parameters
+            $page = max(1, $page);
+            $limit = max(1, min(1000, $limit));
+            $offset = ($page - 1) * $limit;
+
+            $backend = new Backend();
+            $params = [
+                'offset' => $offset,
+                'limit' => $limit,
+                'severity' => $severity,
+                'search' => $search
+            ];
+            
+            $response = $backend->configdRun('siemlogger logs', $params);
+            
+            if (!empty($response)) {
+                $data = json_decode($response, true);
+                if (is_array($data)) {
+                    return [
+                        'status' => 'ok',
+                        'data' => $data
+                    ];
+                }
+            }
+
+            // Fallback if backend is not available
+            return [
+                'status' => 'ok',
+                'data' => [
+                    'logs' => [],
+                    'total' => 0,
+                    'page' => $page,
+                    'limit' => $limit
+                ]
+            ];
+
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Clear logs
+     * @return array
+     */
+    public function clearLogsAction()
+    {
+        if ($this->request->isPost()) {
+            try {
+                $backend = new Backend();
+                $response = $backend->configdRun('siemlogger clear_logs');
+                
+                return [
+                    'status' => 'ok',
+                    'action' => 'clear_logs',
+                    'response' => $response
+                ];
+
+            } catch (\Exception $e) {
+                return [
+                    'status' => 'error',
+                    'message' => $e->getMessage()
                 ];
             }
         }
 
-        return $recentEvents;
-    }
-
-    /**
-     * Get system information
-     * @return array system info
-     */
-    private function getSystemInfo()
-    {
-        $info = [
-            'siemlogger_version' => '1.0.0',
-            'uptime' => 'Unknown',
-            'service_status' => 'Unknown',
-            'pid' => 'Unknown',
-            'memory_usage' => 'Unknown',
-            'cpu_usage' => 'Unknown'
+        return [
+            'status' => 'error',
+            'message' => 'Only POST method allowed'
         ];
-
-        $backend = new Backend();
-        $response = $backend->configdRun("siemlogger status");
-
-        $lines = explode("\n", trim($response));
-        $running = false;
-        $pid = null;
-        $memory_usage = null;
-
-        foreach ($lines as $line) {
-            if (strpos($line, "is running as PID") !== false) {
-                $running = true;
-                if (preg_match('/PID (\d+)/', $line, $matches)) {
-                    $pid = $matches[1];
-                }
-            } elseif (strpos($line, "is not running") !== false) {
-                $running = false;
-            } elseif (strpos($line, "Memory usage:") !== false) {
-                if (preg_match('/Memory usage:\s*(\d+(?:\.\d+)?)\s*MB/', $line, $matches)) {
-                    $memory_usage = $matches[1] . "MB";
-                }
-            }
-        }
-
-        if ($running && $pid) {
-            $info['service_status'] = 'Active';
-            $info['pid'] = $pid;
-            $info['memory_usage'] = $memory_usage ?: 'Unknown';
-
-            $processInfo = $this->getProcessInfo($pid);
-            $info['cpu_usage'] = $processInfo['cpu_usage'];
-            $info['uptime'] = $processInfo['uptime'];
-        } else {
-            $info['service_status'] = 'Inactive';
-            $info['pid'] = 'N/A';
-            $info['memory_usage'] = 'N/A';
-            $info['cpu_usage'] = 'N/A';
-            $info['uptime'] = 'N/A';
-        }
-
-        return $info;
     }
 
     /**
-     * Get process information
-     * @param string $pid
+     * Export logs
      * @return array
      */
-    private function getProcessInfo($pid)
+    public function exportLogsAction()
     {
-        $cpu_usage = "Unknown";
-        $uptime = "Unknown";
-
         try {
-            $cpuCmd = "ps -o pcpu= -p " . escapeshellarg($pid);
-            $cpuResult = @shell_exec($cpuCmd);
-            if ($cpuResult !== null && $cpuResult !== false) {
-                $cpuResult = trim($cpuResult);
-                if ($cpuResult !== '' && is_numeric($cpuResult)) {
-                    $cpu_usage = $cpuResult . "%";
+            $format = $this->request->get('format', 'string', 'json');
+            $start_date = $this->request->get('start_date', 'string', '');
+            $end_date = $this->request->get('end_date', 'string', '');
+
+            $backend = new Backend();
+            $params = [
+                'format' => $format,
+                'start_date' => $start_date,
+                'end_date' => $end_date
+            ];
+            
+            $response = $backend->configdRun('siemlogger export_logs', $params);
+            
+            if (!empty($response)) {
+                $data = json_decode($response, true);
+                if (is_array($data) && isset($data['file_path'])) {
+                    // Return download information
+                    return [
+                        'status' => 'ok',
+                        'export_file' => $data['file_path'],
+                        'format' => $format,
+                        'records_exported' => $data['records_exported'] ?? 0
+                    ];
                 }
             }
 
-            $uptimeCmd = "ps -o etime= -p " . escapeshellarg($pid);
-            $uptimeResult = @shell_exec($uptimeCmd);
-            if ($uptimeResult !== null && $uptimeResult !== false) {
-                $uptimeResult = trim($uptimeResult);
-                if ($uptimeResult !== '') {
-                    $uptime = $uptimeResult;
-                }
-            }
+            return [
+                'status' => 'error',
+                'message' => 'Export failed or no data available'
+            ];
+
         } catch (\Exception $e) {
-            // Ignore errors
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Test SIEM connection
+     * @return array
+     */
+    public function testConnectionAction()
+    {
+        if ($this->request->isPost()) {
+            try {
+                $backend = new Backend();
+                $response = $backend->configdRun('siemlogger test_connection');
+                
+                $result = [
+                    'status' => 'ok',
+                    'connection_test' => false,
+                    'message' => 'Connection test failed'
+                ];
+
+                if (!empty($response)) {
+                    $data = json_decode($response, true);
+                    if (is_array($data)) {
+                        $result = array_merge($result, $data);
+                    }
+                }
+
+                return $result;
+
+            } catch (\Exception $e) {
+                return [
+                    'status' => 'error',
+                    'message' => $e->getMessage(),
+                    'connection_test' => false
+                ];
+            }
         }
 
         return [
-            'cpu_usage' => $cpu_usage,
-            'uptime' => $uptime
+            'status' => 'error',
+            'message' => 'Only POST method allowed'
         ];
     }
 }

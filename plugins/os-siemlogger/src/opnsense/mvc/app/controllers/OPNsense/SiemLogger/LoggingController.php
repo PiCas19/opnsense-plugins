@@ -28,13 +28,18 @@
 
 namespace OPNsense\SiemLogger;
 
-use OPNsense\Base\IndexController;
+use OPNsense\Base\IndexController as BaseController;
+use OPNsense\Core\Config;
 use OPNsense\SiemLogger\SiemLogger;
 
-class LoggingController extends IndexController
+/**
+ * Class LoggingController - Logs Page
+ * @package OPNsense\SiemLogger
+ */
+class LoggingController extends BaseController
 {
     /**
-     * Main logs page
+     * Main logs viewing page
      */
     public function indexAction()
     {
@@ -53,7 +58,7 @@ class LoggingController extends IndexController
         } catch (\Exception $e) {
             // Log the error
             error_log("SIEM Logger Logs Error: " . $e->getMessage());
-
+            
             // Safe fallback values
             $this->view->siemLoggerModel = null;
             $this->view->isEnabled = false;
@@ -64,7 +69,7 @@ class LoggingController extends IndexController
             $this->view->title = gettext("SIEM Logger Logs");
         }
 
-        // Select the template
+        // Explicitly set template
         $this->view->pick('OPNsense/SiemLogger/logs');
     }
 

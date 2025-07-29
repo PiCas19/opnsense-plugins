@@ -31,8 +31,15 @@ namespace OPNsense\SiemLogger;
 use OPNsense\Base\IndexController;
 use OPNsense\SiemLogger\SiemLogger;
 
-class DashboardController extends IndexController
+/**
+ * Class DashboardController - Dashboard Page
+ * @package OPNsense\SiemLogger
+ */
+class DashboardController extends BaseController
 {
+    /**
+     * SIEM Logger dashboard page
+     */
     public function indexAction()
     {
         try {
@@ -45,23 +52,27 @@ class DashboardController extends IndexController
             $this->view->logLevel = $mdlSiemLogger->getLogLevel();
             $this->view->exportEnabled = $mdlSiemLogger->isExportEnabled();
             $this->view->auditEnabled = $mdlSiemLogger->isAuditEnabled();
+            $this->view->maxLogSize = $mdlSiemLogger->getMaxLogSize();
+            $this->view->retentionDays = $mdlSiemLogger->getRetentionDays();
             $this->view->title = gettext("SIEM Logger Dashboard");
 
         } catch (\Exception $e) {
             // Log the error
             error_log("SIEM Logger Dashboard Error: " . $e->getMessage());
-
+            
             // Safe fallback values
             $this->view->siemLoggerModel = null;
             $this->view->isEnabled = false;
             $this->view->logLevel = 'INFO';
             $this->view->exportEnabled = false;
             $this->view->auditEnabled = false;
+            $this->view->maxLogSize = 100;
+            $this->view->retentionDays = 30;
             $this->view->title = gettext("SIEM Logger Dashboard");
             $this->view->error = $e->getMessage();
         }
 
-        // Select the template
+        // Explicitly set template
         $this->view->pick('OPNsense/SiemLogger/dashboard');
     }
 }

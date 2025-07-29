@@ -1,24 +1,26 @@
-<field>
-    <id>siemlogger.monitoring.health_check_interval</id>
-    <label>Health Check Interval (Seconds)</label>
-    <type>text</type>
-    <help>Interval for system health checks in seconds (60-3600)</help>
-</field>
-<field>
-    <id>siemlogger.monitoring.metrics_collection</id>
-    <label>Enable Metrics Collection</label>
-    <type>checkbox</type>
-    <help>Enable collection of system metrics</help>
-</field>
-<field>
-    <id>siemlogger.monitoring.performance_monitoring</id>
-    <label>Enable Performance Monitoring</label>
-    <type>checkbox</type>
-    <help>Enable monitoring of system performance</help>
-</field>
-<field>
-    <id>siemlogger.monitoring.disk_usage_threshold</id>
-    <label>Disk Usage Threshold (%)</label>
-    <type>text</type>
-    <help>Disk usage threshold for alerts (50-95%)</help>
-</field>
+<form>
+    <field>
+        <id>siemlogger.monitoring.health_check_interval</id>
+        <label>Health Check Interval (Seconds)</label>
+        <type>text</type>
+        <help>Interval for system health checks in seconds (60-3600)</help>
+    </field>
+    <field>
+        <id>siemlogger.monitoring.metrics_collection</id>
+        <label>Enable Metrics Collection</label>
+        <type>checkbox</type>
+        <help>Enable collection of system metrics</help>
+    </field>
+    <field>
+        <id>siemlogger.monitoring.performance_monitoring</id>
+        <label>Enable Performance Monitoring</label>
+        <type>checkbox</type>
+        <help>Enable monitoring of system performance</help>
+    </field>
+    <field>
+        <id>siemlogger.monitoring.disk_usage_threshold</id>
+        <label>Disk Usage Threshold (%)</label>
+        <type>text</type>
+        <help>Disk usage threshold for alerts (50-95%)</help>
+    </field>
+</form>
