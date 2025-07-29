@@ -28,15 +28,11 @@
 
 namespace OPNsense\SiemLogger;
 
-use OPNsense\Base\IndexController as BaseController;
-use OPNsense\Core\Config;
-use OPNsense\SiemLogger\SiemLogger;
-
 /**
- * Class LoggingController - Logs Page
+ * Class LoggingController
  * @package OPNsense\SiemLogger
  */
-class LoggingController extends BaseController
+class LoggingController extends \OPNsense\Base\IndexController
 {
     /**
      * Main logs viewing page

@@ -28,17 +28,15 @@
 
 namespace OPNsense\SiemLogger;
 
-use OPNsense\Base\IndexController;
-use OPNsense\SiemLogger\SiemLogger;
-
 /**
- * Class DashboardController - Dashboard Page
+ * Class DashboardController
  * @package OPNsense\SiemLogger
  */
-class DashboardController extends BaseController
+class DashboardController extends \OPNsense\Base\IndexController
 {
     /**
      * SIEM Logger dashboard page
+     * @throws \Exception
      */
     public function indexAction()
     {
