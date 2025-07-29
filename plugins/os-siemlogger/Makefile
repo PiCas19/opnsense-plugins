@@ -1,4 +1,4 @@
-PLUGIN_NAME= os-siemlogger 
+PLUGIN_NAME= siemlogger 
 PLUGIN_VERSION= 1.0 
 PLUGIN_COMMENT= SIEM/NDR event export and access logging with Zero Trust 
 PLUGIN_MAINTAINER= pierpaolo.casati@student.supsi.ch 
