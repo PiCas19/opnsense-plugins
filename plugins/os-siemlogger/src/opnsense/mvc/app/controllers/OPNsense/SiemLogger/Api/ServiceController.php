@@ -212,7 +212,7 @@ class ServiceController extends ApiControllerBase
                 'search' => $search
             ]);
             
-            $response = $backend->configdRun('siemlogger get_logs', $params);
+            $response = $backend->configdpRun('siemlogger get_logs', $params);
             
             if (!empty($response)) {
                 $data = json_decode($response, true);
@@ -255,7 +255,7 @@ class ServiceController extends ApiControllerBase
         if ($this->request->isPost()) {
             try {
                 $backend = new Backend();
-                $response = $backend->configdRun('siemlogger clear_logs');
+                $response = $backend->configdpRun('siemlogger clear_logs');
                 
                 return [
                     'status' => 'ok',
@@ -296,7 +296,7 @@ class ServiceController extends ApiControllerBase
                 'end_date' => $end_date
             ]);
             
-            $response = $backend->configdRun('siemlogger export_logs', $params);
+            $response = $backend->configdpRun('siemlogger export_logs', $params);
             
             if (!empty($response)) {
                 $data = json_decode($response, true);
@@ -340,7 +340,7 @@ class ServiceController extends ApiControllerBase
         if ($this->request->isPost()) {
             try {
                 $backend = new Backend();
-                $response = $backend->configdRun('siemlogger test_connection');
+                $response = $backend->configdpRun('siemlogger test_connection');
                 
                 $result = [
                     'status' => 'ok',
@@ -388,7 +388,7 @@ class ServiceController extends ApiControllerBase
     {
         try {
             $backend = new Backend();
-            $response = $backend->configdRun('siemlogger statistics');
+            $response = $backend->configdpRun('siemlogger statistics');
             
             if (!empty($response)) {
                 $data = json_decode($response, true);
