@@ -1,3 +1,4 @@
+
 #!/usr/local/bin/python3.11
 
 """
@@ -15,15 +16,31 @@ import logging
 CONFIG_PATH = "/conf/config.xml"
 CACHE_FILE = "/tmp/siemlogger_cache.json"
 CACHE_TIMEOUT = 30  # seconds
-LOG_FILE = "/var/log/siemlogger/settings.log"
+LOG_DIR = "/var/log/siemlogger"
+LOG_FILE = f"{LOG_DIR}/settings.log"
+
+# FIXED: Ensure log directory and file exist BEFORE initializing logging
+os.makedirs(LOG_DIR, exist_ok=True)
+if not os.path.exists(LOG_FILE):
+    with open(LOG_FILE, 'w') as f:
+        f.write("")
 
 # Initialize logging
-logging.basicConfig(
-    filename=LOG_FILE,
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+try:
+    logging.basicConfig(
+        filename=LOG_FILE,
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
+    logger = logging.getLogger(__name__)
+except Exception as e:
+    # Fallback to console logging if file logging fails
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
+    logger = logging.getLogger(__name__)
+    logger.warning(f"Could not initialize file logging: {e}")
 
 _cache = None
 _cache_time = 0
@@ -69,7 +86,7 @@ def load_config():
 
         _cache = {
             "general": {
-                "enabled": general.findtext("enabled", "0") == "1",
+                "enabled": general.findtext("enabled", "1") == "1",  # FIXED: Changed default to "1"
                 "log_level": general.findtext("log_level", "INFO").upper(),
                 "max_log_size": int(general.findtext("max_log_size", "100")),
                 "event_retention_days": int(general.findtext("retention_days", "30")),
@@ -133,6 +150,7 @@ def load_config():
 
 def create_default_config():
     """Creates default SIEM Logger configuration"""
+    logger.info("Creating default configuration")  # ADDED: Log when using defaults
     return {
         "general": {
             "enabled": True,
