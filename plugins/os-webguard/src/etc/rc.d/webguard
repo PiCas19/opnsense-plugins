@@ -1,181 +1,146 @@
 #!/bin/sh
-# webguard - WebGuard WAF daemon script (compatible with configctl)
+# siemlogger - SiemLogger daemon script
 
-name="webguard"
+# Carica le funzioni di rc.subr per la gestione dei daemon
+. /etc/rc.subr
+
+name="siemlogger"
+rcvar="${name}_enable"
 pidfile="/var/run/${name}.pid"
 command="/usr/local/bin/python3.11"
-command_args="/usr/local/opnsense/scripts/OPNsense/WebGuard/web_guard_engine.py"
-config_file="/usr/local/etc/webguard/config.json"
+command_args="/usr/local/opnsense/scripts/OPNsense/SiemLogger/siemlogger_engine.py"
+config_file="/usr/local/etc/siemlogger/config.json"
+log_dir="/var/log/siemlogger"
+log_file="${log_dir}/service.log"
 
-webguard_prestart()
+# Impostazioni predefinite
+: ${siemlogger_enable:=NO}
+
+# Funzioni specifiche
+siemlogger_prestart()
 {
-    # Create necessary directories
-    [ -d /var/run ] || install -d -m 755 /var/run
-    [ -d /var/log/webguard ] || install -d -m 755 /var/log/webguard
-    [ -d /usr/local/etc/webguard ] || install -d -m 755 /usr/local/etc/webguard
-    [ -d /var/db/webguard ] || install -d -m 755 /var/db/webguard
-    
-    # Check if Python3 exists
-    if [ ! -f "$command" ]; then
-        echo "Error: Python3 not found at $command"
+    # Crea directory necessarie
+    [ -d /var/run ] || install -d -m 755 /var/run 2>/dev/null
+    [ -d "${log_dir}" ] || install -d -m 750 "${log_dir}" 2>/dev/null
+    [ -d /usr/local/etc/siemlogger ] || install -d -m 755 /usr/local/etc/siemlogger 2>/dev/null
+    [ -d /var/db/siemlogger ] || install -d -m 755 /var/db/siemlogger 2>/dev/null
+
+    # Verifica Python
+    if [ ! -x "${command}" ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Error: Python3 not found or not executable at ${command}" >> "${log_file}" 2>/dev/null
         return 1
     fi
-    
-    # Check if engine script exists
-    if [ ! -f "$command_args" ]; then
-        echo "Error: Engine script not found at $command_args"
+
+    # Verifica engine script
+    if [ ! -x "${command_args}" ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Error: Engine script not found or not executable at ${command_args}" >> "${log_file}" 2>/dev/null
         return 1
     fi
-    
-    # Check if all required modules exist
-    REQUIRED_MODULES="update_rules export_config get_waf_stats get_threat_metrics get_metrics get_stats"
-    SCRIPTS_DIR="/usr/local/opnsense/scripts/OPNsense/WebGuard"
-    
-    for module in $REQUIRED_MODULES; do
+
+    # Verifica moduli
+    REQUIRED_MODULES="settings_logger export_events health_check"
+    SCRIPTS_DIR="/usr/local/opnsense/scripts/OPNsense/SiemLogger"
+    for module in ${REQUIRED_MODULES}; do
         if [ ! -f "${SCRIPTS_DIR}/${module}.py" ]; then
-            echo "Error: Required module not found: ${SCRIPTS_DIR}/${module}.py"
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Error: Required module not found: ${SCRIPTS_DIR}/${module}.py" >> "${log_file}" 2>/dev/null
             return 1
         fi
         chmod +x "${SCRIPTS_DIR}/${module}.py" 2>/dev/null || true
     done
-    
-    # Set executable permissions on engine
-    chmod +x "$command_args" 2>/dev/null || true
-    
+
+    # Crea config se assente
+    if [ ! -f "${config_file}" ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Creating basic config file..." >> "${log_file}" 2>/dev/null
+        cat > "${config_file}" << 'EOF'
+{
+  "general": {"enabled": true, "log_level": "INFO"},
+  "siem_export": {"export_enabled": false, "export_format": "json"}
+}
+EOF
+        chmod 644 "${config_file}" 2>/dev/null
+    fi
+
     return 0
 }
 
-webguard_start()
+siemlogger_start()
 {
-    echo "[$(date)] Starting ${name}..." >> /var/log/webguard/daemon.log
-    
-    # Check if already running
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting ${name}..." >> "${log_file}" 2>/dev/null
+
     if [ -f "${pidfile}" ]; then
-        OLD_PID=$(cat ${pidfile})
+        OLD_PID=$(cat "${pidfile}")
         if kill -0 "${OLD_PID}" 2>/dev/null; then
-            echo "[$(date)] ${name} is already running with PID ${OLD_PID}." >> /var/log/webguard/daemon.log
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] ${name} is already running with PID ${OLD_PID}." >> "${log_file}" 2>/dev/null
             echo "${name} is already running as PID ${OLD_PID}"
             return 1
         else
-            echo "[$(date)] Removing stale PID file" >> /var/log/webguard/daemon.log
-            rm -f "${pidfile}"
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Removing stale PID file" >> "${log_file}" 2>/dev/null
+            rm -f "${pidfile}" 2>/dev/null
         fi
     fi
-    
-    # Export configuration from OPNsense
-    if [ -f /usr/local/opnsense/scripts/OPNsense/WebGuard/export_config.py ]; then
-        echo "[$(date)] Exporting configuration..." >> /var/log/webguard/daemon.log
-        /usr/local/bin/python3.11 /usr/local/opnsense/scripts/OPNsense/WebGuard/export_config.py >> /var/log/webguard/daemon.log 2>&1
-    else
-        echo "[$(date)] Warning: export_config.py not found, using default configuration" >> /var/log/webguard/daemon.log
-    fi
-    
-    # Update rules first
-    if [ -f /usr/local/opnsense/scripts/OPNsense/WebGuard/update_rules.py ]; then
-        echo "[$(date)] Updating WAF rules..." >> /var/log/webguard/daemon.log
-        /usr/local/bin/python3.11 /usr/local/opnsense/scripts/OPNsense/WebGuard/update_rules.py >> /var/log/webguard/daemon.log 2>&1 || echo "[$(date)] Rules update failed, continuing with existing rules" >> /var/log/webguard/daemon.log
-    fi
-    
-    # Start the process using daemon utility for better process management
-    echo "[$(date)] Starting engine process..." >> /var/log/webguard/daemon.log
-    
-    # Use daemon utility if available, otherwise fallback to manual background process
+
+    # Avvia il processo
     if command -v daemon >/dev/null 2>&1; then
-        /usr/sbin/daemon -p "${pidfile}" -f "${command}" "${command_args}"
+        /usr/sbin/daemon -p "${pidfile}" -f "${command}" "${command_args}" >> "${log_file}" 2>&1
     else
-        # Fallback method
-        "${command}" "${command_args}" > /var/log/webguard/stdout.log 2> /var/log/webguard/stderr.log &
-        echo $! > "${pidfile}"
+        "${command}" "${command_args}" > "${log_dir}/stdout.log" 2> "${log_dir}/stderr.log" &
+        echo $! > "${pidfile}" 2>/dev/null
     fi
-    
-    sleep 5
-    
-    # Check if process is still running
+
+    sleep 2
+
     if [ -f "${pidfile}" ]; then
-        NEW_PID=$(cat ${pidfile})
+        NEW_PID=$(cat "${pidfile}")
         if kill -0 "${NEW_PID}" 2>/dev/null; then
-            echo "[$(date)] ${name} started successfully with PID ${NEW_PID}" >> /var/log/webguard/daemon.log
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] ${name} started successfully with PID ${NEW_PID}" >> "${log_file}" 2>/dev/null
             echo "${name} started successfully as PID ${NEW_PID}"
             return 0
         else
-            echo "[$(date)] Failed to start ${name} (PID ${NEW_PID} not alive)" >> /var/log/webguard/daemon.log
-            echo "[$(date)] Check /var/log/webguard/stderr.log for errors" >> /var/log/webguard/daemon.log
-            echo "Failed to start ${name}"
-            rm -f "${pidfile}"
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Failed to start ${name} (PID ${NEW_PID} not alive)" >> "${log_file}" 2>/dev/null
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Check ${log_dir}/stderr.log for errors" >> "${log_file}" 2>/dev/null
+            rm -f "${pidfile}" 2>/dev/null
             return 1
         fi
     else
-        echo "[$(date)] Failed to start ${name} (no PID file created)" >> /var/log/webguard/daemon.log
-        echo "Failed to start ${name}"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Failed to start ${name} (no PID file created)" >> "${log_file}" 2>/dev/null
         return 1
-    fi
+    end
 }
 
-webguard_stop()
+siemlogger_stop()
 {
-    echo "[$(date)] Stopping ${name}..." >> /var/log/webguard/daemon.log
-    
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Stopping ${name}..." >> "${log_file}" 2>/dev/null
+
     if [ -f "${pidfile}" ]; then
         PID=$(cat "${pidfile}")
         if kill -0 "${PID}" 2>/dev/null; then
-            # Send TERM signal for graceful shutdown
-            echo "[$(date)] Sending TERM signal to PID ${PID}" >> /var/log/webguard/daemon.log
-            kill -TERM "${PID}"
-            
-            # Wait for graceful shutdown with timeout
-            TIMEOUT=15
-            while [ $TIMEOUT -gt 0 ] && kill -0 "${PID}" 2>/dev/null; do
-                sleep 1
-                TIMEOUT=$((TIMEOUT - 1))
-            done
-            
-            # Force kill if still running
+            kill -TERM "${PID}" 2>/dev/null
+            sleep 5
             if kill -0 "${PID}" 2>/dev/null; then
-                echo "[$(date)] Process still running, sending KILL signal" >> /var/log/webguard/daemon.log
                 kill -KILL "${PID}" 2>/dev/null
-                sleep 2
             fi
-            
-            echo "[$(date)] ${name} stopped." >> /var/log/webguard/daemon.log
+            rm -f "${pidfile}" 2>/dev/null
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] ${name} stopped." >> "${log_file}" 2>/dev/null
             echo "${name} stopped"
-            rm -f "${pidfile}"
             return 0
         else
-            echo "[$(date)] PID ${PID} not running, removing stale PID file" >> /var/log/webguard/daemon.log
-            rm -f "${pidfile}"
+            rm -f "${pidfile}" 2>/dev/null
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] PID ${PID} not running, removed stale PID file" >> "${log_file}" 2>/dev/null
             return 0
         fi
     else
-        echo "[$(date)] No PID file found. Is ${name} running?" >> /var/log/webguard/daemon.log
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] No PID file found. Is ${name} running?" >> "${log_file}" 2>/dev/null
         echo "${name} is not running"
         return 1
     fi
 }
 
-webguard_status()
+siemlogger_status()
 {
     if [ -f "${pidfile}" ]; then
         PID=$(cat "${pidfile}")
         if kill -0 "${PID}" 2>/dev/null; then
             echo "${name} is running as PID ${PID}"
-            
-            # Get additional status info
-            if [ -f /var/log/webguard/stats.json ]; then
-                echo "Statistics available in /var/log/webguard/stats.json"
-                # Show basic stats if jq is available
-                if command -v jq >/dev/null 2>&1; then
-                    REQUESTS=$(jq -r '.requests_analyzed // 0' /var/log/webguard/stats.json 2>/dev/null)
-                    THREATS=$(jq -r '.threats_blocked // 0' /var/log/webguard/stats.json 2>/dev/null)
-                    echo "Requests analyzed: ${REQUESTS}, Threats blocked: ${THREATS}"
-                fi
-            fi
-            
-            # Show memory usage
-            MEMORY=$(ps -o rss= -p "${PID}" 2>/dev/null | awk '{print int($1/1024)"MB"}')
-            if [ -n "$MEMORY" ]; then
-                echo "Memory usage: ${MEMORY}"
-            fi
-            
             return 0
         else
             echo "${name} PID file exists but process is not running"
@@ -187,30 +152,18 @@ webguard_status()
     fi
 }
 
-webguard_restart()
+siemlogger_restart()
 {
-    echo "[$(date)] Restarting ${name}..." >> /var/log/webguard/daemon.log
-    webguard_stop
-    sleep 3
-    webguard_start
+    siemlogger_stop
+    sleep 1
+    siemlogger_start
 }
 
-# Handle different invocation methods (like deepinspector)
-case "$1" in
-    start)
-        webguard_prestart && webguard_start
-        ;;
-    stop)
-        webguard_stop
-        ;;
-    restart)
-        webguard_restart
-        ;;
-    status)
-        webguard_status
-        ;;
-    *)
-        echo "Usage: $0 {start|stop|restart|status}"
-        exit 1
-        ;;
-esac
+# Definisci i comandi
+start_precmd="${name}_prestart"
+start_cmd="${name}_start"
+stop_cmd="${name}_stop"
+status_cmd="${name}_status"
+restart_cmd="${name}_restart"
+
+run_rc_command "$1"
