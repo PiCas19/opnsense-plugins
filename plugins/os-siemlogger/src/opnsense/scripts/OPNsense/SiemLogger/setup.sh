@@ -24,6 +24,16 @@ echo "[*] Creating empty log files..."
 : > "${LOG_DIR}/export_events.log"
 : > "${LOG_DIR}/health_check.log"
 
+echo "[*] Copying scripts..."
+for script in siemlogger_engine.py export_events.py health_check.py settings_logger.py siemlogger_control.sh; do
+    if [ -f "$script" ]; then
+        cp "$script" "${SCRIPTS_DIR}/$script"
+        chmod 755 "${SCRIPTS_DIR}/$script"
+    else
+        echo "[!] Warning: $script not found in current directory"
+    fi
+done
+
 echo "[*] Checking configuration file..."
 if ! grep -q "<SiemLogger>" "$CONFIG_FILE"; then
     echo "[*] Adding default SIEM Logger configuration to $CONFIG_FILE..."
