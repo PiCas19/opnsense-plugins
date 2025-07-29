@@ -6,167 +6,249 @@
 PATH="/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin:$PATH"
 export PATH
 
-PYTHON_BIN="python3.11"
-SCRIPTS_DIR="/usr/local/opnsense/scripts/OPNsense/SiemLogger"
+PYTHON_BIN="/usr/local/bin/python3.11"
+ENGINE_SCRIPT="/usr/local/opnsense/scripts/OPNsense/SiemLogger/siemlogger_engine.py"
 LOG_DIR="/var/log/siemlogger"
+PIDFILE="/var/run/siemlogger.pid"
+CONFIG_FILE="/usr/local/etc/siemlogger/config.json"
 
 # Ensure directories exist
-mkdir -p $LOG_DIR
+mkdir -p "$LOG_DIR" "/var/run"
 
 # Function to log actions
 log_action() {
-    echo "$(date): $1" >> $LOG_DIR/control.log
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_DIR/service.log"
 }
 
+# Function to check if service is running
+is_running() {
+    if [ -f "$PIDFILE" ]; then
+        PID=$(cat "$PIDFILE")
+        if kill -0 "$PID" 2>/dev/null; then
+            return 0
+        else
+            rm -f "$PIDFILE"
+        fi
+    fi
+    return 1
+}
+
+# Function to start the service
+start_service() {
+    if is_running; then
+        echo "SIEM Logger is already running (PID $(cat "$PIDFILE"))"
+        return 0
+    fi
+
+    # Check if enabled in config
+    if [ -f "$CONFIG_FILE" ]; then
+        enabled=$(jq -r '.general.enabled' "$CONFIG_FILE" 2>/dev/null)
+        if [ "$enabled" = "false" ]; then
+            echo "SIEM Logger is disabled in configuration"
+            return 0
+        fi
+    fi
+
+    echo "Starting SIEM Logger service..."
+    log_action "Starting service"
+
+    # Start the engine in background
+    "$PYTHON_BIN" "$ENGINE_SCRIPT" >> "$LOG_DIR/stdout.log" 2>> "$LOG_DIR/stderr.log" &
+    echo $! > "$PIDFILE"
+
+    sleep 2  # Give it time to start
+
+    if is_running; then
+        echo "SIEM Logger started successfully (PID $(cat "$PIDFILE"))"
+        log_action "Service started successfully with PID $(cat "$PIDFILE")"
+        return 0
+    else
+        echo "Failed to start SIEM Logger"
+        log_action "Failed to start service"
+        rm -f "$PIDFILE"
+        return 1
+    fi
+}
+
+# Function to stop the service
+stop_service() {
+    if ! is_running; then
+        echo "SIEM Logger is not running"
+        return 0
+    fi
+
+    echo "Stopping SIEM Logger service..."
+    log_action "Stopping service"
+
+    PID=$(cat "$PIDFILE")
+    kill -TERM "$PID" 2>/dev/null
+
+    # Wait for graceful shutdown
+    TIMEOUT=15
+    while [ $TIMEOUT -gt 0 ] && is_running; do
+        sleep 1
+        TIMEOUT=$((TIMEOUT - 1))
+    done
+
+    if is_running; then
+        kill -KILL "$PID" 2>/dev/null
+        sleep 2
+        log_action "Service was forcefully stopped"
+    fi
+
+    if ! is_running; then
+        rm -f "$PIDFILE"
+        echo "SIEM Logger stopped"
+        log_action "Service stopped successfully"
+        return 0
+    else
+        echo "Failed to stop SIEM Logger"
+        log_action "Failed to stop service"
+        return 1
+    fi
+}
+
+# Function to get service status
+status_service() {
+    if is_running; then
+        PID=$(cat "$PIDFILE")
+        echo "SIEM Logger is running (PID $PID)"
+        
+        # Get additional status info if available
+        if [ -f "$LOG_DIR/stats.json" ]; then
+            events=$(jq -r '.events_processed // 0' "$LOG_DIR/stats.json" 2>/dev/null)
+            threats=$(jq -r '.threats_detected // 0' "$LOG_DIR/stats.json" 2>/dev/null)
+            [ -n "$events" ] && echo "Events processed: $events"
+            [ -n "$threats" ] && echo "Threats detected: $threats"
+        fi
+        
+        return 0
+    else
+        echo "SIEM Logger is not running"
+        return 1
+    fi
+}
+
+# Function to export events
+export_events() {
+    format="${1:-json}"
+    log_action "Starting event export in $format format"
+    
+    "$PYTHON_BIN" "$ENGINE_SCRIPT" export "$format" >> "$LOG_DIR/export.log" 2>&1
+    result=$?
+    
+    if [ $result -eq 0 ]; then
+        echo "Events exported successfully in $format format"
+        log_action "Event export completed successfully"
+        return 0
+    else
+        echo "Failed to export events (code $result)"
+        log_action "Event export failed with code $result"
+        return $result
+    fi
+}
+
+# Function to get statistics
+get_stats() {
+    type="${1:-summary}"
+    log_action "Retrieving statistics: $type"
+    
+    stats=$("$PYTHON_BIN" "$ENGINE_SCRIPT" stats "$type" 2>&1)
+    result=$?
+    
+    if [ $result -eq 0 ]; then
+        echo "$stats"
+        log_action "Statistics retrieved successfully"
+        return 0
+    else
+        echo "Failed to get statistics (code $result)"
+        echo "$stats"
+        log_action "Failed to retrieve statistics"
+        return $result
+    fi
+}
+
+# Function to get logs
+get_logs() {
+    page="${1:-1}"
+    limit="${2:-50}"
+    log_action "Retrieving logs (page $page, limit $limit)"
+    
+    logs=$("$PYTHON_BIN" "$ENGINE_SCRIPT" logs "$page" "$limit" 2>&1)
+    result=$?
+    
+    if [ $result -eq 0 ]; then
+        echo "$logs"
+        log_action "Logs retrieved successfully"
+        return 0
+    else
+        echo "Failed to get logs (code $result)"
+        echo "$logs"
+        log_action "Failed to retrieve logs"
+        return $result
+    fi
+}
+
+# Main command handling
 case "$1" in
     start)
-        echo "Starting SIEM Logger service..."
-        $PYTHON_BIN "$SCRIPTS_DIR/export_events.py" > $LOG_DIR/export_events.log 2>&1 &
-        echo $! > /var/run/siemlogger.pid
-        $PYTHON_BIN "$SCRIPTS_DIR/audit_monitor.py" > $LOG_DIR/audit_monitor.log 2>&1 &
-        echo $! >> /var/run/siemlogger.pid
-        $PYTHON_BIN "$SCRIPTS_DIR/health_check.py" > $LOG_DIR/health_check.log 2>&1 &
-        echo $! >> /var/run/siemlogger.pid
-        log_action "SIEM Logger service started"
-        echo "OK: SIEM Logger service started"
+        start_service
         ;;
     stop)
-        echo "Stopping SIEM Logger service..."
-        if [ -f /var/run/siemlogger.pid ]; then
-            while read -r pid; do
-                kill $pid 2>/dev/null
-            done < /var/run/siemlogger.pid
-            rm -f /var/run/siemlogger.pid
-            log_action "SIEM Logger service stopped"
-            echo "OK: SIEM Logger service stopped"
-        else
-            log_action "No PID file found for SIEM Logger"
-            echo "ERROR: No PID file found. Is SIEM Logger running?"
-            exit 1
-        fi
+        stop_service
         ;;
     status)
-        if [ -f /var/run/siemlogger.pid ]; then
-            running=false
-            while read -r pid; do
-                if ps -p $pid > /dev/null; then
-                    echo "SIEM Logger service is running with PID $pid"
-                    running=true
-                fi
-            done < /var/run/siemlogger.pid
-            if [ "$running" = false ]; then
-                echo "SIEM Logger PID file exists but processes are not running"
-                exit 1
-            fi
-        else
-            echo "SIEM Logger service is not running"
-            exit 1
-        fi
+        status_service
         ;;
     restart)
-        $0 stop
-        sleep 1
-        $0 start
-        log_action "SIEM Logger service restarted"
-        echo "OK: SIEM Logger service restarted"
+        stop_service
+        sleep 2
+        start_service
         ;;
     reconfigure)
-        $0 stop
-        $PYTHON_BIN "$SCRIPTS_DIR/export_events.py" configure
-        sleep 1
-        $0 start
-        log_action "SIEM Logger service reconfigured"
-        echo "OK: SIEM Logger service reconfigured"
+        stop_service
+        sleep 2
+        "$PYTHON_BIN" "$ENGINE_SCRIPT" configure
+        start_service
         ;;
-    export_events)
-        FORMAT="${2:-json}"
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/export_events.py" export "$FORMAT" 2>&1)
-        if [ $? -eq 0 ]; then
-            log_action "Exported events in $FORMAT format"
-            echo "$result"
-        else
-            log_action "Failed to export events: $result"
-            echo "ERROR: $result"
-            exit 1
-        fi
+    export)
+        export_events "$2"
         ;;
-    get_stats)
-        TYPE="${2:-all}"
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/health_check.py" stats "$TYPE" 2>&1)
-        if [ $? -eq 0 ]; then
-            echo "$result"
-        else
-            echo '{"status": "error", "message": "Failed to retrieve statistics", "data": {}}'
-            exit 1
-        fi
+    stats)
+        get_stats "$2"
         ;;
-    get_logs)
-        PAGE="${2:-1}"
-        LIMIT="${3:-100}"
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/export_events.py" get_logs "$PAGE" "$LIMIT" 2>&1)
-        if [ $? -eq 0 ]; then
-            echo "$result"
-        else
-            echo '{"status": "error", "message": "Failed to retrieve logs", "data": []}'
-            exit 1
-        fi
-        ;;
-    clear_logs)
-        for logfile in siemlogger.log export_events.log audit_monitor.log health_check.log control.log; do
-            if [ -f "$LOG_DIR/$logfile" ]; then
-                > "$LOG_DIR/$logfile"
-            fi
-        done
-        log_action "SIEM Logger logs cleared"
-        echo "OK: SIEM Logger logs cleared"
-        ;;
-    test_export)
-        FORMAT="${2:-json}"
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/export_events.py" test "$FORMAT" 2>&1)
-        if [ $? -eq 0 ]; then
-            log_action "Tested SIEM export in $FORMAT format"
-            echo "$result"
-        else
-            log_action "Failed to test SIEM export: $result"
-            echo "ERROR: $result"
-            exit 1
-        fi
+    logs)
+        get_logs "$2" "$3"
         ;;
     test)
-        echo "Testing SIEM Logger control script..."
-        echo "PATH: $PATH"
+        echo "Testing SIEM Logger control script:"
         echo "Python: $PYTHON_BIN"
-        echo "Scripts directory: $SCRIPTS_DIR"
-        echo "Log directory: $LOG_DIR"
-        echo ""
-        echo "Available Python scripts:"
-        ls -la "$SCRIPTS_DIR"/*.py 2>/dev/null || echo "No Python scripts found"
-        echo ""
-        echo "Testing configuration..."
-        result=$($PYTHON_BIN "$SCRIPTS_DIR/export_events.py" test_config 2>&1)
-        if [ $? -eq 0 ]; then
-            echo "Configuration test: OK"
+        echo "Engine: $ENGINE_SCRIPT"
+        echo "Config: $CONFIG_FILE"
+        echo "Logs: $LOG_DIR"
+        echo "PID: $PIDFILE"
+        
+        if [ -f "$ENGINE_SCRIPT" ]; then
+            echo "Engine script exists"
+            "$PYTHON_BIN" "$ENGINE_SCRIPT" test
         else
-            echo "Configuration test: ERROR - $result"
+            echo "Engine script missing!"
         fi
-        echo "Test complete"
         ;;
     *)
-        echo "Usage: $0 {start|stop|status|restart|reconfigure|export_events|get_stats|get_logs|clear_logs|test_export|test}"
+        echo "Usage: $0 {start|stop|status|restart|reconfigure|export [format]|stats [type]|logs [page] [limit]|test}"
         echo ""
         echo "Service Commands:"
         echo "  start                     Start the SIEM Logger service"
         echo "  stop                      Stop the SIEM Logger service"
         echo "  status                    Check the SIEM Logger service status"
         echo "  restart                   Restart the SIEM Logger service"
-        echo "  reconfigure               Reconfigure and restart the SIEM Logger service"
+        echo "  reconfigure               Reconfigure and restart the service"
         echo ""
-        echo "Event and Log Management:"
-        echo "  export_events [format]    Export events to SIEM in specified format (json, syslog, cef, leef)"
-        echo "  get_stats [type]          Get statistics (all, disk, events, audit)"
-        echo "  get_logs [page] [limit]   Get log entries with pagination"
-        echo "  clear_logs                Clear all SIEM Logger logs"
-        echo "  test_export [format]      Test SIEM export configuration"
+        echo "Data Commands:"
+        echo "  export [format]           Export events (json|syslog|cef|leef)"
+        echo "  stats [type]              Get statistics (summary|detailed|threats)"
+        echo "  logs [page] [limit]       Get log entries with pagination"
         echo ""
         echo "Utility:"
         echo "  test                      Test the control script and configuration"
@@ -174,4 +256,4 @@ case "$1" in
         ;;
 esac
 
-exit 0
+exit $?
