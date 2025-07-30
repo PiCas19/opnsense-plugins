@@ -1,6 +1,6 @@
 #!/bin/sh
 # WebGuard Clean Setup for OPNsense
-# UPDATED: Dual GeoIP Database Support
+# UPDATED: Dual GeoIP Database Support with geoipupdate
 
 set -e
 
@@ -8,9 +8,34 @@ CONFIG_DIR="/usr/local/etc/webguard"
 LOG_DIR="/var/log/webguard"
 DB_DIR="/var/db/webguard"
 GEOIP_DIR="/usr/local/share/GeoIP"
+GEOIP_CONF="/usr/local/etc/GeoIP.conf"
 PY="/usr/local/bin/python3.11"
 UPDATER="${CONFIG_DIR}/update_rules.py"
 DB_FILE="${DB_DIR}/webguard.db"
+
+# Prompt for MaxMind Account ID and License Key if not already configured
+if [ ! -f "$GEOIP_CONF" ] || ! grep -q "AccountID" "$GEOIP_CONF" || ! grep -q "LicenseKey" "$GEOIP_CONF"; then
+    echo "=============================================="
+    echo "MaxMind GeoLite2 Configuration"
+    echo "=============================================="
+    echo "Please provide your MaxMind Account ID and License Key."
+    echo "Get them from: https://www.maxmind.com/en/accounts/current/license-key"
+    echo ""
+    read -p "Enter MaxMind Account ID: " MAXMIND_ACCOUNT_ID
+    read -p "Enter MaxMind License Key: " MAXMIND_LICENSE_KEY
+
+    echo "[*] Creating GeoIP.conf..."
+    mkdir -p "$(dirname $GEOIP_CONF)"
+    cat > "$GEOIP_CONF" <<EOF
+AccountID $MAXMIND_ACCOUNT_ID
+LicenseKey $MAXMIND_LICENSE_KEY
+EditionIDs GeoLite2-Country
+EOF
+    chmod 600 "$GEOIP_CONF"
+    echo "[+] GeoIP.conf created at $GEOIP_CONF"
+else
+    echo "[*] GeoIP.conf already exists at $GEOIP_CONF"
+fi
 
 echo "=============================================="
 echo "WebGuard Clean Setup - Dual GeoIP Support"
@@ -107,17 +132,17 @@ done
 echo "[*] Installing Python dependencies..."
 $PY -m pip install -q psutil geoip2 requests || echo "[!] pip install errors ignored"
 
-echo "[*] Setting up DUAL GeoIP databases..."
+echo "[*] Setting up GeoIP databases..."
 
-# Download MaxMind GeoLite2
-echo "[*] Downloading MaxMind GeoLite2 database..."
-if fetch -o "${GEOIP_DIR}/GeoLite2-Country.mmdb" "https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-Country.mmdb" 2>/dev/null; then
-    echo "[+] MaxMind GeoLite2 database downloaded successfully"
+# Download MaxMind GeoLite2 using geoipupdate
+echo "[*] Updating GeoLite2-Country.mmdb via geoipupdate..."
+if geoipupdate; then
+    echo "[+] GeoLite2 database downloaded successfully"
     echo "    Location: ${GEOIP_DIR}/GeoLite2-Country.mmdb"
-    echo "    Size: $(ls -lh ${GEOIP_DIR}/GeoLite2-Country.mmdb | awk '{print $5}')"
+    echo "    Size: $(ls -lh ${GEOIP_DIR}/GeoLite2-Country.mmdb 2>/dev/null | awk '{print $5}' || echo 'Unknown')"
 else
-    echo "[!] GeoLite2 download failed. Manual download from:"
-    echo "    https://dev.maxmind.com/geoip/geolite2/"
+    echo "[!] Failed to update GeoLite2. Check $GEOIP_CONF for valid AccountID and LicenseKey."
+    echo "    Alternatively, manually download from: https://dev.maxmind.com/geoip/geolite2/"
 fi
 
 # Check for IP2Location LITE database
