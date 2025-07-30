@@ -4,7 +4,7 @@
 
 API_KEY=""
 API_SECRET=""
-OPNSENSE_HOST=""
+OPNSENSE_HOST="192.168.216.1"
 
 echo "Checking prerequisites..."
 if ! command -v curl >/dev/null 2>&1; then
@@ -42,7 +42,7 @@ if [ "$http_code" = "200" ]; then
     echo "SUCCESS: API authentication working!"
     echo "Response time: ${time_total}s"
     if command -v jq >/dev/null 2>&1; then
-        echo "$json_response" | jq -r '.hostname, .version, .uptime, .loadavg'
+        echo "$json_response" | jq -r '.[] | .hostname, .version, .uptime, .loadavg' 2>/dev/null || echo "$json_response" | jq -r '.hostname, .version, .uptime, .loadavg'
     fi
 else
     echo "FAILED: HTTP $http_code"
@@ -57,18 +57,18 @@ response=$(curl -k -v -s -w "HTTPSTATUS:%{http_code}" \
     -u "$API_KEY:$API_SECRET" \
     --connect-timeout 10 \
     --max-time 30 \
-    "https://$OPNSENSE_HOST/api/firewall/filter/list" 2>/dev/null)
+    "https://$OPNSENSE_HOST/api/firewall/filter" 2>/dev/null)  # GET per tutte le regole
 http_code=$(echo "$response" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
 json_response=$(echo "$response" | sed 's/HTTPSTATUS:.*//g')
 if [ "$http_code" = "200" ]; then
     echo "SUCCESS: Firewall API accessible!"
     if command -v jq >/dev/null 2>&1; then
-        total_rules=$(echo "$json_response" | jq -r '.rows | length')
+        total_rules=$(echo "$json_response" | jq -r '.filter.rules | length' 2>/dev/null || echo "$json_response" | jq -r '.rules | length' 2>/dev/null || echo "unknown")
         echo "Total rules: $total_rules"
     fi
 else
     echo "WARNING: Firewall API failed (HTTP $http_code)"
-    echo "Check 'Firewall: Rules' privilege"
+    echo "Check 'Firewall: Rules' privilege or endpoint"
 fi
 
 # Test 3: Test blocco emergenza
@@ -83,7 +83,6 @@ rule_payload=$(cat <<EOF
             "interface": "wan",
             "type": "block",
             "ipprotocol": "inet",
-            "protocol": "any",
             "source": {
                 "address": "$TEST_IP",
                 "netbits": "32"
@@ -111,13 +110,15 @@ json_response=$(echo "$response" | sed 's/HTTPSTATUS:.*//g')
 if [ "$http_code" = "200" ]; then
     echo "SUCCESS: Emergency block rule created!"
     if command -v jq >/dev/null 2>&1; then
-        rule_uuid=$(echo "$json_response" | jq -r '.filter.uuid // "unknown"')
+        rule_uuid=$(echo "$json_response" | jq -r '.uuid // .id // "unknown"' 2>/dev/null)
         echo "Rule UUID: $rule_uuid"
     fi
     echo "Applying firewall changes..."
     apply_response=$(curl -k -v -s -w "HTTPSTATUS:%{http_code}" \
         -u "$API_KEY:$API_SECRET" \
         -X POST \
+        -H "Content-Type: application/json" \
+        -d "{}" \
         --connect-timeout 10 \
         --max-time 30 \
         "https://$OPNSENSE_HOST/api/firewall/filter/apply" 2>/dev/null)
@@ -127,16 +128,17 @@ if [ "$http_code" = "200" ]; then
         echo "Emergency blocking: FULLY OPERATIONAL"
     else
         echo "Rule created but apply failed (HTTP $apply_code)"
+        echo "Response: ${apply_response:0:200}"
     fi
 else
     echo "WARNING: Emergency block failed (HTTP $http_code)"
     echo "Response: ${json_response:0:200}"
-    echo "TROUBLESHOOTING: Verifica 'Firewall: Rules: Edit' privilege o payload"
+    echo "TROUBLESHOOTING: Verifica 'Firewall: Rules: Edit' privilege or payload"
 fi
 
 # Test 4: Recupero regola specifica
 echo "=== Test 4: Get Specific Rule ==="
-if [ -n "$rule_uuid" ]; then
+if [ "$rule_uuid" != "unknown" ]; then
     echo "Retrieving rule with UUID: $rule_uuid"
     response=$(curl -k -v -s -w "HTTPSTATUS:%{http_code}" \
         -u "$API_KEY:$API_SECRET" \
@@ -148,15 +150,14 @@ if [ -n "$rule_uuid" ]; then
     if [ "$http_code" = "200" ]; then
         echo "SUCCESS: Rule retrieved!"
         if command -v jq >/dev/null 2>&1; then
-            echo "$json_response" | jq -r '.filter.rule.description, .filter.rule.source.address'
+            echo "$json_response" | jq -r '.[] | .description, .source.address' 2>/dev/null || echo "$json_response" | jq -r '.description, .source.address'
         fi
     else
         echo "WARNING: Failed to retrieve rule (HTTP $http_code)"
         echo "Response: ${json_response:0:200}"
-        echo "TROUBLESHOOTING: Verifica 'Firewall: Rules' privilege o UUID"
     fi
 else
-    echo "WARNING: No UUID available to test getRule"
+    echo "WARNING: No valid UUID available to test getRule"
 fi
 
 # Test 5: Accesso dati di monitoraggio
