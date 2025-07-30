@@ -1,6 +1,6 @@
 #!/bin/sh
 # WebGuard Clean Setup for OPNsense
-# UPDATED: Dual GeoIP Database Support
+# UPDATED: Dual GeoIP Database Support with Robust Script Copying
 
 set -e
 
@@ -22,22 +22,44 @@ echo "=============================================="
 echo "WebGuard Clean Setup - Dual GeoIP Support"
 echo "=============================================="
 
+# Create directories
 echo "[*] Creating directories..."
 mkdir -p "$CONFIG_DIR" "$LOG_DIR" "$DB_DIR" "$GEOIP_DIR" "$SCRIPT_DEST_DIR" "$RCD_DEST_DIR"
+chmod 755 "$CONFIG_DIR" "$LOG_DIR" "$DB_DIR" "$GEOIP_DIR" "$SCRIPT_DEST_DIR" "$RCD_DEST_DIR"
+chown root:wheel "$CONFIG_DIR" "$LOG_DIR" "$DB_DIR" "$GEOIP_DIR" "$SCRIPT_DEST_DIR" "$RCD_DEST_DIR"
+echo "[+] Directories created with permissions set"
 
+# Copy scripts
 echo "[*] Copying scripts from $SCRIPT_SRC_DIR to $SCRIPT_DEST_DIR..."
 if [ -d "$SCRIPT_SRC_DIR" ]; then
-    cp -r "$SCRIPT_SRC_DIR"/* "$SCRIPT_DEST_DIR/"
-    chmod -R 755 "$SCRIPT_DEST_DIR"
-    chown -R root:wheel "$SCRIPT_DEST_DIR"
-    echo "[+] Scripts copied successfully"
+    echo "[*] Source directory contents:"
+    ls -l "$SCRIPT_SRC_DIR" || echo "[!] Failed to list $SCRIPT_SRC_DIR contents"
+    if ls "$SCRIPT_SRC_DIR"/* >/dev/null 2>&1; then
+        cp -rv "$SCRIPT_SRC_DIR"/* "$SCRIPT_DEST_DIR/" 2>/dev/null || {
+            echo "[!] Failed to copy scripts from $SCRIPT_SRC_DIR to $SCRIPT_DEST_DIR"
+            echo "[!] Check permissions or if source files exist (e.g., webguard.py, update_rules.py, initialize_geoip.sh)"
+            exit 1
+        }
+        chmod -R 755 "$SCRIPT_DEST_DIR"
+        chown -R root:wheel "$SCRIPT_DEST_DIR"
+        echo "[+] Scripts copied successfully"
+    else
+        echo "[!] No files found in $SCRIPT_SRC_DIR. Skipping script copy."
+        echo "[!] Ensure the plugin is installed correctly and contains required scripts."
+    fi
 else
-    echo "[!] Script source directory $SCRIPT_SRC_DIR not found. Skipping script copy."
+    echo "[!] Script source directory $SCRIPT_SRC_DIR not found."
+    echo "[!] Ensure the plugin is installed in /usr/plugins/security/os-webguard/"
+    exit 1
 fi
 
-echo "[*] Copying rc.d scripts from $RCD_SRC_DIR to $RCD_DEST_DIR..."
+# Copy or create webguard rc.d script
+echo "[*] Setting up WebGuard rc.d script..."
 if [ -f "${RCD_SRC_DIR}/webguard" ]; then
-    cp "${RCD_SRC_DIR}/webguard" "${RCD_DEST_DIR}/webguard"
+    cp -v "${RCD_SRC_DIR}/webguard" "${RCD_DEST_DIR}/webguard" 2>/dev/null || {
+        echo "[!] Failed to copy webguard rc.d script from $RCD_SRC_DIR to $RCD_DEST_DIR"
+        exit 1
+    }
     chmod 755 "${RCD_DEST_DIR}/webguard"
     chown root:wheel "${RCD_DEST_DIR}/webguard"
     echo "[+] WebGuard rc.d script copied successfully"
@@ -81,18 +103,61 @@ EOF
     echo "[+] Default WebGuard rc.d script created"
 fi
 
-# Enable WebGuard service
-echo "[*] Enabling WebGuard service..."
-sysrc webguard_enable="YES"
+# Create geoipupdate rc.d script
+echo "[*] Creating geoipupdate rc.d script..."
+cat > "${RCD_DEST_DIR}/geoipupdate" <<EOF
+#!/bin/sh
+#
+# PROVIDE: geoipupdate
+# REQUIRE: NETWORKING
+# KEYWORD: shutdown
+#
+. /etc/rc.subr
 
+name="geoipupdate"
+rcvar="geoipupdate_enable"
+command="/usr/local/bin/geoipupdate"
+command_args="-f ${GEOIP_CONF}"
+pidfile="/var/run/\${name}.pid"
+start_cmd="geoipupdate_start"
+stop_cmd="geoipupdate_stop"
+
+geoipupdate_start() {
+    echo "Starting GeoIP database update..."
+    /usr/sbin/daemon -f -p "\${pidfile}" \${command} \${command_args}
+}
+
+geoipupdate_stop() {
+    echo "Stopping GeoIP database update..."
+    if [ -f "\${pidfile}" ]; then
+        pkill -F "\${pidfile}" 2>/dev/null
+        rm -f "\${pidfile}"
+    fi
+}
+
+load_rc_config \$name
+run_rc_command "\$1"
+EOF
+chmod 755 "${RCD_DEST_DIR}/geoipupdate"
+chown root:wheel "${RCD_DEST_DIR}/geoipupdate"
+echo "[+] GeoIPupdate rc.d script created"
+
+# Enable services
+echo "[*] Enabling WebGuard and GeoIPupdate services..."
+sysrc webguard_enable="YES"
+sysrc geoipupdate_enable="YES"
+
+# Create empty base files
 echo "[*] Creating empty base files..."
 : > "${LOG_DIR}/engine.log"
 : > "${CONFIG_DIR}/waf_rules.json"
 : > "${CONFIG_DIR}/attack_patterns.json"
+chmod 644 "${LOG_DIR}/engine.log" "${CONFIG_DIR}/waf_rules.json" "${CONFIG_DIR}/attack_patterns.json" 2>/dev/null || true
+chown root:wheel "${LOG_DIR}/engine.log" "${CONFIG_DIR}/waf_rules.json" "${CONFIG_DIR}/attack_patterns.json"
 
+# Create SQLite database
 echo "[*] Creating SQLite database..."
 [ -f "$DB_FILE" ] && rm -f "$DB_FILE"
-
 sqlite3 "$DB_FILE" "CREATE TABLE blocked_ips (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ip_address TEXT UNIQUE NOT NULL,
@@ -136,6 +201,7 @@ sqlite3 "$DB_FILE" "CREATE INDEX IF NOT EXISTS idx_threats_source_ip ON threats(
 sqlite3 "$DB_FILE" "CREATE INDEX IF NOT EXISTS idx_blocked_ips_ip ON blocked_ips(ip_address);"
 sqlite3 "$DB_FILE" "CREATE INDEX IF NOT EXISTS idx_whitelist_ip ON whitelist(ip_address);"
 
+# Insert sample data
 echo "[*] Inserting sample data..."
 CURRENT_TIME=$(date +%s)
 
@@ -144,8 +210,6 @@ sqlite3 "$DB_FILE" "INSERT INTO blocked_ips (ip_address, block_type, blocked_sin
 sqlite3 "$DB_FILE" "INSERT INTO whitelist (ip_address, description, added_at, permanent) VALUES ('192.168.1.1', 'Sample whitelist entry', $CURRENT_TIME, 1);"
 
 echo "[*] Inserting REAL PUBLIC IP sample threats for GeoIP testing..."
-
-# Insert real public IPs for GeoIP testing
 for entry in \
   "$((CURRENT_TIME - 3600))|8.8.8.8|/admin/login.php|POST|SQL Injection|high|blocked|85.5|'' OR 1=1 --|rule_1|Google DNS - SQL injection test" \
   "$((CURRENT_TIME - 7200))|1.1.1.1|/search?q=<script>|GET|XSS Attack|medium|blocked|65.0|<script>alert(\"xss\")</script>|rule_2|Cloudflare DNS - XSS test" \
@@ -170,12 +234,12 @@ EOF
     );"
 done
 
+# Install Python dependencies
 echo "[*] Installing Python dependencies..."
 $PY -m pip install -q psutil geoip2 requests || echo "[!] pip install errors ignored"
 
+# GeoIP database setup
 echo "[*] Setting up GeoIP databases..."
-
-# Notify user to run initialize_geoip.sh for GeoLite2
 echo "[*] GeoLite2 database setup required"
 echo "    Run the following command to configure and download the GeoLite2 database:"
 echo "    $SCRIPT_DEST_DIR/initialize_geoip.sh"
@@ -248,6 +312,7 @@ else
     echo "[!] GeoIP database test failed"
 fi
 
+# Run rule updater
 echo "[*] Running rule updater if available..."
 if [ -f "$UPDATER" ]; then
     chmod +x "$UPDATER"
@@ -299,6 +364,9 @@ echo "configctl webguard get_geo_stats last24h"
 echo ""
 echo "Start WebGuard service:"
 echo "service webguard start"
+echo ""
+echo "Start GeoIPupdate service:"
+echo "service geoipupdate start"
 echo ""
 echo "Database threat count:"
 echo "sqlite3 $DB_FILE 'SELECT COUNT(*) FROM threats;'"
