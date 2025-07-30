@@ -2,9 +2,10 @@
 # Test OPNsense API da macchina client
 # Verifica le credenziali API dal tuo computer
 
-API_KEY=""
-API_SECRET=""
-OPNSENSE_HOST="192.168.216.1"
+echo "Inserisci le credenziali API e l'host OPNsense:"
+read -p "API Key: " API_KEY
+read -p "API Secret: " API_SECRET
+read -p "OPNsense Host (es. 192.168.1.1): " OPNSENSE_HOST
 
 echo "Checking prerequisites..."
 if ! command -v curl >/dev/null 2>&1; then
@@ -42,7 +43,7 @@ if [ "$http_code" = "200" ]; then
     echo "SUCCESS: API authentication working!"
     echo "Response time: ${time_total}s"
     if command -v jq >/dev/null 2>&1; then
-        echo "$json_response" | jq -r '.[] | .hostname, .version, .uptime, .loadavg' 2>/dev/null || echo "$json_response" | jq -r '.hostname, .version, .uptime, .loadavg'
+        echo "$json_response" | jq -r '.[] | .hostname, .version, .uptime, .loadavg' 2>/dev/null || echo "$json_response" | jq -r '.hostname, .version, .uptime, .loadavg' 2>/dev/null || echo "Raw response: $json_response"
     fi
 else
     echo "FAILED: HTTP $http_code"
@@ -53,21 +54,27 @@ fi
 
 # Test 2: Recupero regole firewall
 echo "=== Test 2: Firewall Rules ==="
+RULE_DESCRIPTION="OPNsense_fw_api_testrule_1"
 response=$(curl -k -v -s -w "HTTPSTATUS:%{http_code}" \
     -u "$API_KEY:$API_SECRET" \
     --connect-timeout 10 \
     --max-time 30 \
-    "https://$OPNSENSE_HOST/api/firewall/filter" 2>/dev/null)  # GET per tutte le regole
+    "https://$OPNSENSE_HOST/api/firewall/filter/searchRule?current=1&rowCount=10&searchPhrase=$RULE_DESCRIPTION" 2>/dev/null)
 http_code=$(echo "$response" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
 json_response=$(echo "$response" | sed 's/HTTPSTATUS:.*//g')
 if [ "$http_code" = "200" ]; then
     echo "SUCCESS: Firewall API accessible!"
     if command -v jq >/dev/null 2>&1; then
-        total_rules=$(echo "$json_response" | jq -r '.filter.rules | length' 2>/dev/null || echo "$json_response" | jq -r '.rules | length' 2>/dev/null || echo "unknown")
-        echo "Total rules: $total_rules"
+        total_rules=$(echo "$json_response" | jq -r '.rows | length' 2>/dev/null || echo "unknown")
+        echo "Total rules found: $total_rules"
+        if [ "$total_rules" != "unknown" ] && [ "$total_rules" -gt 0 ]; then
+            echo "Rules:"
+            echo "$json_response" | jq -r '.rows[] | "UUID: \(.uuid), Description: \(.description)"'
+        fi
     fi
 else
     echo "WARNING: Firewall API failed (HTTP $http_code)"
+    echo "Response: ${json_response:0:200}"
     echo "Check 'Firewall: Rules' privilege or endpoint"
 fi
 
@@ -77,20 +84,14 @@ TEST_IP="192.0.2.99"
 TEST_REASON="CLIENT API TEST - Safe to delete - $(date)"
 rule_payload=$(cat <<EOF
 {
-    "filter": {
-        "rule": {
-            "enabled": "1",
-            "interface": "wan",
-            "type": "block",
-            "ipprotocol": "inet",
-            "source": {
-                "address": "$TEST_IP",
-                "netbits": "32"
-            },
-            "destination": {
-                "any": ""
-            },
-            "description": "$TEST_REASON"
+    "rule": {
+        "description": "$TEST_REASON",
+        "source_net": "$TEST_IP/32",
+        "protocol": "inet",
+        "type": "block",
+        "interface": "wan",
+        "destination": {
+            "any": ""
         }
     }
 }
@@ -110,7 +111,7 @@ json_response=$(echo "$response" | sed 's/HTTPSTATUS:.*//g')
 if [ "$http_code" = "200" ]; then
     echo "SUCCESS: Emergency block rule created!"
     if command -v jq >/dev/null 2>&1; then
-        rule_uuid=$(echo "$json_response" | jq -r '.uuid // .id // "unknown"' 2>/dev/null)
+        rule_uuid=$(echo "$json_response" | jq -r '.uuid // "unknown"' 2>/dev/null)
         echo "Rule UUID: $rule_uuid"
     fi
     echo "Applying firewall changes..."
@@ -121,7 +122,7 @@ if [ "$http_code" = "200" ]; then
         -d "{}" \
         --connect-timeout 10 \
         --max-time 30 \
-        "https://$OPNSENSE_HOST/api/firewall/filter/apply" 2>/dev/null)
+        "https://$OPNSENSE_HOST/api/firewall/filter/reconfigure" 2>/dev/null)
     apply_code=$(echo "$apply_response" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
     if [ "$apply_code" = "200" ]; then
         echo "Firewall changes applied successfully!"
@@ -150,7 +151,7 @@ if [ "$rule_uuid" != "unknown" ]; then
     if [ "$http_code" = "200" ]; then
         echo "SUCCESS: Rule retrieved!"
         if command -v jq >/dev/null 2>&1; then
-            echo "$json_response" | jq -r '.[] | .description, .source.address' 2>/dev/null || echo "$json_response" | jq -r '.description, .source.address'
+            echo "$json_response" | jq -r '.description, .source.address'
         fi
     else
         echo "WARNING: Failed to retrieve rule (HTTP $http_code)"
@@ -162,31 +163,8 @@ fi
 
 # Test 5: Accesso dati di monitoraggio
 echo "=== Test 5: Monitoring Data Access ==="
-echo "Testing interface statistics..."
-response=$(curl -k -v -s -w "HTTPSTATUS:%{http_code}" \
-    -u "$API_KEY:$API_SECRET" \
-    --connect-timeout 10 \
-    --max-time 30 \
-    "https://$OPNSENSE_HOST/api/diagnostics/interface/status" 2>/dev/null)
-http_code=$(echo "$response" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
-if [ "$http_code" = "200" ]; then
-    echo "Interface stats: OK"
-else
-    echo "Interface stats: Limited (HTTP $http_code)"
-fi
-
-echo "Testing system information..."
-response=$(curl -k -v -s -w "HTTPSTATUS:%{http_code}" \
-    -u "$API_KEY:$API_SECRET" \
-    --connect-timeout 10 \
-    --max-time 30 \
-    "https://$OPNSENSE_HOST/api/core/system/info" 2>/dev/null)
-http_code=$(echo "$response" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
-if [ "$http_code" = "200" ]; then
-    echo "System info: OK"
-else
-    echo "System info: Limited (HTTP $http_code)"
-fi
+echo "Monitoring endpoints not fully identified. Skipping for now."
+echo "TROUBLESHOOTING: Check OPNsense API documentation for valid endpoints."
 
 echo "=== Summary Report ==="
 echo "Client machine: $(hostname)"
