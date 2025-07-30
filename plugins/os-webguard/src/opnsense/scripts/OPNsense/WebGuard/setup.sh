@@ -1,6 +1,6 @@
 #!/bin/sh
 # WebGuard Clean Setup for OPNsense
-# UPDATED: Dual GeoIP Database Support with geoipupdate
+# UPDATED: Dual GeoIP Database Support
 
 set -e
 
@@ -9,40 +9,81 @@ LOG_DIR="/var/log/webguard"
 DB_DIR="/var/db/webguard"
 GEOIP_DIR="/usr/local/share/GeoIP"
 GEOIP_CONF="/usr/local/etc/GeoIP.conf"
+PLUGIN_SRC_DIR="/usr/plugins/security/os-webguard/src"
+SCRIPT_SRC_DIR="${PLUGIN_SRC_DIR}/opnsense/scripts/OPNsense/WebGuard"
+SCRIPT_DEST_DIR="/usr/local/opnsense/scripts/OPNsense/WebGuard"
+RCD_SRC_DIR="${PLUGIN_SRC_DIR}/etc/rc.d"
+RCD_DEST_DIR="/usr/local/etc/rc.d"
 PY="/usr/local/bin/python3.11"
 UPDATER="${CONFIG_DIR}/update_rules.py"
 DB_FILE="${DB_DIR}/webguard.db"
-
-# Prompt for MaxMind Account ID and License Key if not already configured
-if [ ! -f "$GEOIP_CONF" ] || ! grep -q "AccountID" "$GEOIP_CONF" || ! grep -q "LicenseKey" "$GEOIP_CONF"; then
-    echo "=============================================="
-    echo "MaxMind GeoLite2 Configuration"
-    echo "=============================================="
-    echo "Please provide your MaxMind Account ID and License Key."
-    echo "Get them from: https://www.maxmind.com/en/accounts/current/license-key"
-    echo ""
-    read -p "Enter MaxMind Account ID: " MAXMIND_ACCOUNT_ID
-    read -p "Enter MaxMind License Key: " MAXMIND_LICENSE_KEY
-
-    echo "[*] Creating GeoIP.conf..."
-    mkdir -p "$(dirname $GEOIP_CONF)"
-    cat > "$GEOIP_CONF" <<EOF
-AccountID $MAXMIND_ACCOUNT_ID
-LicenseKey $MAXMIND_LICENSE_KEY
-EditionIDs GeoLite2-Country
-EOF
-    chmod 600 "$GEOIP_CONF"
-    echo "[+] GeoIP.conf created at $GEOIP_CONF"
-else
-    echo "[*] GeoIP.conf already exists at $GEOIP_CONF"
-fi
 
 echo "=============================================="
 echo "WebGuard Clean Setup - Dual GeoIP Support"
 echo "=============================================="
 
 echo "[*] Creating directories..."
-mkdir -p "$CONFIG_DIR" "$LOG_DIR" "$DB_DIR" "$GEOIP_DIR"
+mkdir -p "$CONFIG_DIR" "$LOG_DIR" "$DB_DIR" "$GEOIP_DIR" "$SCRIPT_DEST_DIR" "$RCD_DEST_DIR"
+
+echo "[*] Copying scripts from $SCRIPT_SRC_DIR to $SCRIPT_DEST_DIR..."
+if [ -d "$SCRIPT_SRC_DIR" ]; then
+    cp -r "$SCRIPT_SRC_DIR"/* "$SCRIPT_DEST_DIR/"
+    chmod -R 755 "$SCRIPT_DEST_DIR"
+    chown -R root:wheel "$SCRIPT_DEST_DIR"
+    echo "[+] Scripts copied successfully"
+else
+    echo "[!] Script source directory $SCRIPT_SRC_DIR not found. Skipping script copy."
+fi
+
+echo "[*] Copying rc.d scripts from $RCD_SRC_DIR to $RCD_DEST_DIR..."
+if [ -f "${RCD_SRC_DIR}/webguard" ]; then
+    cp "${RCD_SRC_DIR}/webguard" "${RCD_DEST_DIR}/webguard"
+    chmod 755 "${RCD_DEST_DIR}/webguard"
+    chown root:wheel "${RCD_DEST_DIR}/webguard"
+    echo "[+] WebGuard rc.d script copied successfully"
+else
+    echo "[!] WebGuard rc.d script not found in $RCD_SRC_DIR. Creating default..."
+    cat > "${RCD_DEST_DIR}/webguard" <<EOF
+#!/bin/sh
+#
+# PROVIDE: webguard
+# REQUIRE: LOGIN
+# KEYWORD: shutdown
+#
+. /etc/rc.subr
+
+name="webguard"
+rcvar="webguard_enable"
+command="${PY}"
+command_args="${CONFIG_DIR}/webguard.py"
+pidfile="/var/run/\${name}.pid"
+start_cmd="webguard_start"
+stop_cmd="webguard_stop"
+
+webguard_start() {
+    echo "Starting WebGuard..."
+    /usr/sbin/daemon -f -p "\${pidfile}" \${command} \${command_args}
+}
+
+webguard_stop() {
+    echo "Stopping WebGuard..."
+    if [ -f "\${pidfile}" ]; then
+        pkill -F "\${pidfile}" 2>/dev/null
+        rm -f "\${pidfile}"
+    fi
+}
+
+load_rc_config \$name
+run_rc_command "\$1"
+EOF
+    chmod 755 "${RCD_DEST_DIR}/webguard"
+    chown root:wheel "${RCD_DEST_DIR}/webguard"
+    echo "[+] Default WebGuard rc.d script created"
+fi
+
+# Enable WebGuard service
+echo "[*] Enabling WebGuard service..."
+sysrc webguard_enable="YES"
 
 echo "[*] Creating empty base files..."
 : > "${LOG_DIR}/engine.log"
@@ -134,16 +175,12 @@ $PY -m pip install -q psutil geoip2 requests || echo "[!] pip install errors ign
 
 echo "[*] Setting up GeoIP databases..."
 
-# Download MaxMind GeoLite2 using geoipupdate
-echo "[*] Updating GeoLite2-Country.mmdb via geoipupdate..."
-if geoipupdate; then
-    echo "[+] GeoLite2 database downloaded successfully"
-    echo "    Location: ${GEOIP_DIR}/GeoLite2-Country.mmdb"
-    echo "    Size: $(ls -lh ${GEOIP_DIR}/GeoLite2-Country.mmdb 2>/dev/null | awk '{print $5}' || echo 'Unknown')"
-else
-    echo "[!] Failed to update GeoLite2. Check $GEOIP_CONF for valid AccountID and LicenseKey."
-    echo "    Alternatively, manually download from: https://dev.maxmind.com/geoip/geolite2/"
-fi
+# Notify user to run initialize_geoip.sh for GeoLite2
+echo "[*] GeoLite2 database setup required"
+echo "    Run the following command to configure and download the GeoLite2 database:"
+echo "    $SCRIPT_DEST_DIR/initialize_geoip.sh"
+echo "    Ensure you have a MaxMind account and valid credentials."
+echo "    Get them from: https://www.maxmind.com/en/accounts/current/license-key"
 
 # Check for IP2Location LITE database
 echo "[*] Checking for IP2Location LITE database..."
@@ -220,9 +257,10 @@ else
     echo "    Copy it there and run: $PY $UPDATER"
 fi
 
+# Set permissions
 echo "[*] Setting permissions..."
-chown -R root:wheel "$CONFIG_DIR" "$LOG_DIR" "$DB_DIR" "$GEOIP_DIR"
-chmod -R 755 "$CONFIG_DIR" "$LOG_DIR" "$DB_DIR"
+chown -R root:wheel "$CONFIG_DIR" "$LOG_DIR" "$DB_DIR" "$GEOIP_DIR" "$SCRIPT_DEST_DIR" "$RCD_DEST_DIR"
+chmod -R 755 "$CONFIG_DIR" "$LOG_DIR" "$DB_DIR" "$SCRIPT_DEST_DIR" "$RCD_DEST_DIR"
 chmod 644 "$CONFIG_DIR"/*.json 2>/dev/null || true
 chmod 644 "$GEOIP_DIR"/*.mmdb 2>/dev/null || true
 chmod 644 "$DB_FILE"
@@ -234,12 +272,15 @@ echo "=============================================="
 echo "Config:   $CONFIG_DIR"
 echo "Logs:     $LOG_DIR"
 echo "Database: $DB_FILE"
+echo "Scripts:  $SCRIPT_DEST_DIR"
+echo "rc.d:     $RCD_DEST_DIR"
 echo ""
 echo "GeoIP Databases Status:"
 if [ -f "${GEOIP_DIR}/GeoLite2-Country.mmdb" ]; then
     echo "  ✓ GeoLite2-Country: READY"
 else
     echo "  ✗ GeoLite2-Country: MISSING"
+    echo "    Run $SCRIPT_DEST_DIR/initialize_geoip.sh to configure and download"
 fi
 
 if [ -f "${GEOIP_DIR}/IP2LOCATION-LITE-DB1.MMDB" ]; then
@@ -255,6 +296,9 @@ echo "  - Countries: US, France, Germany, UK, Italy, Netherlands, Belgium, Switz
 echo ""
 echo "Test the GeoIP setup:"
 echo "configctl webguard get_geo_stats last24h"
+echo ""
+echo "Start WebGuard service:"
+echo "service webguard start"
 echo ""
 echo "Database threat count:"
 echo "sqlite3 $DB_FILE 'SELECT COUNT(*) FROM threats;'"
