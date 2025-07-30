@@ -16,7 +16,7 @@ class QuickOPNsenseTest:
         try:
             response = requests.get(
                 f"{self.base_url}/core/system/status",
-                auth=self.auth, timeout=10
+                auth=self.auth, verify=False, timeout=10
             )
             return response.status_code == 200
         except:
@@ -26,7 +26,7 @@ class QuickOPNsenseTest:
         """Get active rules count"""
         response = requests.get(
             f"{self.base_url}/firewall/filter/get",
-            auth=self.auth
+            auth=self.auth, verify=False
         )
         data = response.json()
         active_rules = [r for r in data.get("rows", []) if r.get("enabled") == "1"]
@@ -47,14 +47,14 @@ class QuickOPNsenseTest:
         # Add rule
         response = requests.post(
             f"{self.base_url}/firewall/filter/addRule",
-            json=rule_data, auth=self.auth
+            json=rule_data, auth=self.auth, verify=False
         )
         
         if response.json().get("result") == "saved":
             # Apply changes
             apply_response = requests.post(
                 f"{self.base_url}/firewall/filter/apply",
-                auth=self.auth
+                auth=self.auth, verify=False
             )
             return {
                 "blocked": True,
