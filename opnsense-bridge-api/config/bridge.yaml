@@ -1,0 +1,70 @@
+# =============================================
+# OPNsense Monitoring Bridge - Core Configuration
+# =============================================
+
+bridge:
+  name: "OPNsense DMZ Monitoring Bridge"
+  version: "1.0.0"
+  environment: "production"
+  debug: false
+
+network:
+  dmz:
+    ip: "172.16.216.10"
+    subnet: "172.16.216.0/24"
+    gateway: "172.16.216.1"
+  lan:
+    ip: "192.168.216.0/24"
+    opnsense_ip: "192.168.216.1"  # IP interno OPNsense
+
+api:
+  host: "0.0.0.0"
+  port: 8443
+  ssl:
+    enabled: true
+    cert: "/opt/opnsense-monitoring-bridge/certs/fullchain.pem"
+    key: "/opt/opnsense-monitoring-bridge/certs/privkey.pem"
+    ca: "/opt/opnsense-monitoring-bridge/certs/ca.pem"
+  cors:
+    allowed_origins:
+      - "https://monitoring.yourdomain.com"
+    allowed_methods: ["GET", "POST"]
+
+opnsense:
+  api:
+    base_url: "https://192.168.216.1/api"
+    timeout: 30
+    retries: 3
+    cache_ttl: 300
+  interfaces:
+    - name: "dmz"
+      ip: "172.16.216.1"
+    - name: "lan"
+      ip: "192.168.216.1"
+
+monitoring:
+  interval: 60
+  metrics:
+    port: 9090
+    path: "/metrics"
+  integrations:
+    nagios:
+      enabled: true
+      plugins_dir: "/opt/opnsense-monitoring-bridge/monitoring/nagios"
+    prtg:
+      enabled: true
+      sensors_dir: "/opt/opnsense-monitoring-bridge/monitoring/prtg"
+
+emergency:
+  auto_block:
+    enabled: true
+    threshold: 100
+    duration: 86400
+  notifications:
+    required: true
+    channels: ["email", "webhook"]
+
+logging:
+  main: "/opt/opnsense-monitoring-bridge/logs/bridge.log"
+  audit: "/opt/opnsense-monitoring-bridge/logs/audit.log"
+  level: "INFO"

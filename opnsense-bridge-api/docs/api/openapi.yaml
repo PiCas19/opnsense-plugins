@@ -1,0 +1,621 @@
+openapi: 3.0.3
+info:
+  title: OPNsense Monitoring Bridge API
+  description: REST API for monitoring and managing OPNsense firewall via a DMZ bridge
+  version: 1.0.0
+servers:
+  - url: https://172.16.216.10:8443
+    description: Default server (DMZ bridge)
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+        bridge_ip:
+          type: string
+          example: "172.16.216.10"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-07-31T11:52:00.123456+00:00"
+    DetailedHealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+        bridge_ip:
+          type: string
+          example: "172.16.216.10"
+        opnsense_connected:
+          type: boolean
+        system_status:
+          type: object
+          properties:
+            hostname:
+              type: string
+              example: "opnsense.example.com"
+            version:
+              type: string
+              example: "25.7"
+            uptime:
+              type: string
+              example: "15 days, 3 hours"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-07-31T11:52:00.123456+00:00"
+    MonitoringStatusResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+        system_stats:
+          type: object
+          properties:
+            cpu:
+              type: object
+              properties:
+                usage_percent:
+                  type: number
+                  format: float
+                  example: 45.5
+                status:
+                  type: string
+                  enum: [ok, warning, critical]
+            memory:
+              type: object
+              properties:
+                usage_percent:
+                  type: number
+                  format: float
+                  example: 60.2
+                status:
+                  type: string
+                  enum: [ok, warning, critical]
+            uptime:
+              type: object
+              properties:
+                raw:
+                  type: string
+                  example: "15 days, 3 hours"
+                hours:
+                  type: number
+                  format: float
+                  example: 363.0
+            version:
+              type: string
+              example Appraisal
+            hostname:
+              type: string
+              example: "opnsense.example.com"
+        firewall_stats:
+          type: object
+          properties:
+            total_rules:
+              type: integer
+              example: 50
+            by_action:
+              type: object
+              example: {"pass": 30, "block": 20}
+            by_interface:
+              type: object
+              example: {"wan": 40, "lan": 10}
+            by_protocol:
+              type: object
+              example: {"tcp": 35, "udp": 15}
+            enabled_vs_disabled:
+              type: object
+              properties:
+                enabled:
+                  type: integer
+                  example: 45
+                disabled:
+                  type: integer
+                  example: 5
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-07-31T11:52:00.123456+00:00"
+    FirewallRulesResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+        rules:
+          type: array
+          items:
+            type: object
+            properties:
+              uuid:
+                type: string
+                format: uuid
+                example: "123e4567-e89b-12d3-a456-426614174000"
+              enabled:
+                type: string
+                enum: ["0", "1"]
+              action:
+                type: string
+                example: "block"
+              interface:
+                type: string
+                example: "wan"
+              protocol:
+                type: string
+                example: "tcp"
+              description:
+                type: string
+                example: "Block malicious IP"
+        total_rules:
+          type: integer
+          example: 1
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-07-31T11:52:00.123456+00:00"
+    SystemStatsResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+        cpu:
+          type: object
+          properties:
+            usage_percent:
+              type: number
+              format: float
+              example: 45.5
+            status:
+              type: string
+              enum: [ok, warning, critical]
+        memory:
+          type: object
+          properties:
+            usage_percent:
+              type: number
+              format: float
+              example: 60.2
+            status:
+              type: string
+              enum: [ok, warning, critical]
+        uptime:
+          type: object
+          properties:
+            raw:
+              type: string
+              example: "15 days, 3 hours"
+            hours:
+              type: number
+              format: float
+              example: 363.0
+        version:
+          type: string
+          example: "25.7"
+        hostname:
+          type: string
+          example: "opnsense.example.com"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-07-31T11:52:00.123456+00:00"
+    BlockIPRequest:
+      type: object
+      required:
+        - ip_address
+        - reason
+      properties:
+        ip_address:
+          type: string
+          format: ipv4
+          example: "1.2.3.4"
+        reason:
+          type: string
+          example: "Active attack"
+    BlockIPResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [success, error]
+        operation_id:
+          type: string
+          example: "emergency_dmz_1698765432"
+        rule_uuid:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        ip_blocked:
+          type: string
+          format: ipv4
+          example: "1.2.3.4"
+        applied:
+          type: boolean
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-07-31T11:52:00.123456+00:00"
+    BulkBlockRequest:
+      type: object
+      required:
+        - ip_addresses
+        - reason
+      properties:
+        ip_addresses:
+          type: array
+          items:
+            type: string
+            format: ipv4
+          example: ["1.2.3.4", "5.6.7.8"]
+        reason:
+          type: string
+          example: "DDoS Attack"
+    BulkBlockResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [completed, error]
+        operation_id:
+          type: string
+          example: "bulk_emergency_dmz_1698765432"
+        blocked_ips:
+          type: array
+          items:
+            type: object
+            properties:
+              ip:
+                type: string
+                format: ipv4
+                example: "1.2.3.4"
+              rule_uuid:
+                type: string
+                format: uuid
+                example: "123e4567-e89b-12d3-a456-426614174000"
+              timestamp:
+                type: string
+                format: date-time
+                example: "2025-07-31T11:52:00.123456+00:00"
+        failed_ips:
+          type: array
+          items:
+            type: object
+            properties:
+              ip:
+                type: string
+                format: ipv4
+                example: "5.6.7.8"
+              error:
+                type: string
+                example: "Invalid IP format"
+        total_requested:
+          type: integer
+          example: 2
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-07-31T11:52:00.123456+00:00"
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [error]
+        message:
+          type: string
+          example: "Failed to retrieve data"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-07-31T11:52:00.123456+00:00"
+paths:
+  /health:
+    get:
+      summary: Basic health check
+      description: Checks if the bridge is operational
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Service unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /health/detailed:
+    get:
+      summary: Detailed health check
+      description: Checks bridge and OPNsense connectivity
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailedHealthResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /monitoring/status:
+    get:
+      summary: Comprehensive monitoring data
+      description: Returns system and firewall statistics
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonitoringStatusResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /monitoring/firewall-rules:
+    get:
+      summary: Firewall rules data
+      description: Retrieves firewall rules, optionally active only
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: active_only
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FirewallRulesResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /monitoring/system-stats:
+    get:
+      summary: System statistics
+      description: Retrieves CPU, memory, and uptime statistics
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemStatsResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /nagios/firewall-rules:
+    get:
+      summary: Nagios firewall rules check
+      description: Returns Nagios-compatible firewall rules status
+      responses:
+        '200':
+          description: Successful response
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "OK: 50 firewall rules active | rules=50;5;2"
+        '500':
+          description: Server error
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "CRITICAL: Failed to retrieve firewall rules"
+  /nagios/system-health:
+    get:
+      summary: Nagios system health check
+      description: Returns Nagios-compatible system health status
+      responses:
+        '200':
+          description: Successful response
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "OK: System healthy | cpu=45.5%;80;95 memory=60.2%;85;95"
+        '500':
+          description: Server error
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "CRITICAL: System unhealthy"
+  /prtg/firewall-statistics:
+    get:
+      summary: PRTG firewall statistics
+      description: Returns PRTG-compatible XML sensor data
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/xml:
+              schema:
+                type: string
+                example: |
+                  <prtg>
+                    <result>
+                      <channel>Total Rules</channel>
+                      <value>50</value>
+                      <unit>Count</unit>
+                    </result>
+                    <result>
+                      <channel>Active Rules</channel>
+                      <value>45</value>
+                      <unit>Count</unit>
+                    </result>
+                  </prtg>
+        '500':
+          description: Server error
+          content:
+            application/xml:
+              schema:
+                type: string
+                example: |
+                  <prtg>
+                    <error>1</error>
+                    <text>Failed to retrieve firewall statistics</text>
+                  </prtg>
+  /emergency/block-ip:
+    post:
+      summary: Block single IP
+      description: Blocks a single IP address with a reason
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlockIPRequest'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlockIPResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /emergency/bulk-block:
+    post:
+      summary: Block multiple IPs
+      description: Blocks multiple IP addresses with a reason
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkBlockRequest'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkBlockResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      description: Returns Prometheus-compatible metrics
+      responses:
+        '200':
+          description: Successful response
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: |
+                  # HELP opnsense_active_rules_count Number of active firewall rules
+                  # TYPE opnsense_active_rules_count gauge
+                  opnsense_active_rules_count{bridge_ip="172.16.216.10"} 45
+                  # HELP opnsense_blocked_events_total Total blocked events
+                  # TYPE opnsense_blocked_events_total counter
+                  opnsense_blocked_events_total{bridge_ip="172.16.216.10"} 1000
+        '500':
+          description: Server error
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: |
+                  # HELP opnsense_metrics_error Error collecting metrics
+                  # TYPE opnsense_metrics_error gauge
+                  opnsense_metrics_error{bridge_ip="172.16.216.10"} 1
+security:
+  - BearerAuth: []
