@@ -1,0 +1,50 @@
+# =============================================
+# Security Configuration
+# =============================================
+
+authentication:
+  jwt:
+    secret: "${JWT_SECRET}"
+    algorithm: "HS256"
+    expiration: 3600
+  api_keys:
+    - name: "nagios"
+      key: "${NAGIOS_API_KEY}"
+      permissions: ["read:metrics"]
+    - name: "prometheus"
+      key: "${PROMETHEUS_API_KEY}"
+      permissions: ["read:metrics"]
+
+authorization:
+  roles:
+    admin:
+      permissions: ["*"]
+    operator:
+      permissions: ["read", "write", "emergency:read"]
+    monitor:
+      permissions: ["read"]
+
+network:
+  ip_whitelist:
+    - "172.16.216.0/24"
+    - "192.168.216.0/24"
+  rate_limits:
+    global: 100/60s
+    api: 50/60s
+    auth: 10/60s
+
+ssl:
+  min_version: "TLSv1.2"
+  ciphers: "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384"
+  dh_param_size: 2048
+
+headers:
+  strict_transport_security: "max-age=63072000; includeSubDomains; preload"
+  x_content_type_options: "nosniff"
+  x_frame_options: "DENY"
+  content_security_policy: "default-src 'self'"
+
+audit:
+  enabled: true
+  log_file: "/opt/opnsense-monitoring-bridge/logs/security.log"
+  retention_days: 90

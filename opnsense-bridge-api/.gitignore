@@ -1,0 +1,90 @@
+```plaintext
+# Python-related
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+
+# Certificates and sensitive files
+certs/*
+!certs/.gitkeep
+*.crt
+*.key
+*.pem
+
+# Logs
+logs/*
+!logs/.gitkeep
+*.log
+*.log.*
+
+# Backups
+backups/*
+!backups/.gitkeep
+*.tar.gz
+*.bak
+*.backup
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+*~
+
+# IDE and editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Dependency directories
+node_modules/
+
+# Testing
+.pytest_cache/
+coverage/
+*.cover
+*.xml
+*.cache
+
+# Docker
+docker-compose.override.yml
+*.dockerignore
+Dockerfile.local
+
+# Kubernetes
+k8s/*.local.yaml
+k8s/secrets/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Project-specific generated files
+alerts_backup.jsonl
+monitoring.log
+emergency.log
+audit.log
+
+# Cache and build artifacts
+*.pid
+*.seed
+*.pid.lock
+```

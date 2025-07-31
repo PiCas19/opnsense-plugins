@@ -1,0 +1,67 @@
+# =============================================
+# Alerting Configuration
+# =============================================
+
+email:
+  enabled: true
+  smtp:
+    host: "smtp.yourdomain.com"
+    port: 587
+    username: "bridge-alerts@yourdomain.com"
+    encryption: "starttls"
+  from: "OPNsense Bridge <bridge-alerts@yourdomain.com>"
+  recipients:
+    admin: ["admin@yourdomain.com"]
+    security: ["security@yourdomain.com"]
+    emergency: ["soc@yourdomain.com"]
+
+webhooks:
+  internal_monitoring:
+    url: "https://192.168.216.100/api/alerts"
+    auth: "Bearer ${INTERNAL_WEBHOOK_TOKEN}"
+  grafana:
+    url: "https://192.168.216.110/grafana/api/alerts"
+    auth: "Bearer ${GRAFANA_API_TOKEN}"
+
+thresholds:
+  cpu:
+    warning: 80
+    critical: 95
+  memory:
+    warning: 85
+    critical: 95
+  firewall:
+    rules_warning: 5
+    rules_critical: 2
+    blocked_warning: 1000
+    blocked_critical: 5000
+
+rules:
+  - name: "high_cpu_usage"
+    condition: "cpu_usage > thresholds.cpu.critical"
+    severity: "critical"
+    actions:
+      - "email:security"
+      - "webhook:internal_monitoring"
+  
+  - name: "firewall_rules_low"
+    condition: "firewall_rules < thresholds.firewall.rules_critical"
+    severity: "critical"
+    actions:
+      - "email:admin"
+      - "email:security"
+      - "sms:emergency"
+
+templates:
+  email:
+    subject: "[{severity}] OPNsense Alert: {title}"
+    body: |
+      Alert Time: {time}
+      Severity: {severity}
+      
+      {message}
+      
+      Values:
+      {values}
+
+      OPNsense Bridge DMZ

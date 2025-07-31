@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  opnsense-bridge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: opnsense-monitoring-bridge:latest
+    container_name: opnsense-bridge
+    ports:
+      - "${BRIDGE_PORT:-8443}:8443"
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    environment:
+      - TZ=${TZ:-Europe/Zurich}
+      - LOG_TIMEZONE=${LOG_TIMEZONE:-UTC}
+      - ALERT_TIMEZONE=${ALERT_TIMEZONE:-Europe/Zurich}
+    env_file:
+      - .env
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./logs:/app/logs
+      - ./backups:/app/backups
+    networks:
+      - dmz-network
+    restart: unless-stopped
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8443
+      --ssl-keyfile /app/certs/server.key
+      --ssl-certfile /app/certs/server.crt
+      --workers 2
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - dmz-network
+    restart: unless-stopped
+    depends_on:
+      - opnsense-bridge
+
+networks:
+  dmz-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${DMZ_NETWORK:-172.16.216.0/24}
+          gateway: ${BRIDGE_IP:-172.16.216.10}
+
+volumes:
+  prometheus-data:
