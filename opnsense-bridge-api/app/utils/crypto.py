@@ -2,7 +2,7 @@ import hashlib
 import hmac
 import secrets
 import base64
-from typing import str
+from typing import Tuple, Optional
 
 def generate_api_key(length: int = 32) -> str:
     """Generate secure API key"""
@@ -12,11 +12,10 @@ def generate_secret_key(length: int = 64) -> str:
     """Generate secret key for signing"""
     return secrets.token_hex(length)
 
-def hash_password(password: str, salt: str = None) -> tuple[str, str]:
+def hash_password(password: str, salt: Optional[str] = None) -> Tuple[str, str]:
     """Hash password with salt"""
     if salt is None:
         salt = secrets.token_hex(16)
-    
     # Use PBKDF2 for password hashing
     key = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000)
     return base64.b64encode(key).decode(), salt
@@ -24,7 +23,7 @@ def hash_password(password: str, salt: str = None) -> tuple[str, str]:
 def verify_password(password: str, hashed: str, salt: str) -> bool:
     """Verify password against hash"""
     try:
-        new_hash, _ = hash_password(password, salt)
+        new_hash, _ = hash_password(password, salt)  # CORRETTO: era "hash*password"
         return hmac.compare_digest(hashed, new_hash)
     except:
         return False
