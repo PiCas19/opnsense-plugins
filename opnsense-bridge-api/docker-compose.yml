@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   opnsense-bridge:
     build:
@@ -31,20 +30,6 @@ services:
         --ssl-certfile /app/certs/server.crt
         --workers 2
 
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: prometheus
-    ports:
-      - "${PROMETHEUS_PORT:-9090}:9090"
-    volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus-data:/prometheus
-    networks:
-      - dmz-network
-    restart: unless-stopped
-    depends_on:
-      - opnsense-bridge
-
 networks:
   dmz-network:
     driver: bridge
@@ -52,6 +37,3 @@ networks:
       config:
         - subnet: ${DMZ_NETWORK:-172.16.216.0/24}
           gateway: ${BRIDGE_IP:-172.16.216.10}
-
-volumes:
-  prometheus-data:
