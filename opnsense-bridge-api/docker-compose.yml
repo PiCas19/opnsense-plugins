@@ -1,5 +1,4 @@
 version: '3.8'
-
 services:
   opnsense-bridge:
     build:
@@ -17,7 +16,8 @@ services:
     env_file:
       - .env
     volumes:
-      - ./certs:/app/certs:ro
+      # CORRETTO: monta ./app/certs invece di ./certs
+      - ./app/certs:/app/certs:ro
       - ./logs:/app/logs
       - ./backups:/app/backups
     networks:
@@ -25,11 +25,11 @@ services:
     restart: unless-stopped
     command: >
       uvicorn app.main:app
-      --host 0.0.0.0
-      --port 8443
-      --ssl-keyfile /app/certs/server.key
-      --ssl-certfile /app/certs/server.crt
-      --workers 2
+        --host 0.0.0.0
+        --port 8443
+        --ssl-keyfile /app/certs/server.key
+        --ssl-certfile /app/certs/server.crt
+        --workers 2
 
   prometheus:
     image: prom/prometheus:latest
