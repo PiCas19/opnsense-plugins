@@ -27,7 +27,10 @@ COPY .env.example ./
 RUN mkdir -p certs logs backups
 
 # Set permissions
-RUN chmod -R 600 certs && chmod -R 700 logs backups
+RUN chmod 755 certs logs backups
+
+# Make scripts executable
+RUN chmod +x ./scripts/*.sh
 
 # Expose ports
 EXPOSE 8443 9090
@@ -36,8 +39,8 @@ EXPOSE 8443 9090
 ENV PYTHONUNBUFFERED=1
 ENV TZ=Europe/Zurich
 
-# Run setup script (generates certs if needed)
-RUN ./scripts/setup-bridge.sh
+# RIMUOVI questa riga che causa l'errore:
+# RUN ./scripts/setup-bridge.sh
 
-# Default command (overridden in docker-compose.yml)
+# Default command
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8443", "--ssl-keyfile", "/app/certs/server.key", "--ssl-certfile", "/app/certs/server.crt", "--workers", "2"]
