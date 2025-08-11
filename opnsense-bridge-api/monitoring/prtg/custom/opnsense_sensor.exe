@@ -1,5 +1,0 @@
-[Binary File]
-The file `opnsense_sensor.exe` is a precompiled PRTG custom sensor executable.
-It is not a source code file and should be obtained from the PRTG provider or compiled
-from a source specific to your PRTG installation. Ensure it is compatible with your
-PRTG version and configured to query the /prtg/firewall-statistics endpoint.
