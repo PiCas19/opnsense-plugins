@@ -1,9 +1,0 @@
-apiVersion: 1
-datasources:
-- name: Prometheus
-  type: prometheus
-  access: proxy
-  url: http://172.16.216.10:9091
-  isDefault: true
-  jsonData:
-    timeInterval: 30s
