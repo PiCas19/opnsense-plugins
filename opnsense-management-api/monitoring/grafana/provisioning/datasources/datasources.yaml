@@ -1,0 +1,19 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus-ds
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+
+  - name: OPNsense API (JSON)
+    type: marcusolsson-json-datasource   # deve combaciare con il plugin installato
+    uid: json-ds
+    access: proxy
+    url: http://opnsense-api:3000/api/v1  # IMPORTANTE: includi /api/v1
+    jsonData:
+      timeout: 30
+    editable: true

@@ -1,0 +1,155 @@
+{
+  "name": "opnsense-management-api",
+  "version": "1.0.0",
+  "description": "RESTful API wrapper for OPNsense firewall management with monitoring integration",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "nodemon src/app.js --inspect=0.0.0.0:9229",
+    "test": "jest --detectOpenHandles --forceExit",
+    "test:watch": "jest --watch --detectOpenHandles",
+    "test:coverage": "jest --coverage --detectOpenHandles --forceExit",
+    "test:integration": "jest --testPathPattern=tests/integration",
+    "test:e2e": "jest --testPathPattern=tests/e2e",
+    "lint": "eslint src/ --ext .js",
+    "lint:fix": "eslint src/ --ext .js --fix",
+    "format": "prettier --write 'src/**/*.js'",
+    "docs:generate": "swagger-jsdoc -d swagger.config.js src/routes/*.js -o docs/swagger.json",
+    "docs:serve": "swagger-ui-serve docs/swagger.json",
+    "build": "echo 'No build step required for Node.js'",
+    "docker:build": "docker build -t opnsense-management-api .",
+    "docker:run": "docker-compose up -d",
+    "docker:stop": "docker-compose down",
+    "docker:logs": "docker-compose logs -f opnsense-api",
+    "migrate": "node src/database/migrate.js",
+    "seed": "node src/database/seed.js",
+    "backup": "node src/scripts/backup.js",
+    "health": "curl -f http://localhost:3000/api/v1/health || exit 1"
+  },
+  "keywords": [
+    "opnsense",
+    "firewall",
+    "api",
+    "security",
+    "monitoring",
+    "devops",
+    "soc",
+    "network-security",
+    "automation",
+    "rest-api"
+  ],
+  "author": "Studente Tesi - OPNsense Management",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "express-validator": "^7.0.1",
+    "express-slow-down": "^2.0.1",
+    "helmet": "^7.1.0",
+    "cors": "^2.8.5",
+    "compression": "^1.7.4",
+    "morgan": "^1.10.0",
+    "winston": "^3.11.0",
+    "winston-daily-rotate-file": "^4.7.1",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "axios": "^1.6.2",
+    "axios-retry": "^4.0.0",
+    "https": "^1.0.0",
+    "pg": "^8.11.3",
+    "redis": "^4.6.10",
+    "sequelize": "^6.35.1",
+    "sequelize-cli": "^6.6.2",
+    "node-cron": "^3.0.3",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.0",
+    "joi": "^17.11.0",
+    "moment": "^2.29.4",
+    "lodash": "^4.17.21",
+    "crypto": "^1.0.1",
+    "uuid": "^9.0.1",
+    "dotenv": "^16.3.1",
+    "express-async-errors": "^3.1.1",
+    "http-status-codes": "^2.3.0",
+    "multer": "^1.4.5",
+    "express-fileupload": "^1.4.3",
+    "node-cache": "^5.1.2",
+    "express-prometheus-middleware": "^1.2.0",
+    "prom-client": "^15.1.0",
+    "yamljs": "^0.3.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3",
+    "eslint": "^8.54.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-security": "^1.7.1",
+    "prettier": "^3.1.0",
+    "@types/node": "^20.9.0",
+    "cross-env": "^7.0.3",
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/opnsense-management-api"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/opnsense-management-api/issues"
+  },
+  "homepage": "https://github.com/your-username/opnsense-management-api#readme",
+  "jest": {
+    "testEnvironment": "node",
+    "setupFilesAfterEnv": ["<rootDir>/tests/setup.js"],
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.js",
+      "!src/app.js",
+      "!src/database/migrations/*.js"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 70,
+        "functions": 70,
+        "lines": 70,
+        "statements": 70
+      }
+    }
+  },
+  "eslintConfig": {
+    "env": {
+      "node": true,
+      "es2021": true,
+      "jest": true
+    },
+    "extends": [
+      "eslint:recommended",
+      "plugin:node/recommended",
+      "plugin:security/recommended",
+      "prettier"
+    ],
+    "parserOptions": {
+      "ecmaVersion": 2021,
+      "sourceType": "module"
+    },
+    "rules": {
+      "no-console": "warn",
+      "no-unused-vars": "error",
+      "node/no-unpublished-require": "off"
+    }
+  },
+  "prettier": {
+    "semi": true,
+    "trailingComma": "es5",
+    "singleQuote": true,
+    "printWidth": 100,
+    "tabWidth": 2
+  }
+}
