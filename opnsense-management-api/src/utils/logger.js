@@ -7,39 +7,30 @@ const path = require('path');
 const logsDir = path.join(__dirname, '..', '..', 'logs');
 try { fs.mkdirSync(logsDir, { recursive: true }); } catch (_) { /* ignore */ }
 
-// Carica i helpers di monitoring in modo "safe"
-let monitoring = {};
-try {
-  monitoring = require('../config/monitoring');
-} catch (_) {
-  monitoring = {};
+// === Hook per metriche (settati da monitoring.js) ===
+let logEventRecorder = null;     // (level, message, meta) => void
+let httpRequestRecorder = null;  // (method, route, status, durationMs) => void
+
+function setLogEventRecorder(fn) {
+  logEventRecorder = (typeof fn === 'function') ? fn : null;
 }
 
-// Sorgente potenziale delle funzioni di metrica
-const metricsSource = monitoring.metricsHelpers || monitoring;
-
-// Scegli in modo resiliente la funzione di registrazione eventi (o no-op)
-const recordFn =
-  metricsSource && typeof metricsSource.recordLogEvent === 'function'
-    ? metricsSource.recordLogEvent
-    : metricsSource && typeof metricsSource.recordEvent === 'function'
-      ? metricsSource.recordEvent
-      : null;
-
-function tryRecord(level, message, metadata) {
-  if (!recordFn) return;         // se non disponibile, non fare nulla
-  try {
-    recordFn(level, message, metadata || {});
-  } catch (_) {
-    // Mai far fallire il logger per colpa delle metriche
-  }
+function setHttpRequestRecorder(fn) {
+  httpRequestRecorder = (typeof fn === 'function') ? fn : null;
 }
 
 // Tap di metriche nel pipeline dei format (side-effect sicuro)
+// Qui evitiamo di far fallire il logging qualunque cosa accada nel recorder
 const metricsTap = winston.format((info) => {
-  if (info.level === 'error') {
-    const { message, ...rest } = info;
-    tryRecord('error', message, rest);
+  if (logEventRecorder /* opzionale */) {
+    try {
+      // Puoi limitare agli errori, o registrare tutti i livelli: scegli tu.
+      // Qui rimaniamo conservativi e registriamo solo gli 'error'.
+      if (info.level === 'error') {
+        const { message, ...rest } = info;
+        logEventRecorder('error', message, rest);
+      }
+    } catch (_) { /* mai propagare */ }
   }
   return info;
 });
@@ -74,5 +65,16 @@ const logger = winston.createLogger({
 
 // Non far mai propagare errori dal logger
 logger.on('error', () => { /* swallow logger errors */ });
+
+// === API di integrazione metriche esposta al resto dell'app ===
+logger.setLogEventRecorder = setLogEventRecorder;
+logger.setHttpRequestRecorder = setHttpRequestRecorder;
+
+// Alias retro-compatibili
+logger.setMetricsRecorder = setLogEventRecorder;
+// Getter comodo usato dal tuo errorHandler (non crea dipendenza)
+Object.defineProperty(logger, 'metricsRecorder', {
+  get() { return httpRequestRecorder; }
+});
 
 module.exports = logger;
