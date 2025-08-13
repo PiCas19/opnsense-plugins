@@ -85,12 +85,13 @@ services:
       timeout: 5s
       retries: 5
 
-  swagger-ui:
+swagger-ui:
+  profiles: ["lan"]
   image: swaggerapi/swagger-ui:v5.9.0
   container_name: opnsense-swagger
   restart: unless-stopped
   environment:
-    SWAGGER_JSON: http://192.168.216.50:3000/api-docs/swagger.json   # <— QUI
+    URL: http://192.168.216.50:3000/api-docs/swagger.json
     BASE_URL: /docs
     DEEP_LINKING: "true"
     DISPLAY_OPERATION_ID: "true"
