@@ -1,5 +1,3 @@
-version: "3.8"
-
 # Usa i profili:
 #   VM LAN: docker compose --profile lan up -d
 #   VM DMZ: docker compose --profile dmz up -d
