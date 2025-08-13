@@ -13,13 +13,28 @@ const compression = require('compression');
 
 // Custom modules
 const logger = require('./utils/logger');
-const { initializeDatabase, closeConnections, testConnection } = require('./config/database');
-const { initializeErrorHandling, errorHandler, notFoundHandler } = require('./middleware/errorHandler');
+const {
+  initializeDatabase,
+  closeConnections,
+  testConnection,
+} = require('./config/database');
+const {
+  initializeErrorHandling,
+  errorHandler,
+  notFoundHandler,
+} = require('./middleware/errorHandler');
 const { auditMiddleware } = require('./middleware/audit');
-const { createRateLimiter, dynamicRateLimit } = require('./middleware/rateLimit'); // <-- no warnings
-const { dynamicValidation } = require('./middleware/validation'); // <-- use zod dynamic mapping
+const {
+  createRateLimiter,
+  dynamicRateLimit,
+} = require('./middleware/rateLimit'); // no warnings
+const { dynamicValidation } = require('./middleware/validation'); // zod dynamic mapping
 const { asyncHandler } = require('./middleware/asyncHandler');
-const { initializeMonitoring, performHealthChecks, getMetrics } = require('./config/monitoring');
+const {
+  initializeMonitoring,
+  performHealthChecks,
+  getMetrics,
+} = require('./config/monitoring');
 
 // API routes (solo quelle presenti; niente auth)
 const adminRoutes = require('./routes/admin');
@@ -32,9 +47,11 @@ const policiesRoutes = require('./routes/policies');
 const config = {
   port: process.env.PORT || 3000,
   nodeEnv: process.env.NODE_ENV || 'development',
-  corsOrigin: process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' ? false : '*'),
-  healthCheckInterval: parseInt(process.env.HEALTH_CHECK_INTERVAL) || 30000,
-  shutdownTimeout: parseInt(process.env.SHUTDOWN_TIMEOUT) || 10000,
+  corsOrigin:
+    process.env.CORS_ORIGIN ||
+    (process.env.NODE_ENV === 'production' ? false : '*'),
+  healthCheckInterval: parseInt(process.env.HEALTH_CHECK_INTERVAL, 10) || 30000,
+  shutdownTimeout: parseInt(process.env.SHUTDOWN_TIMEOUT, 10) || 10000,
   requestSizeLimit: process.env.REQUEST_SIZE_LIMIT || '10mb',
   enableSwagger: process.env.ENABLE_SWAGGER !== 'false',
 };
@@ -79,7 +96,10 @@ async function initializeApplication() {
 
     logger.info('Application initialization completed successfully');
   } catch (error) {
-    logger.error('Failed to initialize application:', { error: error.message, stack: error.stack });
+    logger.error('Failed to initialize application:', {
+      error: error.message,
+      stack: error.stack,
+    });
     await gracefulShutdown(1);
   }
 }
@@ -88,7 +108,8 @@ async function initializeApplication() {
 function setupMiddleware() {
   app.use(
     compression({
-      filter: (req, res) => (req.headers['x-no-compression'] ? false : compression.filter(req, res)),
+      filter: (req, res) =>
+        req.headers['x-no-compression'] ? false : compression.filter(req, res),
     })
   );
 
@@ -118,10 +139,12 @@ function setupMiddleware() {
   app.use(
     cors({
       origin: (origin, callback) => {
-        if (!origin) return callback(null, true); // curl/mobile
+        if (!origin) return callback(null, true); // curl/mobile/no origin
         if (config.corsOrigin === '*') return callback(null, true);
-        if (Array.isArray(config.corsOrigin)) return callback(null, config.corsOrigin.includes(origin));
-        if (typeof config.corsOrigin === 'string') return callback(null, config.corsOrigin === origin);
+        if (Array.isArray(config.corsOrigin))
+          return callback(null, config.corsOrigin.includes(origin));
+        if (typeof config.corsOrigin === 'string')
+          return callback(null, config.corsOrigin === origin);
         return callback(new Error('Not allowed by CORS'));
       },
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -135,7 +158,7 @@ function setupMiddleware() {
       ],
       credentials: true,
       optionsSuccessStatus: 200,
-      maxAge: 86400,
+      maxAge: 86400, // 24h
     })
   );
 
@@ -167,7 +190,10 @@ function setupMiddleware() {
       stream: { write: (message) => logger.http(message.trim()) },
       skip: (req, res) => {
         const skipPaths = ['/health', '/metrics', '/api/v1/health'];
-        return skipPaths.some((p) => req.originalUrl.includes(p)) || (res.statusCode < 400 && config.nodeEnv === 'production');
+        return (
+          skipPaths.some((p) => req.originalUrl.includes(p)) ||
+          (res.statusCode < 400 && config.nodeEnv === 'production')
+        );
       },
     })
   );
@@ -181,20 +207,20 @@ function setupMiddleware() {
     })
   );
 
-  // Global rate limiting (no deprecated options)
+  // Global rate limiting (zero warning – nessuna opzione deprecata)
   app.use(
     '/api/',
     createRateLimiter({
-      windowMs: 15 * 60 * 1000,
+      windowMs: 15 * 60 * 1000, // 15 minuti
       max: config.nodeEnv === 'production' ? 1000 : 10000,
       skip: (req) => req.path.includes('/health'),
     })
   );
 
-  // Dynamic slow-down / rate-limit chain (configured without warnings)
+  // Slow-down/limiter dinamico per endpoint sensibili (config senza warning)
   app.use(dynamicRateLimit);
 
-  // Zod-based dynamic validation per rotta
+  // Validazione Zod dinamica per rotta
   app.use(dynamicValidation);
 }
 
@@ -229,18 +255,22 @@ function setupRoutes() {
   if (config.enableSwagger) {
     try {
       const swaggerDocument = YAML.load('./swagger.yaml');
-      app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
-        explorer: true,
-        customCss: '.swagger-ui .topbar { display: none }',
-        customSiteTitle: 'OPNsense Management API',
-      }));
+      app.use(
+        '/api-docs',
+        swaggerUi.serve,
+        swaggerUi.setup(swaggerDocument, {
+          explorer: true,
+          customCss: '.swagger-ui .topbar { display: none }',
+          customSiteTitle: 'OPNsense Management API',
+        })
+      );
       logger.info('Swagger documentation enabled at /api-docs');
     } catch (error) {
       logger.warn('Failed to load Swagger documentation:', error.message);
     }
   }
 
-  // App routes (no auth middleware)
+  // App routes (NO auth middleware)
   app.use('/api/v1/admin', adminRoutes);
   app.use('/api/v1/firewall', firewallRoutes);
   app.use('/api/v1/monitoring', monitoringRoutes);
@@ -291,14 +321,20 @@ function startServer() {
       if (error) return reject(error);
 
       logger.info(`Server running on port ${config.port} in ${config.nodeEnv} mode`);
-      if (config.enableSwagger) logger.info(`API Documentation available at http://localhost:${config.port}/api-docs`);
-      logger.info(`Health endpoint available at http://localhost:${config.port}/api/v1/health`);
+      if (config.enableSwagger)
+        logger.info(
+          `API Documentation available at http://localhost:${config.port}/api-docs`
+        );
+      logger.info(
+        `Health endpoint available at http://localhost:${config.port}/api/v1/health`
+      );
       logger.info(`Metrics endpoint available at http://localhost:${config.port}/metrics`);
       resolve();
     });
 
     server.on('error', (error) => {
-      if (error.code === 'EADDRINUSE') logger.error(`Port ${config.port} is already in use`);
+      if (error.code === 'EADDRINUSE')
+        logger.error(`Port ${config.port} is already in use`);
       else logger.error('Server error:', error);
       reject(error);
     });
@@ -320,7 +356,10 @@ async function gracefulShutdown(exitCode = 0) {
   const shutdownPromise = new Promise((resolve) => {
     let steps = 0;
     const total = 4;
-    const done = () => (++steps >= total ? resolve() : null);
+    const done = () => {
+      steps += 1;
+      if (steps >= total) resolve();
+    };
 
     if (healthCheckInterval) {
       clearInterval(healthCheckInterval);
@@ -328,14 +367,27 @@ async function gracefulShutdown(exitCode = 0) {
     }
     done();
 
-    if (server) server.close(() => { logger.info('HTTP server closed'); done(); });
+    if (server)
+      server.close(() => {
+        logger.info('HTTP server closed');
+        done();
+      });
     else done();
 
     closeConnections()
-      .then(() => { logger.info('Database connections closed'); done(); })
-      .catch((error) => { logger.error('Error closing database connections:', error); done(); });
+      .then(() => {
+        logger.info('Database connections closed');
+        done();
+      })
+      .catch((error) => {
+        logger.error('Error closing database connections:', error);
+        done();
+      });
 
-    setTimeout(() => { logger.info('Additional cleanup completed'); done(); }, 100);
+    setTimeout(() => {
+      logger.info('Additional cleanup completed');
+      done();
+    }, 100);
   });
 
   const shutdownTimer = setTimeout(() => {
@@ -356,9 +408,18 @@ async function gracefulShutdown(exitCode = 0) {
 }
 
 // Signals
-process.on('SIGTERM', () => { logger.info('Received SIGTERM signal'); gracefulShutdown(0); });
-process.on('SIGINT', () => { logger.info('Received SIGINT signal (Ctrl+C)'); gracefulShutdown(0); });
-process.on('SIGUSR2', () => { logger.info('Received SIGUSR2 signal (nodemon restart)'); gracefulShutdown(0); });
+process.on('SIGTERM', () => {
+  logger.info('Received SIGTERM signal');
+  gracefulShutdown(0);
+});
+process.on('SIGINT', () => {
+  logger.info('Received SIGINT signal (Ctrl+C)');
+  gracefulShutdown(0);
+});
+process.on('SIGUSR2', () => {
+  logger.info('Received SIGUSR2 signal (nodemon restart)');
+  gracefulShutdown(0);
+});
 
 // Fatal handlers
 process.on('uncaughtException', (error) => {
