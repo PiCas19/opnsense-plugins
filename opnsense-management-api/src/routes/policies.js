@@ -3,28 +3,38 @@ const express = require('express');
 const { authenticate, authorize, PERMISSIONS } = require('../middleware/auth');
 const { validators } = require('../middleware/validation');
 const { auditLog, AUDITED_ACTIONS } = require('../middleware/audit');
-// ⬇️ usa createRateLimiter invece di rateLimiters
 const { createRateLimiter } = require('../middleware/rateLimit');
 const { asyncHandler, NotFoundError, ValidationError, ConflictError } = require('../middleware/errorHandler');
+
 const PolicyService = require('../services/PolicyService');
+
 const Policy = require('../models/Policy');
 const Rule = require('../models/Rule');
 const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
-const { Op } = require('sequelize');
+
+const { Op, fn, col, literal } = require('sequelize');
 const logger = require('../utils/logger');
 
 const router = express.Router();
 
-// Limiter per le rotte policies (sostituisce rateLimiters.firewall)
+// Limiter per le rotte policies
 const policiesLimiter = createRateLimiter({
-  windowMs: 60 * 1000, // 1 minuto
+  windowMs: 60 * 1000,
   max: process.env.NODE_ENV === 'production' ? 200 : 5000,
 });
 
 // Apply rate limiting e autenticazione
 router.use(policiesLimiter);
 router.use(authenticate);
+
+// Helper: include comuni per gli user relazionati
+const userLiteAttrs = ['id', 'username', 'email'];
+const includeUsers = [
+  { model: User, as: 'createdBy', attributes: userLiteAttrs, required: false },
+  { model: User, as: 'updatedBy', attributes: userLiteAttrs, required: false },
+  { model: User, as: 'approver',  attributes: userLiteAttrs, required: false },
+];
 
 /**
  * @swagger
@@ -40,60 +50,57 @@ router.get(
   validators.searchQuery,
   authorize(PERMISSIONS.POLICY_READ),
   asyncHandler(async (req, res) => {
-    const { page = 1, limit = 20, search, type, enabled, approval_status } = req.query;
+    const { page = 1, limit = 20, search, type, enabled, approval_status, created_by } = req.query;
+    const service = new PolicyService(req.user);
 
-    const whereClause = {};
+    // Costruisci filtri per il service
+    const filters = {};
+    if (search) filters.name = search;
+    if (type) filters.type = type;
+    if (enabled !== undefined) filters.enabled = enabled === 'true';
+    if (approval_status) filters.approval_status = approval_status;
+    if (created_by) filters.created_by = Number(created_by);
 
-    if (search) {
-      whereClause[Op.or] = [
-        { name: { [Op.iLike]: `%${search}%` } },
-        { description: { [Op.iLike]: `%${search}%` } },
-      ];
-    }
-    if (type) whereClause.type = type;
-    if (enabled !== undefined) whereClause.enabled = enabled === 'true';
-    if (approval_status) whereClause.approval_status = approval_status;
+    // Ottieni lista tramite service (usa cache e validazioni interne)
+    const result = await service.getPolicies(filters, { page: parseInt(page, 10), limit: parseInt(limit, 10) });
 
-    const { count, rows } = await Policy.findAndCountAll({
-      where: whereClause,
-      limit: parseInt(limit, 10),
-      offset: (parseInt(page, 10) - 1) * parseInt(limit, 10),
+    // Carica utenti (join) per le policy ritornate
+    const ids = result.data.map(p => p.id);
+    const joined = await Policy.findAll({
+      where: { id: { [Op.in]: ids } },
+      include: includeUsers,
       order: [
         ['priority', 'DESC'],
         ['created_at', 'DESC'],
-      ],
-      include: [
-        {
-          model: User,
-          as: 'creator',
-          attributes: ['username', 'email'],
-        },
-      ],
+      ]
     });
 
-    const policiesWithStatus = rows.map((policy) => ({
-      ...policy.toJSON(),
-      is_active: policy.isActive(),
-      effectiveness_score: policy.getEffectivenessScore(),
-      rules_count: policy.rules?.length || 0,
-    }));
+    const policiesWithStatus = joined.map((policy) => {
+      const json = policy.toJSON();
+      return {
+        ...json,
+        is_active: policy.isActive ? policy.isActive() : json.enabled,
+        effectiveness_score: policy.getEffectivenessScore ? policy.getEffectivenessScore() : undefined,
+        rules_count: Array.isArray(json.rules) ? json.rules.length : (json.rules_count ?? 0),
+        created_by_user: json.createdBy || null,
+        updated_by_user: json.updatedBy || null,
+        approved_by_user: json.approver || null,
+      };
+    });
 
     await auditLog(req, AUDITED_ACTIONS.API_ACCESS, 'info', {
       action: 'list_policies',
-      filters: { search, type, enabled, approval_status },
-      count: rows.length,
+      filters: { search, type, enabled, approval_status, created_by },
+      count: policiesWithStatus.length,
+      user_id: req.user.id,
+      username: req.user.username,
     });
 
     res.json({
       success: true,
       message: 'Policies retrieved successfully',
       data: policiesWithStatus,
-      pagination: {
-        total: count,
-        page: parseInt(page, 10),
-        limit: parseInt(limit, 10),
-        total_pages: Math.ceil(count / parseInt(limit, 10)),
-      },
+      pagination: result.pagination,
     });
   })
 );
@@ -113,30 +120,34 @@ router.get(
   authorize(PERMISSIONS.POLICY_READ),
   asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const service = new PolicyService(req.user);
 
-    const policy = await Policy.findByPk(id, {
-      include: [
-        { model: User, as: 'creator', attributes: ['username', 'email'] },
-        { model: User, as: 'approver', attributes: ['username', 'email'] },
-      ],
-    });
-
+    // Dal service (cache + validazioni)
+    const policy = await service.getPolicyById(Number(id));
     if (!policy) throw new NotFoundError('Policy not found');
 
+    // Re-fetch con include User per risposte ricche
+    const policyFull = await Policy.findByPk(id, { include: includeUsers });
+    if (!policyFull) throw new NotFoundError('Policy not found');
+
     let associatedRules = [];
-    if (policy.rules && policy.rules.length > 0) {
+    if (policyFull.rules && policyFull.rules.length > 0) {
       associatedRules = await Rule.findAll({
-        where: { id: { [Op.in]: policy.rules } },
+        where: { id: { [Op.in]: policyFull.rules } },
         attributes: ['id', 'description', 'interface', 'action', 'enabled'],
       });
     }
 
+    const json = policyFull.toJSON();
     const policyData = {
-      ...policy.toJSON(),
+      ...json,
       associated_rules: associatedRules,
-      effectiveness_score: policy.getEffectivenessScore(),
-      is_active: policy.isActive(),
-      next_activation: policy.getNextActivation(),
+      effectiveness_score: policyFull.getEffectivenessScore?.(),
+      is_active: policyFull.isActive?.(),
+      next_activation: policyFull.getNextActivation?.(),
+      created_by_user: json.createdBy || null,
+      updated_by_user: json.updatedBy || null,
+      approved_by_user: json.approver || null,
     };
 
     res.json({ success: true, message: 'Policy retrieved successfully', data: policyData });
@@ -157,8 +168,10 @@ router.post(
   validators.createPolicy,
   authorize(PERMISSIONS.POLICY_WRITE),
   asyncHandler(async (req, res) => {
-    const policyData = { ...req.body, created_by: req.user.id, approval_status: 'draft' };
+    const service = new PolicyService(req.user);
+    const policyData = { ...req.body };
 
+    // Pre-validazioni
     const existingPolicy = await Policy.findOne({ where: { name: policyData.name } });
     if (existingPolicy) throw new ConflictError('Policy name already exists');
 
@@ -172,21 +185,37 @@ router.post(
       }
     }
 
-    const policy = await Policy.create(policyData);
+    const policy = await service.createPolicy(policyData);
+
+    // Reload con users
+    const createdFull = await Policy.findByPk(policy.id, { include: includeUsers });
 
     await auditLog(req, AUDITED_ACTIONS.POLICY_CREATE, 'info', {
       policy_id: policy.id,
       name: policy.name,
       type: policy.type,
       rules_count: policy.rules?.length || 0,
+      user_id: req.user.id,
+      username: req.user.username,
     });
 
-    logger.info('Policy created successfully', { policy_id: policy.id, name: policy.name, user_id: req.user.id });
+    logger.info('Policy created successfully', {
+      policy_id: policy.id,
+      name: policy.name,
+      user_id: req.user.id,
+      username: req.user.username,
+    });
 
     res.status(201).json({
       success: true,
       message: 'Policy created successfully',
-      data: { id: policy.id, name: policy.name, type: policy.type, approval_status: policy.approval_status },
+      data: {
+        id: createdFull.id,
+        name: createdFull.name,
+        type: createdFull.type,
+        approval_status: createdFull.approval_status,
+        created_by_user: createdFull.createdBy || null,
+      },
     });
   })
 );
@@ -207,7 +236,8 @@ router.put(
   authorize(PERMISSIONS.POLICY_WRITE),
   asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const updates = { ...req.body, updated_by: req.user.id };
+    const updates = { ...req.body };
+    const service = new PolicyService(req.user);
 
     const policy = await Policy.findByPk(id);
     if (!policy) throw new NotFoundError('Policy not found');
@@ -232,16 +262,28 @@ router.put(
       priority: policy.priority,
     };
 
-    await policy.update(updates);
+    const updated = await service.updatePolicy(Number(id), updates);
+    const updatedFull = await Policy.findByPk(updated.id, { include: includeUsers });
 
     await auditLog(req, AUDITED_ACTIONS.POLICY_UPDATE, 'info', {
-      policy_id: policy.id,
-      name: policy.name,
+      policy_id: updated.id,
+      name: updated.name,
       changes: updates,
       previous_state: previousState,
+      user_id: req.user.id,
+      username: req.user.username,
     });
 
-    res.json({ success: true, message: 'Policy updated successfully', data: { id: policy.id, name: policy.name, version: policy.version } });
+    res.json({
+      success: true,
+      message: 'Policy updated successfully',
+      data: {
+        id: updatedFull.id,
+        name: updatedFull.name,
+        version: updatedFull.version,
+        updated_by_user: updatedFull.updatedBy || null,
+      },
+    });
   })
 );
 
@@ -260,6 +302,7 @@ router.post(
   authorize(PERMISSIONS.POLICY_WRITE),
   asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const service = new PolicyService(req.user);
 
     const policy = await Policy.findByPk(id);
     if (!policy) throw new NotFoundError('Policy not found');
@@ -268,19 +311,32 @@ router.post(
       throw new ValidationError('Policy must be approved before activation');
     }
 
-    await policy.update({
+    const updated = await service.updatePolicy(Number(id), {
       enabled: true,
       last_activated_at: new Date(),
-      activation_count: policy.activation_count + 1,
-      updated_by: req.user.id,
+      activation_count: (policy.activation_count || 0) + 1,
     });
 
-    await auditLog(req, AUDITED_ACTIONS.POLICY_UPDATE, 'info', { policy_id: policy.id, name: policy.name, action: 'activate' });
+    const updatedFull = await Policy.findByPk(updated.id, { include: includeUsers });
+
+    await auditLog(req, AUDITED_ACTIONS.POLICY_UPDATE, 'info', {
+      policy_id: updated.id,
+      name: updated.name,
+      action: 'activate',
+      user_id: req.user.id,
+      username: req.user.username,
+    });
 
     res.json({
       success: true,
       message: 'Policy activated successfully',
-      data: { id: policy.id, name: policy.name, enabled: true, activated_at: new Date().toISOString() },
+      data: {
+        id: updatedFull.id,
+        name: updatedFull.name,
+        enabled: true,
+        activated_at: new Date().toISOString(),
+        updated_by_user: updatedFull.updatedBy || null,
+      },
     });
   })
 );
@@ -300,18 +356,32 @@ router.post(
   authorize(PERMISSIONS.POLICY_WRITE),
   asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const service = new PolicyService(req.user);
 
     const policy = await Policy.findByPk(id);
     if (!policy) throw new NotFoundError('Policy not found');
 
-    await policy.update({ enabled: false, updated_by: req.user.id });
+    const updated = await service.updatePolicy(Number(id), { enabled: false });
+    const updatedFull = await Policy.findByPk(updated.id, { include: includeUsers });
 
-    await auditLog(req, AUDITED_ACTIONS.POLICY_UPDATE, 'info', { policy_id: policy.id, name: policy.name, action: 'deactivate' });
+    await auditLog(req, AUDITED_ACTIONS.POLICY_UPDATE, 'info', {
+      policy_id: updated.id,
+      name: updated.name,
+      action: 'deactivate',
+      user_id: req.user.id,
+      username: req.user.username,
+    });
 
     res.json({
       success: true,
       message: 'Policy deactivated successfully',
-      data: { id: policy.id, name: policy.name, enabled: false, deactivated_at: new Date().toISOString() },
+      data: {
+        id: updatedFull.id,
+        name: updatedFull.name,
+        enabled: false,
+        deactivated_at: new Date().toISOString(),
+        updated_by_user: updatedFull.updatedBy || null,
+      },
     });
   })
 );
@@ -341,28 +411,39 @@ router.post(
       });
     }
 
-    const policy = await Policy.findByPk(id);
+    const service = new PolicyService(req.user);
+    const policy = await Policy.findByPk(id, { include: includeUsers });
     if (!policy) throw new NotFoundError('Policy not found');
     if (policy.approval_status === 'approved') throw new ValidationError('Policy is already approved');
 
-    await policy.update({
+    const updated = await service.updatePolicy(Number(id), {
       approval_status: 'approved',
       approved_by: req.user.id,
       approved_at: new Date(),
       review_comments: comments,
     });
 
+    const updatedFull = await Policy.findByPk(updated.id, { include: includeUsers });
+
     await auditLog(req, AUDITED_ACTIONS.POLICY_UPDATE, 'info', {
-      policy_id: policy.id,
-      name: policy.name,
+      policy_id: updated.id,
+      name: updated.name,
       action: 'approve',
       comments,
+      user_id: req.user.id,
+      username: req.user.username,
     });
 
     res.json({
       success: true,
       message: 'Policy approved successfully',
-      data: { id: policy.id, name: policy.name, approval_status: policy.approval_status, approved_at: policy.approved_at },
+      data: {
+        id: updatedFull.id,
+        name: updatedFull.name,
+        approval_status: updatedFull.approval_status,
+        approved_at: updatedFull.approved_at,
+        approved_by_user: updatedFull.approver || { id: req.user.id, username: req.user.username, email: req.user.email },
+      },
     });
   })
 );
@@ -382,8 +463,9 @@ router.delete(
   authorize(PERMISSIONS.POLICY_DELETE),
   asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const service = new PolicyService(req.user);
 
-    const policy = await Policy.findByPk(id);
+    const policy = await Policy.findByPk(id, { include: includeUsers });
     if (!policy) throw new NotFoundError('Policy not found');
 
     const policyInfo = {
@@ -392,15 +474,18 @@ router.delete(
       type: policy.type,
       rules_count: policy.rules?.length || 0,
       enabled: policy.enabled,
+      created_by_user: policy.createdBy || null,
     };
 
-    await policy.destroy();
+    await service.deletePolicy(Number(id));
 
     await auditLog(req, AUDITED_ACTIONS.POLICY_DELETE, 'warning', {
       policy_id: policyInfo.id,
       name: policyInfo.name,
       type: policyInfo.type,
       rules_count: policyInfo.rules_count,
+      user_id: req.user.id,
+      username: req.user.username,
     });
 
     res.json({ success: true, message: 'Policy deleted successfully' });
@@ -420,32 +505,57 @@ router.get(
   '/stats',
   authorize(PERMISSIONS.POLICY_READ),
   asyncHandler(async (req, res) => {
-    const stats = await Policy.getStatistics();
-    const totalPolicies = await Policy.count();
-    const activePolicies = await Policy.count({ where: { enabled: true } });
-    const approvedPolicies = await Policy.count({ where: { approval_status: 'approved' } });
-    const pendingApproval = await Policy.count({ where: { approval_status: 'pending_approval' } });
+    // Aggregati in un'unica query usando fn/col/literal
+    const [aggRow] = await Policy.findAll({
+      attributes: [
+        [fn('COUNT', col('id')), 'total'],
+        // enabled
+        [literal('SUM(CASE WHEN "Policy"."enabled" = TRUE THEN 1 ELSE 0 END)'), 'enabled'],
+        // approved
+        [literal(`SUM(CASE WHEN "Policy"."approval_status" = 'approved' THEN 1 ELSE 0 END)`), 'approved'],
+        // pending approval
+        [literal(`SUM(CASE WHEN "Policy"."approval_status" = 'pending_approval' THEN 1 ELSE 0 END)`), 'pending_approval'],
+      ],
+      raw: true,
+    });
 
-    const expiringPolicies = await Policy.findExpiring(30);
+    // Distribuzione per tipo
+    const byTypeRows = await Policy.findAll({
+      attributes: ['type', [fn('COUNT', col('id')), 'count']],
+      group: ['type'],
+      raw: true,
+    });
+
+    // Policies in scadenza (con include users)
+    const expiringPolicies = await Policy.findExpiring(30, { include: includeUsers });
+
+    const totals = {
+      total: parseInt(aggRow.total, 10) || 0,
+      active: parseInt(aggRow.enabled, 10) || 0,
+      inactive: (parseInt(aggRow.total, 10) || 0) - (parseInt(aggRow.enabled, 10) || 0),
+      approved: parseInt(aggRow.approved, 10) || 0,
+      pending_approval: parseInt(aggRow.pending_approval, 10) || 0,
+      expiring_soon: expiringPolicies.length,
+    };
+
+    const by_type = byTypeRows.reduce((acc, r) => {
+      acc[r.type] = parseInt(r.count, 10) || 0;
+      return acc;
+    }, {});
 
     res.json({
       success: true,
       message: 'Policy statistics retrieved successfully',
       data: {
-        totals: {
-          total: totalPolicies,
-          active: activePolicies,
-          inactive: totalPolicies - activePolicies,
-          approved: approvedPolicies,
-          pending_approval: pendingApproval,
-          expiring_soon: expiringPolicies.length,
-        },
-        by_type: stats,
+        totals,
+        by_type,
         expiring_policies: expiringPolicies.map((p) => ({
           id: p.id,
           name: p.name,
           expires_at: p.expires_at,
           days_until_expiry: Math.ceil((new Date(p.expires_at) - new Date()) / (1000 * 60 * 60 * 24)),
+          created_by_user: p.createdBy || null,
+          approved_by_user: p.approver || null,
         })),
       },
     });
@@ -465,14 +575,19 @@ router.get(
   '/active',
   authorize(PERMISSIONS.POLICY_READ),
   asyncHandler(async (req, res) => {
-    const activePolicies = await Policy.findActive();
+    const activePolicies = await Policy.findActive({ include: includeUsers });
 
-    const policiesWithStatus = activePolicies.map((policy) => ({
-      ...policy.toJSON(),
-      is_in_schedule: policy.isInSchedule(),
-      effectiveness_score: policy.getEffectivenessScore(),
-      next_activation: policy.getNextActivation(),
-    }));
+    const policiesWithStatus = activePolicies.map((policy) => {
+      const json = policy.toJSON();
+      return {
+        ...json,
+        is_in_schedule: policy.isInSchedule?.(),
+        effectiveness_score: policy.getEffectivenessScore?.(),
+        next_activation: policy.getNextActivation?.(),
+        created_by_user: json.createdBy || null,
+        approved_by_user: json.approver || null,
+      };
+    });
 
     res.json({
       success: true,
@@ -498,13 +613,17 @@ router.get(
   asyncHandler(async (req, res) => {
     const { days = 30 } = req.query;
 
-    const expiringPolicies = await Policy.findExpiring(parseInt(days, 10));
+    const expiringPolicies = await Policy.findExpiring(parseInt(days, 10), { include: includeUsers });
 
-    const policiesWithTimeLeft = expiringPolicies.map((policy) => ({
-      ...policy.toJSON(),
-      days_until_expiry: Math.ceil((new Date(policy.expires_at) - new Date()) / (1000 * 60 * 60 * 24)),
-      auto_renew: policy.auto_renew,
-    }));
+    const policiesWithTimeLeft = expiringPolicies.map((policy) => {
+      const json = policy.toJSON();
+      return {
+        ...json,
+        days_until_expiry: Math.ceil((new Date(policy.expires_at) - new Date()) / (1000 * 60 * 60 * 24)),
+        auto_renew: policy.auto_renew,
+        created_by_user: json.createdBy || null,
+      };
+    });
 
     res.json({
       success: true,
@@ -535,21 +654,31 @@ router.get(
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { format = 'json' } = req.query;
+    const service = new PolicyService(req.user);
 
-    const policy = await Policy.findByPk(id);
+    const policy = await Policy.findByPk(id, { include: includeUsers });
     if (!policy) throw new NotFoundError('Policy not found');
 
-    const exportData = policy.toExport();
+    // Export via service
+    const exportResult = await service.exportPolicies([Number(id)]);
+
+    const exportData = {
+      export_metadata: {
+        ...exportResult.export_metadata,
+        filtered: true,
+      },
+      policies: exportResult.policies.filter((p) => p.name === policy.name),
+      created_by_user: policy.createdBy || null,
+      approved_by_user: policy.approver || null,
+    };
 
     if (format === 'yaml') {
       const yaml = require('yamljs');
       const yamlData = yaml.stringify(exportData, 2);
-
       res.set({
         'Content-Type': 'application/x-yaml',
         'Content-Disposition': `attachment; filename="policy-${policy.name}-${id}.yaml"`,
       });
-
       return res.send(yamlData);
     }
 
@@ -587,48 +716,45 @@ router.post(
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { new_name, copy_rules = true, enabled = false } = req.body;
+    const service = new PolicyService(req.user);
 
     if (!new_name) throw new ValidationError('new_name is required');
 
-    const sourcePolicy = await Policy.findByPk(id);
+    const sourcePolicy = await Policy.findByPk(id, { include: includeUsers });
     if (!sourcePolicy) throw new NotFoundError('Source policy not found');
 
-    const existingPolicy = await Policy.findOne({ where: { name: new_name } });
-    if (existingPolicy) throw new ConflictError('Policy name already exists');
-
-    const clonedPolicyData = {
+    const cloned = await service.clonePolicy(Number(id), {
       name: new_name,
-      description: `Cloned from: ${sourcePolicy.name}`,
-      type: sourcePolicy.type,
-      rules: copy_rules ? [...sourcePolicy.rules] : [],
+      rules: copy_rules ? sourcePolicy.rules : [],
       enabled,
+      description: `Cloned from: ${sourcePolicy.name}`,
       priority: sourcePolicy.priority,
       schedule: sourcePolicy.schedule,
       conditions: sourcePolicy.conditions,
       metadata: sourcePolicy.metadata,
-      created_by: req.user.id,
-      approval_status: 'draft',
-      parent_policy_id: sourcePolicy.id,
-    };
+    });
 
-    const clonedPolicy = await Policy.create(clonedPolicyData);
+    const clonedFull = await Policy.findByPk(cloned.id, { include: includeUsers });
 
     await auditLog(req, AUDITED_ACTIONS.POLICY_CREATE, 'info', {
       action: 'clone_policy',
       source_policy_id: id,
       source_policy_name: sourcePolicy.name,
-      new_policy_id: clonedPolicy.id,
+      new_policy_id: cloned.id,
       new_policy_name: new_name,
+      user_id: req.user.id,
+      username: req.user.username,
     });
 
     res.status(201).json({
       success: true,
       message: 'Policy cloned successfully',
       data: {
-        id: clonedPolicy.id,
-        name: clonedPolicy.name,
+        id: clonedFull.id,
+        name: clonedFull.name,
         source_policy: { id: sourcePolicy.id, name: sourcePolicy.name },
-        copied_rules: copy_rules ? clonedPolicy.rules.length : 0,
+        copied_rules: copy_rules ? (clonedFull.rules?.length || 0) : 0,
+        created_by_user: clonedFull.createdBy || null,
       },
     });
   })
@@ -650,7 +776,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const { id } = req.params;
 
-    const policy = await Policy.findByPk(id);
+    const policy = await Policy.findByPk(id, { include: includeUsers });
     if (!policy) throw new NotFoundError('Policy not found');
 
     const history = await AuditLog.findAll({
@@ -664,7 +790,13 @@ router.get(
       success: true,
       message: 'Policy history retrieved successfully',
       data: {
-        policy: { id: policy.id, name: policy.name, current_version: policy.version },
+        policy: {
+          id: policy.id,
+          name: policy.name,
+          current_version: policy.version,
+          created_by_user: policy.createdBy || null,
+          approved_by_user: policy.approver || null,
+        },
         history,
         count: history.length,
       },
@@ -691,6 +823,8 @@ router.post(
       action: 'check_policy_expiry',
       renewed_count: renewedPolicies.filter((p) => p.auto_renew).length,
       expiring_count: renewedPolicies.length,
+      user_id: req.user.id,
+      username: req.user.username,
     });
 
     res.json({
@@ -724,7 +858,9 @@ router.post(
   '/validate',
   authorize(PERMISSIONS.POLICY_READ),
   asyncHandler(async (req, res) => {
+    const service = new PolicyService(req.user);
     const policyConfig = req.body;
+
     const errors = [];
     const warnings = [];
     const suggestions = [];
@@ -750,30 +886,25 @@ router.post(
       }
     }
 
-    if (policyConfig.schedule?.enabled) {
-      if (policyConfig.schedule.start_time && policyConfig.schedule.end_time) {
-        if (policyConfig.schedule.start_time >= policyConfig.schedule.end_time) {
-          errors.push('Schedule start time must be before end time');
-        }
-      }
-      if (!policyConfig.schedule.days || policyConfig.schedule.days.length === 0) {
-        errors.push('Scheduled policies must specify at least one day');
-      }
-    }
+    const typeValidation = await service.validatePolicyConfiguration({
+      id: 0,
+      type: policyConfig.type,
+      description: policyConfig.description,
+      priority: policyConfig.priority,
+      configuration: policyConfig.configuration,
+    });
 
-    if (policyConfig.type === 'security' && (!policyConfig.priority || policyConfig.priority < 70)) {
-      suggestions.push('Consider higher priority (70+) for security policies');
-    }
-    if (!policyConfig.description) {
-      suggestions.push('Adding a description helps with policy management');
-    }
-
-    const isValid = errors.length === 0;
+    const isValid = errors.length === 0 && typeValidation.valid;
 
     res.json({
       success: isValid,
       message: isValid ? 'Policy configuration is valid' : 'Policy configuration has validation errors',
-      data: { is_valid: isValid, errors, warnings, suggestions },
+      data: {
+        is_valid: isValid,
+        errors: [...errors, ...typeValidation.errors],
+        warnings: [...warnings, ...typeValidation.warnings],
+        suggestions: [...suggestions, ...typeValidation.suggestions],
+      },
     });
   })
 );
@@ -792,6 +923,7 @@ router.post(
   authorize(PERMISSIONS.POLICY_WRITE),
   asyncHandler(async (req, res) => {
     const { policy_data, overwrite = false, validate_only = false } = req.body;
+    const service = new PolicyService(req.user);
 
     if (!policy_data) throw new ValidationError('policy_data is required');
 
@@ -834,26 +966,24 @@ router.post(
       throw new ValidationError('Policy import validation failed', { errors, warnings });
     }
 
-    let policy;
-    if (existingPolicy && overwrite) {
-      await existingPolicy.update({ ...policy_data, updated_by: req.user.id, version: existingPolicy.version + 1 });
-      policy = existingPolicy;
-    } else {
-      policy = await Policy.create({ ...policy_data, created_by: req.user.id, approval_status: 'draft' });
-    }
+    const importResult = await service.importPolicies({ policies: [policy_data] }, { overwrite });
 
     await auditLog(req, AUDITED_ACTIONS.POLICY_CREATE, 'info', {
       action: 'import_policy',
-      policy_name: policy.name,
+      policy_name: policy_data.name,
       overwrite: overwrite && !!existingPolicy,
+      user_id: req.user.id,
+      username: req.user.username,
     });
+
+    const imported = importResult.imported_policies?.[0];
 
     res.status(201).json({
       success: true,
       message: 'Policy imported successfully',
       data: {
-        id: policy.id,
-        name: policy.name,
+        id: imported?.id,
+        name: imported?.name,
         imported_at: new Date().toISOString(),
         overwritten: overwrite && !!existingPolicy,
       },
@@ -892,44 +1022,44 @@ router.patch(
       });
     }
 
-    const policies = await Policy.findAll({ where: { id: { [Op.in]: policy_ids } } });
-    if (policies.length !== policy_ids.length) throw new NotFoundError('Some policies were not found');
-
+    const service = new PolicyService(req.user);
     const results = { successful: 0, failed: 0, errors: [] };
 
-    for (const policy of policies) {
-      try {
-        switch (operation) {
-          case 'enable':
-            await policy.update({ enabled: true, updated_by: req.user.id });
-            break;
-          case 'disable':
-            await policy.update({ enabled: false, updated_by: req.user.id });
-            break;
-          case 'delete':
-            await policy.destroy();
-            break;
-          case 'approve':
-            await policy.update({
-              approval_status: 'approved',
-              approved_by: req.user.id,
-              approved_at: new Date(),
-              review_comments: comments,
-            });
-            break;
-          case 'reject':
-            await policy.update({
-              approval_status: 'rejected',
-              reviewed_by: req.user.id,
-              reviewed_at: new Date(),
-              review_comments: comments,
-            });
-            break;
+    if (operation === 'enable' || operation === 'disable') {
+      const updateData = { enabled: operation === 'enable' };
+      const bulkResult = await service.bulkUpdatePolicies(policy_ids, updateData);
+      results.successful = bulkResult.updated_count;
+      results.failed = policy_ids.length - bulkResult.updated_count;
+    } else {
+      for (const id of policy_ids) {
+        try {
+          switch (operation) {
+            case 'delete':
+              await service.deletePolicy(Number(id));
+              break;
+            case 'approve':
+              await service.updatePolicy(Number(id), {
+                approval_status: 'approved',
+                approved_by: req.user.id,
+                approved_at: new Date(),
+                review_comments: comments,
+              });
+              break;
+            case 'reject':
+              await service.updatePolicy(Number(id), {
+                approval_status: 'rejected',
+                reviewed_by: req.user.id,
+                reviewed_at: new Date(),
+                review_comments: comments,
+              });
+              break;
+          }
+          results.successful++;
+        } catch (error) {
+          results.failed++;
+          const name = (await Policy.findByPk(id))?.name;
+          results.errors.push({ policy_id: id, policy_name: name, error: error.message });
         }
-        results.successful++;
-      } catch (error) {
-        results.failed++;
-        results.errors.push({ policy_id: policy.id, policy_name: policy.name, error: error.message });
       }
     }
 
@@ -939,6 +1069,8 @@ router.patch(
       successful: results.successful,
       failed: results.failed,
       comments,
+      user_id: req.user.id,
+      username: req.user.username,
     });
 
     res.json({
