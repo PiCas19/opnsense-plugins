@@ -16,7 +16,11 @@ const isCIDR = (value) => {
   const p = Number(prefix);
   return Number.isInteger(p) && p >= 0 && p <= 32;
 };
-const strongPwd = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/;
+const strongPwd =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/;
+
+// helper per username alfanumerico (stile Joi.alphanum())
+const alphaNum = z.string().regex(/^[A-Za-z0-9]+$/, 'Must be alphanumeric');
 
 /* ------------------------- common schemas ------------------------- */
 const commonSchemas = {
@@ -59,7 +63,7 @@ const commonSchemas = {
 const authSchemas = {
   login: z
     .object({
-      username: z.string().min(3).max(30).regex(/^[A-Za-z0-9]+$/, 'Must be alphanumeric'),
+      username: alphaNum.min(3).max(30),
       password: z.string().min(8).max(128),
       remember_me: z.boolean().default(false).optional(),
     })
@@ -67,11 +71,14 @@ const authSchemas = {
 
   register: z
     .object({
-      username: z.string().min(3).max(30).regex(/^[A-Za-z0-9]+$/, 'Must be alphanumeric'),
+      username: alphaNum.min(3).max(30),
       email: z.string().email(),
       password: z.string().min(8).max(128).regex(strongPwd, 'Weak password'),
       confirm_password: z.string().min(8).max(128),
-      role: z.enum(['admin', 'operator', 'viewer', 'api_user']).default('viewer').optional(),
+      role: z
+        .enum(['admin', 'operator', 'viewer', 'api_user'])
+        .default('viewer')
+        .optional(),
     })
     .strip()
     .superRefine((val, ctx) => {
@@ -222,7 +229,7 @@ const policySchemas = {
 
 const adminCreateBase = z
   .object({
-    username: z.string().alphanum().min(3).max(30),
+    username: alphaNum.min(3).max(30),
     email: z.string().email(),
     password: z.string().min(8).max(128).regex(strongPwd, 'Weak password'),
     role: z.enum(['admin', 'operator', 'viewer', 'api_user']),
@@ -327,7 +334,7 @@ const validateZod = (schema, source = 'body') => {
     else req[source] = parsed.data;
 
     return next();
-    };
+  };
 };
 
 /* --------------------- express-validator handler --------------------- */
@@ -426,8 +433,14 @@ const validators = {
   auditLogsQuery: validateZod(querySchemas.auditLogs, 'query'),
 
   // Params con express-validator
-  idParam: [param('id').isInt({ min: 1 }).withMessage('ID must be a positive integer'), handleExpressValidation],
-  uuidParam: [param('id').isUUID(4).withMessage('ID must be a valid UUID'), handleExpressValidation],
+  idParam: [
+    param('id').isInt({ min: 1 }).withMessage('ID must be a positive integer'),
+    handleExpressValidation,
+  ],
+  uuidParam: [
+    param('id').isUUID('4').withMessage('ID must be a valid UUID'),
+    handleExpressValidation,
+  ],
 };
 
 /* ------------------------ dynamic route mapping ------------------------ */
