@@ -1,3 +1,5 @@
+version: "3.8"
+
 # Usa i profili:
 #   VM LAN: docker compose --profile lan up -d
 #   VM DMZ: docker compose --profile dmz up -d
@@ -17,27 +19,61 @@ services:
     container_name: opnsense-management-api
     restart: unless-stopped
     environment:
+      # App/HTTP
       NODE_ENV: ${NODE_ENV:-production}
-      API_PORT: 3000
+      PORT: ${PORT:-3000}
+      API_PORT: ${PORT:-3000}
       API_HOST: 0.0.0.0
-      POSTGRES_HOST: postgres
-      REDIS_HOST: redis
+
+      # Database (coerenti con .env.template)
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+
+      # Redis
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+
+      # OPNsense
       OPNSENSE_BASE_URL: ${OPNSENSE_BASE_URL}
       OPNSENSE_API_KEY: ${OPNSENSE_API_KEY}
       OPNSENSE_API_SECRET: ${OPNSENSE_API_SECRET}
+      OPNSENSE_SSL_VERIFY: ${OPNSENSE_SSL_VERIFY:-false}
+      OPNSENSE_TIMEOUT: ${OPNSENSE_TIMEOUT:-30000}
+      OPNSENSE_CACHE_TIMEOUT: ${OPNSENSE_CACHE_TIMEOUT:-60}
+      MAX_API_RETRIES: ${MAX_API_RETRIES:-3}
+      API_REQUEST_TIMEOUT: ${API_REQUEST_TIMEOUT:-10000}
+
+      # Sicurezza/CORS
       JWT_SECRET: ${JWT_SECRET}
-      GRAFANA_PORT: ${GRAFANA_PORT:-3001}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN}
+      JWT_ISSUER: ${JWT_ISSUER}
+      JWT_AUDIENCE: ${JWT_AUDIENCE}
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      HELMET_ENABLED: ${HELMET_ENABLED}
+      CSRF_ENABLED: ${CSRF_ENABLED}
+
+      # Metrics (se usi /metrics)
+      METRICS_ENABLED: ${METRICS_ENABLED}
+
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+
     # Binda l'API SOLO all'IP LAN della VM (facoltativo: default 0.0.0.0)
     ports:
       - "${LAN_HOST_IP:-0.0.0.0}:3000:3000"
+
     volumes:
       - ./logs:/app/logs
       - ./temp:/app/temp
+
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/v1/health"]
       interval: 30s
@@ -79,24 +115,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-  swagger-ui:
-    profiles: ["lan"]
-    image: swaggerapi/swagger-ui:v5.9.0
-    container_name: opnsense-swagger
-    restart: unless-stopped
-    environment:
-      SWAGGER_JSON: http://192.168.216.50:3000/api-docs/swagger.json
-      BASE_URL: /docs
-      DEEP_LINKING: "true"
-      DISPLAY_OPERATION_ID: "true"
-      DISPLAY_REQUEST_DURATION: "true"
-    # Se vuoi esporlo solo su IP LAN, usa anche qui LAN_HOST_IP
-    ports:
-      - "${LAN_HOST_IP:-0.0.0.0}:8081:8080"
-    depends_on:
-      opnsense-api:
-        condition: service_started
 
   # === DMZ PROFILE ===
   grafana:
