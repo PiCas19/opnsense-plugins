@@ -1,20 +1,23 @@
+// src/config/database.js
 const { Sequelize } = require('sequelize');
 const Redis = require('redis');
 const logger = require('../utils/logger');
 
-// PostgreSQL Configuration
+// =====================
+// PostgreSQL
+// =====================
 const dbConfig = {
   host: process.env.POSTGRES_HOST || 'localhost',
-  port: parseInt(process.env.POSTGRES_PORT) || 5432,
+  port: parseInt(process.env.POSTGRES_PORT, 10) || 5432,
   database: process.env.POSTGRES_DB || 'opnsense_mgmt',
   username: process.env.POSTGRES_USER || 'opnsense',
   password: process.env.POSTGRES_PASSWORD,
   dialect: 'postgres',
   dialectOptions: {
-    ssl: process.env.POSTGRES_SSL === 'true' ? {
-      require: true,
-      rejectUnauthorized: false
-    } : false,
+    ssl:
+      process.env.POSTGRES_SSL === 'true'
+        ? { require: true, rejectUnauthorized: false }
+        : false,
     connectTimeout: 60000,
     requestTimeout: 60000,
   },
@@ -24,8 +27,10 @@ const dbConfig = {
     acquire: 60000,
     idle: 10000,
   },
-  logging: process.env.NODE_ENV === 'development' ? 
-    (msg) => logger.debug(msg) : false,
+  logging:
+    process.env.NODE_ENV === 'development'
+      ? (msg) => logger.debug(msg)
+      : false,
   define: {
     timestamps: true,
     underscored: true,
@@ -34,55 +39,76 @@ const dbConfig = {
   timezone: '+00:00', // UTC
 };
 
-// Initialize Sequelize
 const sequelize = new Sequelize(dbConfig);
 
-// Redis Configuration
-const redisConfig = {
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT) || 6379,
-  password: process.env.REDIS_PASSWORD,
-  db: 0,
-  retryDelayOnFailover: 100,
-  maxRetriesPerRequest: 3,
-  lazyConnect: true,
-  keepAlive: 30000,
-  connectTimeout: 10000,
-  commandTimeout: 5000,
+// =====================
+// Redis (node-redis v4)
+// =====================
+const REDIS_HOST = process.env.REDIS_HOST || 'localhost';
+const REDIS_PORT = parseInt(process.env.REDIS_PORT, 10) || 6379;
+const REDIS_DB = Number.isInteger(parseInt(process.env.REDIS_DB, 10))
+  ? parseInt(process.env.REDIS_DB, 10)
+  : 0;
+
+const redisUrlFromParts = () => {
+  if (process.env.REDIS_PASSWORD && process.env.REDIS_PASSWORD.length > 0) {
+    return `redis://:${encodeURIComponent(process.env.REDIS_PASSWORD)}@${REDIS_HOST}:${REDIS_PORT}/${REDIS_DB}`;
+  }
+  return `redis://${REDIS_HOST}:${REDIS_PORT}/${REDIS_DB}`;
 };
 
-// Initialize Redis client
-const redis = Redis.createClient(redisConfig);
+const REDIS_URL = process.env.REDIS_URL || redisUrlFromParts();
 
+const redis = Redis.createClient({
+  url: REDIS_URL,
+  socket: {
+    // tempi ragionevoli per ambienti docker
+    connectTimeout: parseInt(process.env.REDIS_CONNECT_TIMEOUT || '10000', 10),
+    keepAlive: parseInt(process.env.REDIS_KEEP_ALIVE || '30000', 10),
+    // backoff esponenziale con cap a 15s
+    reconnectStrategy: (retries) => {
+      const delay = Math.min(1000 * 2 ** retries, 15000);
+      // logga in modo sobrio
+      if (retries % 3 === 0) {
+        logger.warn(`Redis reconnect attempt #${retries + 1} in ${delay}ms`);
+      }
+      return delay;
+    },
+  },
+  // database index viene preso dall'URL (…/<db>)
+});
+
+// Eventi
 redis.on('connect', () => {
-  logger.info('Redis connected successfully');
+  logger.info('Redis TCP connection established');
 });
-
-redis.on('error', (err) => {
-  logger.error('Redis connection error:', err);
-});
-
 redis.on('ready', () => {
   logger.info('Redis ready for operations');
 });
-
-redis.on('reconnecting', () => {
-  logger.warn('Redis reconnecting...');
+redis.on('end', () => {
+  logger.warn('Redis connection closed');
+});
+redis.on('error', (err) => {
+  // Evita spam: logga codice e poche info utili
+  logger.error('Redis connection error:', { code: err.code, stack: err.stack });
 });
 
-// Database connection test
+// =====================
+// Test connessioni
+// =====================
 const testDatabaseConnection = async () => {
   try {
     await sequelize.authenticate();
     logger.info('PostgreSQL connection established successfully');
     return true;
   } catch (error) {
-    logger.error('Unable to connect to PostgreSQL:', error.message);
+    logger.error('Unable to connect to PostgreSQL:', {
+      message: error.message,
+    });
     return false;
   }
 };
 
-// Redis connection test
 const testRedisConnection = async () => {
   try {
     if (!redis.isOpen) {
@@ -92,12 +118,20 @@ const testRedisConnection = async () => {
     logger.info('Redis connection established successfully');
     return true;
   } catch (error) {
-    logger.error('Unable to connect to Redis:', error.message);
+    // Non far fallire l’app: restituisci false e lascia warning in initializeDatabase
+    logger.error('Unable to connect to Redis:', {
+      message: error.message,
+      code: error.code,
+      host: REDIS_HOST,
+      port: REDIS_PORT,
+    });
     return false;
   }
 };
 
-// Initialize all database connections
+// =====================
+// Bootstrap / Shutdown
+// =====================
 const initializeDatabase = async () => {
   const dbConnected = await testDatabaseConnection();
   const redisConnected = await testRedisConnection();
@@ -110,35 +144,41 @@ const initializeDatabase = async () => {
     logger.warn('Redis connection failed, caching will be disabled');
   }
 
-  // Sync database models (only in development)
   if (process.env.NODE_ENV === 'development') {
     try {
       await sequelize.sync({ alter: true });
       logger.info('Database models synchronized');
     } catch (error) {
-      logger.error('Database sync error:', error.message);
+      logger.error('Database sync error:', { message: error.message });
     }
   }
 
   return { sequelize, redis };
 };
 
-// Graceful shutdown
 const closeConnections = async () => {
   try {
     if (redis.isOpen) {
       await redis.quit();
       logger.info('Redis connection closed');
     }
-    
+  } catch (error) {
+    logger.error('Error closing Redis connection:', { message: error.message });
+  }
+
+  try {
     await sequelize.close();
     logger.info('PostgreSQL connection closed');
   } catch (error) {
-    logger.error('Error closing database connections:', error.message);
+    logger.error('Error closing PostgreSQL connection:', {
+      message: error.message,
+    });
   }
 };
 
-// Cache helper functions
+// =====================
+// Cache helper (best-effort)
+// =====================
 const cache = {
   async get(key) {
     try {
@@ -146,18 +186,18 @@ const cache = {
       const value = await redis.get(key);
       return value ? JSON.parse(value) : null;
     } catch (error) {
-      logger.error('Cache get error:', error.message);
+      logger.error('Cache get error:', { message: error.message });
       return null;
     }
   },
 
-  async set(key, value, ttl = parseInt(process.env.REDIS_TTL) || 3600) {
+  async set(key, value, ttl = parseInt(process.env.REDIS_TTL || '3600', 10)) {
     try {
       if (!redis.isOpen) return false;
       await redis.setEx(key, ttl, JSON.stringify(value));
       return true;
     } catch (error) {
-      logger.error('Cache set error:', error.message);
+      logger.error('Cache set error:', { message: error.message });
       return false;
     }
   },
@@ -168,7 +208,7 @@ const cache = {
       await redis.del(key);
       return true;
     } catch (error) {
-      logger.error('Cache delete error:', error.message);
+      logger.error('Cache delete error:', { message: error.message });
       return false;
     }
   },
@@ -180,12 +220,13 @@ const cache = {
       logger.info('Redis cache flushed');
       return true;
     } catch (error) {
-      logger.error('Cache flush error:', error.message);
+      logger.error('Cache flush error:', { message: error.message });
       return false;
     }
-  }
+  },
 };
 
+// Esportazioni
 module.exports = {
   sequelize,
   redis,
@@ -195,5 +236,5 @@ module.exports = {
   testRedisConnection,
   closeConnections,
   dbConfig,
-  redisConfig
+  redisConfig: { url: REDIS_URL, host: REDIS_HOST, port: REDIS_PORT, db: REDIS_DB },
 };
