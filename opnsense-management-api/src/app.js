@@ -8,12 +8,11 @@ const cors = require('cors');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const compression = require('compression');
+const path = require('path');
 
 // Swagger (JSDoc -> OpenAPI)
 const swaggerUi = require('swagger-ui-express');
 const swaggerJsdoc = require('swagger-jsdoc');
-const swaggerOptions = require('./config/swagger.config'); // <-- usa i commenti @swagger nelle routes
-const swaggerSpec = swaggerJsdoc(swaggerOptions);
 
 // Custom modules
 const logger = require('./utils/logger');
@@ -32,8 +31,8 @@ const { auditMiddleware } = require('./middleware/audit');
 const {
   createRateLimiter,
   dynamicRateLimit,
-} = require('./middleware/rateLimit'); // no warnings
-const { dynamicValidation } = require('./middleware/validation'); // zod dynamic mapping
+} = require('./middleware/rateLimit');
+const { dynamicValidation } = require('./middleware/validation');
 const { asyncHandler } = require('./middleware/asyncHandler');
 const {
   initializeMonitoring,
@@ -41,7 +40,7 @@ const {
   getMetrics,
 } = require('./config/monitoring');
 
-// API routes (solo quelle presenti; niente auth)
+// API routes
 const adminRoutes = require('./routes/admin');
 const firewallRoutes = require('./routes/firewall');
 const healthRoutes = require('./routes/health');
@@ -60,6 +59,40 @@ const config = {
   requestSizeLimit: process.env.REQUEST_SIZE_LIMIT || '10mb',
   enableSwagger: process.env.ENABLE_SWAGGER !== 'false',
 };
+
+// ---------- Swagger spec costruita da commenti JSDoc ---------- //
+const projectRoot = path.resolve(__dirname, '..'); // root del repo
+const routesGlob1 = path.join(projectRoot, 'src', 'routes', '*.js');
+const routesGlob2 = path.join(projectRoot, 'src', 'routes', '**', '*.js');
+
+const swaggerOptions = {
+  definition: {
+    openapi: '3.0.3',
+    info: {
+      title: 'OPNsense Management API',
+      version: process.env.npm_package_version || '1.0.0',
+      description:
+        'REST API wrapper for OPNsense firewall management with monitoring integration',
+    },
+    servers: [
+      { url: process.env.API_BASE_URL || `http://localhost:${config.port}` },
+    ],
+    components: {
+      securitySchemes: {
+        bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+      },
+    },
+    security: [{ bearerAuth: [] }],
+  },
+  // ATTENZIONE: glob assoluti così non falliscono in Docker o in ambienti diversi
+  apis: [routesGlob1, routesGlob2],
+};
+
+const swaggerSpec = swaggerJsdoc(swaggerOptions);
+const swaggerPathsCount = swaggerSpec && swaggerSpec.paths ? Object.keys(swaggerSpec.paths).length : 0;
+logger.info(`Swagger spec generata: ${swaggerPathsCount} path trovati`);
+
+// ------------------------------------------------------------- //
 
 // App state
 let server;
@@ -82,12 +115,10 @@ async function initializeApplication() {
   try {
     logger.info('Starting application initialization...');
 
-    // --- Test connessioni esterne PRIMA di inizializzare ---
+    // Test connessioni
     logger.info('Testing PostgreSQL connection...');
     const dbOK = await testDatabaseConnection();
-    if (!dbOK) {
-      throw new Error('Database connection test failed');
-    }
+    if (!dbOK) throw new Error('Database connection test failed');
     logger.info('PostgreSQL connection test successful');
 
     logger.info('Testing Redis connection...');
@@ -98,12 +129,12 @@ async function initializeApplication() {
       logger.info('Redis connection test successful');
     }
 
-    // --- Inizializzazione DB (fa anche sync in dev) ---
+    // Init DB
     logger.info('Initializing database...');
     await initializeDatabase();
     logger.info('Database initialized successfully');
 
-    // --- Monitoring subsystem ---
+    // Monitoring
     logger.info('Initializing monitoring...');
     await initializeMonitoring();
     logger.info('Monitoring initialized successfully');
@@ -177,7 +208,7 @@ function setupMiddleware() {
       ],
       credentials: true,
       optionsSuccessStatus: 200,
-      maxAge: 86400, // 24h
+      maxAge: 86400,
     })
   );
 
@@ -226,20 +257,20 @@ function setupMiddleware() {
     })
   );
 
-  // Global rate limiting (zero warning – nessuna opzione deprecata)
+  // Global rate limiting
   app.use(
     '/api/',
     createRateLimiter({
-      windowMs: 15 * 60 * 1000, // 15 minuti
+      windowMs: 15 * 60 * 1000,
       max: config.nodeEnv === 'production' ? 1000 : 10000,
       skip: (req) => req.path.includes('/health'),
     })
   );
 
-  // Slow-down/limiter dinamico per endpoint sensibili (config senza warning)
+  // Slow-down/limiter dinamico
   app.use(dynamicRateLimit);
 
-  // Validazione Zod dinamica per rotta
+  // Validazione Zod dinamica
   app.use(dynamicValidation);
 }
 
@@ -261,7 +292,6 @@ function setupRoutes() {
 
       try {
         const metrics = await getMetrics();
-        // Supporta sia stringa che oggetto { contentType, data }
         const contentType =
           (metrics && metrics.contentType) || 'text/plain; version=0.0.4; charset=utf-8';
         const payload = (metrics && metrics.data) || metrics || '';
@@ -274,7 +304,7 @@ function setupRoutes() {
     })
   );
 
-  // API Docs (generati dai commenti @swagger nelle routes)
+  // API Docs (JSDoc)
   if (config.enableSwagger) {
     app.get('/api-docs.json', (_req, res) => res.json(swaggerSpec));
     app.use(
@@ -287,9 +317,14 @@ function setupRoutes() {
       })
     );
     logger.info('Swagger documentation enabled at /api-docs');
+    if (swaggerPathsCount === 0) {
+      logger.warn('Swagger spec caricata ma senza paths. Verifica i commenti @swagger e i glob: ', {
+        globs: [routesGlob1, routesGlob2],
+      });
+    }
   }
 
-  // App routes (NO auth middleware)
+  // App routes
   app.use('/api/v1/admin', adminRoutes);
   app.use('/api/v1/firewall', firewallRoutes);
   app.use('/api/v1/monitoring', monitoringRoutes);
