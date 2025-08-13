@@ -12,7 +12,7 @@ const compression = require('compression');
 // Swagger (JSDoc -> OpenAPI)
 const swaggerUi = require('swagger-ui-express');
 const swaggerJsdoc = require('swagger-jsdoc');
-const swaggerOptions = require('./routes/swagger.config'); // <-- usa i commenti @swagger nelle routes
+const swaggerOptions = require('./config/swagger.config'); // <-- usa i commenti @swagger nelle routes
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
 
 // Custom modules
