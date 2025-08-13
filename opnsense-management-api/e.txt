@@ -1,170 +1,252 @@
-pnsense-management-api  | /app/node_modules/express-slow-down/dist/index.cjs:712
-opnsense-management-api  |     throw new Error(
-opnsense-management-api  |     ^
+opnsense-management-api  | node:internal/modules/cjs/loader:1215
+opnsense-management-api  |   throw err;
+opnsense-management-api  |   ^
 opnsense-management-api  | 
-opnsense-management-api  | Error: The headers options were removed in express-slow-down v2.0.0.
-opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:712:11)
-opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:39:3)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:59:3)
+opnsense-management-api  | Error: Cannot find module 'bcrypt'
+opnsense-management-api  | Require stack:
+opnsense-management-api  | - /app/src/models/User.js
+opnsense-management-api  | - /app/src/routes/admin.js
+opnsense-management-api  | - /app/src/app.js
+opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
+opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/models/User.js:2:16)
 opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
 opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
 opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
 opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:19:49)
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19) {
+opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
+opnsense-management-api  |   requireStack: [
+opnsense-management-api  |     '/app/src/models/User.js',
+opnsense-management-api  |     '/app/src/routes/admin.js',
+opnsense-management-api  |     '/app/src/app.js'
+opnsense-management-api  |   ]
+opnsense-management-api  | }
 opnsense-management-api  | 
 opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | /app/node_modules/express-slow-down/dist/index.cjs:712
-opnsense-management-api  |     throw new Error(
-opnsense-management-api  |     ^
+opnsense-management-api  | node:internal/modules/cjs/loader:1215
+opnsense-management-api  |   throw err;
+opnsense-management-api  |   ^
 opnsense-management-api  | 
-opnsense-management-api  | Error: The headers options were removed in express-slow-down v2.0.0.
-opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:712:11)
-opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:39:3)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:59:3)
+opnsense-management-api  | Error: Cannot find module 'bcrypt'
+opnsense-management-api  | Require stack:
+opnsense-management-api  | - /app/src/models/User.js
+opnsense-management-api  | - /app/src/routes/admin.js
+opnsense-management-api  | - /app/src/app.js
+opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
+opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/models/User.js:2:16)
 opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
 opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
 opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
 opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:19:49)
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19) {
+opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
+opnsense-management-api  |   requireStack: [
+opnsense-management-api  |     '/app/src/models/User.js',
+opnsense-management-api  |     '/app/src/routes/admin.js',
+opnsense-management-api  |     '/app/src/app.js'
+opnsense-management-api  |   ]
+opnsense-management-api  | }
 opnsense-management-api  | 
 opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | /app/node_modules/express-slow-down/dist/index.cjs:712
-opnsense-management-api  |     throw new Error(
-opnsense-management-api  |     ^
+opnsense-management-api  | node:internal/modules/cjs/loader:1215
+opnsense-management-api  |   throw err;
+opnsense-management-api  |   ^
 opnsense-management-api  | 
-opnsense-management-api  | Error: The headers options were removed in express-slow-down v2.0.0.
-opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:712:11)
-opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:39:3)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:59:3)
+opnsense-management-api  | Error: Cannot find module 'bcrypt'
+opnsense-management-api  | Require stack:
+opnsense-management-api  | - /app/src/models/User.js
+opnsense-management-api  | - /app/src/routes/admin.js
+opnsense-management-api  | - /app/src/app.js
+opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
+opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/models/User.js:2:16)
 opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
 opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
 opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
 opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:19:49)
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19) {
+opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
+opnsense-management-api  |   requireStack: [
+opnsense-management-api  |     '/app/src/models/User.js',
+opnsense-management-api  |     '/app/src/routes/admin.js',
+opnsense-management-api  |     '/app/src/app.js'
+opnsense-management-api  |   ]
+opnsense-management-api  | }
 opnsense-management-api  | 
 opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | /app/node_modules/express-slow-down/dist/index.cjs:712
-opnsense-management-api  |     throw new Error(
-opnsense-management-api  |     ^
+opnsense-management-api  | node:internal/modules/cjs/loader:1215
+opnsense-management-api  |   throw err;
+opnsense-management-api  |   ^
 opnsense-management-api  | 
-opnsense-management-api  | Error: The headers options were removed in express-slow-down v2.0.0.
-opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:712:11)
-opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:39:3)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:59:3)
+opnsense-management-api  | Error: Cannot find module 'bcrypt'
+opnsense-management-api  | Require stack:
+opnsense-management-api  | - /app/src/models/User.js
+opnsense-management-api  | - /app/src/routes/admin.js
+opnsense-management-api  | - /app/src/app.js
+opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
+opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/models/User.js:2:16)
 opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
 opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
 opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
 opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:19:49)
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19) {
+opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
+opnsense-management-api  |   requireStack: [
+opnsense-management-api  |     '/app/src/models/User.js',
+opnsense-management-api  |     '/app/src/routes/admin.js',
+opnsense-management-api  |     '/app/src/app.js'
+opnsense-management-api  |   ]
+opnsense-management-api  | }
 opnsense-management-api  | 
 opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | /app/node_modules/express-slow-down/dist/index.cjs:712
-opnsense-management-api  |     throw new Error(
-opnsense-management-api  |     ^
+opnsense-management-api  | node:internal/modules/cjs/loader:1215
+opnsense-management-api  |   throw err;
+opnsense-management-api  |   ^
 opnsense-management-api  | 
-opnsense-management-api  | Error: The headers options were removed in express-slow-down v2.0.0.
-opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:712:11)
-opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:39:3)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:59:3)
+opnsense-management-api  | Error: Cannot find module 'bcrypt'
+opnsense-management-api  | Require stack:
+opnsense-management-api  | - /app/src/models/User.js
+opnsense-management-api  | - /app/src/routes/admin.js
+opnsense-management-api  | - /app/src/app.js
+opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
+opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/models/User.js:2:16)
 opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
 opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
 opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
 opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:19:49)
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19) {
+opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
+opnsense-management-api  |   requireStack: [
+opnsense-management-api  |     '/app/src/models/User.js',
+opnsense-management-api  |     '/app/src/routes/admin.js',
+opnsense-management-api  |     '/app/src/app.js'
+opnsense-management-api  |   ]
+opnsense-management-api  | }
 opnsense-management-api  | 
 opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | /app/node_modules/express-slow-down/dist/index.cjs:712
-opnsense-management-api  |     throw new Error(
-opnsense-management-api  |     ^
+opnsense-management-api  | node:internal/modules/cjs/loader:1215
+opnsense-management-api  |   throw err;
+opnsense-management-api  |   ^
 opnsense-management-api  | 
-opnsense-management-api  | Error: The headers options were removed in express-slow-down v2.0.0.
-opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:712:11)
-opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:39:3)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:59:3)
+opnsense-management-api  | Error: Cannot find module 'bcrypt'
+opnsense-management-api  | Require stack:
+opnsense-management-api  | - /app/src/models/User.js
+opnsense-management-api  | - /app/src/routes/admin.js
+opnsense-management-api  | - /app/src/app.js
+opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
+opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/models/User.js:2:16)
 opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
 opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
 opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
 opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:19:49)
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19) {
+opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
+opnsense-management-api  |   requireStack: [
+opnsense-management-api  |     '/app/src/models/User.js',
+opnsense-management-api  |     '/app/src/routes/admin.js',
+opnsense-management-api  |     '/app/src/app.js'
+opnsense-management-api  |   ]
+opnsense-management-api  | }
 opnsense-management-api  | 
 opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | /app/node_modules/express-slow-down/dist/index.cjs:712
-opnsense-management-api  |     throw new Error(
-opnsense-management-api  |     ^
+opnsense-management-api  | node:internal/modules/cjs/loader:1215
+opnsense-management-api  |   throw err;
+opnsense-management-api  |   ^
 opnsense-management-api  | 
-opnsense-management-api  | Error: The headers options were removed in express-slow-down v2.0.0.
-opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:712:11)
-opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:39:3)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:59:3)
+opnsense-management-api  | Error: Cannot find module 'bcrypt'
+opnsense-management-api  | Require stack:
+opnsense-management-api  | - /app/src/models/User.js
+opnsense-management-api  | - /app/src/routes/admin.js
+opnsense-management-api  | - /app/src/app.js
+opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
+opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/models/User.js:2:16)
 opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
 opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
 opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
 opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:19:49)
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19) {
+opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
+opnsense-management-api  |   requireStack: [
+opnsense-management-api  |     '/app/src/models/User.js',
+opnsense-management-api  |     '/app/src/routes/admin.js',
+opnsense-management-api  |     '/app/src/app.js'
+opnsense-management-api  |   ]
+opnsense-management-api  | }
 opnsense-management-api  | 
 opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | /app/node_modules/express-slow-down/dist/index.cjs:712
-opnsense-management-api  |     throw new Error(
-opnsense-management-api  |     ^
+opnsense-management-api  | node:internal/modules/cjs/loader:1215
+opnsense-management-api  |   throw err;
+opnsense-management-api  |   ^
 opnsense-management-api  | 
-opnsense-management-api  | Error: The headers options were removed in express-slow-down v2.0.0.
-opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:712:11)
-opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:39:3)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:59:3)
+opnsense-management-api  | Error: Cannot find module 'bcrypt'
+opnsense-management-api  | Require stack:
+opnsense-management-api  | - /app/src/models/User.js
+opnsense-management-api  | - /app/src/routes/admin.js
+opnsense-management-api  | - /app/src/app.js
+opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
+opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/models/User.js:2:16)
 opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
 opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
 opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
 opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:19:49)
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19) {
+opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
+opnsense-management-api  |   requireStack: [
+opnsense-management-api  |     '/app/src/models/User.js',
+opnsense-management-api  |     '/app/src/routes/admin.js',
+opnsense-management-api  |     '/app/src/app.js'
+opnsense-management-api  |   ]
+opnsense-management-api  | }
 opnsense-management-api  | 
 opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | /app/node_modules/express-slow-down/dist/index.cjs:712
-opnsense-management-api  |     throw new Error(
-opnsense-management-api  |     ^
+opnsense-management-api  | node:internal/modules/cjs/loader:1215
+opnsense-management-api  |   throw err;
+opnsense-management-api  |   ^
 opnsense-management-api  | 
-opnsense-management-api  | Error: The headers options were removed in express-slow-down v2.0.0.
-opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:712:11)
-opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:39:3)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:59:3)
+opnsense-management-api  | Error: Cannot find module 'bcrypt'
+opnsense-management-api  | Require stack:
+opnsense-management-api  | - /app/src/models/User.js
+opnsense-management-api  | - /app/src/routes/admin.js
+opnsense-management-api  | - /app/src/app.js
+opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
+opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/models/User.js:2:16)
 opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
 opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
 opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
 opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:19:49)
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | /app/node_modules/express-slow-down/dist/index.cjs:712
-opnsense-management-api  |     throw new Error(
-opnsense-management-api  |     ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: The headers options were removed in express-slow-down v2.0.0.
-opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:712:11)
-opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:39:3)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:59:3)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:19:49)
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19) {
+opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
+opnsense-management-api  |   requireStack: [
+opnsense-management-api  |     '/app/src/models/User.js',
+opnsense-management-api  |     '/app/src/routes/admin.js',
+opnsense-management-api  |     '/app/src/app.js'
+opnsense-management-api  |   ]
+opnsense-management-api  | }
 opnsense-management-api  | 
 opnsense-management-api  | Node.js v20.19.4
