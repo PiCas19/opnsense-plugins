@@ -1,11 +1,12 @@
+// src/routes/health.js
 const express = require('express');
-const { rateLimiters } = require('../middleware/rateLimit');
+const { createRateLimiter } = require('../middleware/rateLimit');
 const { asyncHandler } = require('../middleware/errorHandler');
-const { 
-  testDatabaseConnection, 
+const {
+  testDatabaseConnection,
   testRedisConnection,
   sequelize,
-  redis 
+  redis,
 } = require('../config/database');
 const { testConnection: testOpnsenseConnection } = require('../config/opnsense');
 const logger = require('../utils/logger');
@@ -14,8 +15,15 @@ const process = require('process');
 
 const router = express.Router();
 
-// Apply monitoring rate limiting (more permissive)
-router.use(rateLimiters.monitoring);
+// Limiter "monitoring" equivalente a rateLimiters.monitoring di prima
+const monitoringLimiter = createRateLimiter({
+  windowMs: 60 * 1000, // 1 minuto
+  max: process.env.NODE_ENV === 'production' ? 300 : 5000,
+  skip: (req) => req.path === '/' || req.path === '/live', // molto permissivo su ping basici
+});
+
+// Applica rate limit per le rotte di health/monitoring
+router.use(monitoringLimiter);
 
 /**
  * @swagger
@@ -23,41 +31,13 @@ router.use(rateLimiters.monitoring);
  *   get:
  *     summary: Basic health check endpoint
  *     tags: [Health]
- *     responses:
- *       200:
- *         description: Service is healthy
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: "Service is healthy"
- *                 data:
- *                   type: object
- *                   properties:
- *                     status:
- *                       type: string
- *                       example: "healthy"
- *                     timestamp:
- *                       type: string
- *                       format: date-time
- *                     uptime:
- *                       type: number
- *                       description: "Process uptime in seconds"
- *       503:
- *         description: Service is unhealthy
  */
-router.get('/',
+router.get(
+  '/',
   asyncHandler(async (req, res) => {
     const startTime = Date.now();
-    
+
     try {
-      // Basic health indicators
       const health = {
         status: 'healthy',
         timestamp: new Date().toISOString(),
@@ -66,23 +46,23 @@ router.get('/',
           used: process.memoryUsage().heapUsed,
           total: process.memoryUsage().heapTotal,
           external: process.memoryUsage().external,
-          rss: process.memoryUsage().rss
+          rss: process.memoryUsage().rss,
         },
         cpu: {
           load_average: os.loadavg(),
-          cpu_count: os.cpus().length
+          cpu_count: os.cpus().length,
         },
-        response_time: Date.now() - startTime
+        response_time: Date.now() - startTime,
       };
-      
+
       res.json({
         success: true,
         message: 'Service is healthy',
-        data: health
+        data: health,
       });
     } catch (error) {
       logger.error('Health check failed', { error: error.message });
-      
+
       res.status(503).json({
         success: false,
         message: 'Service is unhealthy',
@@ -90,8 +70,8 @@ router.get('/',
         data: {
           status: 'unhealthy',
           timestamp: new Date().toISOString(),
-          error: error.message
-        }
+          error: error.message,
+        },
       });
     }
   })
@@ -103,29 +83,10 @@ router.get('/',
  *   get:
  *     summary: Kubernetes liveness probe endpoint
  *     tags: [Health]
- *     description: Simple endpoint to check if the service is alive (for K8s liveness probe)
- *     responses:
- *       200:
- *         description: Service is alive
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 message:
- *                   type: string
- *                 data:
- *                   type: object
- *                   properties:
- *                     status:
- *                       type: string
- *                       example: "alive"
  */
-router.get('/live',
+router.get(
+  '/live',
   asyncHandler(async (req, res) => {
-    // Minimal health check - just confirm the process is running
     res.json({
       success: true,
       message: 'Service is alive',
@@ -133,8 +94,8 @@ router.get('/live',
         status: 'alive',
         timestamp: new Date().toISOString(),
         pid: process.pid,
-        uptime: process.uptime()
-      }
+        uptime: process.uptime(),
+      },
     });
   })
 );
@@ -145,43 +106,21 @@ router.get('/live',
  *   get:
  *     summary: Kubernetes readiness probe endpoint
  *     tags: [Health]
- *     description: Comprehensive readiness check including dependencies (for K8s readiness probe)
- *     responses:
- *       200:
- *         description: Service is ready to handle requests
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 message:
- *                   type: string
- *                 data:
- *                   type: object
- *                   properties:
- *                     status:
- *                       type: string
- *                       example: "ready"
- *                     dependencies:
- *                       type: object
- *       503:
- *         description: Service is not ready
  */
-router.get('/ready',
+router.get(
+  '/ready',
   asyncHandler(async (req, res) => {
     const startTime = Date.now();
     const dependencies = {};
     let allReady = true;
-    
-    // Check database connectivity
+
+    // DB
     try {
       const dbHealthy = await testDatabaseConnection();
       dependencies.database = {
         status: dbHealthy ? 'healthy' : 'unhealthy',
         type: 'postgresql',
-        response_time: Date.now() - startTime
+        response_time: Date.now() - startTime,
       };
       if (!dbHealthy) allReady = false;
     } catch (error) {
@@ -189,38 +128,37 @@ router.get('/ready',
         status: 'unhealthy',
         type: 'postgresql',
         error: error.message,
-        response_time: Date.now() - startTime
+        response_time: Date.now() - startTime,
       };
       allReady = false;
     }
-    
-    // Check Redis connectivity (optional - cache can be down)
+
+    // Redis (opzionale)
     try {
       const redisHealthy = await testRedisConnection();
       dependencies.cache = {
         status: redisHealthy ? 'healthy' : 'degraded',
         type: 'redis',
         response_time: Date.now() - startTime,
-        optional: true
+        optional: true,
       };
-      // Redis is optional, don't fail readiness if it's down
     } catch (error) {
       dependencies.cache = {
         status: 'degraded',
         type: 'redis',
         error: error.message,
         response_time: Date.now() - startTime,
-        optional: true
+        optional: true,
       };
     }
-    
-    // Check OPNsense API connectivity
+
+    // OPNsense
     try {
       const opnsenseHealthy = await testOpnsenseConnection();
       dependencies.opnsense_api = {
         status: opnsenseHealthy ? 'healthy' : 'unhealthy',
         type: 'external_api',
-        response_time: Date.now() - startTime
+        response_time: Date.now() - startTime,
       };
       if (!opnsenseHealthy) allReady = false;
     } catch (error) {
@@ -228,23 +166,22 @@ router.get('/ready',
         status: 'unhealthy',
         type: 'external_api',
         error: error.message,
-        response_time: Date.now() - startTime
+        response_time: Date.now() - startTime,
       };
       allReady = false;
     }
-    
+
     const statusCode = allReady ? 200 : 503;
-    const status = allReady ? 'ready' : 'not_ready';
-    
+
     res.status(statusCode).json({
       success: allReady,
       message: allReady ? 'Service is ready' : 'Service is not ready',
       data: {
-        status: status,
+        status: allReady ? 'ready' : 'not_ready',
         timestamp: new Date().toISOString(),
         total_response_time: Date.now() - startTime,
-        dependencies: dependencies
-      }
+        dependencies,
+      },
     });
   })
 );
@@ -255,28 +192,18 @@ router.get('/ready',
  *   get:
  *     summary: Database health check
  *     tags: [Health]
- *     responses:
- *       200:
- *         description: Database is healthy
- *       503:
- *         description: Database is unhealthy
  */
-router.get('/database',
+router.get(
+  '/database',
   asyncHandler(async (req, res) => {
     const startTime = Date.now();
-    
+
     try {
-      // Test basic connectivity
       const isConnected = await testDatabaseConnection();
-      
-      if (!isConnected) {
-        throw new Error('Database connection test failed');
-      }
-      
-      // Test query performance
+      if (!isConnected) throw new Error('Database connection test failed');
+
       const [results] = await sequelize.query('SELECT 1 as health_check, NOW() as server_time');
-      
-      // Get database statistics
+
       const stats = await sequelize.query(`
         SELECT 
           schemaname,
@@ -287,14 +214,14 @@ router.get('/database',
         FROM pg_stat_user_tables 
         ORDER BY schemaname, tablename
       `);
-      
+
       const poolInfo = {
         max_connections: sequelize.options.pool.max,
         min_connections: sequelize.options.pool.min,
         idle_timeout: sequelize.options.pool.idle,
-        acquire_timeout: sequelize.options.pool.acquire
+        acquire_timeout: sequelize.options.pool.acquire,
       };
-      
+
       res.json({
         success: true,
         message: 'Database is healthy',
@@ -305,12 +232,12 @@ router.get('/database',
           server_time: results[0].server_time,
           version: await sequelize.databaseVersion(),
           pool: poolInfo,
-          table_stats: stats[0]?.slice(0, 10) || [] // Limit to first 10 tables
-        }
+          table_stats: stats[0]?.slice(0, 10) || [],
+        },
       });
     } catch (error) {
       logger.error('Database health check failed', { error: error.message });
-      
+
       res.status(503).json({
         success: false,
         message: 'Database is unhealthy',
@@ -319,8 +246,8 @@ router.get('/database',
           status: 'unhealthy',
           type: 'postgresql',
           response_time: Date.now() - startTime,
-          error: error.message
-        }
+          error: error.message,
+        },
       });
     }
   })
@@ -332,38 +259,33 @@ router.get('/database',
  *   get:
  *     summary: Redis cache health check
  *     tags: [Health]
- *     responses:
- *       200:
- *         description: Cache is healthy
- *       503:
- *         description: Cache is unhealthy
  */
-router.get('/cache',
+router.get(
+  '/cache',
   asyncHandler(async (req, res) => {
     const startTime = Date.now();
-    
+
     try {
-      // Test basic connectivity
       const isConnected = await testRedisConnection();
-      
-      if (!isConnected) {
-        throw new Error('Redis connection test failed');
-      }
-      
-      // Test read/write operations
+      if (!isConnected) throw new Error('Redis connection test failed');
+
       const testKey = 'health_check:' + Date.now();
       const testValue = { timestamp: new Date().toISOString(), test: true };
-      
-      await redis.setEx(testKey, 10, JSON.stringify(testValue)); // 10 second TTL
+
+      // Nota: adattare a seconda del client Redis che usi
+      if (typeof redis.setEx === 'function') {
+        await redis.setEx(testKey, 10, JSON.stringify(testValue));
+      } else {
+        await redis.set(testKey, JSON.stringify(testValue), { EX: 10 });
+      }
+
       const retrieved = await redis.get(testKey);
       const parsedValue = JSON.parse(retrieved);
-      
-      await redis.del(testKey); // Cleanup
-      
-      // Get Redis info
+      await redis.del(testKey);
+
       const info = await redis.info();
       const memoryInfo = await redis.info('memory');
-      
+
       res.json({
         success: true,
         message: 'Cache is healthy',
@@ -373,19 +295,19 @@ router.get('/cache',
           response_time: Date.now() - startTime,
           test_passed: parsedValue.test === true,
           server_info: {
-            version: info.split('\r\n').find(line => line.startsWith('redis_version:'))?.split(':')[1],
-            uptime: info.split('\r\n').find(line => line.startsWith('uptime_in_seconds:'))?.split(':')[1],
-            connected_clients: info.split('\r\n').find(line => line.startsWith('connected_clients:'))?.split(':')[1]
+            version: info.split('\r\n').find((l) => l.startsWith('redis_version:'))?.split(':')[1],
+            uptime: info.split('\r\n').find((l) => l.startsWith('uptime_in_seconds:'))?.split(':')[1],
+            connected_clients: info.split('\r\n').find((l) => l.startsWith('connected_clients:'))?.split(':')[1],
           },
           memory_info: {
-            used_memory: memoryInfo.split('\r\n').find(line => line.startsWith('used_memory_human:'))?.split(':')[1],
-            max_memory: memoryInfo.split('\r\n').find(line => line.startsWith('maxmemory_human:'))?.split(':')[1]
-          }
-        }
+            used_memory: memoryInfo.split('\r\n').find((l) => l.startsWith('used_memory_human:'))?.split(':')[1],
+            max_memory: memoryInfo.split('\r\n').find((l) => l.startsWith('maxmemory_human:'))?.split(':')[1],
+          },
+        },
       });
     } catch (error) {
       logger.error('Cache health check failed', { error: error.message });
-      
+
       res.status(503).json({
         success: false,
         message: 'Cache is unhealthy',
@@ -394,8 +316,8 @@ router.get('/cache',
           status: 'unhealthy',
           type: 'redis',
           response_time: Date.now() - startTime,
-          error: error.message
-        }
+          error: error.message,
+        },
       });
     }
   })
@@ -407,26 +329,17 @@ router.get('/cache',
  *   get:
  *     summary: OPNsense API health check
  *     tags: [Health]
- *     responses:
- *       200:
- *         description: OPNsense API is healthy
- *       503:
- *         description: OPNsense API is unhealthy
  */
-router.get('/opnsense',
+router.get(
+  '/opnsense',
   asyncHandler(async (req, res) => {
     const startTime = Date.now();
-    
+
     try {
       const { getSystemInfo } = require('../config/opnsense');
-      
-      // Test connectivity and get system info
       const result = await getSystemInfo();
-      
-      if (!result.success) {
-        throw new Error(result.error || 'OPNsense API call failed');
-      }
-      
+      if (!result.success) throw new Error(result.error || 'OPNsense API call failed');
+
       res.json({
         success: true,
         message: 'OPNsense API is healthy',
@@ -437,13 +350,13 @@ router.get('/opnsense',
           system_info: {
             version: result.data?.version || 'unknown',
             product: result.data?.product || 'OPNsense',
-            platform: result.data?.platform
-          }
-        }
+            platform: result.data?.platform,
+          },
+        },
       });
     } catch (error) {
       logger.error('OPNsense health check failed', { error: error.message });
-      
+
       res.status(503).json({
         success: false,
         message: 'OPNsense API is unhealthy',
@@ -452,8 +365,8 @@ router.get('/opnsense',
           status: 'unhealthy',
           type: 'external_api',
           response_time: Date.now() - startTime,
-          error: error.message
-        }
+          error: error.message,
+        },
       });
     }
   })
@@ -465,45 +378,43 @@ router.get('/opnsense',
  *   get:
  *     summary: Get service version and build information
  *     tags: [Health]
- *     responses:
- *       200:
- *         description: Version information retrieved successfully
  */
-router.get('/version',
+router.get(
+  '/version',
   asyncHandler(async (req, res) => {
     const packageJson = require('../../package.json');
-    
+
     const versionInfo = {
       service: {
         name: packageJson.name,
         version: packageJson.version,
         description: packageJson.description,
-        author: packageJson.author
+        author: packageJson.author,
       },
       runtime: {
         node_version: process.version,
         platform: process.platform,
         architecture: process.arch,
-        environment: process.env.NODE_ENV || 'development'
+        environment: process.env.NODE_ENV || 'development',
       },
       build: {
         timestamp: process.env.BUILD_TIMESTAMP || 'unknown',
         git_commit: process.env.GIT_COMMIT || 'unknown',
         git_branch: process.env.GIT_BRANCH || 'unknown',
-        build_number: process.env.BUILD_NUMBER || 'unknown'
+        build_number: process.env.BUILD_NUMBER || 'unknown',
       },
       dependencies: {
         express: packageJson.dependencies?.express,
         sequelize: packageJson.dependencies?.sequelize,
         redis: packageJson.dependencies?.redis,
-        axios: packageJson.dependencies?.axios
-      }
+        axios: packageJson.dependencies?.axios,
+      },
     };
-    
+
     res.json({
       success: true,
       message: 'Version information retrieved successfully',
-      data: versionInfo
+      data: versionInfo,
     });
   })
 );
@@ -514,27 +425,24 @@ router.get('/version',
  *   get:
  *     summary: Get basic system metrics
  *     tags: [Health]
- *     responses:
- *       200:
- *         description: System metrics retrieved successfully
  */
-router.get('/metrics',
+router.get(
+  '/metrics',
   asyncHandler(async (req, res) => {
     const startTime = Date.now();
-    
-    // System metrics
+
     const systemMetrics = {
       memory: {
         total: os.totalmem(),
         free: os.freemem(),
         used: os.totalmem() - os.freemem(),
-        usage_percent: ((os.totalmem() - os.freemem()) / os.totalmem() * 100).toFixed(2)
+        usage_percent: (((os.totalmem() - os.freemem()) / os.totalmem()) * 100).toFixed(2),
       },
       cpu: {
         count: os.cpus().length,
         model: os.cpus()[0]?.model,
         load_average: os.loadavg(),
-        usage_percent: (os.loadavg()[0] * 100 / os.cpus().length).toFixed(2)
+        usage_percent: ((os.loadavg()[0] * 100) / os.cpus().length).toFixed(2),
       },
       system: {
         hostname: os.hostname(),
@@ -542,30 +450,28 @@ router.get('/metrics',
         arch: os.arch(),
         uptime: os.uptime(),
         release: os.release(),
-        type: os.type()
-      }
+        type: os.type(),
+      },
     };
-    
-    // Process metrics
+
     const processMetrics = {
       pid: process.pid,
       uptime: process.uptime(),
       memory: process.memoryUsage(),
       cpu_usage: process.cpuUsage(),
-      versions: process.versions
+      versions: process.versions,
     };
-    
-    // Network interfaces
+
     const networkInterfaces = {};
     const interfaces = os.networkInterfaces();
     for (const [name, nets] of Object.entries(interfaces)) {
-      networkInterfaces[name] = nets.map(net => ({
+      networkInterfaces[name] = nets.map((net) => ({
         address: net.address,
         family: net.family,
-        internal: net.internal
+        internal: net.internal,
       }));
     }
-    
+
     res.json({
       success: true,
       message: 'System metrics retrieved successfully',
@@ -574,8 +480,8 @@ router.get('/metrics',
         response_time: Date.now() - startTime,
         system: systemMetrics,
         process: processMetrics,
-        network: networkInterfaces
-      }
+        network: networkInterfaces,
+      },
     });
   })
 );
@@ -586,19 +492,15 @@ router.get('/metrics',
  *   get:
  *     summary: Check all external dependencies
  *     tags: [Health]
- *     responses:
- *       200:
- *         description: Dependencies status retrieved successfully
- *       207:
- *         description: Some dependencies are unhealthy (multi-status)
  */
-router.get('/dependencies',
+router.get(
+  '/dependencies',
   asyncHandler(async (req, res) => {
     const startTime = Date.now();
     const dependencies = [];
     let allHealthy = true;
-    
-    // Database check
+
+    // DB
     try {
       const dbStart = Date.now();
       const dbHealthy = await testDatabaseConnection();
@@ -608,7 +510,7 @@ router.get('/dependencies',
         status: dbHealthy ? 'healthy' : 'unhealthy',
         critical: true,
         response_time: Date.now() - dbStart,
-        endpoint: process.env.POSTGRES_HOST
+        endpoint: process.env.POSTGRES_HOST,
       });
       if (!dbHealthy) allHealthy = false;
     } catch (error) {
@@ -619,12 +521,12 @@ router.get('/dependencies',
         critical: true,
         response_time: Date.now() - startTime,
         error: error.message,
-        endpoint: process.env.POSTGRES_HOST
+        endpoint: process.env.POSTGRES_HOST,
       });
       allHealthy = false;
     }
-    
-    // Redis check
+
+    // Redis
     try {
       const redisStart = Date.now();
       const redisHealthy = await testRedisConnection();
@@ -634,9 +536,8 @@ router.get('/dependencies',
         status: redisHealthy ? 'healthy' : 'degraded',
         critical: false,
         response_time: Date.now() - redisStart,
-        endpoint: process.env.REDIS_HOST
+        endpoint: process.env.REDIS_HOST,
       });
-      // Redis is optional, don't mark as unhealthy if it fails
     } catch (error) {
       dependencies.push({
         name: 'Redis Cache',
@@ -645,11 +546,11 @@ router.get('/dependencies',
         critical: false,
         response_time: Date.now() - startTime,
         error: error.message,
-        endpoint: process.env.REDIS_HOST
+        endpoint: process.env.REDIS_HOST,
       });
     }
-    
-    // OPNsense API check
+
+    // OPNsense
     try {
       const opnsenseStart = Date.now();
       const opnsenseHealthy = await testOpnsenseConnection();
@@ -659,7 +560,7 @@ router.get('/dependencies',
         status: opnsenseHealthy ? 'healthy' : 'unhealthy',
         critical: true,
         response_time: Date.now() - opnsenseStart,
-        endpoint: process.env.OPNSENSE_BASE_URL
+        endpoint: process.env.OPNSENSE_BASE_URL,
       });
       if (!opnsenseHealthy) allHealthy = false;
     } catch (error) {
@@ -670,34 +571,31 @@ router.get('/dependencies',
         critical: true,
         response_time: Date.now() - startTime,
         error: error.message,
-        endpoint: process.env.OPNSENSE_BASE_URL
+        endpoint: process.env.OPNSENSE_BASE_URL,
       });
       allHealthy = false;
     }
-    
-    // Summary stats
+
     const summary = {
       total: dependencies.length,
-      healthy: dependencies.filter(d => d.status === 'healthy').length,
-      degraded: dependencies.filter(d => d.status === 'degraded').length,
-      unhealthy: dependencies.filter(d => d.status === 'unhealthy').length,
-      critical_failures: dependencies.filter(d => d.critical && d.status === 'unhealthy').length
+      healthy: dependencies.filter((d) => d.status === 'healthy').length,
+      degraded: dependencies.filter((d) => d.status === 'degraded').length,
+      unhealthy: dependencies.filter((d) => d.status === 'unhealthy').length,
+      critical_failures: dependencies.filter((d) => d.critical && d.status === 'unhealthy').length,
     };
-    
-    const statusCode = allHealthy ? 200 : 207; // 207 = Multi-Status
-    
+
+    const statusCode = allHealthy ? 200 : 207;
+
     res.status(statusCode).json({
       success: allHealthy,
-      message: allHealthy ? 
-        'All dependencies are healthy' : 
-        'Some dependencies are unhealthy',
+      message: allHealthy ? 'All dependencies are healthy' : 'Some dependencies are unhealthy',
       data: {
         overall_status: allHealthy ? 'healthy' : 'degraded',
         timestamp: new Date().toISOString(),
         total_response_time: Date.now() - startTime,
-        summary: summary,
-        dependencies: dependencies
-      }
+        summary,
+        dependencies,
+      },
     });
   })
 );
@@ -708,28 +606,21 @@ router.get('/dependencies',
  *   get:
  *     summary: Comprehensive health status (aggregated)
  *     tags: [Health]
- *     responses:
- *       200:
- *         description: Service is fully operational
- *       207:
- *         description: Service is operational with some issues
- *       503:
- *         description: Service is not operational
  */
-router.get('/status',
+router.get(
+  '/status',
   asyncHandler(async (req, res) => {
     const startTime = Date.now();
     const checks = [];
     let overallHealth = 'healthy';
     let httpStatus = 200;
-    
-    // Database health
+
     try {
       const dbHealthy = await testDatabaseConnection();
       checks.push({
         component: 'database',
         status: dbHealthy ? 'pass' : 'fail',
-        time: new Date().toISOString()
+        time: new Date().toISOString(),
       });
       if (!dbHealthy) {
         overallHealth = 'unhealthy';
@@ -740,19 +631,18 @@ router.get('/status',
         component: 'database',
         status: 'fail',
         time: new Date().toISOString(),
-        output: error.message
+        output: error.message,
       });
       overallHealth = 'unhealthy';
       httpStatus = 503;
     }
-    
-    // Cache health (non-critical)
+
     try {
       const cacheHealthy = await testRedisConnection();
       checks.push({
         component: 'cache',
         status: cacheHealthy ? 'pass' : 'warn',
-        time: new Date().toISOString()
+        time: new Date().toISOString(),
       });
       if (!cacheHealthy && overallHealth === 'healthy') {
         overallHealth = 'warn';
@@ -763,21 +653,20 @@ router.get('/status',
         component: 'cache',
         status: 'warn',
         time: new Date().toISOString(),
-        output: error.message
+        output: error.message,
       });
       if (overallHealth === 'healthy') {
         overallHealth = 'warn';
         httpStatus = 207;
       }
     }
-    
-    // OPNsense API health
+
     try {
       const opnsenseHealthy = await testOpnsenseConnection();
       checks.push({
         component: 'opnsense_api',
         status: opnsenseHealthy ? 'pass' : 'fail',
-        time: new Date().toISOString()
+        time: new Date().toISOString(),
       });
       if (!opnsenseHealthy) {
         overallHealth = 'unhealthy';
@@ -788,13 +677,12 @@ router.get('/status',
         component: 'opnsense_api',
         status: 'fail',
         time: new Date().toISOString(),
-        output: error.message
+        output: error.message,
       });
       overallHealth = 'unhealthy';
       httpStatus = 503;
     }
-    
-    // RFC 7807 compliant health check response
+
     const healthResponse = {
       status: overallHealth,
       version: require('../../package.json').version,
@@ -803,16 +691,14 @@ router.get('/status',
       output: '',
       serviceId: process.env.SERVICE_ID || 'opnsense-mgmt-api',
       description: 'Health status of OPNsense Management API and its dependencies',
-      checks: checks,
+      checks,
       links: {
         about: '/api/v1/health/version',
-        metrics: '/api/v1/health/metrics'
-      }
+        metrics: '/api/v1/health/metrics',
+      },
+      responseTime: Date.now() - startTime,
     };
-    
-    // Add response time
-    healthResponse.responseTime = Date.now() - startTime;
-    
+
     res.status(httpStatus).json(healthResponse);
   })
 );
