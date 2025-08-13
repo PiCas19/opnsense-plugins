@@ -16,7 +16,8 @@ const logger = require('./utils/logger');
 const {
   initializeDatabase,
   closeConnections,
-  testConnection,
+  testDatabaseConnection,   // <-- Postgres
+  testRedisConnection,      // <-- Redis
 } = require('./config/database');
 const {
   initializeErrorHandling,
@@ -77,14 +78,28 @@ async function initializeApplication() {
   try {
     logger.info('Starting application initialization...');
 
-    logger.info('Testing database connection...');
-    await testConnection();
-    logger.info('Database connection test successful');
+    // --- Test connessioni esterne PRIMA di inizializzare ---
+    logger.info('Testing PostgreSQL connection...');
+    const dbOK = await testDatabaseConnection();
+    if (!dbOK) {
+      throw new Error('Database connection test failed');
+    }
+    logger.info('PostgreSQL connection test successful');
 
+    logger.info('Testing Redis connection...');
+    const redisOK = await testRedisConnection();
+    if (!redisOK) {
+      logger.warn('Redis connection test failed, continuing with cache disabled');
+    } else {
+      logger.info('Redis connection test successful');
+    }
+
+    // --- Inizializzazione DB (fa anche sync in dev) ---
     logger.info('Initializing database...');
     await initializeDatabase();
     logger.info('Database initialized successfully');
 
+    // --- Monitoring subsystem ---
     logger.info('Initializing monitoring...');
     await initializeMonitoring();
     logger.info('Monitoring initialized successfully');
@@ -242,8 +257,12 @@ function setupRoutes() {
 
       try {
         const metrics = await getMetrics();
-        res.set('Content-Type', metrics.contentType || 'text/plain');
-        res.end(metrics.data || metrics);
+        // Supporta sia stringa che oggetto { contentType, data }
+        const contentType =
+          (metrics && metrics.contentType) || 'text/plain; version=0.0.4; charset=utf-8';
+        const payload = (metrics && metrics.data) || metrics || '';
+        res.set('Content-Type', contentType);
+        res.end(payload);
       } catch (error) {
         logger.error('Failed to get metrics:', error);
         res.status(500).json({ error: 'Failed to retrieve metrics' });
