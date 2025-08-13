@@ -34,8 +34,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    # Binda l'API SOLO all'IP LAN della VM (consigliato):
-    # setta LAN_HOST_IP nel file .env della VM LAN.
+    # Binda l'API SOLO all'IP LAN della VM (facoltativo: default 0.0.0.0)
     ports:
       - "${LAN_HOST_IP:-0.0.0.0}:3000:3000"
     volumes:
@@ -60,7 +59,6 @@ services:
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      # Se hai uno script di init, monta qui:
       # - ./monitoring/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-opnsense} -d ${POSTGRES_DB:-opnsense_mgmt}"]
@@ -79,27 +77,28 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      # Usa la password per il ping
       test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD} ping | grep PONG"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-swagger-ui:
-  profiles: ["lan"]
-  image: swaggerapi/swagger-ui:v5.9.0
-  container_name: opnsense-swagger
-  restart: unless-stopped
-  environment:
-    URL: http://192.168.216.50:3000/api-docs/swagger.json
-    BASE_URL: /docs
-    DEEP_LINKING: "true"
-    DISPLAY_OPERATION_ID: "true"
-    DISPLAY_REQUEST_DURATION: "true"
-  ports:
-    - "8081:8080"
-  depends_on:
-    - opnsense-api
+  swagger-ui:
+    profiles: ["lan"]
+    image: swaggerapi/swagger-ui:v5.9.0
+    container_name: opnsense-swagger
+    restart: unless-stopped
+    environment:
+      SWAGGER_JSON: http://192.168.216.50:3000/api-docs/swagger.json
+      BASE_URL: /docs
+      DEEP_LINKING: "true"
+      DISPLAY_OPERATION_ID: "true"
+      DISPLAY_REQUEST_DURATION: "true"
+    # Se vuoi esporlo solo su IP LAN, usa anche qui LAN_HOST_IP
+    ports:
+      - "${LAN_HOST_IP:-0.0.0.0}:8081:8080"
+    depends_on:
+      opnsense-api:
+        condition: service_started
 
   # === DMZ PROFILE ===
   grafana:
@@ -111,8 +110,6 @@ swagger-ui:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
       GF_USERS_ALLOW_SIGN_UP: "false"
-      # Evita di riusare JWT_SECRET dell'API:
-      # GF_SECURITY_SECRET_KEY: ${GRAFANA_SECRET_KEY}
       GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-json-datasource
     volumes:
       - grafana_data:/var/lib/grafana
@@ -176,7 +173,6 @@ swagger-ui:
       - grafana
       - prometheus
       - nagios
-    # Espone SOLO in DMZ (imposta DMZ_HOST_IP sulla VM DMZ)
     ports:
       - "${DMZ_HOST_IP:-0.0.0.0}:443:443"
       - "${DMZ_HOST_IP:-0.0.0.0}:80:80"
