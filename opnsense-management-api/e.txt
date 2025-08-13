@@ -1,96 +1,108 @@
-pnsense-management-api  | info: Error handling initialized {"timestamp":"2025-08-13 17:17:57"}
-opnsense-management-api  | info: Starting application initialization... {"timestamp":"2025-08-13 17:17:57"}
-opnsense-management-api  | info: Testing database connection... {"timestamp":"2025-08-13 17:17:57"}
-opnsense-management-api  | error: Failed to initialize application: {"error":"testConnection is not a function","stack":"TypeError: testConnection is not a function\n    at initializeApplication (/app/src/app.js:81:11)\n    at Object.<anonymous> (/app/src/app.js:451:3)\n    at Module._compile (node:internal/modules/cjs/loader:1529:14)\n    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)\n    at Module.load (node:internal/modules/cjs/loader:1275:32)\n    at Module._load (node:internal/modules/cjs/loader:1096:12)\n    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)\n    at node:internal/main/run_main_module:28:49","timestamp":"2025-08-13 17:17:57"}
-opnsense-management-api  | error: Failed to start application: metricsHelpers.recordLogEvent is not a function {"stack":"TypeError: metricsHelpers.recordLogEvent is not a function\n    at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)\n    at DerivedLogger.emit (node:events:536:35)\n    at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)\n    at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)\n    at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)\n    at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)\n    at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)\n    at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)\n    at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)\n    at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)","timestamp":"2025-08-13 17:17:57"}
-opnsense-management-api  | error: Unhandled Promise Rejection {"promise":"[object Promise]","reason":"metricsHelpers.recordLogEvent is not a function","stack":"TypeError: metricsHelpers.recordLogEvent is not a function\n    at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)\n    at DerivedLogger.emit (node:events:536:35)\n    at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)\n    at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)\n    at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)\n    at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)\n    at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)\n    at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)\n    at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)\n    at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)","timestamp":"2025-08-13 17:17:57"}
-opnsense-management-api  | error: Uncaught Exception metricsHelpers.recordLogEvent is not a function {"stack":"TypeError: metricsHelpers.recordLogEvent is not a function\n    at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)\n    at DerivedLogger.emit (node:events:536:35)\n    at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)\n    at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)\n    at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)\n    at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)\n    at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)\n    at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)\n    at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)\n    at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)","timestamp":"2025-08-13 17:17:57"}
-opnsense-management-api  | /app/src/utils/logger.js:36
-opnsense-management-api  |     metricsHelpers.recordLogEvent('error', log.message, log.metadata);
-opnsense-management-api  |                    ^
-opnsense-management-api  | 
-opnsense-management-api  | TypeError: metricsHelpers.recordLogEvent is not a function
-opnsense-management-api  |     at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)
-opnsense-management-api  |     at DerivedLogger.emit (node:events:536:35)
-opnsense-management-api  |     at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)
-opnsense-management-api  |     at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)
-opnsense-management-api  |     at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)
-opnsense-management-api  |     at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)
-opnsense-management-api  |     at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)
-opnsense-management-api  |     at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)
-opnsense-management-api  |     at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)
-opnsense-management-api  |     at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | info: Error handling initialized {"timestamp":"2025-08-13 17:17:59"}
-opnsense-management-api  | info: Starting application initialization... {"timestamp":"2025-08-13 17:17:59"}
-opnsense-management-api  | info: Testing database connection... {"timestamp":"2025-08-13 17:17:59"}
-opnsense-management-api  | error: Failed to initialize application: {"error":"testConnection is not a function","stack":"TypeError: testConnection is not a function\n    at initializeApplication (/app/src/app.js:81:11)\n    at Object.<anonymous> (/app/src/app.js:451:3)\n    at Module._compile (node:internal/modules/cjs/loader:1529:14)\n    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)\n    at Module.load (node:internal/modules/cjs/loader:1275:32)\n    at Module._load (node:internal/modules/cjs/loader:1096:12)\n    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)\n    at node:internal/main/run_main_module:28:49","timestamp":"2025-08-13 17:17:59"}
-opnsense-management-api  | error: Failed to start application: metricsHelpers.recordLogEvent is not a function {"stack":"TypeError: metricsHelpers.recordLogEvent is not a function\n    at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)\n    at DerivedLogger.emit (node:events:536:35)\n    at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)\n    at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)\n    at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)\n    at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)\n    at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)\n    at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)\n    at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)\n    at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)","timestamp":"2025-08-13 17:17:59"}
-opnsense-management-api  | error: Unhandled Promise Rejection {"promise":"[object Promise]","reason":"metricsHelpers.recordLogEvent is not a function","stack":"TypeError: metricsHelpers.recordLogEvent is not a function\n    at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)\n    at DerivedLogger.emit (node:events:536:35)\n    at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)\n    at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)\n    at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)\n    at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)\n    at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)\n    at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)\n    at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)\n    at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)","timestamp":"2025-08-13 17:17:59"}
-opnsense-management-api  | error: Uncaught Exception metricsHelpers.recordLogEvent is not a function {"stack":"TypeError: metricsHelpers.recordLogEvent is not a function\n    at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)\n    at DerivedLogger.emit (node:events:536:35)\n    at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)\n    at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)\n    at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)\n    at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)\n    at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)\n    at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)\n    at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)\n    at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)","timestamp":"2025-08-13 17:17:59"}
-opnsense-management-api  | /app/src/utils/logger.js:36
-opnsense-management-api  |     metricsHelpers.recordLogEvent('error', log.message, log.metadata);
-opnsense-management-api  |                    ^
-opnsense-management-api  | 
-opnsense-management-api  | TypeError: metricsHelpers.recordLogEvent is not a function
-opnsense-management-api  |     at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)
-opnsense-management-api  |     at DerivedLogger.emit (node:events:536:35)
-opnsense-management-api  |     at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)
-opnsense-management-api  |     at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)
-opnsense-management-api  |     at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)
-opnsense-management-api  |     at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)
-opnsense-management-api  |     at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)
-opnsense-management-api  |     at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)
-opnsense-management-api  |     at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)
-opnsense-management-api  |     at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | info: Error handling initialized {"timestamp":"2025-08-13 17:18:01"}
-opnsense-management-api  | info: Starting application initialization... {"timestamp":"2025-08-13 17:18:01"}
-opnsense-management-api  | info: Testing database connection... {"timestamp":"2025-08-13 17:18:01"}
-opnsense-management-api  | error: Failed to initialize application: {"error":"testConnection is not a function","stack":"TypeError: testConnection is not a function\n    at initializeApplication (/app/src/app.js:81:11)\n    at Object.<anonymous> (/app/src/app.js:451:3)\n    at Module._compile (node:internal/modules/cjs/loader:1529:14)\n    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)\n    at Module.load (node:internal/modules/cjs/loader:1275:32)\n    at Module._load (node:internal/modules/cjs/loader:1096:12)\n    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)\n    at node:internal/main/run_main_module:28:49","timestamp":"2025-08-13 17:18:01"}
-opnsense-management-api  | error: Failed to start application: metricsHelpers.recordLogEvent is not a function {"stack":"TypeError: metricsHelpers.recordLogEvent is not a function\n    at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)\n    at DerivedLogger.emit (node:events:536:35)\n    at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)\n    at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)\n    at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)\n    at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)\n    at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)\n    at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)\n    at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)\n    at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)","timestamp":"2025-08-13 17:18:01"}
-opnsense-management-api  | error: Unhandled Promise Rejection {"promise":"[object Promise]","reason":"metricsHelpers.recordLogEvent is not a function","stack":"TypeError: metricsHelpers.recordLogEvent is not a function\n    at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)\n    at DerivedLogger.emit (node:events:536:35)\n    at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)\n    at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)\n    at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)\n    at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)\n    at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)\n    at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)\n    at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)\n    at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)","timestamp":"2025-08-13 17:18:01"}
-opnsense-management-api  | error: Uncaught Exception metricsHelpers.recordLogEvent is not a function {"stack":"TypeError: metricsHelpers.recordLogEvent is not a function\n    at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)\n    at DerivedLogger.emit (node:events:536:35)\n    at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)\n    at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)\n    at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)\n    at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)\n    at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)\n    at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)\n    at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)\n    at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)","timestamp":"2025-08-13 17:18:01"}
-opnsense-management-api  | /app/src/utils/logger.js:36
-opnsense-management-api  |     metricsHelpers.recordLogEvent('error', log.message, log.metadata);
-opnsense-management-api  |                    ^
-opnsense-management-api  | 
-opnsense-management-api  | TypeError: metricsHelpers.recordLogEvent is not a function
-opnsense-management-api  |     at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)
-opnsense-management-api  |     at DerivedLogger.emit (node:events:536:35)
-opnsense-management-api  |     at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)
-opnsense-management-api  |     at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)
-opnsense-management-api  |     at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)
-opnsense-management-api  |     at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)
-opnsense-management-api  |     at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)
-opnsense-management-api  |     at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)
-opnsense-management-api  |     at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)
-opnsense-management-api  |     at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | info: Error handling initialized {"timestamp":"2025-08-13 17:18:02"}
-opnsense-management-api  | info: Starting application initialization... {"timestamp":"2025-08-13 17:18:03"}
-opnsense-management-api  | info: Testing database connection... {"timestamp":"2025-08-13 17:18:03"}
-opnsense-management-api  | error: Failed to initialize application: {"error":"testConnection is not a function","stack":"TypeError: testConnection is not a function\n    at initializeApplication (/app/src/app.js:81:11)\n    at Object.<anonymous> (/app/src/app.js:451:3)\n    at Module._compile (node:internal/modules/cjs/loader:1529:14)\n    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)\n    at Module.load (node:internal/modules/cjs/loader:1275:32)\n    at Module._load (node:internal/modules/cjs/loader:1096:12)\n    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)\n    at node:internal/main/run_main_module:28:49","timestamp":"2025-08-13 17:18:03"}
-opnsense-management-api  | error: Failed to start application: metricsHelpers.recordLogEvent is not a function {"stack":"TypeError: metricsHelpers.recordLogEvent is not a function\n    at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)\n    at DerivedLogger.emit (node:events:536:35)\n    at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)\n    at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)\n    at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)\n    at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)\n    at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)\n    at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)\n    at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)\n    at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)","timestamp":"2025-08-13 17:18:03"}
-opnsense-management-api  | error: Unhandled Promise Rejection {"promise":"[object Promise]","reason":"metricsHelpers.recordLogEvent is not a function","stack":"TypeError: metricsHelpers.recordLogEvent is not a function\n    at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)\n    at DerivedLogger.emit (node:events:536:35)\n    at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)\n    at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)\n    at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)\n    at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)\n    at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)\n    at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)\n    at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)\n    at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)","timestamp":"2025-08-13 17:18:03"}
-opnsense-management-api  | error: Uncaught Exception metricsHelpers.recordLogEvent is not a function {"stack":"TypeError: metricsHelpers.recordLogEvent is not a function\n    at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)\n    at DerivedLogger.emit (node:events:536:35)\n    at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)\n    at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)\n    at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)\n    at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)\n    at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)\n    at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)\n    at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)\n    at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)","timestamp":"2025-08-13 17:18:03"}
-opnsense-management-api  | /app/src/utils/logger.js:36
-opnsense-management-api  |     metricsHelpers.recordLogEvent('error', log.message, log.metadata);
-opnsense-management-api  |                    ^
-opnsense-management-api  | 
-opnsense-management-api  | TypeError: metricsHelpers.recordLogEvent is not a function
-opnsense-management-api  |     at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)
-opnsense-management-api  |     at DerivedLogger.emit (node:events:536:35)
-opnsense-management-api  |     at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)
-opnsense-management-api  |     at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)
-opnsense-management-api  |     at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)
-opnsense-management-api  |     at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)
-opnsense-management-api  |     at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)
-opnsense-management-api  |     at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)
-opnsense-management-api  |     at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)
-opnsense-management-api  |     at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
+t-api$ sudo docker-compose logs opnsense-api
+opnsense-management-api  | 2025-08-13 17:56:31 info: Error handling initialized
+opnsense-management-api  | 2025-08-13 17:56:31 info: Starting application initialization...
+opnsense-management-api  | 2025-08-13 17:56:31 info: Testing PostgreSQL connection...
+opnsense-management-api  | 2025-08-13 17:56:31 info: PostgreSQL connection established successfully
+opnsense-management-api  | 2025-08-13 17:56:31 info: PostgreSQL connection test successful
+opnsense-management-api  | 2025-08-13 17:56:31 info: Testing Redis connection...
+opnsense-management-api  | 2025-08-13 17:56:31 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:31 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:31 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:31 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:31 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:31 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:31 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:31 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:31 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:31 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:31 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:32 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:32 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:32 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:32 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:32 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:32 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:33 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:33 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:33 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:33 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:34 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:34 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:34 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:34 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:35 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:35 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:35 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:35 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:36 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:36 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:36 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:36 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:37 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:37 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:37 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:37 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:38 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:38 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:38 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:38 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:39 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:39 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:39 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:39 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:40 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:40 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:40 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:40 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:41 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:41 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:41 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:41 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:42 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:42 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:42 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:42 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:43 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:43 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:43 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:43 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:44 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:44 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:44 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:44 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:45 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:45 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:45 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:45 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:46 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:46 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:46 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:46 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:47 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:47 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:47 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:47 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:48 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:48 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:48 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:48 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:49 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:49 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:49 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:49 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:50 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:50 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:50 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:50 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:51 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:51 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:51 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:51 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:52 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:52 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:52 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:52 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:53 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:53 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
+opnsense-management-api  | 2025-08-13 17:56:53 warn: Redis reconnecting...
+opnsense-management-api  | 2025-08-13 17:56:53 error: Redis connection error: {"code":"ECONNREFUSED","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1122:18)\n    at afterConnectMultiple (node:net:1689:7)"}
