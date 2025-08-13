@@ -7,9 +7,13 @@ const helmet = require('helmet');
 const cors = require('cors');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
-const swaggerUi = require('swagger-ui-express');
-const YAML = require('yamljs');
 const compression = require('compression');
+
+// Swagger (JSDoc -> OpenAPI)
+const swaggerUi = require('swagger-ui-express');
+const swaggerJsdoc = require('swagger-jsdoc');
+const swaggerOptions = require('../swagger.config'); // <-- usa i commenti @swagger nelle routes
+const swaggerSpec = swaggerJsdoc(swaggerOptions);
 
 // Custom modules
 const logger = require('./utils/logger');
@@ -217,7 +221,7 @@ function setupMiddleware() {
     auditMiddleware({
       includeRequestBody: config.nodeEnv !== 'production',
       includeResponseBody: false,
-      excludePaths: ['/api/v1/health', '/api/v1/monitoring/prometheus', '/metrics', '/api-docs'],
+      excludePaths: ['/api/v1/health', '/api/v1/monitoring/prometheus', '/metrics', '/api-docs', '/api-docs.json'],
       sensitiveFields: ['password', 'token', 'secret', 'key'],
     })
   );
@@ -270,23 +274,19 @@ function setupRoutes() {
     })
   );
 
-  // API Docs
+  // API Docs (generati dai commenti @swagger nelle routes)
   if (config.enableSwagger) {
-    try {
-      const swaggerDocument = YAML.load('./swagger.yaml');
-      app.use(
-        '/api-docs',
-        swaggerUi.serve,
-        swaggerUi.setup(swaggerDocument, {
-          explorer: true,
-          customCss: '.swagger-ui .topbar { display: none }',
-          customSiteTitle: 'OPNsense Management API',
-        })
-      );
-      logger.info('Swagger documentation enabled at /api-docs');
-    } catch (error) {
-      logger.warn('Failed to load Swagger documentation:', error.message);
-    }
+    app.get('/api-docs.json', (_req, res) => res.json(swaggerSpec));
+    app.use(
+      '/api-docs',
+      swaggerUi.serve,
+      swaggerUi.setup(swaggerSpec, {
+        explorer: true,
+        customCss: '.swagger-ui .topbar { display: none }',
+        customSiteTitle: 'OPNsense Management API',
+      })
+    );
+    logger.info('Swagger documentation enabled at /api-docs');
   }
 
   // App routes (NO auth middleware)
