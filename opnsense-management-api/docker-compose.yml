@@ -86,26 +86,19 @@ services:
       retries: 5
 
   swagger-ui:
-    profiles: ["lan"]
-    image: swaggerapi/swagger-ui:v5.9.0
-    container_name: opnsense-swagger
-    restart: unless-stopped
-    environment:
-      SWAGGER_JSON_URL: http://opnsense-api:3000/api-docs/swagger.json
-      BASE_URL: /docs
-      DEEP_LINKING: "true"
-      DISPLAY_OPERATION_ID: "true"
-      DISPLAY_REQUEST_DURATION: "true"
-    # Espone SOLO in LAN (imposta LAN_HOST_IP sulla VM LAN)
-    ports:
-      - "${LAN_HOST_IP:-0.0.0.0}:8081:8080"
-    depends_on:
-      - opnsense-api
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+  image: swaggerapi/swagger-ui:v5.9.0
+  container_name: opnsense-swagger
+  restart: unless-stopped
+  environment:
+    SWAGGER_JSON: http://192.168.216.50:3000/api-docs/swagger.json   # <— QUI
+    BASE_URL: /docs
+    DEEP_LINKING: "true"
+    DISPLAY_OPERATION_ID: "true"
+    DISPLAY_REQUEST_DURATION: "true"
+  ports:
+    - "8081:8080"
+  depends_on:
+    - opnsense-api
 
   # === DMZ PROFILE ===
   grafana:
