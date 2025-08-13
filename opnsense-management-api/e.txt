@@ -1,170 +1,96 @@
-opnsense-management-api  | /app/src/routes/policies.js:18
-opnsense-management-api  | router.use(rateLimiters.firewall);
-opnsense-management-api  |                         ^
+pnsense-management-api  | info: Error handling initialized {"timestamp":"2025-08-13 17:17:57"}
+opnsense-management-api  | info: Starting application initialization... {"timestamp":"2025-08-13 17:17:57"}
+opnsense-management-api  | info: Testing database connection... {"timestamp":"2025-08-13 17:17:57"}
+opnsense-management-api  | error: Failed to initialize application: {"error":"testConnection is not a function","stack":"TypeError: testConnection is not a function\n    at initializeApplication (/app/src/app.js:81:11)\n    at Object.<anonymous> (/app/src/app.js:451:3)\n    at Module._compile (node:internal/modules/cjs/loader:1529:14)\n    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)\n    at Module.load (node:internal/modules/cjs/loader:1275:32)\n    at Module._load (node:internal/modules/cjs/loader:1096:12)\n    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)\n    at node:internal/main/run_main_module:28:49","timestamp":"2025-08-13 17:17:57"}
+opnsense-management-api  | error: Failed to start application: metricsHelpers.recordLogEvent is not a function {"stack":"TypeError: metricsHelpers.recordLogEvent is not a function\n    at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)\n    at DerivedLogger.emit (node:events:536:35)\n    at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)\n    at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)\n    at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)\n    at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)\n    at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)\n    at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)\n    at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)\n    at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)","timestamp":"2025-08-13 17:17:57"}
+opnsense-management-api  | error: Unhandled Promise Rejection {"promise":"[object Promise]","reason":"metricsHelpers.recordLogEvent is not a function","stack":"TypeError: metricsHelpers.recordLogEvent is not a function\n    at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)\n    at DerivedLogger.emit (node:events:536:35)\n    at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)\n    at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)\n    at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)\n    at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)\n    at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)\n    at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)\n    at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)\n    at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)","timestamp":"2025-08-13 17:17:57"}
+opnsense-management-api  | error: Uncaught Exception metricsHelpers.recordLogEvent is not a function {"stack":"TypeError: metricsHelpers.recordLogEvent is not a function\n    at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)\n    at DerivedLogger.emit (node:events:536:35)\n    at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)\n    at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)\n    at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)\n    at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)\n    at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)\n    at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)\n    at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)\n    at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)","timestamp":"2025-08-13 17:17:57"}
+opnsense-management-api  | /app/src/utils/logger.js:36
+opnsense-management-api  |     metricsHelpers.recordLogEvent('error', log.message, log.metadata);
+opnsense-management-api  |                    ^
 opnsense-management-api  | 
-opnsense-management-api  | TypeError: Cannot read properties of undefined (reading 'firewall')
-opnsense-management-api  |     at Object.<anonymous> (/app/src/routes/policies.js:18:25)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:44:24)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | /app/src/routes/policies.js:18
-opnsense-management-api  | router.use(rateLimiters.firewall);
-opnsense-management-api  |                         ^
-opnsense-management-api  | 
-opnsense-management-api  | TypeError: Cannot read properties of undefined (reading 'firewall')
-opnsense-management-api  |     at Object.<anonymous> (/app/src/routes/policies.js:18:25)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:44:24)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  | TypeError: metricsHelpers.recordLogEvent is not a function
+opnsense-management-api  |     at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)
+opnsense-management-api  |     at DerivedLogger.emit (node:events:536:35)
+opnsense-management-api  |     at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)
+opnsense-management-api  |     at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)
+opnsense-management-api  |     at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)
+opnsense-management-api  |     at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)
+opnsense-management-api  |     at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)
+opnsense-management-api  |     at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)
+opnsense-management-api  |     at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)
+opnsense-management-api  |     at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)
 opnsense-management-api  | 
 opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | /app/src/routes/policies.js:18
-opnsense-management-api  | router.use(rateLimiters.firewall);
-opnsense-management-api  |                         ^
+opnsense-management-api  | info: Error handling initialized {"timestamp":"2025-08-13 17:17:59"}
+opnsense-management-api  | info: Starting application initialization... {"timestamp":"2025-08-13 17:17:59"}
+opnsense-management-api  | info: Testing database connection... {"timestamp":"2025-08-13 17:17:59"}
+opnsense-management-api  | error: Failed to initialize application: {"error":"testConnection is not a function","stack":"TypeError: testConnection is not a function\n    at initializeApplication (/app/src/app.js:81:11)\n    at Object.<anonymous> (/app/src/app.js:451:3)\n    at Module._compile (node:internal/modules/cjs/loader:1529:14)\n    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)\n    at Module.load (node:internal/modules/cjs/loader:1275:32)\n    at Module._load (node:internal/modules/cjs/loader:1096:12)\n    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)\n    at node:internal/main/run_main_module:28:49","timestamp":"2025-08-13 17:17:59"}
+opnsense-management-api  | error: Failed to start application: metricsHelpers.recordLogEvent is not a function {"stack":"TypeError: metricsHelpers.recordLogEvent is not a function\n    at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)\n    at DerivedLogger.emit (node:events:536:35)\n    at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)\n    at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)\n    at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)\n    at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)\n    at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)\n    at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)\n    at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)\n    at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)","timestamp":"2025-08-13 17:17:59"}
+opnsense-management-api  | error: Unhandled Promise Rejection {"promise":"[object Promise]","reason":"metricsHelpers.recordLogEvent is not a function","stack":"TypeError: metricsHelpers.recordLogEvent is not a function\n    at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)\n    at DerivedLogger.emit (node:events:536:35)\n    at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)\n    at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)\n    at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)\n    at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)\n    at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)\n    at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)\n    at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)\n    at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)","timestamp":"2025-08-13 17:17:59"}
+opnsense-management-api  | error: Uncaught Exception metricsHelpers.recordLogEvent is not a function {"stack":"TypeError: metricsHelpers.recordLogEvent is not a function\n    at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)\n    at DerivedLogger.emit (node:events:536:35)\n    at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)\n    at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)\n    at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)\n    at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)\n    at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)\n    at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)\n    at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)\n    at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)","timestamp":"2025-08-13 17:17:59"}
+opnsense-management-api  | /app/src/utils/logger.js:36
+opnsense-management-api  |     metricsHelpers.recordLogEvent('error', log.message, log.metadata);
+opnsense-management-api  |                    ^
 opnsense-management-api  | 
-opnsense-management-api  | TypeError: Cannot read properties of undefined (reading 'firewall')
-opnsense-management-api  |     at Object.<anonymous> (/app/src/routes/policies.js:18:25)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:44:24)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | /app/src/routes/policies.js:18
-opnsense-management-api  | router.use(rateLimiters.firewall);
-opnsense-management-api  |                         ^
-opnsense-management-api  | 
-opnsense-management-api  | TypeError: Cannot read properties of undefined (reading 'firewall')
-opnsense-management-api  |     at Object.<anonymous> (/app/src/routes/policies.js:18:25)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:44:24)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  | TypeError: metricsHelpers.recordLogEvent is not a function
+opnsense-management-api  |     at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)
+opnsense-management-api  |     at DerivedLogger.emit (node:events:536:35)
+opnsense-management-api  |     at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)
+opnsense-management-api  |     at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)
+opnsense-management-api  |     at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)
+opnsense-management-api  |     at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)
+opnsense-management-api  |     at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)
+opnsense-management-api  |     at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)
+opnsense-management-api  |     at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)
+opnsense-management-api  |     at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)
 opnsense-management-api  | 
 opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | /app/src/routes/policies.js:18
-opnsense-management-api  | router.use(rateLimiters.firewall);
-opnsense-management-api  |                         ^
+opnsense-management-api  | info: Error handling initialized {"timestamp":"2025-08-13 17:18:01"}
+opnsense-management-api  | info: Starting application initialization... {"timestamp":"2025-08-13 17:18:01"}
+opnsense-management-api  | info: Testing database connection... {"timestamp":"2025-08-13 17:18:01"}
+opnsense-management-api  | error: Failed to initialize application: {"error":"testConnection is not a function","stack":"TypeError: testConnection is not a function\n    at initializeApplication (/app/src/app.js:81:11)\n    at Object.<anonymous> (/app/src/app.js:451:3)\n    at Module._compile (node:internal/modules/cjs/loader:1529:14)\n    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)\n    at Module.load (node:internal/modules/cjs/loader:1275:32)\n    at Module._load (node:internal/modules/cjs/loader:1096:12)\n    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)\n    at node:internal/main/run_main_module:28:49","timestamp":"2025-08-13 17:18:01"}
+opnsense-management-api  | error: Failed to start application: metricsHelpers.recordLogEvent is not a function {"stack":"TypeError: metricsHelpers.recordLogEvent is not a function\n    at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)\n    at DerivedLogger.emit (node:events:536:35)\n    at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)\n    at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)\n    at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)\n    at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)\n    at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)\n    at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)\n    at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)\n    at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)","timestamp":"2025-08-13 17:18:01"}
+opnsense-management-api  | error: Unhandled Promise Rejection {"promise":"[object Promise]","reason":"metricsHelpers.recordLogEvent is not a function","stack":"TypeError: metricsHelpers.recordLogEvent is not a function\n    at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)\n    at DerivedLogger.emit (node:events:536:35)\n    at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)\n    at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)\n    at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)\n    at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)\n    at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)\n    at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)\n    at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)\n    at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)","timestamp":"2025-08-13 17:18:01"}
+opnsense-management-api  | error: Uncaught Exception metricsHelpers.recordLogEvent is not a function {"stack":"TypeError: metricsHelpers.recordLogEvent is not a function\n    at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)\n    at DerivedLogger.emit (node:events:536:35)\n    at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)\n    at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)\n    at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)\n    at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)\n    at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)\n    at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)\n    at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)\n    at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)","timestamp":"2025-08-13 17:18:01"}
+opnsense-management-api  | /app/src/utils/logger.js:36
+opnsense-management-api  |     metricsHelpers.recordLogEvent('error', log.message, log.metadata);
+opnsense-management-api  |                    ^
 opnsense-management-api  | 
-opnsense-management-api  | TypeError: Cannot read properties of undefined (reading 'firewall')
-opnsense-management-api  |     at Object.<anonymous> (/app/src/routes/policies.js:18:25)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:44:24)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | /app/src/routes/policies.js:18
-opnsense-management-api  | router.use(rateLimiters.firewall);
-opnsense-management-api  |                         ^
-opnsense-management-api  | 
-opnsense-management-api  | TypeError: Cannot read properties of undefined (reading 'firewall')
-opnsense-management-api  |     at Object.<anonymous> (/app/src/routes/policies.js:18:25)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:44:24)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  | TypeError: metricsHelpers.recordLogEvent is not a function
+opnsense-management-api  |     at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)
+opnsense-management-api  |     at DerivedLogger.emit (node:events:536:35)
+opnsense-management-api  |     at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)
+opnsense-management-api  |     at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)
+opnsense-management-api  |     at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)
+opnsense-management-api  |     at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)
+opnsense-management-api  |     at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)
+opnsense-management-api  |     at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)
+opnsense-management-api  |     at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)
+opnsense-management-api  |     at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)
 opnsense-management-api  | 
 opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | /app/src/routes/policies.js:18
-opnsense-management-api  | router.use(rateLimiters.firewall);
-opnsense-management-api  |                         ^
+opnsense-management-api  | info: Error handling initialized {"timestamp":"2025-08-13 17:18:02"}
+opnsense-management-api  | info: Starting application initialization... {"timestamp":"2025-08-13 17:18:03"}
+opnsense-management-api  | info: Testing database connection... {"timestamp":"2025-08-13 17:18:03"}
+opnsense-management-api  | error: Failed to initialize application: {"error":"testConnection is not a function","stack":"TypeError: testConnection is not a function\n    at initializeApplication (/app/src/app.js:81:11)\n    at Object.<anonymous> (/app/src/app.js:451:3)\n    at Module._compile (node:internal/modules/cjs/loader:1529:14)\n    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)\n    at Module.load (node:internal/modules/cjs/loader:1275:32)\n    at Module._load (node:internal/modules/cjs/loader:1096:12)\n    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)\n    at node:internal/main/run_main_module:28:49","timestamp":"2025-08-13 17:18:03"}
+opnsense-management-api  | error: Failed to start application: metricsHelpers.recordLogEvent is not a function {"stack":"TypeError: metricsHelpers.recordLogEvent is not a function\n    at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)\n    at DerivedLogger.emit (node:events:536:35)\n    at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)\n    at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)\n    at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)\n    at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)\n    at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)\n    at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)\n    at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)\n    at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)","timestamp":"2025-08-13 17:18:03"}
+opnsense-management-api  | error: Unhandled Promise Rejection {"promise":"[object Promise]","reason":"metricsHelpers.recordLogEvent is not a function","stack":"TypeError: metricsHelpers.recordLogEvent is not a function\n    at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)\n    at DerivedLogger.emit (node:events:536:35)\n    at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)\n    at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)\n    at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)\n    at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)\n    at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)\n    at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)\n    at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)\n    at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)","timestamp":"2025-08-13 17:18:03"}
+opnsense-management-api  | error: Uncaught Exception metricsHelpers.recordLogEvent is not a function {"stack":"TypeError: metricsHelpers.recordLogEvent is not a function\n    at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)\n    at DerivedLogger.emit (node:events:536:35)\n    at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)\n    at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)\n    at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)\n    at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)\n    at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)\n    at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)\n    at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)\n    at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)","timestamp":"2025-08-13 17:18:03"}
+opnsense-management-api  | /app/src/utils/logger.js:36
+opnsense-management-api  |     metricsHelpers.recordLogEvent('error', log.message, log.metadata);
+opnsense-management-api  |                    ^
 opnsense-management-api  | 
-opnsense-management-api  | TypeError: Cannot read properties of undefined (reading 'firewall')
-opnsense-management-api  |     at Object.<anonymous> (/app/src/routes/policies.js:18:25)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:44:24)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | /app/src/routes/policies.js:18
-opnsense-management-api  | router.use(rateLimiters.firewall);
-opnsense-management-api  |                         ^
-opnsense-management-api  | 
-opnsense-management-api  | TypeError: Cannot read properties of undefined (reading 'firewall')
-opnsense-management-api  |     at Object.<anonymous> (/app/src/routes/policies.js:18:25)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:44:24)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | /app/src/routes/policies.js:18
-opnsense-management-api  | router.use(rateLimiters.firewall);
-opnsense-management-api  |                         ^
-opnsense-management-api  | 
-opnsense-management-api  | TypeError: Cannot read properties of undefined (reading 'firewall')
-opnsense-management-api  |     at Object.<anonymous> (/app/src/routes/policies.js:18:25)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:44:24)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | /app/src/routes/policies.js:18
-opnsense-management-api  | router.use(rateLimiters.firewall);
-opnsense-management-api  |                         ^
-opnsense-management-api  | 
-opnsense-management-api  | TypeError: Cannot read properties of undefined (reading 'firewall')
-opnsense-management-api  |     at Object.<anonymous> (/app/src/routes/policies.js:18:25)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:44:24)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  | TypeError: metricsHelpers.recordLogEvent is not a function
+opnsense-management-api  |     at DerivedLogger.<anonymous> (/app/src/utils/logger.js:36:20)
+opnsense-management-api  |     at DerivedLogger.emit (node:events:536:35)
+opnsense-management-api  |     at addChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:279:12)
+opnsense-management-api  |     at readableAddChunk (/app/node_modules/readable-stream/lib/_stream_readable.js:262:11)
+opnsense-management-api  |     at Readable.push (/app/node_modules/readable-stream/lib/_stream_readable.js:228:10)
+opnsense-management-api  |     at Transform.push (/app/node_modules/readable-stream/lib/_stream_transform.js:132:32)
+opnsense-management-api  |     at DerivedLogger._transform (/app/node_modules/winston/lib/winston/logger.js:314:12)
+opnsense-management-api  |     at Transform._read (/app/node_modules/readable-stream/lib/_stream_transform.js:166:10)
+opnsense-management-api  |     at Transform._write (/app/node_modules/readable-stream/lib/_stream_transform.js:155:83)
+opnsense-management-api  |     at doWrite (/app/node_modules/readable-stream/lib/_stream_writable.js:390:139)
 opnsense-management-api  | 
 opnsense-management-api  | Node.js v20.19.4
