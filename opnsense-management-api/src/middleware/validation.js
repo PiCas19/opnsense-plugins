@@ -8,6 +8,7 @@ const logger = require('../utils/logger');
 /* ----------------------- helper & regex ----------------------- */
 const macRegex = /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/;
 const cidrRegex = /^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/;
+
 const isCIDR = (value) => {
   if (!cidrRegex.test(value)) return false;
   const [ip, prefix] = value.split('/');
@@ -16,11 +17,9 @@ const isCIDR = (value) => {
   const p = Number(prefix);
   return Number.isInteger(p) && p >= 0 && p <= 32;
 };
+
 const strongPwd =
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/;
-
-// helper per username alfanumerico (stile Joi.alphanum())
-const alphaNum = z.string().regex(/^[A-Za-z0-9]+$/, 'Must be alphanumeric');
 
 /* ------------------------- common schemas ------------------------- */
 const commonSchemas = {
@@ -63,7 +62,11 @@ const commonSchemas = {
 const authSchemas = {
   login: z
     .object({
-      username: alphaNum.min(3).max(30),
+      username: z
+        .string()
+        .min(3)
+        .max(30)
+        .regex(/^[A-Za-z0-9]+$/, 'Must be alphanumeric'),
       password: z.string().min(8).max(128),
       remember_me: z.boolean().default(false).optional(),
     })
@@ -71,7 +74,11 @@ const authSchemas = {
 
   register: z
     .object({
-      username: alphaNum.min(3).max(30),
+      username: z
+        .string()
+        .min(3)
+        .max(30)
+        .regex(/^[A-Za-z0-9]+$/, 'Must be alphanumeric'),
       email: z.string().email(),
       password: z.string().min(8).max(128).regex(strongPwd, 'Weak password'),
       confirm_password: z.string().min(8).max(128),
@@ -162,7 +169,7 @@ const createRuleBase = z
 
 const firewallSchemas = {
   createRule: createRuleBase,
-  updateRule: createRuleBase.partial(), // tutti i campi opzionali per update
+  updateRule: createRuleBase.partial(),
   toggleRule: z
     .object({
       enabled: z.boolean(),
@@ -229,7 +236,11 @@ const policySchemas = {
 
 const adminCreateBase = z
   .object({
-    username: alphaNum.min(3).max(30),
+    username: z
+      .string()
+      .min(3)
+      .max(30)
+      .regex(/^[A-Za-z0-9]+$/, 'Must be alphanumeric'),
     email: z.string().email(),
     password: z.string().min(8).max(128).regex(strongPwd, 'Weak password'),
     role: z.enum(['admin', 'operator', 'viewer', 'api_user']),
@@ -273,6 +284,7 @@ const querySchemas = {
     .strip()
     .merge(paginationSchema),
 
+  // IMPORTANT: prima merge, poi superRefine (altrimenti merge non esiste)
   auditLogs: z
     .object({
       user_id: commonSchemas.id.optional(),
@@ -282,6 +294,7 @@ const querySchemas = {
       end_date: z.string().datetime().optional(),
     })
     .strip()
+    .merge(paginationSchema)
     .superRefine((val, ctx) => {
       if (val.start_date && val.end_date) {
         if (new Date(val.end_date) < new Date(val.start_date)) {
@@ -292,8 +305,7 @@ const querySchemas = {
           });
         }
       }
-    })
-    .merge(paginationSchema),
+    }),
 };
 
 /* --------------------------- zod validator --------------------------- */
@@ -327,7 +339,7 @@ const validateZod = (schema, source = 'body') => {
       return next(validationError);
     }
 
-    // sostituisci con i dati sanificati/di default
+    // sostituisci con i dati validati/sanificati
     if (source === 'body') req.body = parsed.data;
     else if (source === 'params') req.params = parsed.data;
     else if (source === 'query') req.query = parsed.data;
@@ -438,7 +450,7 @@ const validators = {
     handleExpressValidation,
   ],
   uuidParam: [
-    param('id').isUUID('4').withMessage('ID must be a valid UUID'),
+    param('id').isUUID(4).withMessage('ID must be a valid UUID'),
     handleExpressValidation,
   ],
 };
