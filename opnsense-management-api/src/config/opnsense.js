@@ -1,5 +1,12 @@
+// src/config/opnsense.js
+
 const axios = require('axios');
-const axiosRetry = require('axios-retry');
+
+// axios-retry@4 in CJS espone la funzione in .default
+const axiosRetryImport = require('axios-retry');
+const axiosRetry = axiosRetryImport.default || axiosRetryImport;
+const { isNetworkOrIdempotentRequestError } = axiosRetryImport;
+
 const https = require('https');
 const logger = require('../utils/logger');
 
@@ -8,10 +15,11 @@ const opnsenseConfig = {
   baseURL: process.env.OPNSENSE_BASE_URL || 'https://192.168.216.1',
   apiKey: process.env.OPNSENSE_API_KEY,
   apiSecret: process.env.OPNSENSE_API_SECRET,
-  timeout: parseInt(process.env.OPNSENSE_TIMEOUT) || 30000,
+  timeout: parseInt(process.env.OPNSENSE_TIMEOUT, 10) || 30000,
+  // di default many hanno certificati self-signed: metti 'false' per accettarli
   sslVerify: process.env.OPNSENSE_SSL_VERIFY === 'true',
-  retries: parseInt(process.env.OPNSENSE_RETRIES) || 3,
-  retryDelay: parseInt(process.env.OPNSENSE_RETRY_DELAY) || 1000,
+  retries: parseInt(process.env.OPNSENSE_RETRIES, 10) || 3,
+  retryDelay: parseInt(process.env.OPNSENSE_RETRY_DELAY, 10) || 1000
 };
 
 // Validate required configuration
@@ -25,56 +33,52 @@ const httpsAgent = new https.Agent({
   rejectUnauthorized: opnsenseConfig.sslVerify,
   keepAlive: true,
   keepAliveMsecs: 30000,
-  maxSockets: 10,
+  maxSockets: 10
 });
 
 // Create axios instance for OPNsense API
 const opnsenseApi = axios.create({
   baseURL: opnsenseConfig.baseURL,
   timeout: opnsenseConfig.timeout,
-  httpsAgent: httpsAgent,
+  httpsAgent,
   auth: {
     username: opnsenseConfig.apiKey,
-    password: opnsenseConfig.apiSecret,
+    password: opnsenseConfig.apiSecret
   },
   headers: {
     'Content-Type': 'application/json',
-    'Accept': 'application/json',
-    'User-Agent': 'OPNsense-Management-API/1.0.0',
-  },
+    Accept: 'application/json',
+    'User-Agent': 'OPNsense-Management-API/1.0.0'
+  }
 });
 
-// Configure axios retry
+// Configure axios retry (compatibile con v4)
 axiosRetry(opnsenseApi, {
   retries: opnsenseConfig.retries,
-  retryDelay: (retryCount) => {
-    return retryCount * opnsenseConfig.retryDelay;
-  },
-  retryCondition: (error) => {
-    return axiosRetry.isNetworkOrIdempotentRequestError(error) ||
-           error.response?.status >= 500 ||
-           error.code === 'ECONNABORTED';
-  },
+  retryDelay: (retryCount /*, error, requestConfig */) =>
+    retryCount * opnsenseConfig.retryDelay,
+  retryCondition: (error) =>
+    isNetworkOrIdempotentRequestError(error) ||
+    error.response?.status >= 500 ||
+    error.code === 'ECONNABORTED',
   onRetry: (retryCount, error, requestConfig) => {
-    logger.warn(`OPNsense API retry ${retryCount}/${opnsenseConfig.retries} for ${requestConfig.url}`, {
-      error: error.message,
-      status: error.response?.status,
-    });
-  },
+    logger.warn(
+      `OPNsense API retry ${retryCount}/${opnsenseConfig.retries} for ${requestConfig?.url}`,
+      { error: error.message, status: error.response?.status }
+    );
+  }
 });
 
-// Request interceptor for logging and metrics
+// Request interceptor per logging/metrics
 opnsenseApi.interceptors.request.use(
   (config) => {
     const startTime = Date.now();
     config.metadata = { startTime };
-    
     logger.debug('OPNsense API Request', {
       method: config.method?.toUpperCase(),
       url: config.url,
-      baseURL: config.baseURL,
+      baseURL: config.baseURL
     });
-    
     return config;
   },
   (error) => {
@@ -83,56 +87,60 @@ opnsenseApi.interceptors.request.use(
   }
 );
 
-// Response interceptor for logging and metrics
+// Response interceptor per logging/metrics
 opnsenseApi.interceptors.response.use(
   (response) => {
-    const duration = Date.now() - response.config.metadata.startTime;
-    
+    const duration = Date.now() - (response.config.metadata?.startTime || Date.now());
     logger.debug('OPNsense API Response', {
       method: response.config.method?.toUpperCase(),
       url: response.config.url,
       status: response.status,
-      duration: `${duration}ms`,
+      duration: `${duration}ms`
     });
 
-    // Record metrics if monitoring is available
+    // Metrics (opzionale)
     try {
       const { metricsHelpers } = require('./monitoring');
-      metricsHelpers.recordOpnsenseApiCall(
-        response.config.url,
-        response.config.method?.toUpperCase(),
-        'success',
-        duration
-      );
-    } catch (error) {
-      // Monitoring not available, continue silently
+      if (metricsHelpers?.recordOpnsenseApiCall) {
+        metricsHelpers.recordOpnsenseApiCall(
+          response.config.url,
+          response.config.method?.toUpperCase(),
+          'success',
+          duration
+        );
+      }
+    } catch {
+      // monitoring non disponibile
     }
 
     return response;
   },
   (error) => {
-    const duration = error.config?.metadata ? 
-      Date.now() - error.config.metadata.startTime : 0;
+    const duration = error.config?.metadata
+      ? Date.now() - error.config.metadata.startTime
+      : 0;
 
     logger.error('OPNsense API Response Error', {
       method: error.config?.method?.toUpperCase(),
       url: error.config?.url,
       status: error.response?.status,
       message: error.message,
-      duration: `${duration}ms`,
+      duration: `${duration}ms`
     });
 
-    // Record error metrics if monitoring is available
+    // Metrics (opzionale)
     try {
       const { metricsHelpers } = require('./monitoring');
-      metricsHelpers.recordOpnsenseApiCall(
-        error.config?.url || 'unknown',
-        error.config?.method?.toUpperCase() || 'unknown',
-        'error',
-        duration
-      );
-    } catch (metricsError) {
-      // Monitoring not available, continue silently
+      if (metricsHelpers?.recordOpnsenseApiCall) {
+        metricsHelpers.recordOpnsenseApiCall(
+          error.config?.url || 'unknown',
+          error.config?.method?.toUpperCase() || 'unknown',
+          'error',
+          duration
+        );
+      }
+    } catch {
+      // monitoring non disponibile
     }
 
     return Promise.reject(error);
@@ -146,7 +154,7 @@ const endpoints = {
     status: '/api/core/system/status',
     reboot: '/api/core/system/reboot',
     halt: '/api/core/system/halt',
-    info: '/api/core/system/getSystemInformation',
+    info: '/api/core/system/getSystemInformation'
   },
 
   // Firewall Filter Rules
@@ -160,7 +168,7 @@ const endpoints = {
       delRule: '/api/firewall/filter/delRule',
       setRule: '/api/firewall/filter/setRule',
       toggleRule: '/api/firewall/filter/toggleRule',
-      apply: '/api/firewall/filter/apply',
+      apply: '/api/firewall/filter/apply'
     },
     alias: {
       get: '/api/firewall/alias/get',
@@ -169,22 +177,22 @@ const endpoints = {
       addItem: '/api/firewall/alias/addItem',
       delItem: '/api/firewall/alias/delItem',
       setItem: '/api/firewall/alias/setItem',
-      reconfigure: '/api/firewall/alias/reconfigure',
-    },
+      reconfigure: '/api/firewall/alias/reconfigure'
+    }
   },
 
   // Interface Management
   interfaces: {
     get: '/api/interfaces/overview/get',
     getInterface: '/api/interfaces/overview/getInterface',
-    status: '/api/interfaces/overview/getInterfaceStatus',
+    status: '/api/interfaces/overview/getInterfaceStatus'
   },
 
   // Diagnostics
   diagnostics: {
     logs: '/api/diagnostics/log/get',
     activity: '/api/diagnostics/activity/getActivity',
-    interface: '/api/diagnostics/interface/getInterfaceStatistics',
+    interface: '/api/diagnostics/interface/getInterfaceStatistics'
   },
 
   // Services
@@ -192,7 +200,7 @@ const endpoints = {
     status: '/api/core/service/search',
     start: '/api/core/service/start',
     stop: '/api/core/service/stop',
-    restart: '/api/core/service/restart',
+    restart: '/api/core/service/restart'
   },
 
   // Updates
@@ -200,8 +208,8 @@ const endpoints = {
     status: '/api/core/firmware/status',
     check: '/api/core/firmware/check',
     update: '/api/core/firmware/update',
-    upgrade: '/api/core/firmware/upgrade',
-  },
+    upgrade: '/api/core/firmware/upgrade'
+  }
 };
 
 // Test connection to OPNsense
@@ -210,14 +218,14 @@ const testConnection = async () => {
     const response = await opnsenseApi.get(endpoints.system.status);
     logger.info('OPNsense API connection test successful', {
       status: response.status,
-      version: response.data?.version || 'unknown',
+      version: response.data?.version || 'unknown'
     });
     return true;
   } catch (error) {
     logger.error('OPNsense API connection test failed', {
       message: error.message,
       status: error.response?.status,
-      url: error.config?.url,
+      url: error.config?.url
     });
     return false;
   }
@@ -227,33 +235,18 @@ const testConnection = async () => {
 const getSystemInfo = async () => {
   try {
     const response = await opnsenseApi.get(endpoints.system.info);
-    return {
-      success: true,
-      data: response.data,
-    };
+    return { success: true, data: response.data };
   } catch (error) {
     logger.error('Failed to get system information', error);
-    return {
-      success: false,
-      error: error.message,
-    };
+    return { success: false, error: error.message };
   }
 };
 
 // Rate limiting configuration for OPNsense API
 const rateLimits = {
-  default: {
-    requests: 100,
-    window: 60000, // 1 minute
-  },
-  critical: {
-    requests: 10,
-    window: 60000, // 1 minute for critical operations
-  },
-  readonly: {
-    requests: 200,
-    window: 60000, // 1 minute for read operations
-  },
+  default: { requests: 100, window: 60000 }, // 1 min
+  critical: { requests: 10, window: 60000 }, // 1 min
+  readonly: { requests: 200, window: 60000 } // 1 min
 };
 
 // Endpoint categories for rate limiting
@@ -263,7 +256,7 @@ const endpointCategories = {
     endpoints.system.reboot,
     endpoints.system.halt,
     endpoints.firmware.update,
-    endpoints.firmware.upgrade,
+    endpoints.firmware.upgrade
   ],
   readonly: [
     endpoints.system.status,
@@ -271,18 +264,14 @@ const endpointCategories = {
     endpoints.firewall.filter.get,
     endpoints.firewall.filter.searchRule,
     endpoints.interfaces.get,
-    endpoints.diagnostics.logs,
-  ],
+    endpoints.diagnostics.logs
+  ]
 };
 
 // Helper function to categorize endpoint
 const categorizeEndpoint = (endpoint) => {
-  if (endpointCategories.critical.includes(endpoint)) {
-    return 'critical';
-  }
-  if (endpointCategories.readonly.includes(endpoint)) {
-    return 'readonly';
-  }
+  if (endpointCategories.critical.includes(endpoint)) return 'critical';
+  if (endpointCategories.readonly.includes(endpoint)) return 'readonly';
   return 'default';
 };
 
@@ -294,7 +283,7 @@ const handleApiError = (error, context = '') => {
     statusText: error.response?.statusText,
     url: error.config?.url,
     method: error.config?.method,
-    context,
+    context
   };
 
   if (error.response?.status === 401) {
@@ -335,5 +324,5 @@ module.exports = {
   getSystemInfo,
   categorizeEndpoint,
   handleApiError,
-  httpsAgent,
+  httpsAgent
 };
