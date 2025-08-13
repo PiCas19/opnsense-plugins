@@ -55,7 +55,6 @@
     "jsonwebtoken": "^9.0.2",
     "axios": "^1.6.2",
     "axios-retry": "^4.0.0",
-    "https": "^1.0.0",
     "pg": "^8.11.3",
     "redis": "^4.6.10",
     "sequelize": "^6.35.1",
@@ -66,7 +65,6 @@
     "joi": "^17.11.0",
     "moment": "^2.29.4",
     "lodash": "^4.17.21",
-    "crypto": "^1.0.1",
     "uuid": "^9.0.1",
     "dotenv": "^16.3.1",
     "express-async-errors": "^3.1.1",
@@ -74,8 +72,7 @@
     "multer": "^1.4.5",
     "express-fileupload": "^1.4.3",
     "node-cache": "^5.1.2",
-    "express-prometheus-middleware": "^1.2.0",
-    "prom-client": "^15.1.0",
+    "prom-client": "^14.2.0",
     "yamljs": "^0.3.0"
   },
   "devDependencies": {
@@ -97,12 +94,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/opnsense-management-api"
+    "url": "https://github.com/PiCas19/opnsense-plugins/tree/4-dynamic-threat-detection-and-blocking/opnsense-management-api"
   },
   "bugs": {
     "url": "https://github.com/your-username/opnsense-management-api/issues"
   },
-  "homepage": "https://github.com/your-username/opnsense-management-api#readme",
+  "homepage": "https://github.com/PiCas19/opnsense-plugins/blob/4-dynamic-threat-detection-and-blocking/opnsense-management-api/README.md",
   "jest": {
     "testEnvironment": "node",
     "setupFilesAfterEnv": ["<rootDir>/tests/setup.js"],
