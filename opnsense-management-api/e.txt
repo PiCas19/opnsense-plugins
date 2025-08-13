@@ -1,880 +1,835 @@
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
+opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:20:30) {
+opnsense-management-api  |   code: 'WRN_ESD_DELAYMS',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ESD_DELAYMS/'
+opnsense-management-api  | }
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-slow-down/dist/index.cjs:254:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-slow-down/dist/index.cjs:321:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-slow-down/dist/index.cjs:543:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-slow-down/dist/index.cjs:600:18)
+opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:784:10)
+opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:272:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:316:12)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
+opnsense-management-api  | }
+opnsense-management-api  | ExpressSlowDownWarning: The behaviour of the 'delayMs' option was changed in express-slow-down v2:
+opnsense-management-api  | - For the old behavior, change the delayMs option to:
+opnsense-management-api  | 
+opnsense-management-api  |   delayMs: (used, req) => {
+opnsense-management-api  |        const delayAfter = req.slowDown.limit;
+opnsense-management-api  |        return (used - delayAfter) * 1000;
+opnsense-management-api  |   },
+opnsense-management-api  | 
+opnsense-management-api  | - For the new behavior, change the delayMs option to:
+opnsense-management-api  | 
+opnsense-management-api  |      delayMs: () => 1000,
+opnsense-management-api  | 
+opnsense-management-api  | Or set 'options.validate: {delayMs: false}' to disable this message. See https://express-rate-limit.github.io/WRN_ESD_DELAYMS/ for more information.
+opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:738:18)
+opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:272:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:321:9)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
+opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:20:30) {
+opnsense-management-api  |   code: 'WRN_ESD_DELAYMS',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ESD_DELAYMS/'
+opnsense-management-api  | }
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-slow-down/dist/index.cjs:254:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-slow-down/dist/index.cjs:321:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-slow-down/dist/index.cjs:543:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-slow-down/dist/index.cjs:600:18)
+opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:784:10)
+opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:272:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:321:9)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
+opnsense-management-api  | }
 opnsense-management-api  | node:internal/modules/cjs/loader:1215
 opnsense-management-api  |   throw err;
 opnsense-management-api  |   ^
 opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
+opnsense-management-api  | Error: Cannot find module 'joi'
 opnsense-management-api  | Require stack:
+opnsense-management-api  | - /app/src/middleware/validation.js
 opnsense-management-api  | - /app/src/app.js
 opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
 opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
 opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
 opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/validation.js:1:13)
 opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
 opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
 opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
 opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19) {
 opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
+opnsense-management-api  |   requireStack: [ '/app/src/middleware/validation.js', '/app/src/app.js' ]
 opnsense-management-api  | }
 opnsense-management-api  | 
 opnsense-management-api  | Node.js v20.19.4
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-rate-limit/dist/index.cjs:271:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-rate-limit/dist/index.cjs:362:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-rate-limit/dist/index.cjs:598:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-rate-limit/dist/index.cjs:656:18)
+opnsense-management-api  |     at createRateLimiter (/app/src/middleware/rateLimit.js:250:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:278:12)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
+opnsense-management-api  | }
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-rate-limit/dist/index.cjs:271:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-rate-limit/dist/index.cjs:362:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-rate-limit/dist/index.cjs:598:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-rate-limit/dist/index.cjs:656:18)
+opnsense-management-api  |     at createRateLimiter (/app/src/middleware/rateLimit.js:250:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:284:9)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
+opnsense-management-api  | }
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-rate-limit/dist/index.cjs:271:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-rate-limit/dist/index.cjs:362:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-rate-limit/dist/index.cjs:598:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-rate-limit/dist/index.cjs:656:18)
+opnsense-management-api  |     at createRateLimiter (/app/src/middleware/rateLimit.js:250:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:290:13)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
+opnsense-management-api  | }
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-rate-limit/dist/index.cjs:271:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-rate-limit/dist/index.cjs:362:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-rate-limit/dist/index.cjs:598:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-rate-limit/dist/index.cjs:656:18)
+opnsense-management-api  |     at createRateLimiter (/app/src/middleware/rateLimit.js:250:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:296:13)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
+opnsense-management-api  | }
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-rate-limit/dist/index.cjs:271:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-rate-limit/dist/index.cjs:362:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-rate-limit/dist/index.cjs:598:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-rate-limit/dist/index.cjs:656:18)
+opnsense-management-api  |     at createRateLimiter (/app/src/middleware/rateLimit.js:250:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:302:10)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
+opnsense-management-api  | }
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-rate-limit/dist/index.cjs:271:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-rate-limit/dist/index.cjs:362:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-rate-limit/dist/index.cjs:598:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-rate-limit/dist/index.cjs:656:18)
+opnsense-management-api  |     at createRateLimiter (/app/src/middleware/rateLimit.js:250:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:308:15)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
+opnsense-management-api  | }
+opnsense-management-api  | ExpressSlowDownWarning: The behaviour of the 'delayMs' option was changed in express-slow-down v2:
+opnsense-management-api  | - For the old behavior, change the delayMs option to:
+opnsense-management-api  | 
+opnsense-management-api  |   delayMs: (used, req) => {
+opnsense-management-api  |        const delayAfter = req.slowDown.limit;
+opnsense-management-api  |        return (used - delayAfter) * 100;
+opnsense-management-api  |   },
+opnsense-management-api  | 
+opnsense-management-api  | - For the new behavior, change the delayMs option to:
+opnsense-management-api  | 
+opnsense-management-api  |      delayMs: () => 100,
+opnsense-management-api  | 
+opnsense-management-api  | Or set 'options.validate: {delayMs: false}' to disable this message. See https://express-rate-limit.github.io/WRN_ESD_DELAYMS/ for more information.
+opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:738:18)
+opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:272:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:316:12)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
+opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:20:30) {
+opnsense-management-api  |   code: 'WRN_ESD_DELAYMS',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ESD_DELAYMS/'
+opnsense-management-api  | }
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-slow-down/dist/index.cjs:254:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-slow-down/dist/index.cjs:321:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-slow-down/dist/index.cjs:543:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-slow-down/dist/index.cjs:600:18)
+opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:784:10)
+opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:272:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:316:12)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
+opnsense-management-api  | }
+opnsense-management-api  | ExpressSlowDownWarning: The behaviour of the 'delayMs' option was changed in express-slow-down v2:
+opnsense-management-api  | - For the old behavior, change the delayMs option to:
+opnsense-management-api  | 
+opnsense-management-api  |   delayMs: (used, req) => {
+opnsense-management-api  |        const delayAfter = req.slowDown.limit;
+opnsense-management-api  |        return (used - delayAfter) * 1000;
+opnsense-management-api  |   },
+opnsense-management-api  | 
+opnsense-management-api  | - For the new behavior, change the delayMs option to:
+opnsense-management-api  | 
+opnsense-management-api  |      delayMs: () => 1000,
+opnsense-management-api  | 
+opnsense-management-api  | Or set 'options.validate: {delayMs: false}' to disable this message. See https://express-rate-limit.github.io/WRN_ESD_DELAYMS/ for more information.
+opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:738:18)
+opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:272:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:321:9)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
+opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:20:30) {
+opnsense-management-api  |   code: 'WRN_ESD_DELAYMS',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ESD_DELAYMS/'
+opnsense-management-api  | }
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-slow-down/dist/index.cjs:254:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-slow-down/dist/index.cjs:321:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-slow-down/dist/index.cjs:543:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-slow-down/dist/index.cjs:600:18)
+opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:784:10)
+opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:272:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:321:9)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
+opnsense-management-api  | }
 opnsense-management-api  | node:internal/modules/cjs/loader:1215
 opnsense-management-api  |   throw err;
 opnsense-management-api  |   ^
 opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
+opnsense-management-api  | Error: Cannot find module 'joi'
 opnsense-management-api  | Require stack:
+opnsense-management-api  | - /app/src/middleware/validation.js
 opnsense-management-api  | - /app/src/app.js
 opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
 opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
 opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
 opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/validation.js:1:13)
 opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
 opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
 opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
 opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19) {
 opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
+opnsense-management-api  |   requireStack: [ '/app/src/middleware/validation.js', '/app/src/app.js' ]
 opnsense-management-api  | }
 opnsense-management-api  | 
 opnsense-management-api  | Node.js v20.19.4
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-rate-limit/dist/index.cjs:271:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-rate-limit/dist/index.cjs:362:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-rate-limit/dist/index.cjs:598:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-rate-limit/dist/index.cjs:656:18)
+opnsense-management-api  |     at createRateLimiter (/app/src/middleware/rateLimit.js:250:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:278:12)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
+opnsense-management-api  | }
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-rate-limit/dist/index.cjs:271:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-rate-limit/dist/index.cjs:362:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-rate-limit/dist/index.cjs:598:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-rate-limit/dist/index.cjs:656:18)
+opnsense-management-api  |     at createRateLimiter (/app/src/middleware/rateLimit.js:250:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:284:9)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
+opnsense-management-api  | }
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-rate-limit/dist/index.cjs:271:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-rate-limit/dist/index.cjs:362:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-rate-limit/dist/index.cjs:598:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-rate-limit/dist/index.cjs:656:18)
+opnsense-management-api  |     at createRateLimiter (/app/src/middleware/rateLimit.js:250:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:290:13)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
+opnsense-management-api  | }
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-rate-limit/dist/index.cjs:271:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-rate-limit/dist/index.cjs:362:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-rate-limit/dist/index.cjs:598:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-rate-limit/dist/index.cjs:656:18)
+opnsense-management-api  |     at createRateLimiter (/app/src/middleware/rateLimit.js:250:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:296:13)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
+opnsense-management-api  | }
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-rate-limit/dist/index.cjs:271:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-rate-limit/dist/index.cjs:362:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-rate-limit/dist/index.cjs:598:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-rate-limit/dist/index.cjs:656:18)
+opnsense-management-api  |     at createRateLimiter (/app/src/middleware/rateLimit.js:250:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:302:10)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
+opnsense-management-api  | }
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-rate-limit/dist/index.cjs:271:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-rate-limit/dist/index.cjs:362:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-rate-limit/dist/index.cjs:598:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-rate-limit/dist/index.cjs:656:18)
+opnsense-management-api  |     at createRateLimiter (/app/src/middleware/rateLimit.js:250:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:308:15)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
+opnsense-management-api  | }
+opnsense-management-api  | ExpressSlowDownWarning: The behaviour of the 'delayMs' option was changed in express-slow-down v2:
+opnsense-management-api  | - For the old behavior, change the delayMs option to:
+opnsense-management-api  | 
+opnsense-management-api  |   delayMs: (used, req) => {
+opnsense-management-api  |        const delayAfter = req.slowDown.limit;
+opnsense-management-api  |        return (used - delayAfter) * 100;
+opnsense-management-api  |   },
+opnsense-management-api  | 
+opnsense-management-api  | - For the new behavior, change the delayMs option to:
+opnsense-management-api  | 
+opnsense-management-api  |      delayMs: () => 100,
+opnsense-management-api  | 
+opnsense-management-api  | Or set 'options.validate: {delayMs: false}' to disable this message. See https://express-rate-limit.github.io/WRN_ESD_DELAYMS/ for more information.
+opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:738:18)
+opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:272:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:316:12)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
+opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:20:30) {
+opnsense-management-api  |   code: 'WRN_ESD_DELAYMS',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ESD_DELAYMS/'
+opnsense-management-api  | }
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-slow-down/dist/index.cjs:254:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-slow-down/dist/index.cjs:321:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-slow-down/dist/index.cjs:543:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-slow-down/dist/index.cjs:600:18)
+opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:784:10)
+opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:272:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:316:12)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
+opnsense-management-api  | }
+opnsense-management-api  | ExpressSlowDownWarning: The behaviour of the 'delayMs' option was changed in express-slow-down v2:
+opnsense-management-api  | - For the old behavior, change the delayMs option to:
+opnsense-management-api  | 
+opnsense-management-api  |   delayMs: (used, req) => {
+opnsense-management-api  |        const delayAfter = req.slowDown.limit;
+opnsense-management-api  |        return (used - delayAfter) * 1000;
+opnsense-management-api  |   },
+opnsense-management-api  | 
+opnsense-management-api  | - For the new behavior, change the delayMs option to:
+opnsense-management-api  | 
+opnsense-management-api  |      delayMs: () => 1000,
+opnsense-management-api  | 
+opnsense-management-api  | Or set 'options.validate: {delayMs: false}' to disable this message. See https://express-rate-limit.github.io/WRN_ESD_DELAYMS/ for more information.
+opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:738:18)
+opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:272:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:321:9)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
+opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:20:30) {
+opnsense-management-api  |   code: 'WRN_ESD_DELAYMS',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ESD_DELAYMS/'
+opnsense-management-api  | }
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-slow-down/dist/index.cjs:254:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-slow-down/dist/index.cjs:321:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-slow-down/dist/index.cjs:543:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-slow-down/dist/index.cjs:600:18)
+opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:784:10)
+opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:272:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:321:9)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
+opnsense-management-api  | }
 opnsense-management-api  | node:internal/modules/cjs/loader:1215
 opnsense-management-api  |   throw err;
 opnsense-management-api  |   ^
 opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
+opnsense-management-api  | Error: Cannot find module 'joi'
 opnsense-management-api  | Require stack:
+opnsense-management-api  | - /app/src/middleware/validation.js
 opnsense-management-api  | - /app/src/app.js
 opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
 opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
 opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
 opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/validation.js:1:13)
 opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
 opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
 opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
 opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19) {
 opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
+opnsense-management-api  |   requireStack: [ '/app/src/middleware/validation.js', '/app/src/app.js' ]
 opnsense-management-api  | }
 opnsense-management-api  | 
 opnsense-management-api  | Node.js v20.19.4
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-rate-limit/dist/index.cjs:271:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-rate-limit/dist/index.cjs:362:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-rate-limit/dist/index.cjs:598:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-rate-limit/dist/index.cjs:656:18)
+opnsense-management-api  |     at createRateLimiter (/app/src/middleware/rateLimit.js:250:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:278:12)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
+opnsense-management-api  | }
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-rate-limit/dist/index.cjs:271:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-rate-limit/dist/index.cjs:362:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-rate-limit/dist/index.cjs:598:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-rate-limit/dist/index.cjs:656:18)
+opnsense-management-api  |     at createRateLimiter (/app/src/middleware/rateLimit.js:250:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:284:9)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
+opnsense-management-api  | }
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-rate-limit/dist/index.cjs:271:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-rate-limit/dist/index.cjs:362:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-rate-limit/dist/index.cjs:598:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-rate-limit/dist/index.cjs:656:18)
+opnsense-management-api  |     at createRateLimiter (/app/src/middleware/rateLimit.js:250:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:290:13)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
+opnsense-management-api  | }
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-rate-limit/dist/index.cjs:271:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-rate-limit/dist/index.cjs:362:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-rate-limit/dist/index.cjs:598:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-rate-limit/dist/index.cjs:656:18)
+opnsense-management-api  |     at createRateLimiter (/app/src/middleware/rateLimit.js:250:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:296:13)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
+opnsense-management-api  | }
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-rate-limit/dist/index.cjs:271:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-rate-limit/dist/index.cjs:362:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-rate-limit/dist/index.cjs:598:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-rate-limit/dist/index.cjs:656:18)
+opnsense-management-api  |     at createRateLimiter (/app/src/middleware/rateLimit.js:250:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:302:10)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
+opnsense-management-api  | }
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-rate-limit/dist/index.cjs:271:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-rate-limit/dist/index.cjs:362:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-rate-limit/dist/index.cjs:598:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-rate-limit/dist/index.cjs:656:18)
+opnsense-management-api  |     at createRateLimiter (/app/src/middleware/rateLimit.js:250:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:308:15)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
+opnsense-management-api  | }
+opnsense-management-api  | ExpressSlowDownWarning: The behaviour of the 'delayMs' option was changed in express-slow-down v2:
+opnsense-management-api  | - For the old behavior, change the delayMs option to:
+opnsense-management-api  | 
+opnsense-management-api  |   delayMs: (used, req) => {
+opnsense-management-api  |        const delayAfter = req.slowDown.limit;
+opnsense-management-api  |        return (used - delayAfter) * 100;
+opnsense-management-api  |   },
+opnsense-management-api  | 
+opnsense-management-api  | - For the new behavior, change the delayMs option to:
+opnsense-management-api  | 
+opnsense-management-api  |      delayMs: () => 100,
+opnsense-management-api  | 
+opnsense-management-api  | Or set 'options.validate: {delayMs: false}' to disable this message. See https://express-rate-limit.github.io/WRN_ESD_DELAYMS/ for more information.
+opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:738:18)
+opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:272:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:316:12)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
+opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:20:30) {
+opnsense-management-api  |   code: 'WRN_ESD_DELAYMS',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ESD_DELAYMS/'
+opnsense-management-api  | }
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-slow-down/dist/index.cjs:254:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-slow-down/dist/index.cjs:321:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-slow-down/dist/index.cjs:543:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-slow-down/dist/index.cjs:600:18)
+opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:784:10)
+opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:272:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:316:12)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
+opnsense-management-api  | }
+opnsense-management-api  | ExpressSlowDownWarning: The behaviour of the 'delayMs' option was changed in express-slow-down v2:
+opnsense-management-api  | - For the old behavior, change the delayMs option to:
+opnsense-management-api  | 
+opnsense-management-api  |   delayMs: (used, req) => {
+opnsense-management-api  |        const delayAfter = req.slowDown.limit;
+opnsense-management-api  |        return (used - delayAfter) * 1000;
+opnsense-management-api  |   },
+opnsense-management-api  | 
+opnsense-management-api  | - For the new behavior, change the delayMs option to:
+opnsense-management-api  | 
+opnsense-management-api  |      delayMs: () => 1000,
+opnsense-management-api  | 
+opnsense-management-api  | Or set 'options.validate: {delayMs: false}' to disable this message. See https://express-rate-limit.github.io/WRN_ESD_DELAYMS/ for more information.
+opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:738:18)
+opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:272:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:321:9)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
+opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:20:30) {
+opnsense-management-api  |   code: 'WRN_ESD_DELAYMS',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ESD_DELAYMS/'
+opnsense-management-api  | }
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-slow-down/dist/index.cjs:254:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-slow-down/dist/index.cjs:321:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-slow-down/dist/index.cjs:543:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-slow-down/dist/index.cjs:600:18)
+opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:784:10)
+opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:272:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:321:9)
+opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
+opnsense-management-api  | }
 opnsense-management-api  | node:internal/modules/cjs/loader:1215
 opnsense-management-api  |   throw err;
 opnsense-management-api  |   ^
 opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
+opnsense-management-api  | Error: Cannot find module 'joi'
 opnsense-management-api  | Require stack:
+opnsense-management-api  | - /app/src/middleware/validation.js
 opnsense-management-api  | - /app/src/app.js
 opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
 opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
 opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
 opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/validation.js:1:13)
 opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
 opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
 opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
 opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19) {
 opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
+opnsense-management-api  |   requireStack: [ '/app/src/middleware/validation.js', '/app/src/app.js' ]
 opnsense-management-api  | }
 opnsense-management-api  | 
 opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-rate-limit/dist/index.cjs:271:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-rate-limit/dist/index.cjs:362:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-rate-limit/dist/index.cjs:598:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-rate-limit/dist/index.cjs:656:18)
+opnsense-management-api  |     at createRateLimiter (/app/src/middleware/rateLimit.js:250:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:278:12)
 opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
 opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
 opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
 opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-rate-limit/dist/index.cjs:271:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-rate-limit/dist/index.cjs:362:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-rate-limit/dist/index.cjs:598:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-rate-limit/dist/index.cjs:656:18)
+opnsense-management-api  |     at createRateLimiter (/app/src/middleware/rateLimit.js:250:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:284:9)
 opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
 opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
 opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
 opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-rate-limit/dist/index.cjs:271:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-rate-limit/dist/index.cjs:362:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-rate-limit/dist/index.cjs:598:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-rate-limit/dist/index.cjs:656:18)
+opnsense-management-api  |     at createRateLimiter (/app/src/middleware/rateLimit.js:250:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:290:13)
 opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
 opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
 opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
 opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-rate-limit/dist/index.cjs:271:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-rate-limit/dist/index.cjs:362:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-rate-limit/dist/index.cjs:598:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-rate-limit/dist/index.cjs:656:18)
+opnsense-management-api  |     at createRateLimiter (/app/src/middleware/rateLimit.js:250:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:296:13)
 opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
 opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
 opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
 opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-rate-limit/dist/index.cjs:271:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-rate-limit/dist/index.cjs:362:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-rate-limit/dist/index.cjs:598:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-rate-limit/dist/index.cjs:656:18)
+opnsense-management-api  |     at createRateLimiter (/app/src/middleware/rateLimit.js:250:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:302:10)
 opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
 opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
 opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
 opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-rate-limit/dist/index.cjs:271:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-rate-limit/dist/index.cjs:362:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-rate-limit/dist/index.cjs:598:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-rate-limit/dist/index.cjs:656:18)
+opnsense-management-api  |     at createRateLimiter (/app/src/middleware/rateLimit.js:250:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:308:15)
 opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
 opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
 opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
+opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
 opnsense-management-api  | }
+opnsense-management-api  | ExpressSlowDownWarning: The behaviour of the 'delayMs' option was changed in express-slow-down v2:
+opnsense-management-api  | - For the old behavior, change the delayMs option to:
 opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
+opnsense-management-api  |   delayMs: (used, req) => {
+opnsense-management-api  |        const delayAfter = req.slowDown.limit;
+opnsense-management-api  |        return (used - delayAfter) * 100;
+opnsense-management-api  |   },
 opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
+opnsense-management-api  | - For the new behavior, change the delayMs option to:
+opnsense-management-api  | 
+opnsense-management-api  |      delayMs: () => 100,
+opnsense-management-api  | 
+opnsense-management-api  | Or set 'options.validate: {delayMs: false}' to disable this message. See https://express-rate-limit.github.io/WRN_ESD_DELAYMS/ for more information.
+opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:738:18)
+opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:272:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:316:12)
 opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
 opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
 opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
 opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
+opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:20:30) {
+opnsense-management-api  |   code: 'WRN_ESD_DELAYMS',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ESD_DELAYMS/'
 opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-slow-down/dist/index.cjs:254:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-slow-down/dist/index.cjs:321:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-slow-down/dist/index.cjs:543:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-slow-down/dist/index.cjs:600:18)
+opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:784:10)
+opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:272:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:316:12)
 opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
 opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
 opnsense-management-api  | }
+opnsense-management-api  | ExpressSlowDownWarning: The behaviour of the 'delayMs' option was changed in express-slow-down v2:
+opnsense-management-api  | - For the old behavior, change the delayMs option to:
 opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
+opnsense-management-api  |   delayMs: (used, req) => {
+opnsense-management-api  |        const delayAfter = req.slowDown.limit;
+opnsense-management-api  |        return (used - delayAfter) * 1000;
+opnsense-management-api  |   },
 opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
+opnsense-management-api  | - For the new behavior, change the delayMs option to:
+opnsense-management-api  | 
+opnsense-management-api  |      delayMs: () => 1000,
+opnsense-management-api  | 
+opnsense-management-api  | Or set 'options.validate: {delayMs: false}' to disable this message. See https://express-rate-limit.github.io/WRN_ESD_DELAYMS/ for more information.
+opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:738:18)
+opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:272:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:321:9)
 opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
 opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
 opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
 opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
+opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:20:30) {
+opnsense-management-api  |   code: 'WRN_ESD_DELAYMS',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ESD_DELAYMS/'
 opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
+opnsense-management-api  | ChangeWarning: The onLimitReached configuration option is deprecated and has been removed in express-rate-limit v7. See https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/ for more information.
+opnsense-management-api  |     at Object.onLimitReached (/app/node_modules/express-slow-down/dist/index.cjs:254:13)
+opnsense-management-api  |     at wrappedValidations.<computed> [as onLimitReached] (/app/node_modules/express-slow-down/dist/index.cjs:321:22)
+opnsense-management-api  |     at parseOptions (/app/node_modules/express-slow-down/dist/index.cjs:543:16)
+opnsense-management-api  |     at rateLimit (/app/node_modules/express-slow-down/dist/index.cjs:600:18)
+opnsense-management-api  |     at slowDown (/app/node_modules/express-slow-down/dist/index.cjs:784:10)
+opnsense-management-api  |     at createSlowDown (/app/src/middleware/rateLimit.js:272:10)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/rateLimit.js:321:9)
 opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
 opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
+opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32) {
+opnsense-management-api  |   code: 'WRN_ERL_DEPRECATED_ON_LIMIT_REACHED',
+opnsense-management-api  |   help: 'https://express-rate-limit.github.io/WRN_ERL_DEPRECATED_ON_LIMIT_REACHED/'
 opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
 opnsense-management-api  | node:internal/modules/cjs/loader:1215
 opnsense-management-api  |   throw err;
 opnsense-management-api  |   ^
 opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
+opnsense-management-api  | Error: Cannot find module 'joi'
 opnsense-management-api  | Require stack:
+opnsense-management-api  | - /app/src/middleware/validation.js
 opnsense-management-api  | - /app/src/app.js
 opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
 opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
 opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
 opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
+opnsense-management-api  |     at Object.<anonymous> (/app/src/middleware/validation.js:1:13)
 opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
 opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
 opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
 opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
+opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19) {
 opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
-opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
-opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
-opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
-opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
-opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
-opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
-opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
-opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
-opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
-opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
-opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
-opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
-opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
-opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
-opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
-opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
-opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
-opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
-opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
-opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
-opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
-opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
-opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
-opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
-opnsense-management-api  | }
-opnsense-management-api  | 
-opnsense-management-api  | Node.js v20.19.4
-opnsense-management-api  | node:internal/modules/cjs/loader:1215
-opnsense-management-api  |   throw err;
-opnsense-management-api  |   ^
-opnsense-management-api  | 
-opnsense-management-api  | Error: Cannot find module 'cookie-parser'
-opnsense-management-api  | Require stack:
-opnsense-management-api  | - /app/src/app.js
-opnsense-management-api  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1043:27)
-opnsense-management-api  |     at Module.require (node:internal/modules/cjs/loader:1298:19)
-opnsense-management-api  |     at require (node:internal/modules/helpers:182:18)
-opnsense-management-api  |     at Object.<anonymous> (/app/src/app.js:9:22)
-opnsense-management-api  |     at Module._compile (node:internal/modules/cjs/loader:1529:14)
-opnsense-management-api  |     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-opnsense-management-api  |     at Module.load (node:internal/modules/cjs/loader:1275:32)
-opnsense-management-api  |     at Module._load (node:internal/modules/cjs/loader:1096:12)
-opnsense-management-api  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
-opnsense-management-api  |   code: 'MODULE_NOT_FOUND',
-opnsense-management-api  |   requireStack: [ '/app/src/app.js' ]
+opnsense-management-api  |   requireStack: [ '/app/src/middleware/validation.js', '/app/src/app.js' ]
 opnsense-management-api  | }
 opnsense-management-api  | 
 opnsense-management-api  | Node.js v20.19.4
