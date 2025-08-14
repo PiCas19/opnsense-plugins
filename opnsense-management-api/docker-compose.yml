@@ -112,37 +112,47 @@ services:
 # === DMZ PROFILE ===
   grafana:
     profiles: ["dmz"]
+    # Non usare il Dockerfile custom, usa l'immagine diretta
     image: grafana/grafana:10.2.0
     container_name: opnsense-grafana
     restart: unless-stopped
-    user: "0"  
+    user: "0"
+    
     environment:
       # Admin credentials
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
       
-      # Server configuration for reverse proxy
+      # Server configuration - FIX CRITICO per reverse proxy
       GF_SERVER_DOMAIN: ${DMZ_HOST_IP:-172.16.216.20}
-      GF_SERVER_ROOT_URL: https://${DMZ_HOST_IP:-172.16.216.20}/grafana/
+      GF_SERVER_ROOT_URL: "https://${DMZ_HOST_IP:-172.16.216.20}/grafana/"
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
       GF_SERVER_HTTP_PORT: "3000"
+      
+      # IMPORTANTE: Cookie settings per reverse proxy
+      GF_SECURITY_COOKIE_SECURE: "false"  # DEVE essere false dietro reverse proxy
+      GF_SECURITY_COOKIE_SAMESITE: "lax"
       
       # Security settings
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_USERS_ALLOW_ORG_CREATE: "false"
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       
-      # Plugins
-      GF_INSTALL_PLUGINS: grafana-clock-panel,marcusolsson-json-datasource
+      # Plugins - installa al boot
+      GF_INSTALL_PLUGINS: "grafana-clock-panel,marcusolsson-json-datasource"
       
-      # Analytics
+      # Analytics - disabilita tutto
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
       
-      # Security headers
-      GF_SECURITY_COOKIE_SECURE: "true"
-      GF_SECURITY_COOKIE_SAMESITE: "lax"
+      # Logging per debug
+      GF_LOG_LEVEL: "info"
+      GF_LOG_MODE: "console"
+      
+      # IMPORTANTE: Disabilita features che possono causare redirect
+      GF_SERVER_ENABLE_GZIP: "true"
+      GF_AUTH_DISABLE_LOGIN_FORM: "false"
       
     volumes:
       - grafana_data:/var/lib/grafana
@@ -150,7 +160,7 @@ services:
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health"]
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
