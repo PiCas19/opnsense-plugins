@@ -84,7 +84,7 @@ IP.4 = ::1
 EOF
 
 # Generate self-signed certificate
-echo -e "${YELLOW}📜 Generating self-signed certificate (${CERT_DAYS} days)...${NC}"
+echo -e "${YELLOW} Generating self-signed certificate (${CERT_DAYS} days)...${NC}"
 openssl x509 -req -in "${SSL_DIR}/nginx.csr" \
     -signkey "${SSL_DIR}/nginx.key" \
     -out "${SSL_DIR}/nginx.crt" \
