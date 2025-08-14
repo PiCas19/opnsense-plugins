@@ -1,11 +1,6 @@
 # Usa i profili:
 #   VM LAN: docker compose --profile lan up -d
 #   VM DMZ: docker compose --profile dmz up -d
-#
-# Suggerito:
-#   - Imposta LAN_HOST_IP (es. 192.168.216.50) per legare l'API solo alla LAN.
-#   - Imposta DMZ_HOST_IP (es. 172.16.216.20) per esporre Nginx solo in DMZ.
-#   - NON definire IPAM con la subnet DMZ per evitare conflitti.
 
 services:
   # === LAN PROFILE ===
@@ -23,7 +18,7 @@ services:
       API_PORT: ${PORT:-3000}
       API_HOST: 0.0.0.0
 
-      # Database (coerenti con .env.template)
+      # Database
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -55,7 +50,7 @@ services:
       HELMET_ENABLED: ${HELMET_ENABLED}
       CSRF_ENABLED: ${CSRF_ENABLED}
 
-      # Metrics (se usi /metrics)
+      # Metrics
       METRICS_ENABLED: ${METRICS_ENABLED}
 
     depends_on:
@@ -64,7 +59,6 @@ services:
       redis:
         condition: service_healthy
 
-    # Binda l'API SOLO all'IP LAN della VM (facoltativo: default 0.0.0.0)
     ports:
       - "${LAN_HOST_IP:-0.0.0.0}:3000:3000"
 
@@ -91,7 +85,6 @@ services:
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      # - ./monitoring/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-opnsense} -d ${POSTGRES_DB:-opnsense_mgmt}"]
       interval: 10s
@@ -103,87 +96,99 @@ services:
     image: redis:7-alpine
     container_name: opnsense-redis
     restart: unless-stopped
-    # Usa --requirepass solo se REDIS_PASSWORD è valorizzata
     command: ["sh","-c",'exec redis-server --appendonly yes ${REDIS_PASSWORD:+--requirepass "$REDIS_PASSWORD"}']
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
     healthcheck:
-      # Autentica solo se c'è la password (altrimenti semplice ping)
       test: ["CMD-SHELL", 'redis-cli ${REDIS_PASSWORD:+-a "$REDIS_PASSWORD"} ping | grep PONG']
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 15s
 
-
-  # === DMZ PROFILE ===
+      
+   # === DMZ PROFILE ===
   grafana:
     profiles: ["dmz"]
     image: grafana/grafana:10.2.0
     container_name: opnsense-grafana
     restart: unless-stopped
+    user: "0"  
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_INSTALL_PLUGINS: grafana-clock-panel,marcusolsson-json-datasource
-      # Configurazione per reverse proxy
       GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s/grafana/"
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
-      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health | grep -q ok"]
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 60s  
 
   prometheus:
     profiles: ["dmz"]
     image: prom/prometheus:v2.47.0
     container_name: opnsense-prometheus
     restart: unless-stopped
+    user: "65534:65534" 
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
       - --web.console.libraries=/etc/prometheus/console_libraries
       - --web.console.templates=/etc/prometheus/consoles
       - --storage.tsdb.retention.time=30d
+      - --storage.tsdb.retention.size=10GB  
       - --web.enable-lifecycle
+      - --web.enable-admin-api 
+      - --web.external-url=/prometheus/
+      - --web.route-prefix=/
+      - --log.level=info  
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 60s  
 
   nagios:
     profiles: ["dmz"]
-    build:
-      context: ./monitoring/nagios
-      dockerfile: Dockerfile
+    image: jasonrivers/nagios:latest
     container_name: opnsense-nagios
     restart: unless-stopped
     environment:
       NAGIOS_USER: ${NAGIOS_USER:-nagiosadmin}
-      NAGIOS_PASS: ${NAGIOS_PASS}
+      NAGIOS_PASS: ${NAGIOS_PASS:-nagiosadmin}
+      NAGIOS_TIMEZONE: ${TZ:-UTC}  
     volumes:
-      - nagios_etc:/opt/nagios/etc
       - nagios_var:/opt/nagios/var
-      - ./monitoring/nagios/plugins:/opt/nagios/libexec/custom
-    depends_on:
-      - grafana
+      - ./monitoring/nagios/nagios.cfg:/opt/nagios/etc/nagios.cfg:ro
+      - ./monitoring/nagios/plugins:/opt/nagios/libexec/custom:ro
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/"]
+      test: ["CMD", "curl", "-f", "http://localhost/nagios/"]
       interval: 60s
-      timeout: 10s
+      timeout: 15s
       retries: 3
+      start_period: 120s
+    # ← AGGIUNGI: Dipendenze opzionali invece di hard dependency
+    depends_on:
+      grafana:
+        condition: service_started  
+      prometheus:
+        condition: service_started 
 
   nginx:
     profiles: ["dmz"]
@@ -191,9 +196,12 @@ services:
     container_name: opnsense-nginx
     restart: unless-stopped
     depends_on:
-      - grafana
-      - prometheus
-      - nagios
+      grafana:
+        condition: service_started 
+      prometheus:
+        condition: service_started 
+      nagios:
+        condition: service_started  
     ports:
       - "${DMZ_HOST_IP:-0.0.0.0}:443:443"
       - "${DMZ_HOST_IP:-0.0.0.0}:80:80"
@@ -202,10 +210,12 @@ services:
       - ./monitoring/nginx/ssl:/etc/nginx/ssl:ro
       - ./monitoring/nginx/htpasswd:/etc/nginx/htpasswd:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider --no-check-certificate https://localhost/ || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider --no-check-certificate https://localhost/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 30s 
+
 
 volumes:
   postgres_data:
@@ -215,8 +225,6 @@ volumes:
   grafana_data:
     driver: local
   prometheus_data:
-    driver: local
-  nagios_etc:
     driver: local
   nagios_var:
     driver: local
