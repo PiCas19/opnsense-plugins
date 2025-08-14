@@ -108,7 +108,7 @@ services:
       retries: 5
       start_period: 15s
 
-      
+
    # === DMZ PROFILE ===
   grafana:
     profiles: ["dmz"]
@@ -172,10 +172,10 @@ services:
     environment:
       NAGIOS_USER: ${NAGIOS_USER:-nagiosadmin}
       NAGIOS_PASS: ${NAGIOS_PASS:-nagiosadmin}
-      NAGIOS_TIMEZONE: ${TZ:-UTC}  
+      NAGIOS_TIMEZONE: ${TZ:-UTC}
     volumes:
       - nagios_var:/opt/nagios/var
-      - ./monitoring/nagios/nagios.cfg:/opt/nagios/etc/nagios.cfg:ro
+      # Solo plugin custom (opzionale)
       - ./monitoring/nagios/plugins:/opt/nagios/libexec/custom:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/nagios/"]
@@ -183,12 +183,11 @@ services:
       timeout: 15s
       retries: 3
       start_period: 120s
-    # ← AGGIUNGI: Dipendenze opzionali invece di hard dependency
     depends_on:
       grafana:
-        condition: service_started  
+        condition: service_started
       prometheus:
-        condition: service_started 
+        condition: service_started
 
   nginx:
     profiles: ["dmz"]
