@@ -119,10 +119,14 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      # Configurazione reverse proxy corretta
+      GF_SERVER_DOMAIN: "172.16.216.20"
+      GF_SERVER_ROOT_URL: "https://172.16.216.20/grafana/"  # ← CAMBIATO: URL fisso
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_SERVER_HTTP_PORT: "3000"  # ← AGGIUNTO
+      # Security e plugin
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_INSTALL_PLUGINS: grafana-clock-panel,marcusolsson-json-datasource
-      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s/grafana/"
-      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
     volumes:
@@ -134,8 +138,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 60s  
-
+      start_period: 60s
+      
   prometheus:
     profiles: ["dmz"]
     image: prom/prometheus:v2.47.0
