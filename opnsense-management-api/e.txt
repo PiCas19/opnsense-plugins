@@ -1,175 +1,47 @@
-nsense-management-api  | 2025-08-13 18:13:49 info: Error handling initialized
-opnsense-management-api  | 2025-08-13 18:13:49 info: Starting application initialization...
-opnsense-management-api  | 2025-08-13 18:13:49 info: Testing PostgreSQL connection...
-opnsense-management-api  | 2025-08-13 18:13:49 info: PostgreSQL connection established successfully
-opnsense-management-api  | 2025-08-13 18:13:49 info: PostgreSQL connection test successful
-opnsense-management-api  | 2025-08-13 18:13:49 info: Testing Redis connection...
-opnsense-management-api  | 2025-08-13 18:13:49 info: Redis TCP connection established
-opnsense-management-api  | 2025-08-13 18:13:49 info: Redis ready for operations
-opnsense-management-api  | 2025-08-13 18:13:49 info: Redis connection established successfully
-opnsense-management-api  | 2025-08-13 18:13:49 info: Redis connection test successful
-opnsense-management-api  | 2025-08-13 18:13:49 info: Initializing database...
-opnsense-management-api  | 2025-08-13 18:13:49 info: PostgreSQL connection established successfully
-opnsense-management-api  | 2025-08-13 18:13:49 info: Redis connection established successfully
-opnsense-management-api  | 2025-08-13 18:13:49 info: Database initialized successfully
-opnsense-management-api  | 2025-08-13 18:13:49 info: Initializing monitoring...
-opnsense-management-api  | 2025-08-13 18:13:49 error: Failed to initialize application: {"error":"logger.info is not a function","stack":"TypeError: logger.info is not a function\n    at initializeMonitoring (/app/src/config/monitoring.js:242:10)\n    at initializeApplication (/app/src/app.js:104:11)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)"}
-opnsense-management-api  | 2025-08-13 18:13:49 info: Initiating graceful shutdown...
-opnsense-management-api  | (node:1) Warning: Accessing non-existent property 'info' of module exports inside circular dependency
-opnsense-management-api  | (Use `node --trace-warnings ...` to show where the warning was created)
-opnsense-management-api  | 2025-08-13 18:13:49 warn: Redis connection closed
-opnsense-management-api  | 2025-08-13 18:13:49 info: Redis connection closed
-opnsense-management-api  | 2025-08-13 18:13:49 info: PostgreSQL connection closed
-opnsense-management-api  | 2025-08-13 18:13:49 info: Database connections closed
-opnsense-management-api  | 2025-08-13 18:13:49 info: Additional cleanup completed
-opnsense-management-api  | 2025-08-13 18:13:49 info: Graceful shutdown completed
-opnsense-management-api  | 2025-08-13 18:13:51 info: Error handling initialized
-opnsense-management-api  | 2025-08-13 18:13:51 info: Starting application initialization...
-opnsense-management-api  | 2025-08-13 18:13:51 info: Testing PostgreSQL connection...
-opnsense-management-api  | 2025-08-13 18:13:51 info: PostgreSQL connection established successfully
-opnsense-management-api  | 2025-08-13 18:13:51 info: PostgreSQL connection test successful
-opnsense-management-api  | 2025-08-13 18:13:51 info: Testing Redis connection...
-opnsense-management-api  | 2025-08-13 18:13:51 info: Redis TCP connection established
-opnsense-management-api  | 2025-08-13 18:13:51 info: Redis ready for operations
-opnsense-management-api  | 2025-08-13 18:13:51 info: Redis connection established successfully
-opnsense-management-api  | 2025-08-13 18:13:51 info: Redis connection test successful
-opnsense-management-api  | 2025-08-13 18:13:51 info: Initializing database...
-opnsense-management-api  | 2025-08-13 18:13:51 info: PostgreSQL connection established successfully
-opnsense-management-api  | 2025-08-13 18:13:51 info: Redis connection established successfully
-opnsense-management-api  | 2025-08-13 18:13:51 info: Database initialized successfully
-opnsense-management-api  | 2025-08-13 18:13:51 info: Initializing monitoring...
-opnsense-management-api  | 2025-08-13 18:13:51 error: Failed to initialize application: {"error":"logger.info is not a function","stack":"TypeError: logger.info is not a function\n    at initializeMonitoring (/app/src/config/monitoring.js:242:10)\n    at initializeApplication (/app/src/app.js:104:11)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)"}
-opnsense-management-api  | 2025-08-13 18:13:51 info: Initiating graceful shutdown...
-opnsense-management-api  | (node:1) Warning: Accessing non-existent property 'info' of module exports inside circular dependency
-opnsense-management-api  | (Use `node --trace-warnings ...` to show where the warning was created)
-opnsense-management-api  | 2025-08-13 18:13:51 warn: Redis connection closed
-opnsense-management-api  | 2025-08-13 18:13:51 info: Redis connection closed
-opnsense-management-api  | 2025-08-13 18:13:51 info: PostgreSQL connection closed
-opnsense-management-api  | 2025-08-13 18:13:51 info: Database connections closed
-opnsense-management-api  | 2025-08-13 18:13:51 info: Additional cleanup completed
-opnsense-management-api  | 2025-08-13 18:13:51 info: Graceful shutdown completed
-opnsense-management-api  | 2025-08-13 18:13:53 info: Error handling initialized
-opnsense-management-api  | 2025-08-13 18:13:53 info: Starting application initialization...
-opnsense-management-api  | 2025-08-13 18:13:53 info: Testing PostgreSQL connection...
-opnsense-management-api  | 2025-08-13 18:13:53 info: PostgreSQL connection established successfully
-opnsense-management-api  | 2025-08-13 18:13:53 info: PostgreSQL connection test successful
-opnsense-management-api  | 2025-08-13 18:13:53 info: Testing Redis connection...
-opnsense-management-api  | 2025-08-13 18:13:53 info: Redis TCP connection established
-opnsense-management-api  | 2025-08-13 18:13:53 info: Redis ready for operations
-opnsense-management-api  | 2025-08-13 18:13:53 info: Redis connection established successfully
-opnsense-management-api  | 2025-08-13 18:13:53 info: Redis connection test successful
-opnsense-management-api  | 2025-08-13 18:13:53 info: Initializing database...
-opnsense-management-api  | 2025-08-13 18:13:53 info: PostgreSQL connection established successfully
-opnsense-management-api  | 2025-08-13 18:13:53 info: Redis connection established successfully
-opnsense-management-api  | 2025-08-13 18:13:53 info: Database initialized successfully
-opnsense-management-api  | (node:1) Warning: Accessing non-existent property 'info' of module exports inside circular dependency
-opnsense-management-api  | (Use `node --trace-warnings ...` to show where the warning was created)
-opnsense-management-api  | 2025-08-13 18:13:53 info: Initializing monitoring...
-opnsense-management-api  | 2025-08-13 18:13:53 error: Failed to initialize application: {"error":"logger.info is not a function","stack":"TypeError: logger.info is not a function\n    at initializeMonitoring (/app/src/config/monitoring.js:242:10)\n    at initializeApplication (/app/src/app.js:104:11)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)"}
-opnsense-management-api  | 2025-08-13 18:13:53 info: Initiating graceful shutdown...
-opnsense-management-api  | 2025-08-13 18:13:53 warn: Redis connection closed
-opnsense-management-api  | 2025-08-13 18:13:53 info: Redis connection closed
-opnsense-management-api  | 2025-08-13 18:13:53 info: PostgreSQL connection closed
-opnsense-management-api  | 2025-08-13 18:13:53 info: Database connections closed
-opnsense-management-api  | 2025-08-13 18:13:53 info: Additional cleanup completed
-opnsense-management-api  | 2025-08-13 18:13:53 info: Graceful shutdown completed
-opnsense-management-api  | 2025-08-13 18:13:55 info: Error handling initialized
-opnsense-management-api  | 2025-08-13 18:13:55 info: Starting application initialization...
-opnsense-management-api  | 2025-08-13 18:13:55 info: Testing PostgreSQL connection...
-opnsense-management-api  | 2025-08-13 18:13:55 info: PostgreSQL connection established successfully
-opnsense-management-api  | 2025-08-13 18:13:55 info: PostgreSQL connection test successful
-opnsense-management-api  | 2025-08-13 18:13:55 info: Testing Redis connection...
-opnsense-management-api  | 2025-08-13 18:13:55 info: Redis TCP connection established
-opnsense-management-api  | 2025-08-13 18:13:55 info: Redis ready for operations
-opnsense-management-api  | 2025-08-13 18:13:55 info: Redis connection established successfully
-opnsense-management-api  | 2025-08-13 18:13:55 info: Redis connection test successful
-opnsense-management-api  | 2025-08-13 18:13:55 info: Initializing database...
-opnsense-management-api  | 2025-08-13 18:13:55 info: PostgreSQL connection established successfully
-opnsense-management-api  | 2025-08-13 18:13:55 info: Redis connection established successfully
-opnsense-management-api  | 2025-08-13 18:13:55 info: Database initialized successfully
-opnsense-management-api  | 2025-08-13 18:13:55 info: Initializing monitoring...
-opnsense-management-api  | 2025-08-13 18:13:55 error: Failed to initialize application: {"error":"logger.info is not a function","stack":"TypeError: logger.info is not a function\n    at initializeMonitoring (/app/src/config/monitoring.js:242:10)\n    at initializeApplication (/app/src/app.js:104:11)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)"}
-opnsense-management-api  | 2025-08-13 18:13:55 info: Initiating graceful shutdown...
-opnsense-management-api  | (node:1) Warning: Accessing non-existent property 'info' of module exports inside circular dependency
-opnsense-management-api  | (Use `node --trace-warnings ...` to show where the warning was created)
-opnsense-management-api  | 2025-08-13 18:13:55 warn: Redis connection closed
-opnsense-management-api  | 2025-08-13 18:13:55 info: Redis connection closed
-opnsense-management-api  | 2025-08-13 18:13:55 info: PostgreSQL connection closed
-opnsense-management-api  | 2025-08-13 18:13:55 info: Database connections closed
-opnsense-management-api  | 2025-08-13 18:13:55 info: Additional cleanup completed
-opnsense-management-api  | 2025-08-13 18:13:55 info: Graceful shutdown completed
-opnsense-management-api  | 2025-08-13 18:13:57 info: Error handling initialized
-opnsense-management-api  | 2025-08-13 18:13:57 info: Starting application initialization...
-opnsense-management-api  | 2025-08-13 18:13:57 info: Testing PostgreSQL connection...
-opnsense-management-api  | 2025-08-13 18:13:57 info: PostgreSQL connection established successfully
-opnsense-management-api  | 2025-08-13 18:13:57 info: PostgreSQL connection test successful
-opnsense-management-api  | 2025-08-13 18:13:57 info: Testing Redis connection...
-opnsense-management-api  | 2025-08-13 18:13:57 info: Redis TCP connection established
-opnsense-management-api  | 2025-08-13 18:13:57 info: Redis ready for operations
-opnsense-management-api  | 2025-08-13 18:13:57 info: Redis connection established successfully
-opnsense-management-api  | 2025-08-13 18:13:57 info: Redis connection test successful
-opnsense-management-api  | 2025-08-13 18:13:57 info: Initializing database...
-opnsense-management-api  | 2025-08-13 18:13:57 info: PostgreSQL connection established successfully
-opnsense-management-api  | 2025-08-13 18:13:57 info: Redis connection established successfully
-opnsense-management-api  | 2025-08-13 18:13:57 info: Database initialized successfully
-opnsense-management-api  | 2025-08-13 18:13:57 info: Initializing monitoring...
-opnsense-management-api  | 2025-08-13 18:13:57 error: Failed to initialize application: {"error":"logger.info is not a function","stack":"TypeError: logger.info is not a function\n    at initializeMonitoring (/app/src/config/monitoring.js:242:10)\n    at initializeApplication (/app/src/app.js:104:11)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)"}
-opnsense-management-api  | 2025-08-13 18:13:57 info: Initiating graceful shutdown...
-opnsense-management-api  | (node:1) Warning: Accessing non-existent property 'info' of module exports inside circular dependency
-opnsense-management-api  | (Use `node --trace-warnings ...` to show where the warning was created)
-opnsense-management-api  | 2025-08-13 18:13:57 warn: Redis connection closed
-opnsense-management-api  | 2025-08-13 18:13:57 info: Redis connection closed
-opnsense-management-api  | 2025-08-13 18:13:57 info: PostgreSQL connection closed
-opnsense-management-api  | 2025-08-13 18:13:57 info: Database connections closed
-opnsense-management-api  | 2025-08-13 18:13:57 info: Additional cleanup completed
-opnsense-management-api  | 2025-08-13 18:13:57 info: Graceful shutdown completed
-opnsense-management-api  | 2025-08-13 18:14:01 info: Error handling initialized
-opnsense-management-api  | 2025-08-13 18:14:01 info: Starting application initialization...
-opnsense-management-api  | 2025-08-13 18:14:01 info: Testing PostgreSQL connection...
-opnsense-management-api  | 2025-08-13 18:14:01 info: PostgreSQL connection established successfully
-opnsense-management-api  | 2025-08-13 18:14:01 info: PostgreSQL connection test successful
-opnsense-management-api  | 2025-08-13 18:14:01 info: Testing Redis connection...
-opnsense-management-api  | 2025-08-13 18:14:01 info: Redis TCP connection established
-opnsense-management-api  | 2025-08-13 18:14:01 info: Redis ready for operations
-opnsense-management-api  | 2025-08-13 18:14:01 info: Redis connection established successfully
-opnsense-management-api  | 2025-08-13 18:14:01 info: Redis connection test successful
-opnsense-management-api  | 2025-08-13 18:14:01 info: Initializing database...
-opnsense-management-api  | 2025-08-13 18:14:01 info: PostgreSQL connection established successfully
-opnsense-management-api  | 2025-08-13 18:14:01 info: Redis connection established successfully
-opnsense-management-api  | 2025-08-13 18:14:01 info: Database initialized successfully
-opnsense-management-api  | 2025-08-13 18:14:01 info: Initializing monitoring...
-opnsense-management-api  | 2025-08-13 18:14:01 error: Failed to initialize application: {"error":"logger.info is not a function","stack":"TypeError: logger.info is not a function\n    at initializeMonitoring (/app/src/config/monitoring.js:242:10)\n    at initializeApplication (/app/src/app.js:104:11)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)"}
-opnsense-management-api  | 2025-08-13 18:14:01 info: Initiating graceful shutdown...
-opnsense-management-api  | (node:1) Warning: Accessing non-existent property 'info' of module exports inside circular dependency
-opnsense-management-api  | (Use `node --trace-warnings ...` to show where the warning was created)
-opnsense-management-api  | 2025-08-13 18:14:01 warn: Redis connection closed
-opnsense-management-api  | 2025-08-13 18:14:01 info: Redis connection closed
-opnsense-management-api  | 2025-08-13 18:14:01 info: PostgreSQL connection closed
-opnsense-management-api  | 2025-08-13 18:14:01 info: Database connections closed
-opnsense-management-api  | 2025-08-13 18:14:01 info: Additional cleanup completed
-opnsense-management-api  | 2025-08-13 18:14:01 info: Graceful shutdown completed
-opnsense-management-api  | 2025-08-13 18:14:06 info: Error handling initialized
-opnsense-management-api  | 2025-08-13 18:14:06 info: Starting application initialization...
-opnsense-management-api  | 2025-08-13 18:14:06 info: Testing PostgreSQL connection...
-opnsense-management-api  | 2025-08-13 18:14:06 info: PostgreSQL connection established successfully
-opnsense-management-api  | 2025-08-13 18:14:06 info: PostgreSQL connection test successful
-opnsense-management-api  | 2025-08-13 18:14:06 info: Testing Redis connection...
-opnsense-management-api  | 2025-08-13 18:14:06 info: Redis TCP connection established
-opnsense-management-api  | 2025-08-13 18:14:06 info: Redis ready for operations
-opnsense-management-api  | 2025-08-13 18:14:06 info: Redis connection established successfully
-opnsense-management-api  | 2025-08-13 18:14:06 info: Redis connection test successful
-opnsense-management-api  | 2025-08-13 18:14:06 info: Initializing database...
-opnsense-management-api  | 2025-08-13 18:14:06 info: PostgreSQL connection established successfully
-opnsense-management-api  | 2025-08-13 18:14:06 info: Redis connection established successfully
-opnsense-management-api  | 2025-08-13 18:14:06 info: Database initialized successfully
-opnsense-management-api  | 2025-08-13 18:14:06 info: Initializing monitoring...
-opnsense-management-api  | 2025-08-13 18:14:06 error: Failed to initialize application: {"error":"logger.info is not a function","stack":"TypeError: logger.info is not a function\n    at initializeMonitoring (/app/src/config/monitoring.js:242:10)\n    at initializeApplication (/app/src/app.js:104:11)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)"}
-opnsense-management-api  | 2025-08-13 18:14:06 info: Initiating graceful shutdown...
-opnsense-management-api  | (node:1) Warning: Accessing non-existent property 'info' of module exports inside circular dependency
-opnsense-management-api  | (Use `node --trace-warnings ...` to show where the warning was created)
-opnsense-management-api  | 2025-08-13 18:14:06 warn: Redis connection closed
-opnsense-management-api  | 2025-08-13 18:14:06 info: Redis connection closed
-opnsense-management-api  | 2025-08-13 18:14:06 info: PostgreSQL connection closed
-opnsense-management-api  | 2025-08-13 18:14:06 info: Database connections closed
-opnsense-management-api  | 2025-08-13 18:14:06 info: Additional cleanup completed
-opnsense-management-api  | 2025-08-13 18:14:06 info: Graceful shutdown completed
+Nagios Core 4.5.7
+Copyright (c) 2009-present Nagios Core Development Team and Community Contributors
+Copyright (c) 1999-2009 Ethan Galstad
+Last Modified: 2024-10-24
+License: GPL
+
+Website: https://www.nagios.org
+Error in configuration file '/opt/nagios/etc/nagios.cfg' - Line 8 (NULL value)
+Error: Failed to process config file '/opt/nagios/etc/nagios.cfg'. Aborting
+nagios: Error in configuration file '/opt/nagios/etc/nagios.cfg' - Line 8 (NULL value)
+nagios: Error: Failed to process config file '/opt/nagios/etc/nagios.cfg'. Aborting
+checking permissions for nagios & nagiosgraph
+find: 'nagiosadmin' is not the name of a known user
+nagios: Error in configuration file '/opt/nagios/etc/nagios.cfg' - Line 8 (NULL value)
+
+Nagios Core 4.5.7
+Copyright (c) 2009-present Nagios Core Development Team and Community Contributors
+Copyright (c) 1999-2009 Ethan Galstad
+Last Modified: 2024-10-24
+License: GPL
+
+Website: https://www.nagios.org
+Error in configuration file '/opt/nagios/etc/nagios.cfg' - Line 8 (NULL value)
+Error: Failed to process config file '/opt/nagios/etc/nagios.cfg'. Aborting
+nagios: Error: Failed to process config file '/opt/nagios/etc/nagios.cfg'. Aborting
+checking permissions for nagios & nagiosgraph
+
+
+✔ Downloaded and extracted grafana-clock-panel v2.1.8 zip successfully to /var/lib/grafana/plugins/grafana-clock-panel
+
+Please restart Grafana after installing or removing plugins. Refer to Grafana documentation for instructions if necessary.
+
+Error: ✗ 404: Plugin not found (Grafana v10.2.0 linux-amd64)
+2025/08/14 09:31:19 [emerg] 1#1: host not found in upstream "grafana" in /etc/nginx/nginx.conf:33
+nginx: [emerg] host not found in upstream "grafana" in /etc/nginx/nginx.conf:33
+/docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
+/docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
+10-listen-on-ipv6-by-default.sh: info: IPv6 listen already enabled
+/docker-entrypoint.sh: Sourcing /docker-entrypoint.d/15-local-resolvers.envsh
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/30-tune-worker-processes.sh
+/docker-entrypoint.sh: Configuration complete; ready for start up
+2025/08/14 09:32:19 [warn] 1#1: the "listen ... http2" directive is deprecated, use the "http2" directive instead in /etc/nginx/nginx.conf:10
+nginx: [warn] the "listen ... http2" directive is deprecated, use the "http2" directive instead in /etc/nginx/nginx.conf:10
+2025/08/14 09:32:19 [emerg] 1#1: host not found in upstream "grafana" in /etc/nginx/nginx.conf:33
+nginx: [emerg] host not found in upstream "grafana" in /etc/nginx/nginx.conf:33
