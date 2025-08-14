@@ -8,12 +8,16 @@ datasources:
     url: http://prometheus:9090
     isDefault: true
     editable: true
+    jsonData:
+      httpMethod: POST
+      timeout: 30
 
   - name: OPNsense API (JSON)
-    type: marcusolsson-json-datasource   # deve combaciare con il plugin installato
+    type: marcusolsson-json-datasource
     uid: json-ds
     access: proxy
-    url: http://opnsense-api:3000/api/v1  # IMPORTANTE: includi /api/v1
+    url: http://192.168.216.50:3000/api/v1
     jsonData:
       timeout: 30
+      tlsSkipVerify: true
     editable: true

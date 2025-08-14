@@ -1,21 +1,89 @@
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
+  external_labels:
+    monitor: 'opnsense-monitoring'
+    environment: 'production'
+
+rule_files:
+  # - "alert_rules.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # - alertmanager:9093
 
 scrape_configs:
-  # Prometheus stesso
+  # Prometheus self-monitoring
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
-
-  # API OPNsense (LAN): usa l'IP della VM LAN dove gira l'API
-  - job_name: 'opnsense-api'
+    scrape_interval: 30s
     metrics_path: /metrics
-    scheme: http
-    static_configs:
-      - targets: ['192.168.216.50:3000']   # ← cambia con il tuo IP LAN dell'API
 
-  # (Opzionale) Exporter vari aggiuntivi
+  # OPNsense API monitoring (LAN network)
+  - job_name: 'opnsense-api'
+    static_configs:
+      - targets: ['192.168.216.50:3000']
+    metrics_path: /api/v1/metrics
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    scheme: http
+    params:
+      format: ['prometheus']
+
+  # Grafana monitoring
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['grafana:3000']
+    metrics_path: /metrics
+    scrape_interval: 60s
+    scrape_timeout: 10s
+
+  # Nginx monitoring (se abilitato)
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx:80']
+    metrics_path: /nginx_status
+    scrape_interval: 30s
+    scrape_timeout: 5s
+
+  # PostgreSQL monitoring (se abilitato)
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+    metrics_path: /metrics
+    scrape_interval: 60s
+    scrape_timeout: 10s
+
+  # Redis monitoring (se abilitato)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    metrics_path: /metrics
+    scrape_interval: 60s
+    scrape_timeout: 10s
+
+  # Node Exporter (se aggiunto)
   # - job_name: 'node-exporter'
   #   static_configs:
   #     - targets: ['node-exporter:9100']
+  #   scrape_interval: 30s
+  #   scrape_timeout: 10s
+
+  # Blackbox exporter per monitoraggio endpoint esterni
+  # - job_name: 'blackbox'
+  #   metrics_path: /probe
+  #   params:
+  #     module: [http_2xx]
+  #   static_configs:
+  #     - targets:
+  #       - https://example.com
+  #   relabel_configs:
+  #     - source_labels: [__address__]
+  #       target_label: __param_target
+  #     - source_labels: [__param_target]
+  #       target_label: instance
+  #     - target_label: __address__
+  #       replacement: blackbox-exporter:9115
