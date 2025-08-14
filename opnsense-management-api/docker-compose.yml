@@ -109,7 +109,7 @@ services:
       start_period: 15s
 
 
-   # === DMZ PROFILE ===
+# === DMZ PROFILE ===
   grafana:
     profiles: ["dmz"]
     image: grafana/grafana:10.2.0
@@ -117,28 +117,47 @@ services:
     restart: unless-stopped
     user: "0"  
     environment:
+      # Admin credentials
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
-      # Configurazione reverse proxy corretta
-      GF_SERVER_DOMAIN: "172.16.216.20"
-      GF_SERVER_ROOT_URL: "https://172.16.216.20/grafana/"  # ← CAMBIATO: URL fisso
+      
+      # Server configuration for reverse proxy
+      GF_SERVER_DOMAIN: ${DMZ_HOST_IP:-172.16.216.20}
+      GF_SERVER_ROOT_URL: https://${DMZ_HOST_IP:-172.16.216.20}/grafana/
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
-      GF_SERVER_HTTP_PORT: "3000"  # ← AGGIUNTO
-      # Security e plugin
+      GF_SERVER_HTTP_PORT: "3000"
+      
+      # Security settings
       GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_USERS_ALLOW_ORG_CREATE: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      
+      # Plugins
       GF_INSTALL_PLUGINS: grafana-clock-panel,marcusolsson-json-datasource
+      
+      # Analytics
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      
+      # Security headers
+      GF_SECURITY_COOKIE_SECURE: "true"
+      GF_SECURITY_COOKIE_SAMESITE: "lax"
+      
     volumes:
       - grafana_data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health | grep -q ok"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 60s
+      
+    networks:
+      - monitoring
       
   prometheus:
     profiles: ["dmz"]
@@ -157,16 +176,21 @@ services:
       - --web.enable-admin-api 
       - --web.external-url=/prometheus/
       - --web.route-prefix=/
-      - --log.level=info  
+      - --log.level=info
+      
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
+      
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s  
+      start_period: 60s
+      
+    networks:
+      - monitoring
 
   nagios:
     profiles: ["dmz"]
@@ -174,52 +198,70 @@ services:
     container_name: opnsense-nagios
     restart: unless-stopped
     environment:
+      # Admin credentials
       NAGIOS_USER: ${NAGIOS_USER:-nagiosadmin}
       NAGIOS_PASS: ${NAGIOS_PASS:-nagiosadmin}
       NAGIOS_TIMEZONE: ${TZ:-UTC}
+      
+      # Web configuration
+      NAGIOS_FQDN: ${DMZ_HOST_IP:-172.16.216.20}
+      APACHE_RUN_USER: nagios
+      APACHE_RUN_GROUP: nagios
+      
     volumes:
       - nagios_var:/opt/nagios/var
-      # Solo plugin custom (opzionale)
+      - nagios_etc:/opt/nagios/etc
       - ./monitoring/nagios/plugins:/opt/nagios/libexec/custom:ro
+      
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/nagios/"]
       interval: 60s
       timeout: 15s
       retries: 3
       start_period: 120s
-    depends_on:
-      grafana:
-        condition: service_started
-      prometheus:
-        condition: service_started
+      
+    networks:
+      - monitoring
 
   nginx:
     profiles: ["dmz"]
     image: nginx:alpine
     container_name: opnsense-nginx
     restart: unless-stopped
+    
     depends_on:
       grafana:
-        condition: service_started 
+        condition: service_healthy
       prometheus:
-        condition: service_started 
+        condition: service_healthy
       nagios:
-        condition: service_started  
+        condition: service_started
+        
     ports:
       - "${DMZ_HOST_IP:-0.0.0.0}:443:443"
       - "${DMZ_HOST_IP:-0.0.0.0}:80:80"
+      
     volumes:
       - ./monitoring/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./monitoring/nginx/ssl:/etc/nginx/ssl:ro
       - ./monitoring/nginx/htpasswd:/etc/nginx/htpasswd:ro
+      
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider --no-check-certificate https://localhost/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s 
+      start_period: 30s
+      
+    networks:
+      - monitoring
 
+# Networks
+networks:
+  monitoring:
+    driver: bridge
 
+# Volumes (aggiungi nagios_etc)
 volumes:
   postgres_data:
     driver: local
@@ -230,4 +272,6 @@ volumes:
   prometheus_data:
     driver: local
   nagios_var:
+    driver: local
+  nagios_etc:
     driver: local
