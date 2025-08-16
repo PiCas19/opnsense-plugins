@@ -1,0 +1,44 @@
+apiVersion: 1
+
+datasources:
+  # OPNsense API Wrapper - Database principale
+  - name: OPNsense API
+    type: postgres
+    access: proxy
+    url: ${POSTGRES_HOST:-192.168.216.50}:${POSTGRES_PORT:-5432}
+    database: ${POSTGRES_DB:-opnsense_mgmt}
+    user: ${POSTGRES_USER:-opnsense}
+    secureJsonData:
+      password: ${POSTGRES_PASSWORD}
+    jsonData:
+      sslmode: disable
+      maxOpenConns: 100
+      maxIdleConns: 100
+      maxIdleConnsAuto: true
+      connMaxLifetime: 14400
+      postgresVersion: 1500
+      timescaledb: false
+    isDefault: true
+    editable: false
+
+  # JSON API Datasource per chiamate dirette all'API OPNsense wrapper
+  - name: OPNsense Direct API
+    type: marcusolsson-json-datasource
+    access: proxy
+    url: ${OPNSENSE_API_URL:-http://192.168.216.50:3000}
+    jsonData:
+      # Headers per autenticazione
+      httpHeaderName1: 'Authorization'
+      httpHeaderName2: 'Content-Type'
+    secureJsonData:
+      httpHeaderValue1: 'Bearer ${JWT_TOKEN}'
+      httpHeaderValue2: 'application/json'
+    isDefault: false
+    editable: false
+
+  # TestData per sviluppo e test
+  - name: TestData DB
+    type: testdata
+    access: proxy
+    isDefault: false
+    editable: true
