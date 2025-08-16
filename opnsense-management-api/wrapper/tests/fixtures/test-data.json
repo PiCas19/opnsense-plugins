@@ -1,0 +1,401 @@
+{
+  "users": {
+    "admin": {
+      "id": 1,
+      "username": "admin",
+      "email": "admin@opnsense.local",
+      "password": "$2a$10$example.hash.here",
+      "role": "admin",
+      "active": true,
+      "created_at": "2024-01-01T00:00:00Z",
+      "last_login": "2024-01-15T14:30:00Z",
+      "permissions": ["firewall:read", "firewall:write", "system:read", "system:write"]
+    },
+    "operator": {
+      "id": 2,
+      "username": "operator",
+      "email": "operator@opnsense.local", 
+      "password": "$2a$10$another.hash.here",
+      "role": "operator",
+      "active": true,
+      "created_at": "2024-01-01T00:00:00Z",
+      "last_login": "2024-01-14T09:15:00Z",
+      "permissions": ["firewall:read", "firewall:write"]
+    },
+    "viewer": {
+      "id": 3,
+      "username": "viewer",
+      "email": "viewer@opnsense.local",
+      "password": "$2a$10$readonly.hash.here", 
+      "role": "viewer",
+      "active": true,
+      "created_at": "2024-01-01T00:00:00Z",
+      "last_login": "2024-01-15T10:00:00Z",
+      "permissions": ["firewall:read", "system:read"]
+    },
+    "inactive": {
+      "id": 4,
+      "username": "inactive_user",
+      "email": "inactive@opnsense.local",
+      "password": "$2a$10$inactive.hash.here",
+      "role": "operator", 
+      "active": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "last_login": null,
+      "permissions": []
+    }
+  },
+  "firewall_rules": {
+    "valid_rules": [
+      {
+        "interface": "wan",
+        "action": "pass",
+        "protocol": "tcp",
+        "source": "any",
+        "destination": "192.168.1.10",
+        "destination_port": "80",
+        "description": "Allow HTTP to web server",
+        "enabled": true,
+        "log": false,
+        "quick": true
+      },
+      {
+        "interface": "wan",
+        "action": "pass", 
+        "protocol": "tcp",
+        "source": "any",
+        "destination": "192.168.1.10",
+        "destination_port": "443",
+        "description": "Allow HTTPS to web server",
+        "enabled": true,
+        "log": false,
+        "quick": true
+      },
+      {
+        "interface": "wan",
+        "action": "block",
+        "protocol": "tcp", 
+        "source": "any",
+        "destination": "any",
+        "destination_port": "22",
+        "description": "Block SSH from WAN",
+        "enabled": true,
+        "log": true,
+        "quick": true
+      },
+      {
+        "interface": "lan",
+        "action": "pass",
+        "protocol": "any",
+        "source": "192.168.1.0/24",
+        "destination": "any",
+        "destination_port": "",
+        "description": "Allow LAN to anywhere",
+        "enabled": true,
+        "log": false,
+        "quick": false
+      },
+      {
+        "interface": "dmz",
+        "action": "pass",
+        "protocol": "tcp",
+        "source": "172.16.1.0/24", 
+        "destination": "192.168.1.100",
+        "destination_port": "3000",
+        "description": "DMZ to API server",
+        "enabled": true,
+        "log": true,
+        "quick": true
+      }
+    ],
+    "invalid_rules": [
+      {
+        "interface": "",
+        "action": "pass",
+        "protocol": "tcp",
+        "source": "any",
+        "destination": "192.168.1.10",
+        "description": "Missing interface"
+      },
+      {
+        "interface": "wan",
+        "action": "invalid_action",
+        "protocol": "tcp", 
+        "source": "any",
+        "destination": "192.168.1.10",
+        "description": "Invalid action"
+      },
+      {
+        "interface": "wan",
+        "action": "pass",
+        "protocol": "invalid_protocol",
+        "source": "any",
+        "destination": "192.168.1.10",
+        "description": "Invalid protocol"
+      },
+      {
+        "interface": "wan",
+        "action": "pass",
+        "protocol": "tcp",
+        "source": "invalid.ip.address",
+        "destination": "192.168.1.10",
+        "description": "Invalid source IP"
+      },
+      {
+        "interface": "wan", 
+        "action": "pass",
+        "protocol": "tcp",
+        "source": "any",
+        "destination": "192.168.1.10",
+        "destination_port": "99999",
+        "description": "Invalid port number"
+      }
+    ]
+  },
+  "policies": {
+    "security_policies": [
+      {
+        "id": "policy-001",
+        "name": "Web Server Protection",
+        "description": "Basic protection for web servers",
+        "rules": [
+          {
+            "interface": "wan",
+            "action": "pass", 
+            "protocol": "tcp",
+            "destination_port": "80,443",
+            "description": "Allow HTTP/HTTPS"
+          },
+          {
+            "interface": "wan",
+            "action": "block",
+            "protocol": "tcp",
+            "destination_port": "22",
+            "description": "Block SSH"
+          }
+        ],
+        "enabled": true,
+        "created_at": "2024-01-10T00:00:00Z"
+      },
+      {
+        "id": "policy-002", 
+        "name": "DMZ Access Control",
+        "description": "Control access to DMZ resources",
+        "rules": [
+          {
+            "interface": "dmz",
+            "action": "pass",
+            "protocol": "tcp",
+            "source": "192.168.1.0/24",
+            "destination_port": "80,443,3000",
+            "description": "LAN to DMZ services"
+          },
+          {
+            "interface": "dmz",
+            "action": "block", 
+            "protocol": "any",
+            "source": "any",
+            "destination": "192.168.1.0/24",
+            "description": "Block DMZ to LAN"
+          }
+        ],
+        "enabled": true,
+        "created_at": "2024-01-12T00:00:00Z"
+      }
+    ]
+  },
+  "alerts": {
+    "sample_alerts": [
+      {
+        "id": "alert-001",
+        "type": "security",
+        "severity": "high",
+        "title": "Multiple failed SSH attempts",
+        "description": "More than 10 failed SSH login attempts from IP 1.2.3.4",
+        "source_ip": "1.2.3.4",
+        "rule_id": "ssh-block-rule",
+        "timestamp": "2024-01-15T14:25:00Z",
+        "status": "active",
+        "acknowledged": false
+      },
+      {
+        "id": "alert-002",
+        "type": "performance", 
+        "severity": "medium",
+        "title": "High CPU usage",
+        "description": "CPU usage has been above 80% for 5 minutes",
+        "source_ip": null,
+        "rule_id": null,
+        "timestamp": "2024-01-15T14:20:00Z",
+        "status": "resolved",
+        "acknowledged": true
+      },
+      {
+        "id": "alert-003",
+        "type": "configuration",
+        "severity": "low",
+        "title": "Rule configuration updated",
+        "description": "Firewall rule 'Allow HTTPS' has been modified",
+        "source_ip": null,
+        "rule_id": "https-allow-rule", 
+        "timestamp": "2024-01-15T13:45:00Z",
+        "status": "acknowledged",
+        "acknowledged": true
+      }
+    ]
+  },
+  "audit_logs": {
+    "sample_logs": [
+      {
+        "id": "log-001",
+        "timestamp": "2024-01-15T14:30:00Z",
+        "user_id": 1,
+        "username": "admin",
+        "action": "firewall.rule.create",
+        "resource": "firewall_rule",
+        "resource_id": "new-rule-uuid",
+        "details": {
+          "rule_description": "Allow HTTP to web server",
+          "interface": "wan",
+          "action": "pass"
+        },
+        "ip_address": "192.168.1.50",
+        "user_agent": "Mozilla/5.0...",
+        "success": true
+      },
+      {
+        "id": "log-002",
+        "timestamp": "2024-01-15T14:25:00Z", 
+        "user_id": 2,
+        "username": "operator",
+        "action": "firewall.rule.update",
+        "resource": "firewall_rule",
+        "resource_id": "existing-rule-uuid",
+        "details": {
+          "changed_fields": ["description", "destination_port"],
+          "old_values": {"description": "Old desc", "destination_port": "80"},
+          "new_values": {"description": "New desc", "destination_port": "8080"}
+        },
+        "ip_address": "192.168.1.51",
+        "user_agent": "curl/7.68.0",
+        "success": true
+      },
+      {
+        "id": "log-003",
+        "timestamp": "2024-01-15T14:20:00Z",
+        "user_id": 3,
+        "username": "viewer",
+        "action": "firewall.rule.delete",
+        "resource": "firewall_rule", 
+        "resource_id": "some-rule-uuid",
+        "details": {
+          "attempted_action": "delete"
+        },
+        "ip_address": "192.168.1.52",
+        "user_agent": "PostmanRuntime/7.28.4",
+        "success": false,
+        "error": "Insufficient permissions"
+      }
+    ]
+  },
+  "api_endpoints": {
+    "test_endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/v1/health",
+        "expected_status": 200,
+        "auth_required": false
+      },
+      {
+        "method": "GET", 
+        "path": "/api/v1/firewall/rules",
+        "expected_status": 200,
+        "auth_required": true,
+        "required_permission": "firewall:read"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/firewall/rules", 
+        "expected_status": 201,
+        "auth_required": true,
+        "required_permission": "firewall:write"
+      },
+      {
+        "method": "PUT",
+        "path": "/api/v1/firewall/rules/{id}",
+        "expected_status": 200,
+        "auth_required": true,
+        "required_permission": "firewall:write"
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/v1/firewall/rules/{id}",
+        "expected_status": 200,
+        "auth_required": true,
+        "required_permission": "firewall:write"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/firewall/apply",
+        "expected_status": 200,
+        "auth_required": true,
+        "required_permission": "firewall:write"
+      }
+    ]
+  },
+  "test_scenarios": {
+    "rate_limiting": {
+      "api_endpoint": "/api/v1/firewall/rules",
+      "max_requests_per_minute": 60,
+      "burst_size": 20,
+      "test_requests": 100
+    },
+    "authentication": {
+      "valid_credentials": {
+        "username": "admin",
+        "password": "admin123"
+      },
+      "invalid_credentials": [
+        {"username": "admin", "password": "wrong"},
+        {"username": "nonexistent", "password": "password"},
+        {"username": "", "password": ""},
+        {"username": "admin", "password": ""}
+      ]
+    },
+    "input_validation": {
+      "sql_injection_attempts": [
+        "'; DROP TABLE users; --",
+        "' OR '1'='1",
+        "admin'--", 
+        "admin' OR 1=1#"
+      ],
+      "xss_attempts": [
+        "<script>alert('xss')</script>",
+        "javascript:alert('xss')",
+        "<img src=x onerror=alert('xss')>",
+        "'><script>alert('xss')</script>"
+      ],
+      "oversized_payloads": {
+        "max_rule_description_length": 255,
+        "max_json_payload_size": "1MB"
+      }
+    }
+  },
+  "database": {
+    "test_connection_strings": {
+      "postgres": "postgresql://test_user:test_pass@localhost:5433/test_opnsense_mgmt",
+      "redis": "redis://localhost:6380"
+    },
+    "migration_test_data": {
+      "initial_schema_version": "001",
+      "target_schema_version": "005",
+      "test_migrations": [
+        "001_create_users_table",
+        "002_create_firewall_rules_table", 
+        "003_create_audit_logs_table",
+        "004_create_alerts_table",
+        "005_add_indexes"
+      ]
+    }
+  }
+}

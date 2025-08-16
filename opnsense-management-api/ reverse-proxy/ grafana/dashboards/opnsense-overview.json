@@ -1,0 +1,814 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Dashboard overview generale per OPNsense - Sistema, regole, performance",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": true,
+      "title": "Firewall Rules Management",
+      "tooltip": "",
+      "type": "link",
+      "url": "/d/firewall-rules-mgmt"
+    },
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": true,
+      "title": "API Monitoring",
+      "tooltip": "",
+      "type": "link",
+      "url": "/d/api-monitoring"
+    }
+  ],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "panels": [],
+      "title": "System Status",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "opnsense_api"
+      },
+      "description": "Stato generale del sistema OPNsense",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "red",
+                  "index": 0,
+                  "text": "Offline"
+                },
+                "1": {
+                  "color": "green",
+                  "index": 1,
+                  "text": "Online"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "opnsense_api"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT \n    CASE \n        WHEN COUNT(*) > 0 AND MAX(last_check) > NOW() - INTERVAL '5 minutes' THEN 1\n        ELSE 0\n    END as status\nFROM (\n    SELECT MAX(created_at) as last_check\n    FROM audit_logs\n    WHERE resource LIKE '%health%' OR action = 'health_check'\n) t",
+          "refId": "A"
+        }
+      ],
+      "title": "OPNsense Status",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "opnsense_api"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "opnsense_api"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) as total_rules FROM firewall_rules",
+          "refId": "A"
+        }
+      ],
+      "title": "Total Firewall Rules",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "opnsense_api"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "opnsense_api"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) as active_rules FROM firewall_rules WHERE enabled = true",
+          "refId": "A"
+        }
+      ],
+      "title": "Active Rules",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "opnsense_api"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 10
+              },
+              {
+                "color": "red",
+                "value": 50
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "opnsense_api"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) as recent_changes \nFROM audit_logs \nWHERE timestamp >= NOW() - INTERVAL '24 hours' \n    AND (resource LIKE '%firewall%' OR resource LIKE '%rule%')",
+          "refId": "A"
+        }
+      ],
+      "title": "Changes (24h)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 6,
+      "panels": [],
+      "title": "Firewall Rules Overview",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "opnsense_api"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "vis": false
+            }
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 6
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "opnsense_api"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT \n    interface,\n    COUNT(*) as rule_count\nFROM firewall_rules \nWHERE enabled = true\nGROUP BY interface\nORDER BY rule_count DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Rules by Interface",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "opnsense_api"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "vis": false
+            }
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 6
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "opnsense_api"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT \n    action,\n    COUNT(*) as rule_count\nFROM firewall_rules \nWHERE enabled = true\nGROUP BY action\nORDER BY rule_count DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Rules by Action",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "opnsense_api"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "vis": false
+            }
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 6
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "opnsense_api"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT \n    ip_protocol,\n    COUNT(*) as rule_count\nFROM firewall_rules \nWHERE enabled = true\nGROUP BY ip_protocol\nORDER BY rule_count DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Rules by Protocol",
+      "type": "piechart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "id": 10,
+      "panels": [],
+      "title": "Recent Activity",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "opnsense_api"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "action"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "create": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "delete": {
+                        "color": "red",
+                        "index": 2
+                      },
+                      "update": {
+                        "color": "yellow",
+                        "index": 1
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 15
+      },
+      "id": 11,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "timestamp"
+          }
+        ]
+      },
+      "pluginVersion": "10.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "opnsense_api"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT \n    al.timestamp,\n    al.action,\n    al.resource,\n    al.details::json->>'description' as description,\n    u.username\nFROM audit_logs al\nLEFT JOIN users u ON al.user_id = u.user_id\nWHERE al.resource LIKE '%firewall%' OR al.resource LIKE '%rule%'\nORDER BY al.timestamp DESC\nLIMIT 15",
+          "refId": "A"
+        }
+      ],
+      "title": "Recent Firewall Changes",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "action": "Action",
+              "description": "Description",
+              "resource": "Resource",
+              "timestamp": "Time",
+              "username": "User"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "opnsense_api"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "vis": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 15
+      },
+      "id": 12,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "opnsense_api"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT \n    date_trunc('hour', al.timestamp) as time,\n    al.action,\n    COUNT(*) as count\nFROM audit_logs al\nWHERE al.timestamp >= NOW() - INTERVAL '24 hours'\n    AND (al.resource LIKE '%firewall%' OR al.resource LIKE '%rule%')\nGROUP BY date_trunc('hour', al.timestamp), al.action\nORDER BY time",
+          "refId": "A"
+        }
+      ],
+      "title": "Activity Timeline (24h)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
+      "id": 13,
+      "panels": [],
+      "title": "Quick Actions",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "testdata",
+        "uid": "testdata"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "id": 14,
+      "options": {
+        "content": "# OPNsense Management Center\n\n<div style=\"display: flex; gap: 20px; justify-content: center; align-items: center; padding: 20px;\">\n\n  <div style=\"text-align: center;\">\n    <a href=\"/d/firewall-rules-mgmt\" style=\"display: inline-block; background-color: #28a745; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);\">\n      🛡️ Manage Firewall Rules\n    </a>\n    <p style=\"margin-top: 10px; color: #666;\">Attiva/Disattiva regole del firewall</p>\n  </div>\n\n  <div style=\"text-align: center;\">\n    <a href=\"/d/api-monitoring\" style=\"display: inline-block; background-color: #007bff; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);\">\n      📊 API Monitoring\n    </a>\n    <p style=\"margin-top: 10px; color: #666;\">Monitora performance e errori API</p>\n  </div>\n\n  <div style=\"text-align: center;\">\n    <button onclick=\"window.open('/api/v1/health', '_blank')\" style=\"background-color: #17a2b8; color: white; padding: 15px 30px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2);\">\n      ❤️ Health Check\n    </button>\n    <p style=\"margin-top: 10px; color: #666;\">Verifica stato del sistema</p>\n  </div>\n\n  <div style=\"text-align: center;\">\n    <button onclick=\"backupConfiguration()\" style=\"background-color: #6c757d; color: white; padding: 15px 30px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2);\">\n      💾 Backup Config\n    </button>\n    <p style=\"margin-top: 10px; color: #666;\">Scarica backup configurazione</p>\n  </div>\n\n</div>\n\n<div style=\"margin-top: 30px; padding: 20px; background-color: rgba(0,0,0,0.1); border-radius: 8px;\">\n  <h3 style=\"margin-top: 0;\">📈 System Summary</h3>\n  <div style=\"display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;\">\n    <div style=\"background-color: rgba(40, 167, 69, 0.1); padding: 15px; border-radius: 6px; border-left: 4px solid #28a745;\">\n      <strong>Sistema:</strong> Online ✅\n    </div>\n    <div style=\"background-color: rgba(0, 123, 255, 0.1); padding: 15px; border-radius: 6px; border-left: 4px solid #007bff;\">\n      <strong>API:</strong> Responsive 🚀\n    </div>\n    <div style=\"background-color: rgba(255, 193, 7, 0.1); padding: 15px; border-radius: 6px; border-left: 4px solid #ffc107;\">\n      <strong>Monitoring:</strong> Active 📊\n    </div>\n    <div style=\"background-color: rgba(108, 117, 125, 0.1); padding: 15px; border-radius: 6px; border-left: 4px solid #6c757d;\">\n      <strong>Last Backup:</strong> Auto 💾\n    </div>\n  </div>\n</div>\n\n<script>\nfunction backupConfiguration() {\n    fetch('/api/v1/config/backup', {\n        method: 'GET',\n        headers: {\n            'Authorization': 'Bearer ' + localStorage.getItem('jwt_token')\n        }\n    })\n    .then(response => {\n        if (response.ok) {\n            return response.blob();\n        }\n        throw new Error('Backup failed');\n    })\n    .then(blob => {\n        const url = window.URL.createObjectURL(blob);\n        const a = document.createElement('a');\n        a.style.display = 'none';\n        a.href = url;\n        a.download = 'opnsense_config_backup_' + new Date().toISOString().split('T')[0] + '.xml';\n        document.body.appendChild(a);\n        a.click();\n        window.URL.revokeObjectURL(url);\n        alert('✅ Backup scaricato con successo!');\n    })\n    .catch(error => {\n        console.error('Error:', error);\n        alert('❌ Errore durante il backup: ' + error.message);\n    });\n}\n</script>",
+        "mode": "html"
+      },
+      "pluginVersion": "10.2.0",
+      "title": "Management Dashboard",
+      "type": "text"
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": [
+    "opnsense",
+    "overview",
+    "firewall",
+    "system"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "OPNsense Overview",
+  "uid": "opnsense-overview",
+  "version": 1,
+  "weekStart": ""
+}

@@ -1,0 +1,624 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Dashboard per gestire le regole del firewall OPNsense - Attiva/Disattiva regole",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "panels": [],
+      "title": "Controllo Regole Firewall",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "opnsense_api"
+      },
+      "description": "Lista di tutte le regole del firewall con possibilità di attivazione/disattivazione",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [
+            {
+              "options": {
+                "true": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "Attiva"
+                },
+                "false": {
+                  "color": "red",
+                  "index": 1,
+                  "text": "Disattiva"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "enabled"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "button",
+                  "onClick": {
+                    "url": "/api/v1/firewall/rules/${__data.fields.rule_id}/toggle",
+                    "method": "POST"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "actions"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "button-group",
+                  "buttons": [
+                    {
+                      "text": "Modifica",
+                      "color": "primary",
+                      "onClick": {
+                        "url": "/api/v1/firewall/rules/${__data.fields.rule_id}",
+                        "method": "GET"
+                      }
+                    },
+                    {
+                      "text": "Elimina",
+                      "color": "destructive",
+                      "onClick": {
+                        "url": "/api/v1/firewall/rules/${__data.fields.rule_id}",
+                        "method": "DELETE",
+                        "confirm": true,
+                        "confirmText": "Sei sicuro di voler eliminare questa regola?"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 1
+      },
+      "id": 2,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "sequence"
+          }
+        ]
+      },
+      "pluginVersion": "10.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "opnsense_api"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT \n    r.rule_id,\n    r.interface,\n    r.direction,\n    r.ip_protocol,\n    r.action,\n    r.source_address,\n    r.source_port,\n    r.destination_address,\n    r.destination_port,\n    r.description,\n    r.enabled,\n    r.sequence,\n    r.created_at,\n    r.updated_at\nFROM firewall_rules r\nORDER BY r.sequence ASC, r.created_at DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Regole Firewall",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "created_at": true,
+              "updated_at": true
+            },
+            "indexByName": {
+              "rule_id": 0,
+              "sequence": 1,
+              "interface": 2,
+              "direction": 3,
+              "action": 4,
+              "source_address": 5,
+              "source_port": 6,
+              "destination_address": 7,
+              "destination_port": 8,
+              "ip_protocol": 9,
+              "enabled": 10,
+              "description": 11
+            },
+            "renameByName": {
+              "action": "Azione",
+              "description": "Descrizione",
+              "destination_address": "Dest. IP",
+              "destination_port": "Dest. Porta",
+              "direction": "Direzione",
+              "enabled": "Stato",
+              "interface": "Interfaccia",
+              "ip_protocol": "Protocollo",
+              "rule_id": "ID",
+              "sequence": "Seq",
+              "source_address": "Orig. IP",
+              "source_port": "Orig. Porta"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 13
+      },
+      "id": 3,
+      "panels": [],
+      "title": "Statistiche e Monitoraggio",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "opnsense_api"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 14
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "opnsense_api"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) as total_rules FROM firewall_rules",
+          "refId": "A"
+        }
+      ],
+      "title": "Totale Regole",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "opnsense_api"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 14
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "opnsense_api"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) as active_rules FROM firewall_rules WHERE enabled = true",
+          "refId": "A"
+        }
+      ],
+      "title": "Regole Attive",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "opnsense_api"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 14
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "opnsense_api"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) as disabled_rules FROM firewall_rules WHERE enabled = false",
+          "refId": "A"
+        }
+      ],
+      "title": "Regole Disattive",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "opnsense_api"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "vis": false
+            }
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 14
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "opnsense_api"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT \n    action as \"Action\",\n    COUNT(*) as \"Count\"\nFROM firewall_rules \nWHERE enabled = true\nGROUP BY action\nORDER BY COUNT(*) DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Distribuzione Azioni",
+      "type": "piechart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "id": 8,
+      "panels": [],
+      "title": "Gestione Rapida",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "testdata",
+        "uid": "testdata"
+      },
+      "description": "Pannello per azioni rapide sulle regole del firewall",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 21
+      },
+      "id": 9,
+      "options": {
+        "content": "# Azioni Rapide Firewall\n\n## Operazioni Bulk\n\n<button onclick=\"toggleAllRules(true)\" style=\"background-color: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 4px; margin: 5px; cursor: pointer;\">✅ Attiva Tutte le Regole</button>\n\n<button onclick=\"toggleAllRules(false)\" style=\"background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 4px; margin: 5px; cursor: pointer;\">❌ Disattiva Tutte le Regole</button>\n\n<button onclick=\"reloadFirewallRules()\" style=\"background-color: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; margin: 5px; cursor: pointer;\">🔄 Ricarica Regole</button>\n\n<button onclick=\"backupRules()\" style=\"background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 4px; margin: 5px; cursor: pointer;\">💾 Backup Regole</button>\n\n## Filtri Rapidi\n\n<select id=\"interfaceFilter\" onchange=\"filterRules()\" style=\"padding: 8px; margin: 5px; border: 1px solid #ccc; border-radius: 4px;\">\n  <option value=\"\">Tutte le Interfacce</option>\n  <option value=\"wan\">WAN</option>\n  <option value=\"lan\">LAN</option>\n  <option value=\"opt1\">OPT1</option>\n  <option value=\"opt2\">OPT2</option>\n</select>\n\n<select id=\"actionFilter\" onchange=\"filterRules()\" style=\"padding: 8px; margin: 5px; border: 1px solid #ccc; border-radius: 4px;\">\n  <option value=\"\">Tutte le Azioni</option>\n  <option value=\"pass\">PASS</option>\n  <option value=\"block\">BLOCK</option>\n  <option value=\"reject\">REJECT</option>\n</select>\n\n<select id=\"statusFilter\" onchange=\"filterRules()\" style=\"padding: 8px; margin: 5px; border: 1px solid #ccc; border-radius: 4px;\">\n  <option value=\"\">Tutti gli Stati</option>\n  <option value=\"enabled\">Solo Attive</option>\n  <option value=\"disabled\">Solo Disattive</option>\n</select>\n\n<script>\nfunction toggleAllRules(enable) {\n    const action = enable ? 'enable' : 'disable';\n    fetch('/api/v1/firewall/rules/bulk/' + action, {\n        method: 'POST',\n        headers: {\n            'Content-Type': 'application/json',\n            'Authorization': 'Bearer ' + localStorage.getItem('jwt_token')\n        }\n    })\n    .then(response => response.json())\n    .then(data => {\n        alert(action.toUpperCase() + ' completed: ' + data.message);\n        location.reload();\n    })\n    .catch(error => {\n        console.error('Error:', error);\n        alert('Errore durante l\\'operazione');\n    });\n}\n\nfunction reloadFirewallRules() {\n    fetch('/api/v1/firewall/reload', {\n        method: 'POST',\n        headers: {\n            'Content-Type': 'application/json',\n            'Authorization': 'Bearer ' + localStorage.getItem('jwt_token')\n        }\n    })\n    .then(response => response.json())\n    .then(data => {\n        alert('Regole ricaricate: ' + data.message);\n    })\n    .catch(error => {\n        console.error('Error:', error);\n        alert('Errore durante il reload');\n    });\n}\n\nfunction backupRules() {\n    fetch('/api/v1/firewall/backup', {\n        method: 'GET',\n        headers: {\n            'Authorization': 'Bearer ' + localStorage.getItem('jwt_token')\n        }\n    })\n    .then(response => response.blob())\n    .then(blob => {\n        const url = window.URL.createObjectURL(blob);\n        const a = document.createElement('a');\n        a.style.display = 'none';\n        a.href = url;\n        a.download = 'firewall_rules_backup_' + new Date().toISOString().split('T')[0] + '.json';\n        document.body.appendChild(a);\n        a.click();\n        window.URL.revokeObjectURL(url);\n        alert('Backup scaricato con successo');\n    })\n    .catch(error => {\n        console.error('Error:', error);\n        alert('Errore durante il backup');\n    });\n}\n\nfunction filterRules() {\n    const interface_filter = document.getElementById('interfaceFilter').value;\n    const action_filter = document.getElementById('actionFilter').value;\n    const status_filter = document.getElementById('statusFilter').value;\n    \n    // Implementa il filtro tramite query parameters o aggiorna la tabella\n    const params = new URLSearchParams();\n    if (interface_filter) params.append('interface', interface_filter);\n    if (action_filter) params.append('action', action_filter);\n    if (status_filter) params.append('enabled', status_filter === 'enabled');\n    \n    // Ricarica il pannello con i filtri applicati\n    console.log('Applying filters:', params.toString());\n}\n</script>",
+        "mode": "html"
+      },
+      "pluginVersion": "10.2.0",
+      "title": "Controlli Rapidi",
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "opnsense_api"
+      },
+      "description": "Log delle ultime modifiche alle regole del firewall",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 21
+      },
+      "id": 10,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "timestamp"
+          }
+        ]
+      },
+      "pluginVersion": "10.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "opnsense_api"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT \n    al.timestamp,\n    al.user_id,\n    al.action,\n    al.resource,\n    al.details,\n    al.ip_address\nFROM audit_logs al\nWHERE al.resource LIKE '%firewall%' OR al.resource LIKE '%rule%'\nORDER BY al.timestamp DESC\nLIMIT 20",
+          "refId": "A"
+        }
+      ],
+      "title": "Log Audit Recenti",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "action": "Azione",
+              "details": "Dettagli",
+              "ip_address": "IP",
+              "resource": "Risorsa",
+              "timestamp": "Data/Ora",
+              "user_id": "Utente"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": [
+    "opnsense",
+    "firewall",
+    "security"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "OPNsense Firewall Rules Management",
+  "uid": "firewall-rules-mgmt",
+  "version": 1,
+  "weekStart": ""
+}

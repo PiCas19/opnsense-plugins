@@ -1,0 +1,351 @@
+{
+  "firewall": {
+    "getRule": {
+      "success": {
+        "rows": [
+          {
+            "uuid": "12345678-1234-1234-1234-123456789abc",
+            "enabled": "1",
+            "sequence": "1",
+            "action": "pass",
+            "quick": "1",
+            "interface": "wan",
+            "direction": "in",
+            "ipprotocol": "inet",
+            "protocol": "tcp",
+            "source_net": "any",
+            "source_port": "",
+            "destination_net": "192.168.1.10",
+            "destination_port": "80",
+            "gateway": "",
+            "log": "0",
+            "description": "Allow HTTP to web server",
+            "created": {
+              "time": "2024-01-15 10:30:00",
+              "username": "admin"
+            },
+            "updated": {
+              "time": "2024-01-15 10:30:00", 
+              "username": "admin"
+            }
+          },
+          {
+            "uuid": "87654321-4321-4321-4321-cba987654321",
+            "enabled": "1",
+            "sequence": "2",
+            "action": "block",
+            "quick": "1",
+            "interface": "wan",
+            "direction": "in",
+            "ipprotocol": "inet",
+            "protocol": "tcp",
+            "source_net": "any",
+            "source_port": "",
+            "destination_net": "any",
+            "destination_port": "22",
+            "gateway": "",
+            "log": "1",
+            "description": "Block SSH from WAN",
+            "created": {
+              "time": "2024-01-15 11:15:00",
+              "username": "admin"
+            },
+            "updated": {
+              "time": "2024-01-15 11:15:00",
+              "username": "admin"
+            }
+          }
+        ],
+        "rowCount": 2,
+        "total": 2,
+        "current": 1
+      },
+      "empty": {
+        "rows": [],
+        "rowCount": 0,
+        "total": 0,
+        "current": 1
+      },
+      "error": {
+        "status": "failed",
+        "message": "Authentication failed"
+      }
+    },
+    "addRule": {
+      "success": {
+        "result": "saved",
+        "uuid": "new-rule-uuid-1234-5678-9abc-def123456789",
+        "validations": {}
+      },
+      "validation_error": {
+        "result": "failed",
+        "validations": {
+          "rule.interface": "Interface is required",
+          "rule.action": "Action must be 'pass' or 'block'"
+        }
+      },
+      "error": {
+        "result": "failed",
+        "message": "Unable to create rule"
+      }
+    },
+    "setRule": {
+      "success": {
+        "result": "saved",
+        "validations": {}
+      },
+      "not_found": {
+        "result": "failed",
+        "message": "Rule not found"
+      },
+      "validation_error": {
+        "result": "failed",
+        "validations": {
+          "rule.destination_port": "Invalid port range"
+        }
+      }
+    },
+    "delRule": {
+      "success": {
+        "result": "deleted"
+      },
+      "not_found": {
+        "result": "failed", 
+        "message": "Rule not found"
+      },
+      "error": {
+        "result": "failed",
+        "message": "Cannot delete rule"
+      }
+    },
+    "apply": {
+      "success": {
+        "status": "ok"
+      },
+      "pending": {
+        "status": "pending",
+        "message": "Configuration changes are being applied"
+      },
+      "error": {
+        "status": "failed",
+        "message": "Failed to apply configuration"
+      }
+    },
+    "searchRule": {
+      "success": {
+        "rows": [
+          {
+            "uuid": "search-result-1234",
+            "enabled": "1",
+            "action": "pass",
+            "interface": "lan",
+            "protocol": "tcp",
+            "source_net": "192.168.1.0/24",
+            "destination_net": "any",
+            "destination_port": "443",
+            "description": "Allow HTTPS from LAN"
+          }
+        ],
+        "rowCount": 1,
+        "total": 1
+      }
+    }
+  },
+  "interfaces": {
+    "get": {
+      "success": {
+        "wan": {
+          "enable": "1",
+          "if": "em0",
+          "descr": "WAN",
+          "type": "dhcp",
+          "ipaddr": "192.168.100.50",
+          "subnet": "24",
+          "gateway": "192.168.100.1"
+        },
+        "lan": {
+          "enable": "1", 
+          "if": "em1",
+          "descr": "LAN",
+          "type": "static",
+          "ipaddr": "192.168.1.1",
+          "subnet": "24"
+        },
+        "opt1": {
+          "enable": "1",
+          "if": "em2", 
+          "descr": "DMZ",
+          "type": "static",
+          "ipaddr": "172.16.1.1",
+          "subnet": "24"
+        }
+      }
+    }
+  },
+  "diagnostics": {
+    "activity": {
+      "success": {
+        "logs": [
+          {
+            "timestamp": "2024-01-15T14:30:15Z",
+            "interface": "wan",
+            "action": "block",
+            "protocol": "tcp",
+            "src": "1.2.3.4:12345",
+            "dst": "192.168.1.10:22",
+            "rule": "2"
+          },
+          {
+            "timestamp": "2024-01-15T14:29:45Z",
+            "interface": "lan",
+            "action": "pass",
+            "protocol": "tcp",
+            "src": "192.168.1.50:54321",
+            "dst": "8.8.8.8:53",
+            "rule": "default"
+          }
+        ]
+      }
+    },
+    "system_health": {
+      "success": {
+        "cpu_usage": 15.2,
+        "memory_usage": 45.8,
+        "disk_usage": 23.1,
+        "uptime": 259200,
+        "load_average": [0.45, 0.52, 0.48],
+        "temperature": 42.5,
+        "interfaces": {
+          "wan": {
+            "status": "up",
+            "speed": "1000baseT",
+            "duplex": "full"
+          },
+          "lan": {
+            "status": "up", 
+            "speed": "1000baseT",
+            "duplex": "full"
+          }
+        }
+      }
+    }
+  },
+  "services": {
+    "status": {
+      "success": {
+        "services": [
+          {
+            "name": "sshd",
+            "description": "Secure Shell Daemon",
+            "status": "running",
+            "pid": 1234
+          },
+          {
+            "name": "nginx", 
+            "description": "Web Server",
+            "status": "running",
+            "pid": 5678
+          },
+          {
+            "name": "openvpn",
+            "description": "OpenVPN Server",
+            "status": "stopped",
+            "pid": null
+          }
+        ]
+      }
+    }
+  },
+  "system": {
+    "firmware": {
+      "success": {
+        "product_name": "OPNsense",
+        "product_version": "23.7.1",
+        "product_arch": "amd64",
+        "kernel_pti": "disabled",
+        "has_updates": false,
+        "upgrade_packages": []
+      }
+    },
+    "info": {
+      "success": {
+        "hostname": "opnsense.local",
+        "domain": "local",
+        "timezone": "Europe/Rome",
+        "timeservers": "pool.ntp.org",
+        "language": "en_US",
+        "dns_servers": ["8.8.8.8", "8.8.4.4"]
+      }
+    }
+  },
+  "auth": {
+    "login": {
+      "success": {
+        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+        "refresh_token": "refresh_token_example_1234567890",
+        "expires_in": 3600,
+        "user": {
+          "id": 1,
+          "username": "admin",
+          "email": "admin@opnsense.local",
+          "role": "admin",
+          "last_login": "2024-01-15T14:30:00Z"
+        }
+      },
+      "invalid_credentials": {
+        "error": "Invalid username or password",
+        "code": "AUTH_FAILED"
+      },
+      "account_locked": {
+        "error": "Account temporarily locked due to failed login attempts",
+        "code": "ACCOUNT_LOCKED",
+        "retry_after": 300
+      }
+    },
+    "refresh": {
+      "success": {
+        "token": "new_jwt_token_here",
+        "expires_in": 3600
+      },
+      "invalid_token": {
+        "error": "Invalid or expired refresh token",
+        "code": "INVALID_REFRESH_TOKEN"
+      }
+    }
+  },
+  "errors": {
+    "network_timeout": {
+      "code": "ECONNABORTED",
+      "message": "timeout of 30000ms exceeded"
+    },
+    "connection_refused": {
+      "code": "ECONNREFUSED", 
+      "message": "connect ECONNREFUSED 192.168.1.1:443"
+    },
+    "ssl_error": {
+      "code": "DEPTH_ZERO_SELF_SIGNED_CERT",
+      "message": "self signed certificate"
+    },
+    "rate_limit": {
+      "status": 429,
+      "message": "Too Many Requests",
+      "retry_after": 60
+    },
+    "server_error": {
+      "status": 500,
+      "message": "Internal Server Error"
+    },
+    "not_found": {
+      "status": 404,
+      "message": "Endpoint not found"
+    },
+    "unauthorized": {
+      "status": 401,
+      "message": "Unauthorized access"
+    },
+    "forbidden": {
+      "status": 403,
+      "message": "Access denied"
+    }
+  }
+}
