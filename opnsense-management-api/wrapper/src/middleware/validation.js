@@ -386,33 +386,19 @@ const validateZod = (schema, source = 'body') => {
     const parsed = schema.safeParse(data);
 
     if (!parsed.success) {
-      // FIXED: Robust error handling for validation issues
-      let issues = [];
+      // Safely handle the error structure
+      const issues = parsed.error?.issues || parsed.error?.errors || [{
+        path: [],
+        message: parsed.error?.message || 'Validation failed',
+      }];
       
-      if (parsed.error && parsed.error.issues && Array.isArray(parsed.error.issues)) {
-        issues = parsed.error.issues;
-      } else if (parsed.error && parsed.error.errors && Array.isArray(parsed.error.errors)) {
-        // Fallback for other error formats
-        issues = parsed.error.errors;
-      } else {
-        // Generic fallback for unknown error structures
-        issues = [{
-          path: [],
-          message: parsed.error?.message || 'Validation failed'
-        }];
-      }
-
-      // FIXED: Safe handling of issues array to prevent .map() errors
-      const safeIssues = Array.isArray(issues) ? issues : [];
-      
-      // Create structured validation error
       const validationError = new ValidationError('Validation failed', {
-        validation_errors: safeIssues.length > 0 ? safeIssues.map((i) => ({
+        validation_errors: Array.isArray(issues) ? issues.map((i) => ({
           field: Array.isArray(i.path) ? i.path.join('.') : String(i.path || ''),
           message: i.message || 'Validation error',
         })) : [{
           field: 'general',
-          message: 'Validation failed'
+          message: 'Validation failed',
         }],
       });
 
