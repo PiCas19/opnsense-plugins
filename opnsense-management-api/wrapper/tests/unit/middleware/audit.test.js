@@ -12,6 +12,14 @@ const {
 
 const logger = require('../../../src/utils/logger');
 
+// Mock logger
+jest.mock('../../../src/utils/logger', () => ({
+  error: jest.fn(),
+  warn: jest.fn(),
+  info: jest.fn(),
+  audit: jest.fn()
+}));
+
 // Mock AuditLog model
 jest.mock('../../../src/models/AuditLog', () => ({
   create: jest.fn()
@@ -20,9 +28,65 @@ jest.mock('../../../src/models/AuditLog', () => ({
 const AuditLog = require('../../../src/models/AuditLog');
 
 describe('Audit Middleware', () => {
+  // Helper functions usando fixtures globali
+  const mockRequest = (overrides = {}) => {
+    const testUser = fixtures.createTestUser('admin');
+    return {
+      method: 'GET',
+      path: '/api/test',
+      originalUrl: '/api/test?param=value',
+      ip: fixtures.random.ip(),
+      headers: {
+        'user-agent': 'Test Browser/1.0',
+        'content-length': '100'
+      },
+      query: { param: 'value' },
+      body: { data: 'test' },
+      user: testUser,
+      get: jest.fn().mockImplementation((header) => {
+        const headers = {
+          'user-agent': 'Test Browser/1.0',
+          'x-correlation-id': `corr-${fixtures.random.string(8)}`
+        };
+        return headers[header.toLowerCase()];
+      }),
+      ...overrides
+    };
+  };
+
+  const mockResponse = () => ({
+    statusCode: 200,
+    get: jest.fn().mockReturnValue('200'),
+    setHeader: jest.fn(),
+    on: jest.fn(),
+    json: jest.fn().mockReturnThis(),
+    send: jest.fn().mockReturnThis(),
+    locals: {}
+  });
+
+  const mockNext = () => jest.fn();
+
+  const resetMocks = () => {
+    jest.clearAllMocks();
+    logger.error.mockClear();
+    logger.warn.mockClear();
+    logger.info.mockClear();
+    logger.audit.mockClear();
+    AuditLog.create.mockClear();
+  };
+
   beforeEach(() => {
     resetMocks();
-    AuditLog.create.mockResolvedValue({ id: 1 });
+    AuditLog.create.mockResolvedValue({ id: fixtures.random.number(1, 1000) });
+    
+    // Verifica che i fixtures siano pronti
+    if (!fixtures.isReady()) {
+      console.warn('Fixtures not ready in audit test');
+    }
+  });
+
+  afterEach(() => {
+    fixtures.reset();
   });
 
   describe('Constants', () => {
@@ -56,27 +120,28 @@ describe('Audit Middleware', () => {
 
   describe('maskSensitiveData', () => {
     it('should mask password fields', () => {
+      const testUser = fixtures.createTestUser('admin');
       const input = {
-        username: 'testuser',
+        username: testUser.username,
         password: 'secret123',
-        email: 'test@example.com'
+        email: testUser.email
       };
 
       const result = maskSensitiveData(input);
 
       expect(result).toEqual({
-        username: 'testuser',
+        username: testUser.username,
         password: '***MASKED***',
-        email: 'test@example.com'
+        email: testUser.email
       });
     });
 
     it('should mask fields with sensitive keywords', () => {
       const input = {
-        api_key: 'key123',
-        secret_token: 'token456',
+        api_key: fixtures.createTestJWTToken(),
+        secret_token: `token-${fixtures.random.string(10)}`,
         user_password: 'pass789',
-        authorization: 'Bearer xyz',
+        authorization: `Bearer ${fixtures.createTestJWTToken()}`,
         normal_field: 'normal_value'
       };
 
@@ -92,13 +157,14 @@ describe('Audit Middleware', () => {
     });
 
     it('should handle nested objects', () => {
+      const testUser = fixtures.createTestUser('operator');
       const input = {
         user: {
-          id: 1,
+          id: testUser.id,
           password: 'secret'
         },
         config: {
-          api_key: 'key123',
+          api_key: fixtures.createTestJWTToken(),
           settings: {
             secret: 'nested_secret'
           }
@@ -109,7 +175,7 @@ describe('Audit Middleware', () => {
 
       expect(result).toEqual({
         user: {
-          id: 1,
+          id: testUser.id,
           password: '***MASKED***'
         },
         config: {
@@ -149,35 +215,51 @@ describe('Audit Middleware', () => {
 
       expect(() => maskSensitiveData(input)).not.toThrow();
     });
+
+    it('should mask test data from fixtures', () => {
+      const testUser = fixtures.createTestUser('admin');
+      // Simula password nel test user (normalmente hasheata)
+      testUser.password = 'plaintext-password';
+      
+      const result = maskSensitiveData(testUser);
+      
+      expect(result.password).toBe('***MASKED***');
+      expect(result.username).toBe(testUser.username);
+      expect(result.email).toBe(testUser.email);
+    });
   });
 
   describe('getClientIP', () => {
     it('should get IP from req.ip', () => {
-      const req = { ip: '192.168.1.100' };
-      expect(getClientIP(req)).toBe('192.168.1.100');
+      const testIP = fixtures.random.ip();
+      const req = { ip: testIP };
+      expect(getClientIP(req)).toBe(testIP);
     });
 
     it('should fallback to connection.remoteAddress', () => {
+      const testIP = fixtures.random.ip();
       const req = {
-        connection: { remoteAddress: '192.168.1.101' }
+        connection: { remoteAddress: testIP }
       };
-      expect(getClientIP(req)).toBe('192.168.1.101');
+      expect(getClientIP(req)).toBe(testIP);
     });
 
     it('should fallback to socket.remoteAddress', () => {
+      const testIP = fixtures.random.ip();
       const req = {
-        socket: { remoteAddress: '192.168.1.102' }
+        socket: { remoteAddress: testIP }
       };
-      expect(getClientIP(req)).toBe('192.168.1.102');
+      expect(getClientIP(req)).toBe(testIP);
     });
 
     it('should fallback to connection.socket.remoteAddress', () => {
+      const testIP = fixtures.random.ip();
       const req = {
         connection: {
-          socket: { remoteAddress: '192.168.1.103' }
+          socket: { remoteAddress: testIP }
         }
       };
-      expect(getClientIP(req)).toBe('192.168.1.103');
+      expect(getClientIP(req)).toBe(testIP);
     });
 
     it('should return unknown when no IP found', () => {
@@ -186,22 +268,27 @@ describe('Audit Middleware', () => {
     });
 
     it('should prioritize req.ip over other sources', () => {
+      const primaryIP = fixtures.random.ip();
+      const secondaryIP = fixtures.random.ip();
+      const tertiaryIP = fixtures.random.ip();
+      
       const req = {
-        ip: '192.168.1.1',
-        connection: { remoteAddress: '192.168.1.2' },
-        socket: { remoteAddress: '192.168.1.3' }
+        ip: primaryIP,
+        connection: { remoteAddress: secondaryIP },
+        socket: { remoteAddress: tertiaryIP }
       };
-      expect(getClientIP(req)).toBe('192.168.1.1');
+      expect(getClientIP(req)).toBe(primaryIP);
     });
   });
 
   describe('getUserAgent', () => {
     it('should get user agent from headers', () => {
+      const userAgent = 'Mozilla/5.0 (Test Browser)';
       const req = {
-        get: jest.fn().mockReturnValue('Mozilla/5.0 (Test Browser)')
+        get: jest.fn().mockReturnValue(userAgent)
       };
       
-      expect(getUserAgent(req)).toBe('Mozilla/5.0 (Test Browser)');
+      expect(getUserAgent(req)).toBe(userAgent);
       expect(req.get).toHaveBeenCalledWith('User-Agent');
     });
 
@@ -223,26 +310,23 @@ describe('Audit Middleware', () => {
     let req, res, next;
 
     beforeEach(() => {
+      const testUser = fixtures.createTestUser('admin');
       req = mockRequest({
         method: 'GET',
         path: '/api/test',
         originalUrl: '/api/test?param=value',
-        ip: '127.0.0.1',
+        ip: fixtures.random.ip(),
         headers: {
-          'user-agent': 'Test Browser',
+          'user-agent': 'Test Browser/1.0',
           'content-length': '100'
         },
         query: { param: 'value' },
         body: { data: 'test' },
-        user: { id: 1, username: 'testuser' }
+        user: testUser
       });
 
       res = mockResponse();
       res.statusCode = 200;
-      res.get = jest.fn().mockReturnValue('200');
-      res.setHeader = jest.fn();
-      res.on = jest.fn();
-
       next = mockNext();
     });
 
@@ -257,13 +341,14 @@ describe('Audit Middleware', () => {
     });
 
     it('should add correlation ID to request and response', () => {
-      req.headers['x-correlation-id'] = 'test-correlation-id';
+      const correlationId = `test-corr-${fixtures.random.string(8)}`;
+      req.headers['x-correlation-id'] = correlationId;
       
       const middleware = auditMiddleware();
       middleware(req, res, next);
 
-      expect(req.correlationId).toBe('test-correlation-id');
-      expect(res.setHeader).toHaveBeenCalledWith('X-Correlation-ID', 'test-correlation-id');
+      expect(req.correlationId).toBe(correlationId);
+      expect(res.setHeader).toHaveBeenCalledWith('X-Correlation-ID', correlationId);
       expect(next).toHaveBeenCalled();
     });
 
@@ -272,7 +357,7 @@ describe('Audit Middleware', () => {
       middleware(req, res, next);
 
       expect(req.correlationId).toBeDefined();
-      expect(req.correlationId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+      expect(req.correlationId).toBeValidUUID();
       expect(res.setHeader).toHaveBeenCalledWith('X-Correlation-ID', req.correlationId);
     });
 
@@ -294,7 +379,7 @@ describe('Audit Middleware', () => {
       expect(res.json).not.toBe(originalJson);
       
       // Test that the wrapped json function works
-      const testBody = { result: 'success' };
+      const testBody = { result: 'success', data: fixtures.random.string(10) };
       res.json(testBody);
       
       expect(originalJson).toHaveBeenCalledWith(testBody);
@@ -348,7 +433,8 @@ describe('Audit Middleware', () => {
       });
 
       it('should audit firewall rule changes', (done) => {
-        req.path = '/firewall/rules/123';
+        const ruleId = fixtures.random.string(8);
+        req.path = `/firewall/rules/${ruleId}`;
         req.method = 'DELETE';
 
         const middleware = auditMiddleware();
@@ -366,7 +452,8 @@ describe('Audit Middleware', () => {
       });
 
       it('should audit policy changes', (done) => {
-        req.path = '/policies/456';
+        const policyId = fixtures.random.string(8);
+        req.path = `/policies/${policyId}`;
         req.method = 'PUT';
 
         const middleware = auditMiddleware();
@@ -561,7 +648,8 @@ describe('Audit Middleware', () => {
       });
 
       it('should set rule_toggle action for toggle endpoint', (done) => {
-        req.path = '/firewall/rules/123/toggle';
+        const ruleId = fixtures.random.string(8);
+        req.path = `/firewall/rules/${ruleId}/toggle`;
         req.method = 'PATCH';
 
         const middleware = auditMiddleware();
@@ -578,7 +666,8 @@ describe('Audit Middleware', () => {
       });
 
       it('should set rule_update action for firewall PUT', (done) => {
-        req.path = '/firewall/rules/123';
+        const ruleId = fixtures.random.string(8);
+        req.path = `/firewall/rules/${ruleId}`;
         req.method = 'PUT';
 
         const middleware = auditMiddleware();
@@ -595,7 +684,8 @@ describe('Audit Middleware', () => {
       });
 
       it('should set rule_delete action for firewall DELETE', (done) => {
-        req.path = '/firewall/rules/123';
+        const ruleId = fixtures.random.string(8);
+        req.path = `/firewall/rules/${ruleId}`;
         req.method = 'DELETE';
 
         const middleware = auditMiddleware();
@@ -630,7 +720,7 @@ describe('Audit Middleware', () => {
     });
 
     it('should handle database save errors gracefully', (done) => {
-      const dbError = new Error('Database connection failed');
+      const dbError = fixtures.createHTTPError(500, 'Database connection failed');
       AuditLog.create.mockRejectedValue(dbError);
       
       req.path = '/auth/login';
@@ -656,7 +746,10 @@ describe('Audit Middleware', () => {
     });
 
     it('should include response body when under size limit', (done) => {
-      const responseBody = { result: 'small' };
+      const responseBody = { 
+        result: 'small',
+        data: fixtures.random.string(10)
+      };
       
       res.json = function(body) {
         responseBody = body;
@@ -688,7 +781,9 @@ describe('Audit Middleware', () => {
     });
 
     it('should exclude large response bodies', (done) => {
-      const largeResponseBody = { data: 'x'.repeat(15000) };
+      const largeResponseBody = { 
+        data: fixtures.random.string(15000)
+      };
       
       res.json = function(body) {
         return this;
@@ -727,8 +822,9 @@ describe('Audit Middleware', () => {
         }
       });
 
+      const correlationId = `test-${fixtures.random.string(8)}`;
       req.path = '/auth/login';
-      req.correlationId = 'test-correlation';
+      req.correlationId = correlationId;
 
       const middleware = auditMiddleware();
       middleware(req, res, next);
@@ -738,7 +834,7 @@ describe('Audit Middleware', () => {
           'Audit middleware error',
           expect.objectContaining({
             error: 'Audit processing failed',
-            correlation_id: 'test-correlation'
+            correlation_id: correlationId
           })
         );
         done();
@@ -748,9 +844,10 @@ describe('Audit Middleware', () => {
 
   describe('auditLog', () => {
     it('should create manual audit entry', async () => {
+      const testUser = fixtures.createTestUser('admin');
       const req = mockRequest({
-        user: { id: 1, username: 'testuser' },
-        ip: '127.0.0.1'
+        user: testUser,
+        ip: fixtures.random.ip()
       });
 
       const auditId = await auditLog(req, 'manual_action', AUDIT_LEVELS.INFO, {
@@ -762,15 +859,15 @@ describe('Audit Middleware', () => {
         expect.objectContaining({
           action: 'manual_action',
           level: 'info',
-          user_id: 1,
-          username: 'testuser',
+          user_id: testUser.id,
+          username: testUser.username,
           custom_field: 'custom_value'
         })
       );
     });
 
     it('should handle audit log errors', async () => {
-      const dbError = new Error('Database error');
+      const dbError = fixtures.createHTTPError(500, 'Database error');
       AuditLog.create.mockRejectedValue(dbError);
 
       const req = mockRequest();
@@ -789,13 +886,15 @@ describe('Audit Middleware', () => {
 
   describe('auditSecurityEvent', () => {
     it('should create security event with high severity', async () => {
+      const testUser = fixtures.createTestUser('admin');
+      const testIP = fixtures.random.ip();
       const req = mockRequest({
-        user: { id: 1, username: 'testuser' }
+        user: testUser
       });
 
       await auditSecurityEvent(req, 'failed_login', 'high', {
         attempts: 5,
-        ip: '192.168.1.100'
+        ip: testIP
       });
 
       expect(AuditLog.create).toHaveBeenCalledWith(
@@ -806,7 +905,7 @@ describe('Audit Middleware', () => {
           severity: 'high',
           security_details: {
             attempts: 5,
-            ip: '192.168.1.100'
+            ip: testIP
           }
         })
       );
@@ -893,7 +992,7 @@ describe('Audit Middleware', () => {
     it('should handle requests without user', async () => {
       const req = mockRequest({
         user: null,
-        ip: '127.0.0.1'
+        ip: fixtures.random.ip()
       });
 
       await auditLog(req, 'anonymous_action');
@@ -902,6 +1001,241 @@ describe('Audit Middleware', () => {
         expect.objectContaining({
           user_id: null,
           username: 'anonymous'
+        })
+      );
+    });
+  });
+
+  describe('Fixtures Integration Tests', () => {
+    it('should work with fixture-generated audit logs', async () => {
+      const testUser = fixtures.createTestUser('operator');
+      const testAuditLog = fixtures.createTestAuditLog('firewall.rule.create', testUser.id);
+      
+      expect(testAuditLog.action).toBe('firewall.rule.create');
+      expect(testAuditLog.user_id).toBe(testUser.id);
+      expect(testAuditLog.success).toBe(true);
+    });
+
+    it('should mask sensitive data from fixture users', () => {
+      const testUsers = [
+        fixtures.createTestUser('admin'),
+        fixtures.createTestUser('operator'),
+        fixtures.createTestUser('viewer')
+      ];
+
+      testUsers.forEach(user => {
+        // Add plain password for testing
+        user.password = 'plain-password-123';
+        
+        const masked = maskSensitiveData(user);
+        
+        expect(masked.password).toBe('***MASKED***');
+        expect(masked.username).toBe(user.username);
+        expect(masked.role).toBe(user.role);
+        expect(masked.permissions).toEqual(user.permissions);
+      });
+    });
+
+    it('should audit firewall rules from fixtures', async () => {
+      const testUser = fixtures.createTestUser('admin');
+      const firewallRule = fixtures.createTestFirewallRule(true, 0);
+      
+      const req = mockRequest({
+        user: testUser,
+        body: { rule: firewallRule },
+        path: '/firewall/rules',
+        method: 'POST'
+      });
+
+      // Mock response finish event
+      const res = mockResponse();
+      res.on = jest.fn((event, callback) => {
+        if (event === 'finish') {
+          setImmediate(callback);
+        }
+      });
+
+      const middleware = auditMiddleware();
+      middleware(req, res, jest.fn());
+
+      await new Promise(resolve => setImmediate(resolve));
+
+      expect(AuditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'rule_create',
+          user_id: testUser.id,
+          username: testUser.username,
+          method: 'POST',
+          path: '/firewall/rules'
+        })
+      );
+    });
+
+    it('should handle test alerts in audit logs', async () => {
+      const testUser = fixtures.createTestUser('admin');
+      const securityAlert = fixtures.createTestAlert('security', 'high', {
+        source_ip: fixtures.random.ip(),
+        description: 'Test security event'
+      });
+
+      const req = mockRequest({
+        user: testUser,
+        ip: securityAlert.source_ip
+      });
+
+      await auditSecurityEvent(req, 'security_breach', 'high', {
+        alert_id: securityAlert.id,
+        alert_type: securityAlert.type,
+        details: securityAlert.description
+      });
+
+      expect(AuditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'security_event_security_breach',
+          level: 'critical',
+          severity: 'high',
+          security_details: expect.objectContaining({
+            alert_id: securityAlert.id,
+            alert_type: 'security'
+          })
+        })
+      );
+    });
+
+    it('should work with test JWT tokens in audit context', async () => {
+      const testUser = fixtures.createTestUser('admin');
+      const jwtToken = fixtures.createTestJWTToken({
+        sub: testUser.id.toString(),
+        username: testUser.username,
+        role: testUser.role
+      });
+
+      const req = mockRequest({
+        user: testUser,
+        headers: {
+          'authorization': `Bearer ${jwtToken}`,
+          'user-agent': 'Test Client/1.0'
+        }
+      });
+
+      // Test that sensitive token is masked
+      const maskedHeaders = maskSensitiveData(req.headers);
+      expect(maskedHeaders.authorization).toBe('***MASKED***');
+      expect(maskedHeaders['user-agent']).toBe('Test Client/1.0');
+    });
+
+    it('should audit bulk operations from fixtures', async () => {
+      const testUser = fixtures.createTestUser('admin');
+      const multipleRules = fixtures.createMultipleFirewallRules(5, true);
+      
+      const req = mockRequest({
+        user: testUser,
+        body: { rules: multipleRules },
+        path: '/firewall/rules/bulk',
+        method: 'POST'
+      });
+
+      await auditLog(req, 'bulk_rule_create', AUDIT_LEVELS.INFO, {
+        rule_count: multipleRules.length,
+        rule_ids: multipleRules.map(r => r.uuid),
+        operation_type: 'bulk_create'
+      });
+
+      expect(AuditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'bulk_rule_create',
+          user_id: testUser.id,
+          rule_count: 5,
+          operation_type: 'bulk_create',
+          rule_ids: expect.arrayContaining(multipleRules.map(r => r.uuid))
+        })
+      );
+    });
+
+    it('should handle performance test data in audit context', async () => {
+      const testUser = fixtures.createTestUser('admin');
+      const perfData = fixtures.createPerformanceTestData(100);
+      
+      const req = mockRequest({
+        user: testUser,
+        body: { performance_test: true, data_size: perfData.length }
+      });
+
+      // Simulate processing time
+      const startTime = Date.now();
+      await testHelpers.delay(10); // Small delay
+      const endTime = Date.now();
+
+      await auditLog(req, 'performance_test', AUDIT_LEVELS.INFO, {
+        data_size: perfData.length,
+        processing_time: endTime - startTime,
+        test_type: 'bulk_processing'
+      });
+
+      expect(AuditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'performance_test',
+          data_size: 100,
+          processing_time: expect.any(Number),
+          test_type: 'bulk_processing'
+        })
+      );
+    });
+
+    it('should validate audit data structure against fixtures', () => {
+      const testUser = fixtures.createTestUser('viewer');
+      const mockAuditEntry = {
+        id: fixtures.random.number(1, 1000),
+        action: 'test_action',
+        user_id: testUser.id,
+        username: testUser.username,
+        timestamp: new Date().toISOString(),
+        ip_address: fixtures.random.ip(),
+        user_agent: 'Test Browser/1.0',
+        success: true
+      };
+
+      // Validate structure
+      expect(mockAuditEntry).toHaveProperty('id');
+      expect(mockAuditEntry).toHaveProperty('action');
+      expect(mockAuditEntry).toHaveProperty('user_id');
+      expect(mockAuditEntry).toHaveProperty('username');
+      expect(mockAuditEntry).toHaveProperty('timestamp');
+      expect(mockAuditEntry.timestamp).toHaveValidTimestamp();
+      expect(mockAuditEntry.ip_address).toBeValidIP();
+    });
+
+    it('should handle rate limit scenarios from fixtures', async () => {
+      const testUser = fixtures.createTestUser('operator');
+      const rateLimitConfig = fixtures.createRateLimitConfig({
+        max_requests_per_minute: 10,
+        burst_size: 5
+      });
+
+      // Simulate rate limit exceeded
+      const req = mockRequest({
+        user: testUser,
+        ip: fixtures.random.ip(),
+        headers: {
+          'x-rate-limit-remaining': '0',
+          'x-rate-limit-reset': Date.now() + 60000
+        }
+      });
+
+      await auditSecurityEvent(req, 'rate_limit_exceeded', 'medium', {
+        rate_limit_config: rateLimitConfig,
+        requests_attempted: rateLimitConfig.max_requests_per_minute + 1,
+        time_window: '1 minute'
+      });
+
+      expect(AuditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'security_event_rate_limit_exceeded',
+          level: 'warning',
+          security_details: expect.objectContaining({
+            rate_limit_config: rateLimitConfig,
+            requests_attempted: 11
+          })
         })
       );
     });

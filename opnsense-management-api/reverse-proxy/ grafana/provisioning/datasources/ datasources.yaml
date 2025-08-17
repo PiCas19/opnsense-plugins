@@ -1,7 +1,7 @@
 apiVersion: 1
 
 datasources:
-  # OPNsense API Wrapper - Database principale
+  # Database del wrapper (Postgres)
   - name: OPNsense API
     type: postgres
     access: proxy
@@ -21,24 +21,19 @@ datasources:
     isDefault: true
     editable: false
 
-  # JSON API Datasource per chiamate dirette all'API OPNsense wrapper
+  # JSON datasource che chiama il wrapper (server-side, niente CORS)
   - name: OPNsense Direct API
     type: marcusolsson-json-datasource
     access: proxy
+    # Consigliato: puntare DIRETTAMENTE al wrapper per evitare la Basic del reverse-proxy
     url: ${OPNSENSE_API_URL:-http://192.168.216.50:3000}
     jsonData:
-      # Headers per autenticazione
+      # Header names
       httpHeaderName1: 'Authorization'
       httpHeaderName2: 'Content-Type'
     secureJsonData:
+      # Un solo Authorization: Bearer <JWT> del wrapper
       httpHeaderValue1: 'Bearer ${JWT_TOKEN}'
       httpHeaderValue2: 'application/json'
     isDefault: false
     editable: false
-
-  # TestData per sviluppo e test
-  - name: TestData DB
-    type: testdata
-    access: proxy
-    isDefault: false
-    editable: true

@@ -23,9 +23,65 @@ const {
 
 const logger = require('../../../src/utils/logger');
 
+// Mock logger
+jest.mock('../../../src/utils/logger', () => ({
+  error: jest.fn(),
+  warn: jest.fn(),
+  info: jest.fn(),
+  metricsRecorder: jest.fn()
+}));
+
 describe('Error Handler Middleware', () => {
+  // Helper functions usando fixtures globali
+  const mockRequest = (overrides = {}) => {
+    return {
+      method: 'GET',
+      originalUrl: '/api/test',
+      ip: fixtures.random.ip(),
+      user: null,
+      correlationId: `corr-${fixtures.random.string(8)}`,
+      headers: {
+        'user-agent': 'Test Browser/1.0'
+      },
+      get: jest.fn().mockImplementation((header) => {
+        const headers = {
+          'user-agent': 'Test Browser/1.0'
+        };
+        return headers[header.toLowerCase()];
+      }),
+      ...overrides
+    };
+  };
+
+  const mockResponse = () => ({
+    status: jest.fn().mockReturnThis(),
+    json: jest.fn().mockReturnThis(),
+    send: jest.fn().mockReturnThis(),
+    setHeader: jest.fn(),
+    locals: {}
+  });
+
+  const mockNext = () => jest.fn();
+
+  const resetMocks = () => {
+    jest.clearAllMocks();
+    logger.error.mockClear();
+    logger.warn.mockClear();
+    logger.info.mockClear();
+    logger.metricsRecorder.mockClear();
+  };
+
   beforeEach(() => {
     resetMocks();
+    
+    // Verifica che i fixtures siano pronti
+    if (!fixtures.isReady()) {
+      console.warn('Fixtures not ready in errorHandler test');
+    }
+  });
+
+  afterEach(() => {
+    fixtures.reset();
   });
 
   describe('Constants', () => {
@@ -61,27 +117,35 @@ describe('Error Handler Middleware', () => {
   describe('Error Classes', () => {
     describe('AppError', () => {
       it('should create error with default values', () => {
-        const error = new AppError('Test error');
+        const errorMessage = `Test error ${fixtures.random.string(6)}`;
+        const error = new AppError(errorMessage);
 
-        expect(error.message).toBe('Test error');
+        expect(error.message).toBe(errorMessage);
         expect(error.name).toBe('AppError');
         expect(error.type).toBe(ERROR_TYPES.INTERNAL_SERVER_ERROR);
         expect(error.statusCode).toBe(500);
         expect(error.isOperational).toBe(true);
-        expect(error.timestamp).toBeDefined();
+        expect(error.timestamp).toHaveValidTimestamp();
         expect(error.details).toBeNull();
       });
 
       it('should create error with custom parameters', () => {
-        const details = { field: 'username' };
+        const testUser = fixtures.createTestUser('admin');
+        const details = { 
+          field: 'username', 
+          userId: testUser.id,
+          correlationId: fixtures.random.string(10)
+        };
+        const errorMessage = `Custom error for ${testUser.username}`;
+        
         const error = new AppError(
-          'Custom error',
+          errorMessage,
           ERROR_TYPES.VALIDATION_ERROR,
           400,
           details
         );
 
-        expect(error.message).toBe('Custom error');
+        expect(error.message).toBe(errorMessage);
         expect(error.type).toBe(ERROR_TYPES.VALIDATION_ERROR);
         expect(error.statusCode).toBe(400);
         expect(error.details).toBe(details);
@@ -105,10 +169,15 @@ describe('Error Handler Middleware', () => {
 
     describe('ValidationError', () => {
       it('should create validation error', () => {
-        const details = { field: 'email', value: 'invalid' };
-        const error = new ValidationError('Invalid email', details);
+        const testUser = fixtures.createTestUser('viewer');
+        const details = { 
+          field: 'email', 
+          value: `invalid-${fixtures.random.string(5)}@`,
+          userId: testUser.id 
+        };
+        const error = new ValidationError('Invalid email format', details);
 
-        expect(error.message).toBe('Invalid email');
+        expect(error.message).toBe('Invalid email format');
         expect(error.type).toBe(ERROR_TYPES.VALIDATION_ERROR);
         expect(error.statusCode).toBe(400);
         expect(error.details).toBe(details);
@@ -124,13 +193,22 @@ describe('Error Handler Middleware', () => {
         expect(error.type).toBe(ERROR_TYPES.AUTHENTICATION_ERROR);
         expect(error.statusCode).toBe(401);
       });
+
+      it('should work with fixture-generated errors', () => {
+        const authError = fixtures.createHTTPError(401, 'Token expired');
+        const error = new AuthenticationError(authError.message);
+
+        expect(error.statusCode).toBe(401);
+        expect(error.message).toBe('Token expired');
+      });
     });
 
     describe('AuthorizationError', () => {
       it('should create authorization error', () => {
-        const error = new AuthorizationError('Access denied');
+        const testUser = fixtures.createTestUser('viewer');
+        const error = new AuthorizationError(`Access denied for user ${testUser.username}`);
 
-        expect(error.message).toBe('Access denied');
+        expect(error.message).toContain(testUser.username);
         expect(error.type).toBe(ERROR_TYPES.AUTHORIZATION_ERROR);
         expect(error.statusCode).toBe(403);
       });
@@ -138,9 +216,10 @@ describe('Error Handler Middleware', () => {
 
     describe('NotFoundError', () => {
       it('should create not found error', () => {
-        const error = new NotFoundError('Resource not found');
+        const resourceId = fixtures.random.string(8);
+        const error = new NotFoundError(`Resource ${resourceId} not found`);
 
-        expect(error.message).toBe('Resource not found');
+        expect(error.message).toContain(resourceId);
         expect(error.type).toBe(ERROR_TYPES.NOT_FOUND_ERROR);
         expect(error.statusCode).toBe(404);
       });
@@ -148,9 +227,10 @@ describe('Error Handler Middleware', () => {
 
     describe('ConflictError', () => {
       it('should create conflict error', () => {
-        const error = new ConflictError('Resource already exists');
+        const testUser = fixtures.createTestUser('admin');
+        const error = new ConflictError(`User ${testUser.username} already exists`);
 
-        expect(error.message).toBe('Resource already exists');
+        expect(error.message).toContain(testUser.username);
         expect(error.type).toBe(ERROR_TYPES.CONFLICT_ERROR);
         expect(error.statusCode).toBe(409);
       });
@@ -158,9 +238,10 @@ describe('Error Handler Middleware', () => {
 
     describe('RateLimitError', () => {
       it('should create rate limit error', () => {
-        const error = new RateLimitError('Rate limit exceeded');
+        const rateLimitConfig = fixtures.createRateLimitConfig();
+        const error = new RateLimitError(`Rate limit exceeded: ${rateLimitConfig.max_requests_per_minute} requests/minute`);
 
-        expect(error.message).toBe('Rate limit exceeded');
+        expect(error.message).toContain(rateLimitConfig.max_requests_per_minute.toString());
         expect(error.type).toBe(ERROR_TYPES.RATE_LIMIT_ERROR);
         expect(error.statusCode).toBe(429);
       });
@@ -168,9 +249,10 @@ describe('Error Handler Middleware', () => {
 
     describe('ExternalApiError', () => {
       it('should create external API error', () => {
-        const error = new ExternalApiError('API unavailable');
+        const networkError = fixtures.createNetworkError('connection_refused');
+        const error = new ExternalApiError(`OPNsense API unavailable: ${networkError.message}`);
 
-        expect(error.message).toBe('API unavailable');
+        expect(error.message).toContain('OPNsense API unavailable');
         expect(error.type).toBe(ERROR_TYPES.EXTERNAL_API_ERROR);
         expect(error.statusCode).toBe(502);
       });
@@ -178,9 +260,10 @@ describe('Error Handler Middleware', () => {
 
     describe('DatabaseError', () => {
       it('should create database error', () => {
-        const error = new DatabaseError('Connection failed');
+        const dbError = fixtures.createHTTPError(503, 'Connection pool exhausted');
+        const error = new DatabaseError(dbError.message);
 
-        expect(error.message).toBe('Connection failed');
+        expect(error.message).toBe('Connection pool exhausted');
         expect(error.type).toBe(ERROR_TYPES.DATABASE_ERROR);
         expect(error.statusCode).toBe(503);
       });
@@ -240,15 +323,27 @@ describe('Error Handler Middleware', () => {
       const error = { name: 'UnknownError' };
       expect(determineErrorType(error)).toBe(ERROR_TYPES.INTERNAL_SERVER_ERROR);
     });
+
+    it('should handle fixture-generated network errors', () => {
+      const networkError = fixtures.createNetworkError('timeout');
+      const axiosError = {
+        isAxiosError: true,
+        code: networkError.code,
+        message: networkError.message
+      };
+      
+      expect(determineErrorType(axiosError)).toBe(ERROR_TYPES.EXTERNAL_API_ERROR);
+    });
   });
 
   describe('extractErrorDetails', () => {
     it('should extract Sequelize validation error details', () => {
+      const testUser = fixtures.createTestUser('admin');
       const error = {
         name: 'SequelizeValidationError',
         errors: [
-          { path: 'email', message: 'Invalid email', value: 'invalid' },
-          { path: 'password', message: 'Too short', value: '123' }
+          { path: 'email', message: 'Invalid email', value: `invalid-${fixtures.random.string(5)}@test` },
+          { path: 'username', message: 'Too short', value: testUser.username.substring(0, 2) }
         ]
       };
 
@@ -256,20 +351,21 @@ describe('Error Handler Middleware', () => {
 
       expect(details).toEqual({
         validation_errors: [
-          { field: 'email', message: 'Invalid email', value: 'invalid' },
-          { field: 'password', message: 'Too short', value: '123' }
+          { field: 'email', message: 'Invalid email', value: error.errors[0].value },
+          { field: 'username', message: 'Too short', value: error.errors[1].value }
         ]
       });
     });
 
     it('should extract Joi validation error details', () => {
+      const testEmail = fixtures.random.email();
       const error = {
         isJoi: true,
         details: [
           {
             path: ['user', 'email'],
             message: 'Email is required',
-            context: { value: undefined }
+            context: { value: testEmail }
           }
         ]
       };
@@ -278,15 +374,16 @@ describe('Error Handler Middleware', () => {
 
       expect(details).toEqual({
         validation_errors: [
-          { field: 'user.email', message: 'Email is required', value: undefined }
+          { field: 'user.email', message: 'Email is required', value: testEmail }
         ]
       });
     });
 
     it('should extract express-validator error details', () => {
+      const testUser = fixtures.createTestUser('operator');
       const error = {
         array: jest.fn().mockReturnValue([
-          { path: 'username', msg: 'Username is required', value: '' },
+          { path: 'username', msg: 'Username is required', value: testUser.username },
           { param: 'age', msg: 'Must be a number', value: 'abc' }
         ])
       };
@@ -295,13 +392,14 @@ describe('Error Handler Middleware', () => {
 
       expect(details).toEqual({
         validation_errors: [
-          { field: 'username', message: 'Username is required', value: '' },
+          { field: 'username', message: 'Username is required', value: testUser.username },
           { field: 'age', message: 'Must be a number', value: 'abc' }
         ]
       });
     });
 
     it('should extract Axios error details', () => {
+      const testUrl = `/api/firewall/rules/${fixtures.random.string(8)}`;
       const error = {
         isAxiosError: true,
         response: {
@@ -309,7 +407,7 @@ describe('Error Handler Middleware', () => {
           statusText: 'Not Found'
         },
         config: {
-          url: '/api/test',
+          url: testUrl,
           method: 'get'
         }
       };
@@ -320,29 +418,33 @@ describe('Error Handler Middleware', () => {
         external_service: 'OPNsense API',
         status_code: 404,
         status_text: 'Not Found',
-        url: '/api/test',
+        url: testUrl,
         method: 'GET'
       });
     });
 
     it('should extract custom error details', () => {
+      const testUser = fixtures.createTestUser('viewer');
+      const correlationId = fixtures.random.string(10);
       const error = {
         details: {
-          custom_field: 'custom_value',
-          reason: 'custom reason'
+          user_id: testUser.id,
+          correlation_id: correlationId,
+          reason: 'Insufficient permissions'
         }
       };
 
       const details = extractErrorDetails(error);
 
       expect(details).toEqual({
-        custom_field: 'custom_value',
-        reason: 'custom reason'
+        user_id: testUser.id,
+        correlation_id: correlationId,
+        reason: 'Insufficient permissions'
       });
     });
 
     it('should return null for errors without details', () => {
-      const error = { message: 'Simple error' };
+      const error = { message: `Simple error ${fixtures.random.string(6)}` };
       const details = extractErrorDetails(error);
       expect(details).toBeNull();
     });
@@ -364,16 +466,34 @@ describe('Error Handler Middleware', () => {
         method: 'POST'
       });
     });
+
+    it('should extract details from fixture-generated errors', () => {
+      const httpError = fixtures.createHTTPError(422, 'Validation failed');
+      const error = {
+        details: {
+          status: httpError.response.status,
+          message: httpError.message,
+          timestamp: new Date().toISOString()
+        }
+      };
+
+      const details = extractErrorDetails(error);
+
+      expect(details.status).toBe(422);
+      expect(details.message).toBe('Validation failed');
+      expect(details.timestamp).toHaveValidTimestamp();
+    });
   });
 
   describe('shouldExposeError', () => {
     it('should expose operational errors', () => {
-      const error = new ValidationError('Test error');
+      const testUser = fixtures.createTestUser('admin');
+      const error = new ValidationError(`Invalid data for user ${testUser.username}`);
       expect(shouldExposeError(error)).toBe(true);
     });
 
     it('should expose errors in development', () => {
-      const error = new Error('Any error');
+      const error = new Error(`Development error ${fixtures.random.string(8)}`);
       expect(shouldExposeError(error, 'development')).toBe(true);
     });
 
@@ -389,7 +509,6 @@ describe('Error Handler Middleware', () => {
 
       safeErrors.forEach(type => {
         const error = { type };
-        jest.spyOn(module.exports, 'determineErrorType').mockReturnValue(type);
         expect(shouldExposeError(error, 'production')).toBe(true);
       });
     });
@@ -403,7 +522,6 @@ describe('Error Handler Middleware', () => {
 
       unsafeErrors.forEach(type => {
         const error = { type };
-        jest.spyOn(module.exports, 'determineErrorType').mockReturnValue(type);
         expect(shouldExposeError(error, 'production')).toBe(false);
       });
     });
@@ -412,7 +530,7 @@ describe('Error Handler Middleware', () => {
       const originalEnv = process.env.NODE_ENV;
       
       process.env.NODE_ENV = 'development';
-      const error = new Error('Test');
+      const error = new Error(`Test ${fixtures.random.string(6)}`);
       expect(shouldExposeError(error)).toBe(true);
       
       process.env.NODE_ENV = originalEnv;
@@ -421,37 +539,36 @@ describe('Error Handler Middleware', () => {
 
   describe('sanitizeErrorMessage', () => {
     it('should return generic message when not exposing', () => {
-      const error = new Error('Internal error');
+      const error = new Error(`Internal error ${fixtures.random.string(8)}`);
       const result = sanitizeErrorMessage(error, false);
       expect(result).toBe('An internal server error occurred');
     });
 
     it('should return original message for operational errors', () => {
-      const error = new ValidationError('Validation failed');
+      const testUser = fixtures.createTestUser('operator');
+      const message = `Validation failed for user ${testUser.username}`;
+      const error = new ValidationError(message);
       const result = sanitizeErrorMessage(error, true);
-      expect(result).toBe('Validation failed');
+      expect(result).toBe(message);
     });
 
     it('should return sanitized message for database errors', () => {
       const error = { type: ERROR_TYPES.DATABASE_ERROR };
-      jest.spyOn(module.exports, 'determineErrorType').mockReturnValue(ERROR_TYPES.DATABASE_ERROR);
-      
       const result = sanitizeErrorMessage(error, true);
       expect(result).toBe('Database service temporarily unavailable');
     });
 
     it('should return sanitized message for external API errors', () => {
       const error = { type: ERROR_TYPES.EXTERNAL_API_ERROR };
-      jest.spyOn(module.exports, 'determineErrorType').mockReturnValue(ERROR_TYPES.EXTERNAL_API_ERROR);
-      
       const result = sanitizeErrorMessage(error, true);
       expect(result).toBe('External service temporarily unavailable');
     });
 
     it('should return original or default message for other types', () => {
-      const error = { message: 'Custom error' };
+      const message = `Custom error ${fixtures.random.string(10)}`;
+      const error = { message };
       const result = sanitizeErrorMessage(error, true);
-      expect(result).toBe('Custom error');
+      expect(result).toBe(message);
     });
 
     it('should return default message when no message available', () => {
@@ -465,23 +582,25 @@ describe('Error Handler Middleware', () => {
     let req, res, next;
 
     beforeEach(() => {
+      const testUser = fixtures.createTestUser('admin');
       req = mockRequest({
         method: 'POST',
         originalUrl: '/api/test',
-        ip: '127.0.0.1',
-        user: { id: 123 },
-        correlationId: 'test-correlation-id'
+        ip: fixtures.random.ip(),
+        user: testUser,
+        correlationId: `test-${fixtures.random.string(8)}`
       });
-      req.get = jest.fn().mockReturnValue('Test Browser');
 
       res = mockResponse();
       next = mockNext();
     });
 
     it('should handle validation errors correctly', () => {
+      const testUser = fixtures.createTestUser('viewer');
       const error = new ValidationError('Invalid input', {
         field: 'email',
-        value: 'invalid'
+        value: `invalid-${fixtures.random.string(5)}@test`,
+        userId: testUser.id
       });
 
       errorHandler(error, req, res, next);
@@ -493,7 +612,10 @@ describe('Error Handler Middleware', () => {
         code: 'VALIDATION_ERROR',
         error_id: expect.any(String),
         timestamp: expect.any(String),
-        details: { field: 'email', value: 'invalid' }
+        details: expect.objectContaining({
+          field: 'email',
+          userId: testUser.id
+        })
       });
     });
 
@@ -513,9 +635,9 @@ describe('Error Handler Middleware', () => {
     });
 
     it('should handle internal server errors with sanitized message', () => {
-      const error = new Error('Database connection string exposed');
+      const sensitiveError = new Error(`Database connection string: ${fixtures.random.string(20)}`);
 
-      errorHandler(error, req, res, next);
+      errorHandler(sensitiveError, req, res, next);
 
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
@@ -531,7 +653,7 @@ describe('Error Handler Middleware', () => {
       const originalEnv = process.env.NODE_ENV;
       process.env.NODE_ENV = 'development';
 
-      const error = new Error('Development error');
+      const error = new Error(`Development error ${fixtures.random.string(8)}`);
       error.stack = 'Error stack trace';
 
       errorHandler(error, req, res, next);
@@ -549,7 +671,7 @@ describe('Error Handler Middleware', () => {
       const originalEnv = process.env.NODE_ENV;
       process.env.NODE_ENV = 'production';
 
-      const error = new Error('Production error');
+      const error = new Error(`Production error ${fixtures.random.string(8)}`);
       error.stack = 'Error stack trace';
 
       errorHandler(error, req, res, next);
@@ -564,7 +686,7 @@ describe('Error Handler Middleware', () => {
     });
 
     it('should log server errors as errors', () => {
-      const error = new Error('Server error');
+      const error = new Error(`Server error ${fixtures.random.string(8)}`);
 
       errorHandler(error, req, res, next);
 
@@ -576,20 +698,20 @@ describe('Error Handler Middleware', () => {
           status_code: 500,
           url: '/api/test',
           method: 'POST',
-          user_id: 123,
-          ip_address: '127.0.0.1',
-          correlation_id: 'test-correlation-id'
+          user_id: req.user.id,
+          ip_address: req.ip,
+          correlation_id: req.correlationId
         })
       );
     });
 
     it('should log client errors as warnings', () => {
-      const error = new ValidationError('Client error');
+      const error = new ValidationError(`Client error ${fixtures.random.string(8)}`);
 
       errorHandler(error, req, res, next);
 
       expect(logger.warn).toHaveBeenCalledWith(
-        'Client error',
+        expect.stringContaining('Client error'),
         expect.objectContaining({
           status_code: 400,
           type: 'VALIDATION_ERROR'
@@ -599,7 +721,7 @@ describe('Error Handler Middleware', () => {
 
     it('should handle missing request properties', () => {
       const req = {}; // Minimal request
-      const error = new Error('Test error');
+      const error = new Error(`Test error ${fixtures.random.string(8)}`);
 
       errorHandler(error, req, res, next);
 
@@ -616,7 +738,11 @@ describe('Error Handler Middleware', () => {
     });
 
     it('should handle custom status codes', () => {
-      const error = new AppError('Custom error', ERROR_TYPES.VALIDATION_ERROR, 422);
+      const error = new AppError(
+        `Custom error ${fixtures.random.string(8)}`, 
+        ERROR_TYPES.VALIDATION_ERROR, 
+        422
+      );
 
       errorHandler(error, req, res, next);
 
@@ -628,7 +754,7 @@ describe('Error Handler Middleware', () => {
         throw new Error('Metrics error');
       });
 
-      const error = new Error('Test error');
+      const error = new Error(`Test error ${fixtures.random.string(8)}`);
 
       expect(() => {
         errorHandler(error, req, res, next);
@@ -638,8 +764,11 @@ describe('Error Handler Middleware', () => {
     });
 
     it('should not include details when error should not be exposed', () => {
-      const error = new Error('Internal error');
-      error.details = { sensitive: 'data' };
+      const error = new Error(`Internal error ${fixtures.random.string(8)}`);
+      error.details = { 
+        sensitive: 'data',
+        apiKey: fixtures.createTestJWTToken()
+      };
 
       errorHandler(error, req, res, next);
 
@@ -649,11 +778,30 @@ describe('Error Handler Middleware', () => {
         })
       );
     });
+
+    it('should handle fixture-generated HTTP errors', () => {
+      const httpError = fixtures.createHTTPError(429, 'Too Many Requests');
+      const error = new RateLimitError(httpError.message);
+
+      errorHandler(error, req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(429);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Too Many Requests',
+          code: 'RATE_LIMIT_ERROR'
+        })
+      );
+    });
   });
 
   describe('asyncHandler', () => {
     it('should handle successful async operations', async () => {
-      const mockAsyncFn = jest.fn().mockResolvedValue('success');
+      const testUser = fixtures.createTestUser('operator');
+      const mockAsyncFn = jest.fn().mockResolvedValue({
+        user: testUser,
+        success: true
+      });
       const req = mockRequest();
       const res = mockResponse();
       const next = mockNext();
@@ -666,7 +814,7 @@ describe('Error Handler Middleware', () => {
     });
 
     it('should catch and forward async errors', async () => {
-      const error = new Error('Async error');
+      const error = fixtures.createHTTPError(500, 'Async operation failed');
       const mockAsyncFn = jest.fn().mockRejectedValue(error);
       const req = mockRequest();
       const res = mockResponse();
@@ -679,7 +827,11 @@ describe('Error Handler Middleware', () => {
     });
 
     it('should handle sync functions', () => {
-      const mockSyncFn = jest.fn().mockReturnValue('sync result');
+      const testData = {
+        rules: fixtures.createMultipleFirewallRules(3, true),
+        timestamp: new Date().toISOString()
+      };
+      const mockSyncFn = jest.fn().mockReturnValue(testData);
       const req = mockRequest();
       const res = mockResponse();
       const next = mockNext();
@@ -692,7 +844,7 @@ describe('Error Handler Middleware', () => {
     });
 
     it('should handle sync errors', () => {
-      const error = new Error('Sync error');
+      const error = fixtures.createNetworkError('connection_refused');
       const mockSyncFn = jest.fn().mockImplementation(() => {
         throw error;
       });
@@ -712,7 +864,7 @@ describe('Error Handler Middleware', () => {
     it('should create NotFoundError with route information', () => {
       const req = mockRequest({
         method: 'GET',
-        originalUrl: '/api/nonexistent',
+        originalUrl: `/api/nonexistent/${fixtures.random.string(8)}`,
         app: {
           _router: {
             stack: [
@@ -724,7 +876,7 @@ describe('Error Handler Middleware', () => {
               },
               {
                 route: {
-                  path: '/api/posts',
+                  path: '/api/firewall/rules',
                   methods: { post: true }
                 }
               }
@@ -739,14 +891,14 @@ describe('Error Handler Middleware', () => {
 
       expect(next).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: 'Route GET /api/nonexistent not found',
+          message: expect.stringContaining('Route GET /api/nonexistent/'),
           type: 'NOT_FOUND_ERROR',
           details: {
             method: 'GET',
-            url: '/api/nonexistent',
+            url: expect.stringContaining('/api/nonexistent/'),
             available_routes: [
               { method: 'GET', path: '/api/users' },
-              { method: 'POST', path: '/api/posts' }
+              { method: 'POST', path: '/api/firewall/rules' }
             ]
           }
         })
@@ -754,9 +906,10 @@ describe('Error Handler Middleware', () => {
     });
 
     it('should handle missing router information', () => {
+      const resourceId = fixtures.random.string(8);
       const req = mockRequest({
         method: 'POST',
-        originalUrl: '/api/missing'
+        originalUrl: `/api/missing/${resourceId}`
       });
       const res = mockResponse();
       const next = mockNext();
@@ -765,10 +918,10 @@ describe('Error Handler Middleware', () => {
 
       expect(next).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: 'Route POST /api/missing not found',
+          message: `Route POST /api/missing/${resourceId} not found`,
           details: {
             method: 'POST',
-            url: '/api/missing',
+            url: `/api/missing/${resourceId}`,
             available_routes: []
           }
         })
@@ -818,14 +971,15 @@ describe('Error Handler Middleware', () => {
 
       initializeErrorHandling();
 
-      // Simulate unhandled rejection
-      const promise = Promise.reject(new Error('Unhandled rejection'));
+      // Simulate unhandled rejection with fixture error
+      const errorMessage = `Unhandled rejection ${fixtures.random.string(8)}`;
+      const promise = Promise.reject(new Error(errorMessage));
       
       setTimeout(() => {
         expect(logger.error).toHaveBeenCalledWith(
           'Unhandled Promise Rejection',
           expect.objectContaining({
-            reason: 'Unhandled rejection'
+            reason: errorMessage
           })
         );
         
@@ -842,14 +996,15 @@ describe('Error Handler Middleware', () => {
 
       // Mock the uncaught exception handler
       const handler = process.listeners('uncaughtException')[0];
-      const error = new Error('Uncaught exception');
+      const errorMessage = `Uncaught exception ${fixtures.random.string(8)}`;
+      const error = new Error(errorMessage);
       
       handler(error);
 
       expect(logger.error).toHaveBeenCalledWith(
         'Uncaught Exception',
         {
-          message: 'Uncaught exception',
+          message: errorMessage,
           stack: expect.any(String)
         }
       );
@@ -869,7 +1024,8 @@ describe('Error Handler Middleware', () => {
       initializeErrorHandling();
 
       // Simulate unhandled rejection
-      const promise = Promise.reject(new Error('Production error'));
+      const errorMessage = `Production error ${fixtures.random.string(8)}`;
+      const promise = Promise.reject(new Error(errorMessage));
       
       setTimeout(() => {
         expect(process.exit).toHaveBeenCalledWith(1);
@@ -883,7 +1039,7 @@ describe('Error Handler Middleware', () => {
 
   describe('Edge Cases and Error Scenarios', () => {
     it('should handle circular references in error objects', () => {
-      const error = new Error('Circular error');
+      const error = new Error(`Circular error ${fixtures.random.string(8)}`);
       error.circular = error;
 
       const req = mockRequest();
@@ -914,13 +1070,14 @@ describe('Error Handler Middleware', () => {
     });
 
     it('should handle malformed Joi errors', () => {
+      const testValue = fixtures.random.string(10);
       const error = {
         isJoi: true,
         details: [
           {
             path: null,
             message: 'Invalid',
-            context: null
+            context: { value: testValue }
           }
         ]
       };
@@ -929,8 +1086,287 @@ describe('Error Handler Middleware', () => {
       expect(details.validation_errors[0]).toEqual({
         field: '',
         message: 'Invalid',
-        value: undefined
+        value: testValue
       });
+    });
+
+    it('should handle extremely large error objects', () => {
+      const largeData = fixtures.createPerformanceTestData(1000);
+      const error = new Error('Large error');
+      error.largeData = largeData;
+
+      const req = mockRequest();
+      const res = mockResponse();
+      const next = mockNext();
+
+      expect(() => {
+        errorHandler(error, req, res, next);
+      }).not.toThrow();
+    });
+
+    it('should handle errors with invalid timestamps', () => {
+      const error = new AppError('Test error');
+      error.timestamp = 'invalid-timestamp';
+
+      const req = mockRequest();
+      const res = mockResponse();
+      const next = mockNext();
+
+      errorHandler(error, req, res, next);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          timestamp: expect.any(String)
+        })
+      );
+    });
+  });
+
+  describe('Integration Tests with Fixtures', () => {
+    it('should handle firewall rule validation errors', () => {
+      const invalidRule = fixtures.createTestFirewallRule(false, 0);
+      const testUser = fixtures.createTestUser('operator');
+      
+      const error = new ValidationError('Invalid firewall rule', {
+        rule: invalidRule,
+        user_id: testUser.id,
+        validation_errors: [
+          { field: 'interface', message: 'Interface is required' },
+          { field: 'action', message: 'Invalid action' }
+        ]
+      });
+
+      const req = mockRequest({ user: testUser });
+      const res = mockResponse();
+      const next = mockNext();
+
+      errorHandler(error, req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          code: 'VALIDATION_ERROR',
+          details: expect.objectContaining({
+            user_id: testUser.id,
+            validation_errors: expect.arrayContaining([
+              expect.objectContaining({ field: 'interface' }),
+              expect.objectContaining({ field: 'action' })
+            ])
+          })
+        })
+      );
+    });
+
+    it('should handle user authentication errors with test data', () => {
+      const testUser = fixtures.createTestUser('viewer');
+      const jwtToken = fixtures.createTestJWTToken({ 
+        sub: testUser.id,
+        exp: Math.floor(Date.now() / 1000) - 3600 // Expired
+      });
+
+      const error = new AuthenticationError('Token expired', {
+        user_id: testUser.id,
+        token_type: 'JWT',
+        expiry: new Date(Date.now() - 3600000).toISOString()
+      });
+
+      const req = mockRequest();
+      const res = mockResponse();
+      const next = mockNext();
+
+      errorHandler(error, req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          code: 'AUTHENTICATION_ERROR',
+          details: expect.objectContaining({
+            user_id: testUser.id,
+            token_type: 'JWT'
+          })
+        })
+      );
+    });
+
+    it('should handle rate limiting errors with fixture config', () => {
+      const rateLimitConfig = fixtures.createRateLimitConfig({
+        max_requests_per_minute: 30,
+        burst_size: 10
+      });
+      const testUser = fixtures.createTestUser('admin');
+
+      const error = new RateLimitError('Rate limit exceeded', {
+        user_id: testUser.id,
+        current_requests: rateLimitConfig.max_requests_per_minute + 5,
+        limit: rateLimitConfig.max_requests_per_minute,
+        reset_time: Date.now() + 60000
+      });
+
+      const req = mockRequest({ user: testUser });
+      const res = mockResponse();
+      const next = mockNext();
+
+      errorHandler(error, req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(429);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          code: 'RATE_LIMIT_ERROR',
+          details: expect.objectContaining({
+            limit: 30,
+            current_requests: 35
+          })
+        })
+      );
+    });
+
+    it('should handle external API errors with network issues', () => {
+      const networkError = fixtures.createNetworkError('timeout');
+      const error = new ExternalApiError('OPNsense API timeout', {
+        service: 'OPNsense',
+        endpoint: '/api/firewall/filter/getRule',
+        timeout: 30000,
+        error_code: networkError.code
+      });
+
+      const req = mockRequest();
+      const res = mockResponse();
+      const next = mockNext();
+
+      errorHandler(error, req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(502);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          code: 'EXTERNAL_API_ERROR',
+          details: expect.objectContaining({
+            service: 'OPNsense',
+            error_code: 'ECONNABORTED'
+          })
+        })
+      );
+    });
+
+    it('should handle bulk operation errors', () => {
+      const multipleRules = fixtures.createMultipleFirewallRules(5, false);
+      const testUser = fixtures.createTestUser('admin');
+
+      const error = new ValidationError('Bulk operation failed', {
+        operation: 'bulk_create_rules',
+        user_id: testUser.id,
+        total_rules: multipleRules.length,
+        failed_rules: multipleRules.filter((_, i) => i % 2 === 0),
+        validation_errors: multipleRules.map((rule, index) => ({
+          rule_index: index,
+          rule_uuid: rule.uuid,
+          errors: ['Invalid interface', 'Missing action']
+        }))
+      });
+
+      const req = mockRequest({ user: testUser });
+      const res = mockResponse();
+      const next = mockNext();
+
+      errorHandler(error, req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          details: expect.objectContaining({
+            operation: 'bulk_create_rules',
+            total_rules: 5,
+            validation_errors: expect.arrayContaining([
+              expect.objectContaining({
+                rule_index: expect.any(Number),
+                rule_uuid: expect.any(String)
+              })
+            ])
+          })
+        })
+      );
+    });
+
+    it('should sanitize sensitive data in error details', () => {
+      const testUser = fixtures.createTestUser('operator');
+      const jwtToken = fixtures.createTestJWTToken();
+      
+      const error = new Error('Sensitive data exposed');
+      error.details = {
+        user: testUser,
+        api_key: jwtToken,
+        password: 'secret123',
+        database_url: 'postgres://user:pass@host:5432/db'
+      };
+
+      const req = mockRequest();
+      const res = mockResponse();
+      const next = mockNext();
+
+      // In production, sensitive details should not be exposed
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+
+      errorHandler(error, req, res, next);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.not.objectContaining({
+          details: expect.objectContaining({
+            api_key: jwtToken,
+            password: 'secret123'
+          })
+        })
+      );
+
+      process.env.NODE_ENV = originalEnv;
+    });
+
+    it('should generate consistent error IDs', () => {
+      const error1 = new ValidationError(`Error 1 ${fixtures.random.string(6)}`);
+      const error2 = new ValidationError(`Error 2 ${fixtures.random.string(6)}`);
+
+      const req = mockRequest();
+      const res = mockResponse();
+      const next = mockNext();
+
+      errorHandler(error1, req, res, next);
+      const call1 = res.json.mock.calls[0][0];
+
+      res.json.mockClear();
+      errorHandler(error2, req, res, next);
+      const call2 = res.json.mock.calls[0][0];
+
+      expect(call1.error_id).toBeValidUUID();
+      expect(call2.error_id).toBeValidUUID();
+      expect(call1.error_id).not.toBe(call2.error_id);
+    });
+
+    it('should handle performance test errors', () => {
+      const perfData = fixtures.createPerformanceTestData(100);
+      const testUser = fixtures.createTestUser('admin');
+
+      const error = new Error('Performance test timeout');
+      error.details = {
+        test_type: 'bulk_processing',
+        data_size: perfData.length,
+        processing_time: 30000,
+        timeout_limit: 25000,
+        user_id: testUser.id
+      };
+
+      const req = mockRequest({ user: testUser });
+      const res = mockResponse();
+      const next = mockNext();
+
+      errorHandler(error, req, res, next);
+
+      expect(logger.error).toHaveBeenCalledWith(
+        'Internal server error',
+        expect.objectContaining({
+          user_id: testUser.id,
+          url: req.originalUrl,
+          method: req.method
+        })
+      );
     });
   });
 });
