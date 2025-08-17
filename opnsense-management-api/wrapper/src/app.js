@@ -238,33 +238,56 @@ if (config.enableSwagger) {
   // CSP rilassata SOLO per /api-docs e asset sottostanti
   const swaggerHelmet = helmet({
     contentSecurityPolicy: {
-      // Swagger UI usa inline + eval; consentili qui
-      useDefaults: true,
+      useDefaults: false,
       directives: {
-        defaultSrc: ["'self'", 'data:', 'blob:'],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
+        defaultSrc: ["'self'"],
+        baseUri: ["'self'"],
+        blockAllMixedContent: [],
+        fontSrc: ["'self'", 'https:', 'data:'],
+        frameAncestors: ["'self'"],
         imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+        objectSrc: ["'none'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        scriptSrcAttr: ["'none'"],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https:'],
+        upgradeInsecureRequests: [],
         connectSrc: ["'self'"],
-        // niente fontSrc esterni per la UI bundle
       },
     },
     crossOriginEmbedderPolicy: false,
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   });
-  app.use('/api-docs', swaggerHelmet);
 
-  // UI: carica lo spec via url (evita CSP sui bundle)
+  // Applica CSP rilassata solo per Swagger
+  app.use('/api-docs*', swaggerHelmet);
+
+  // Swagger UI con configurazione migliorata
   app.use(
     '/api-docs',
     swaggerUi.serve,
-    swaggerUi.setup(undefined, {
+    swaggerUi.setup(swaggerSpec, {
+      explorer: true,
       swaggerOptions: {
-        url: '/api-docs.json',
         displayRequestDuration: true,
+        tryItOutEnabled: true,
+        requestInterceptor: (req) => {
+          // Aggiungi headers di default se necessario
+          req.headers['X-Request-ID'] = require('crypto').randomUUID();
+          return req;
+        },
       },
-      customCss: '.swagger-ui .topbar { display: none }',
-      customSiteTitle: 'OPNsense Management API',
+      customCss: `
+        .swagger-ui .topbar { display: none }
+        .swagger-ui .scheme-container { 
+          background: #fafafa; 
+          border: 1px solid #d3d3d3; 
+          border-radius: 4px; 
+          padding: 10px; 
+          margin: 10px 0; 
+        }
+      `,
+      customSiteTitle: 'OPNsense Management API Documentation',
+      customfavIcon: '/favicon.ico',
     })
   );
 
