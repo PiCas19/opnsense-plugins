@@ -374,32 +374,49 @@ const validateZod = (schema, source = 'body') => {
   return (req, res, next) => {
     const data = source === 'body' ? req.body : source === 'params' ? req.params : source === 'query' ? req.query : req[source];
 
-    logger.debug('Validating data:', { source, data }); // Add debug logging
-    const parsed = schema.safeParse(data);
+    logger.debug('Dati in ingresso per la validazione:', { source, data });
+    let parsed;
+    try {
+      parsed = schema.safeParse(data);
+      logger.debug('Risultato di safeParse:', { success: parsed.success, error: parsed.error, errorType: typeof parsed.error });
+    } catch (error) {
+      logger.error('Eccezione durante safeParse:', { error: error.message, stack: error.stack });
+      return next(new ValidationError('Errore interno nella validazione', {
+        validation_errors: [{ field: 'general', message: 'Errore imprevisto durante la validazione' }],
+      }));
+    }
 
     if (!parsed.success) {
-      logger.debug('Validation failed:', { error: parsed.error }); // Log the raw error
-      // Safely handle the error structure
-      const issues = parsed.error?.issues || parsed.error?.errors || [{
-        path: [],
-        message: parsed.error?.message || 'Validation failed due to unexpected error structure',
-      }];
-      
+      let issues = [];
+      if (parsed.error) {
+        if (Array.isArray(parsed.error.issues)) {
+          issues = parsed.error.issues;
+        } else if (Array.isArray(parsed.error.errors)) {
+          issues = parsed.error.errors;
+        } else {
+          logger.error('Struttura dell\'errore non attesa da Zod:', { error: parsed.error, errorKeys: Object.keys(parsed.error || {}) });
+          issues = [{ path: [], message: 'Errore di validazione interno: struttura non riconosciuta' }];
+        }
+      } else {
+        logger.error('parsed.error è undefined:', { parsed });
+        issues = [{ path: [], message: 'Errore di validazione interno: nessun errore restituito da Zod' }];
+      }
+
       if (!Array.isArray(issues)) {
-        logger.error('Unexpected error structure in validation:', { issues });
-        return next(new ValidationError('Internal validation error', {
-          validation_errors: [{ field: 'general', message: 'An unexpected error occurred during validation' }],
+        logger.error('issues non è un array:', { issues });
+        return next(new ValidationError('Errore interno nella validazione', {
+          validation_errors: [{ field: 'general', message: 'Struttura dell\'errore non valida' }],
         }));
       }
 
-      const validationError = new ValidationError('Validation failed', {
+      const validationError = new ValidationError('Validazione fallita', {
         validation_errors: issues.map((i) => ({
           field: Array.isArray(i.path) ? i.path.join('.') : String(i.path || ''),
-          message: i.message || 'Validation error',
+          message: i.message || 'Errore di validazione',
         })),
       });
 
-      logger.warn('Validation error', {
+      logger.warn('Errore di validazione:', {
         source,
         errors: validationError.details.validation_errors,
         user_id: req.user?.id,
