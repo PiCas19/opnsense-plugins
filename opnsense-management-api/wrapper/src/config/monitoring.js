@@ -127,8 +127,9 @@ const metricsHelpers = {
     dependencyHealth.labels(component).set(healthy ? 1 : 0);
   },
 
-  updateFirewallRuleCount(interface, action, enabled, count) {
-    firewallRules.labels(interface, action, enabled ? 'true' : 'false').set(count);
+  // <<< FIX: rinominato il parametro "interface" -> "netIf" >>>
+  updateFirewallRuleCount(netIf, action, enabled, count) {
+    firewallRules.labels(netIf, action, enabled ? 'true' : 'false').set(count);
   },
 
   updateActivePolicyCount(type, count) {
@@ -171,7 +172,7 @@ const performHealthChecks = async () => {
 // Initialize monitoring
 const initializeMonitoring = () => {
   logger.info('Monitoring initialized - metrics registry ready');
-  
+
   // Set initial health states
   metricsHelpers.updateSystemHealth('database', 0);
   metricsHelpers.updateSystemHealth('cache', 0);
@@ -214,7 +215,7 @@ const monitoringConfig = {
       responseTime: 2000,
     },
   },
-  // Aggiunto per compatibilità con routes/monitoring.js
+  // Compatibilità con routes/monitoring.js
   nagios: {
     criticalThresholds: {
       responseTime: 5000,
