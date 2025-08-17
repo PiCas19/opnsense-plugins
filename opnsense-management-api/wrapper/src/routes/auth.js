@@ -156,7 +156,7 @@ router.post(
  *     description: Validate an API key and return user info
  *     tags: [Authentication]
  *     security:
- *       - apiKey: []
+ *       - apiKeyAuth: []
  *     responses:
  *       200:
  *         description: API key validated

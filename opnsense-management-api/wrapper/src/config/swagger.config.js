@@ -136,6 +136,10 @@ module.exports = {
         name: 'Policies',
         description: 'Security policy management',
       },
+      {
+        name: 'Authentication',
+        description: 'User authentication and API key management', 
+      }
     ],
   },
   apis: [
