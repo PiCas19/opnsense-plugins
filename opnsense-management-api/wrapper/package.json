@@ -33,7 +33,8 @@
     "validate": "npm run lint && npm run format:check && npm run test",
     "prepare": "node -e \"if(process.env.NODE_ENV!=='production'){try{require('husky').install()}catch(e){}}\"",
     "postinstall": "npm list --depth=0 --silent || true",
-    "install:clean": "npm install --silent --no-fund --no-audit --loglevel=silent"
+    "install:clean": "NODE_NO_WARNINGS=1 npm install --silent --no-fund --no-audit --no-warnings 2>/dev/null || npm install --silent",
+    "install:force": "rm -rf node_modules package-lock.json && NODE_NO_WARNINGS=1 npm install --silent --no-fund --no-audit --no-warnings 2>/dev/null"
   },
   "keywords": [
     "opnsense",
@@ -105,7 +106,13 @@
     "glob": "10.4.5",
     "minimatch": "9.0.5",
     "cross-env": "7.0.3",
-    "inflight": "1.0.6"
+    "inflight": "1.0.6",
+    "lodash.get": false,
+    "lodash.isequal": false,
+    "lodash.isarray": false,
+    "lodash.isplainobject": false,
+    "lodash.merge": false,
+    "lodash.clonedeep": false
   },
   "engines": {
     "node": ">=18.19.1 <19.0.0",
