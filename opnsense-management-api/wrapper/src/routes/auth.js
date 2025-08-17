@@ -10,7 +10,7 @@ const router = express.Router();
 
 /**
  * @swagger
- * /api/v1/auth/login:
+ * /auth/login:
  *   post:
  *     summary: User login with password update or API key generation
  *     description: Authenticate a user and optionally update password or generate an API key
@@ -50,8 +50,8 @@ const router = express.Router();
  *         description: Validation error
  */
 router.post(
-  '/api/v1/auth/login',
-  validators.login, // Valida username, password, remember_me
+  '/login',
+  validators.login,
   asyncHandler(async (req, res) => {
     const { username, password, remember_me = false, update_password = false, generate_api_key = false } = req.body;
 
@@ -89,7 +89,7 @@ router.post(
     // Update password if requested (re-hash the provided password)
     let newPasswordHash = user.password;
     if (update_password) {
-      newPasswordHash = await hashPassword(password); // Ricalcola l'hash della password attuale
+      newPasswordHash = await hashPassword(password); // Ricalcola l'hash
       await user.update({ password: newPasswordHash });
       logger.info('Password updated for user', { user_id: user.id, username });
       await auditSecurityEvent(req, 'password_updated', 'low', { user_id: user.id });
@@ -150,7 +150,7 @@ router.post(
 
 /**
  * @swagger
- * /api/v1/auth/validate:
+ * /auth/validate:
  *   get:
  *     summary: Validate API key
  *     description: Validate an API key and return user info
@@ -174,7 +174,7 @@ router.post(
  *         description: Invalid or missing API key
  */
 router.get(
-  '/api/v1/auth/validate',
+  '/validate',
   authenticateApiKey,
   (req, res) => {
     res.json({
