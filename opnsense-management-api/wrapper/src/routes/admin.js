@@ -2,10 +2,9 @@
 const express = require('express');
 const { Op } = require('sequelize');
 
-// Middleware
+// Middleware - Use simple version from errorHandler
 const { validators } = require('../middleware/validation');
-const { asyncHandler } = require('../middleware/asyncHandler');
-const { NotFoundError } = require('../middleware/errorHandler');
+const { asyncHandler, NotFoundError } = require('../middleware/errorHandler');
 
 // Models
 const User = require('../models/User');
@@ -20,7 +19,7 @@ const router = express.Router();
  * @swagger
  * tags:
  *   - name: Admin
- *     description: Administration endpoints
+ *     description: Administration endpoints for user and system management
  */
 
 /**
@@ -28,14 +27,17 @@ const router = express.Router();
  * /api/v1/admin/users:
  *   get:
  *     summary: List all users with pagination and filters
+ *     description: Retrieve a paginated list of users with optional search and role filtering
  *     tags: [Admin]
  *     parameters:
  *       - in: query
  *         name: page
  *         schema: { type: integer, minimum: 1, default: 1 }
+ *         description: Page number for pagination
  *       - in: query
  *         name: limit
  *         schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+ *         description: Number of items per page
  *       - in: query
  *         name: q
  *         schema: { type: string }
@@ -43,6 +45,7 @@ const router = express.Router();
  *       - in: query
  *         name: role
  *         schema: { type: string, enum: [admin, operator, viewer] }
+ *         description: Filter by user role
  *     responses:
  *       200:
  *         description: Users retrieved successfully
@@ -51,10 +54,30 @@ const router = express.Router();
  *             schema:
  *               type: object
  *               properties:
- *                 success: { type: boolean }
- *                 message: { type: string }
- *                 data: { type: array }
- *                 pagination: { type: object }
+ *                 success: { type: boolean, example: true }
+ *                 message: { type: string, example: "Users retrieved successfully" }
+ *                 data: 
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id: { type: integer }
+ *                       username: { type: string }
+ *                       email: { type: string }
+ *                       role: { type: string }
+ *                       is_active: { type: boolean }
+ *                       created_at: { type: string }
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     total: { type: integer }
+ *                     page: { type: integer }
+ *                     limit: { type: integer }
+ *                     total_pages: { type: integer }
+ *                     has_next: { type: boolean }
+ *                     has_prev: { type: boolean }
+ *       400:
+ *         description: Invalid query parameters
  */
 router.get(
   '/users',
@@ -64,7 +87,7 @@ router.get(
 
     const where = {};
     
-    // Search filter
+    // Apply search filter for username or email
     if (search) {
       where[Op.or] = [
         { username: { [Op.iLike]: `%${search}%` } },
@@ -72,7 +95,7 @@ router.get(
       ];
     }
     
-    // Role filter
+    // Apply role filter
     if (role) {
       where.role = role;
     }
@@ -117,6 +140,7 @@ router.get(
  * /api/v1/admin/users:
  *   post:
  *     summary: Create a new user
+ *     description: Create a new user account with specified role and permissions
  *     tags: [Admin]
  *     requestBody:
  *       required: true
@@ -126,16 +150,56 @@ router.get(
  *             type: object
  *             required: [username, email, password, role]
  *             properties:
- *               username: { type: string, minLength: 3, maxLength: 30 }
- *               email: { type: string, format: email }
- *               password: { type: string, minLength: 8 }
- *               role: { type: string, enum: [admin, operator, viewer] }
- *               is_active: { type: boolean, default: true }
+ *               username: 
+ *                 type: string
+ *                 minLength: 3
+ *                 maxLength: 30
+ *                 pattern: "^[A-Za-z0-9]+$"
+ *                 description: Alphanumeric username
+ *                 example: "johndoe123"
+ *               email: 
+ *                 type: string
+ *                 format: email
+ *                 description: Valid email address
+ *                 example: "john.doe@example.com"
+ *               password: 
+ *                 type: string
+ *                 minLength: 8
+ *                 description: Strong password with mixed case, numbers and symbols
+ *                 example: "MyStr0ng!Pass"
+ *               role: 
+ *                 type: string
+ *                 enum: [admin, operator, viewer]
+ *                 description: User role determining access level
+ *                 example: "operator"
+ *               is_active: 
+ *                 type: boolean
+ *                 default: true
+ *                 description: Whether the user account is active
+ *                 example: true
  *     responses:
  *       201:
  *         description: User created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean, example: true }
+ *                 message: { type: string, example: "User created successfully" }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id: { type: integer }
+ *                     username: { type: string }
+ *                     email: { type: string }
+ *                     role: { type: string }
+ *                     is_active: { type: boolean }
+ *                     created_at: { type: string }
  *       409:
  *         description: Username or email already exists
+ *       400:
+ *         description: Validation error
  */
 router.post(
   '/users',
@@ -162,7 +226,7 @@ router.post(
       });
     }
 
-    // Create user (password is automatically hashed by the model)
+    // Create user (password is automatically hashed by the model hook)
     const user = await User.create({
       username,
       email,
@@ -171,6 +235,7 @@ router.post(
       is_active,
     });
 
+    // Log user creation for audit trail
     logger.info('User created successfully', {
       user_id: user.id,
       username: user.username,
@@ -198,18 +263,39 @@ router.post(
  * /api/v1/admin/users/{id}:
  *   get:
  *     summary: Get user details by ID
+ *     description: Retrieve detailed information about a specific user
  *     tags: [Admin]
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
- *         schema: { type: integer }
+ *         schema: { type: integer, minimum: 1 }
  *         description: User ID
+ *         example: 123
  *     responses:
  *       200:
  *         description: User retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean, example: true }
+ *                 message: { type: string, example: "User retrieved successfully" }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id: { type: integer }
+ *                     username: { type: string }
+ *                     email: { type: string }
+ *                     role: { type: string }
+ *                     is_active: { type: boolean }
+ *                     created_at: { type: string }
+ *                     updated_at: { type: string }
  *       404:
  *         description: User not found
+ *       400:
+ *         description: Invalid user ID
  */
 router.get(
   '/users/:id',
@@ -246,12 +332,14 @@ router.get(
  * /api/v1/admin/users/{id}:
  *   put:
  *     summary: Update user details
+ *     description: Update an existing user's information (excluding password)
  *     tags: [Admin]
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
- *         schema: { type: integer }
+ *         schema: { type: integer, minimum: 1 }
+ *         description: User ID to update
  *     requestBody:
  *       required: true
  *       content:
@@ -259,17 +347,37 @@ router.get(
  *           schema:
  *             type: object
  *             properties:
- *               username: { type: string }
- *               email: { type: string, format: email }
- *               role: { type: string, enum: [admin, operator, viewer] }
- *               is_active: { type: boolean }
+ *               username: 
+ *                 type: string
+ *                 minLength: 3
+ *                 maxLength: 30
+ *                 pattern: "^[A-Za-z0-9]+$"
+ *                 description: New username (must be unique)
+ *               email: 
+ *                 type: string
+ *                 format: email
+ *                 description: New email address (must be unique)
+ *               role: 
+ *                 type: string
+ *                 enum: [admin, operator, viewer]
+ *                 description: User role
+ *               is_active: 
+ *                 type: boolean
+ *                 description: Account status
+ *             example:
+ *               username: "newusername"
+ *               email: "newemail@example.com"
+ *               role: "operator"
+ *               is_active: true
  *     responses:
  *       200:
  *         description: User updated successfully
  *       404:
  *         description: User not found
  *       409:
- *         description: Username or email conflict
+ *         description: Username or email conflict with existing user
+ *       400:
+ *         description: Validation error
  */
 router.put(
   '/users/:id',
@@ -287,7 +395,7 @@ router.put(
     // Check for conflicts if updating username or email
     if (updates.username || updates.email) {
       const whereClause = {
-        id: { [Op.ne]: id },
+        id: { [Op.ne]: id }, // Exclude current user from conflict check
       };
 
       if (updates.username && updates.email) {
@@ -315,8 +423,10 @@ router.put(
       }
     }
 
+    // Update user with provided data
     await user.update(updates);
 
+    // Log update for audit trail
     logger.info('User updated successfully', {
       user_id: user.id,
       updated_fields: Object.keys(updates),
@@ -342,18 +452,20 @@ router.put(
  * @swagger
  * /api/v1/admin/users/{id}:
  *   delete:
- *     summary: Delete user (soft delete)
+ *     summary: Delete user account
+ *     description: Permanently delete a user account (soft delete if configured in model)
  *     tags: [Admin]
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
- *         schema: { type: integer }
+ *         schema: { type: integer, minimum: 1 }
+ *         description: User ID to delete
  *     responses:
  *       200:
  *         description: User deleted successfully
  *       400:
- *         description: Cannot delete own account
+ *         description: Cannot delete own account or validation error
  *       404:
  *         description: User not found
  */
@@ -368,7 +480,7 @@ router.delete(
       throw new NotFoundError('User not found');
     }
 
-    // Prevent self-deletion if auth is implemented
+    // Prevent self-deletion if authentication is implemented
     if (req.user && req.user.id === parseInt(id)) {
       return res.status(400).json({
         success: false,
@@ -377,8 +489,10 @@ router.delete(
       });
     }
 
+    // Delete user (soft delete if paranoid: true in model)
     await user.destroy();
 
+    // Log deletion for audit trail
     logger.info('User deleted successfully', {
       user_id: user.id,
       username: user.username,
@@ -397,32 +511,53 @@ router.delete(
  * /api/v1/admin/audit-logs:
  *   get:
  *     summary: Get audit logs with filters
+ *     description: Retrieve system audit logs with optional filtering by level, action, user, and date range
  *     tags: [Admin]
  *     parameters:
  *       - in: query
  *         name: page
- *         schema: { type: integer, default: 1 }
+ *         schema: { type: integer, minimum: 1, default: 1 }
+ *         description: Page number
  *       - in: query
  *         name: limit
- *         schema: { type: integer, default: 50 }
+ *         schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+ *         description: Items per page
  *       - in: query
  *         name: level
  *         schema: { type: string, enum: [info, warning, critical, security] }
+ *         description: Filter by log level
  *       - in: query
  *         name: action
  *         schema: { type: string }
+ *         description: Filter by action (partial match)
  *       - in: query
  *         name: user_id
  *         schema: { type: integer }
+ *         description: Filter by user ID
  *       - in: query
  *         name: start_date
  *         schema: { type: string, format: date-time }
+ *         description: Start date for filtering (ISO 8601)
+ *         example: "2024-01-01T00:00:00Z"
  *       - in: query
  *         name: end_date
  *         schema: { type: string, format: date-time }
+ *         description: End date for filtering (ISO 8601)
+ *         example: "2024-12-31T23:59:59Z"
  *     responses:
  *       200:
  *         description: Audit logs retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 message: { type: string }
+ *                 data: { type: array }
+ *                 pagination: { type: object }
+ *       400:
+ *         description: Invalid query parameters
  */
 router.get(
   '/audit-logs',
@@ -440,12 +575,16 @@ router.get(
 
     const where = {};
 
-    // Apply filters
+    // Apply level filter
     if (level) where.level = level;
+    
+    // Apply action filter (case-insensitive partial match)
     if (action) where.action = { [Op.iLike]: `%${action}%` };
+    
+    // Apply user filter
     if (user_id) where.user_id = user_id;
 
-    // Date range filter
+    // Apply date range filter
     if (start_date || end_date) {
       where.timestamp = {};
       if (start_date) where.timestamp[Op.gte] = new Date(start_date);
@@ -460,14 +599,14 @@ router.get(
       include: [
         {
           model: User,
-          as: 'user', // Make sure this association is defined in the model
+          as: 'user', // Ensure this association is defined in the AuditLog model
           attributes: ['id', 'username'],
-          required: false,
+          required: false, // LEFT JOIN to include logs without associated users
         },
       ],
       limit: limitNum,
       offset: (pageNum - 1) * limitNum,
-      order: [['timestamp', 'DESC']],
+      order: [['timestamp', 'DESC']], // Most recent logs first
     });
 
     res.json({
@@ -491,6 +630,7 @@ router.get(
  * /api/v1/admin/system/info:
  *   get:
  *     summary: Get system information and health status
+ *     description: Retrieve comprehensive system information including hardware stats, database health, and application metrics
  *     tags: [Admin]
  *     responses:
  *       200:
@@ -502,7 +642,16 @@ router.get(
  *               properties:
  *                 success: { type: boolean }
  *                 message: { type: string }
- *                 data: { type: object }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     system: { type: object }
+ *                     database: { type: object }
+ *                     application: { type: object }
+ *                     timestamp: { type: string }
+ *                     health_status: { type: string, enum: [healthy, degraded, error] }
+ *       503:
+ *         description: System health check failed
  */
 router.get(
   '/system/info',
@@ -510,7 +659,7 @@ router.get(
     const os = require('os');
     const { sequelize } = require('../config/database');
 
-    // System information
+    // Gather system information
     const system = {
       hostname: os.hostname(),
       platform: os.platform(),
@@ -520,7 +669,7 @@ router.get(
         total: os.totalmem(),
         free: os.freemem(),
         used: os.totalmem() - os.freemem(),
-        usage_percentage: ((os.totalmem() - os.freemem()) / os.totalmem()) * 100,
+        usage_percentage: Math.round(((os.totalmem() - os.freemem()) / os.totalmem()) * 100),
       },
       cpu: {
         cores: os.cpus().length,
@@ -549,7 +698,7 @@ router.get(
     const recentLogs = await AuditLog.count({
       where: { 
         timestamp: { 
-          [Op.gte]: new Date(Date.now() - 24 * 60 * 60 * 1000) 
+          [Op.gte]: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
         } 
       },
     });
@@ -568,6 +717,15 @@ router.get(
       },
     };
 
+    // Determine overall health status
+    let healthStatus = 'healthy';
+    if (!database.connected) {
+      healthStatus = 'degraded';
+    }
+    if (system.memory.usage_percentage > 90) {
+      healthStatus = 'degraded';
+    }
+
     res.json({
       success: true,
       message: 'System information retrieved successfully',
@@ -576,7 +734,7 @@ router.get(
         database,
         application,
         timestamp: new Date().toISOString(),
-        health_status: database.connected ? 'healthy' : 'degraded',
+        health_status: healthStatus,
       },
     });
   })
@@ -587,15 +745,31 @@ router.get(
  * /api/v1/admin/users/{id}/toggle-status:
  *   patch:
  *     summary: Toggle user active status
+ *     description: Enable or disable a user account by toggling the is_active flag
  *     tags: [Admin]
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
- *         schema: { type: integer }
+ *         schema: { type: integer, minimum: 1 }
+ *         description: User ID to toggle status
  *     responses:
  *       200:
  *         description: User status toggled successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 message: { type: string }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id: { type: integer }
+ *                     username: { type: string }
+ *                     is_active: { type: boolean }
+ *                     updated_at: { type: string }
  *       404:
  *         description: User not found
  */
@@ -610,9 +784,11 @@ router.patch(
       throw new NotFoundError('User not found');
     }
 
+    // Toggle the active status
     const newStatus = !user.is_active;
     await user.update({ is_active: newStatus });
 
+    // Log status change for audit trail
     logger.info('User status toggled', {
       user_id: user.id,
       username: user.username,
@@ -637,7 +813,8 @@ router.patch(
  * @swagger
  * /api/v1/admin/users/bulk-action:
  *   post:
- *     summary: Perform bulk actions on users
+ *     summary: Perform bulk actions on multiple users
+ *     description: Execute batch operations on multiple users simultaneously (activate, deactivate, or delete)
  *     tags: [Admin]
  *     requestBody:
  *       required: true
@@ -647,18 +824,48 @@ router.patch(
  *             type: object
  *             required: [user_ids, action]
  *             properties:
- *               user_ids: { type: array, items: { type: integer } }
- *               action: { type: string, enum: [activate, deactivate, delete] }
+ *               user_ids: 
+ *                 type: array
+ *                 items: { type: integer }
+ *                 minItems: 1
+ *                 maxItems: 50
+ *                 description: Array of user IDs to process
+ *                 example: [1, 2, 3, 4, 5]
+ *               action: 
+ *                 type: string
+ *                 enum: [activate, deactivate, delete]
+ *                 description: Action to perform on selected users
+ *                 example: "deactivate"
+ *           example:
+ *             user_ids: [1, 2, 3]
+ *             action: "deactivate"
  *     responses:
  *       200:
  *         description: Bulk action completed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 message: { type: string }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     action: { type: string }
+ *                     affected_count: { type: integer }
+ *                     processed_users: { type: integer }
+ *       400:
+ *         description: Invalid request or validation error
+ *       404:
+ *         description: No users found with provided IDs
  */
 router.post(
   '/users/bulk-action',
   asyncHandler(async (req, res) => {
     const { user_ids, action } = req.body;
 
-    // Basic validation
+    // Validate input parameters
     if (!Array.isArray(user_ids) || user_ids.length === 0) {
       return res.status(400).json({
         success: false,
@@ -675,7 +882,7 @@ router.post(
       });
     }
 
-    // Prevent self-action if auth is implemented
+    // Prevent self-action if authentication is implemented
     if (req.user && user_ids.includes(req.user.id)) {
       return res.status(400).json({
         success: false,
@@ -684,6 +891,7 @@ router.post(
       });
     }
 
+    // Find existing users
     const users = await User.findAll({
       where: { id: { [Op.in]: user_ids } },
       attributes: ['id', 'username', 'is_active'],
@@ -697,6 +905,7 @@ router.post(
       });
     }
 
+    // Execute bulk action
     let result;
     switch (action) {
       case 'activate':
@@ -718,6 +927,7 @@ router.post(
         break;
     }
 
+    // Log bulk action for audit trail
     logger.info('Bulk user action performed', {
       action,
       affected_users: users.map(u => ({ id: u.id, username: u.username })),
@@ -736,4 +946,4 @@ router.post(
   })
 );
 
-module.exports = router
+module.exports = router;
