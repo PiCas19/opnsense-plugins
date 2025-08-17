@@ -31,7 +31,8 @@
     "backup": "node src/scripts/backup.js",
     "health": "curl -f http://localhost:3000/api/v1/health || exit 1",
     "validate": "npm run lint && npm run format:check && npm run test",
-    "prepare": "node -e \"if(process.env.NODE_ENV!=='production'){try{require('husky').install()}catch(e){}}\""
+    "prepare": "node -e \"if(process.env.NODE_ENV!=='production'){try{require('husky').install()}catch(e){}}\"",
+    "postinstall": "npm list --depth=0 --silent || true"
   },
   "keywords": [
     "opnsense",
@@ -100,12 +101,12 @@
   },
   "overrides": {
     "multer": "2.0.2",
-    "glob": "8.1.0",
+    "glob": "10.4.5",
     "minimatch": "9.0.5",
     "cross-env": "7.0.3",
-    "jackspeak": "2.3.6",
-    "path-scurry": "1.11.1",
-    "lru-cache": "7.18.3"
+    "inflight": "1.0.6",
+    "lodash.get": "4.4.2",
+    "lodash.isequal": "4.5.0"
   },
   "engines": {
     "node": ">=18.19.1 <19.0.0",
