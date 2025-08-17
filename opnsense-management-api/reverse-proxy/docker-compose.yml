@@ -2,7 +2,7 @@ services:
   nginx:
     build:
       context: .
-      dockerfile: Dockerfile.nginx
+      dockerfile: Dockerfile
     container_name: opnsense-reverse-proxy
     restart: unless-stopped
     depends_on:
