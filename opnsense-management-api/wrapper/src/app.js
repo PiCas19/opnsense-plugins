@@ -207,6 +207,7 @@ const firewallRoutes = require('./routes/firewall');
 const healthRoutes = require('./routes/health');
 const monitoringRoutes = require('./routes/monitoring');
 const policiesRoutes = require('./routes/policies');
+const authRoutes = require('./routes/auth');
 
 // Health
 app.use('/api/v1/health', healthRoutes);
@@ -278,6 +279,7 @@ app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/firewall', firewallRoutes);
 app.use('/api/v1/monitoring', monitoringRoutes);
 app.use('/api/v1/policies', policiesRoutes);
+app.use('/api/v1/auth', authRoutes);
 
 // Root API info
 app.get('/api/v1', (_req, res) => {
