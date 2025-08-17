@@ -1,3 +1,5 @@
+// src/app.js
+
 // Load environment variables from .env file first
 require('dotenv').config();
 
@@ -8,11 +10,11 @@ const cors = require('cors');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const compression = require('compression');
-const path = require('path');
 
 // Swagger (JSDoc -> OpenAPI)
 const swaggerUi = require('swagger-ui-express');
 const swaggerJsdoc = require('swagger-jsdoc');
+const swaggerConfig = require('./config/swagger.config'); 
 
 // Custom modules
 const logger = require('./utils/logger');
@@ -61,35 +63,8 @@ const config = {
 };
 
 // ---------- Swagger spec costruita da commenti JSDoc ---------- //
-const projectRoot = path.resolve(__dirname, '..'); // root del repo
-const routesGlob1 = path.join(projectRoot, 'src', 'routes', '*.js');
-const routesGlob2 = path.join(projectRoot, 'src', 'routes', '**', '*.js');
-
-const swaggerOptions = {
-  definition: {
-    openapi: '3.0.3',
-    info: {
-      title: 'OPNsense Management API',
-      version: process.env.npm_package_version || '1.0.0',
-      description:
-        'REST API wrapper for OPNsense firewall management with monitoring integration',
-    },
-    servers: [
-      { url: process.env.API_BASE_URL || `http://localhost:${config.port}` },
-    ],
-    components: {
-      securitySchemes: {
-        bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
-      },
-    },
-    security: [{ bearerAuth: [] }],
-  },
-  // ATTENZIONE: glob assoluti così non falliscono in Docker o in ambienti diversi
-  apis: [routesGlob1, routesGlob2],
-};
-
-const swaggerSpec = swaggerJsdoc(swaggerOptions);
-const swaggerPathsCount = swaggerSpec && swaggerSpec.paths ? Object.keys(swaggerSpec.paths).length : 0;
+const swaggerSpec = swaggerJsdoc(swaggerConfig);
+const swaggerPathsCount = swaggerSpec?.paths ? Object.keys(swaggerSpec.paths).length : 0;
 logger.info(`Swagger spec generata: ${swaggerPathsCount} path trovati`);
 
 // ------------------------------------------------------------- //
@@ -237,11 +212,11 @@ function setupMiddleware() {
 
   app.use(
     morgan(morganFormat, {
-      stream: { write: (message) => logger.http(message.trim()) },
+      stream: { write: message => logger.http(message.trim()) },
       skip: (req, res) => {
         const skipPaths = ['/health', '/metrics', '/api/v1/health'];
         return (
-          skipPaths.some((p) => req.originalUrl.includes(p)) ||
+          skipPaths.some(p => req.originalUrl.includes(p)) ||
           (res.statusCode < 400 && config.nodeEnv === 'production')
         );
       },
@@ -252,7 +227,13 @@ function setupMiddleware() {
     auditMiddleware({
       includeRequestBody: config.nodeEnv !== 'production',
       includeResponseBody: false,
-      excludePaths: ['/api/v1/health', '/api/v1/monitoring/prometheus', '/metrics', '/api-docs', '/api-docs.json'],
+      excludePaths: [
+        '/api/v1/health',
+        '/api/v1/monitoring/prometheus',
+        '/metrics',
+        '/api-docs',
+        '/api-docs.json',
+      ],
       sensitiveFields: ['password', 'token', 'secret', 'key'],
     })
   );
@@ -263,7 +244,7 @@ function setupMiddleware() {
     createRateLimiter({
       windowMs: 15 * 60 * 1000,
       max: config.nodeEnv === 'production' ? 1000 : 10000,
-      skip: (req) => req.path.includes('/health'),
+      skip: req => req.path.includes('/health'),
     })
   );
 
@@ -291,12 +272,9 @@ function setupRoutes() {
       }
 
       try {
-        const metrics = await getMetrics();
-        const contentType =
-          (metrics && metrics.contentType) || 'text/plain; version=0.0.4; charset=utf-8';
-        const payload = (metrics && metrics.data) || metrics || '';
-        res.set('Content-Type', contentType);
-        res.end(payload);
+        const metrics = await getMetrics(); // string (Prometheus exposition)
+        res.set('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
+        res.end(typeof metrics === 'string' ? metrics : String(metrics));
       } catch (error) {
         logger.error('Failed to get metrics:', error);
         res.status(500).json({ error: 'Failed to retrieve metrics' });
@@ -306,21 +284,45 @@ function setupRoutes() {
 
   // API Docs (JSDoc)
   if (config.enableSwagger) {
+    // JSON dello spec (comodo per debug e per caricare la UI)
     app.get('/api-docs.json', (_req, res) => res.json(swaggerSpec));
+
+    // In produzione rilassa la CSP SOLO per /api-docs
+    if (config.nodeEnv === 'production') {
+      app.use(
+        '/api-docs',
+        helmet({
+          contentSecurityPolicy: {
+            directives: {
+              defaultSrc: ["'self'"],
+              scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+              styleSrc: ["'self'", "'unsafe-inline'"],
+              imgSrc: ["'self'", 'data:', 'https:'],
+              connectSrc: ["'self'"],
+            },
+          },
+          crossOriginEmbedderPolicy: false,
+        })
+      );
+    }
+
+    // Monta la UI caricando lo spec da /api-docs.json
     app.use(
       '/api-docs',
       swaggerUi.serve,
-      swaggerUi.setup(swaggerSpec, {
-        explorer: true,
+      swaggerUi.setup(undefined, {
+        swaggerOptions: {
+          url: '/api-docs.json',
+          displayRequestDuration: true,
+        },
         customCss: '.swagger-ui .topbar { display: none }',
         customSiteTitle: 'OPNsense Management API',
       })
     );
+
     logger.info('Swagger documentation enabled at /api-docs');
     if (swaggerPathsCount === 0) {
-      logger.warn('Swagger spec caricata ma senza paths. Verifica i commenti @swagger e i glob: ', {
-        globs: [routesGlob1, routesGlob2],
-      });
+      logger.warn('Swagger spec caricata ma senza paths. Aggiungi commenti @swagger nelle routes.');
     }
   }
 
@@ -371,22 +373,18 @@ function startHealthChecks() {
 // Server
 function startServer() {
   return new Promise((resolve, reject) => {
-    server = app.listen(config.port, (error) => {
+    server = app.listen(config.port, error => {
       if (error) return reject(error);
 
       logger.info(`Server running on port ${config.port} in ${config.nodeEnv} mode`);
       if (config.enableSwagger)
-        logger.info(
-          `API Documentation available at http://localhost:${config.port}/api-docs`
-        );
-      logger.info(
-        `Health endpoint available at http://localhost:${config.port}/api/v1/health`
-      );
+        logger.info(`API Documentation available at http://localhost:${config.port}/api-docs`);
+      logger.info(`Health endpoint available at http://localhost:${config.port}/api/v1/health`);
       logger.info(`Metrics endpoint available at http://localhost:${config.port}/metrics`);
       resolve();
     });
 
-    server.on('error', (error) => {
+    server.on('error', error => {
       if (error.code === 'EADDRINUSE')
         logger.error(`Port ${config.port} is already in use`);
       else logger.error('Server error:', error);
@@ -407,7 +405,7 @@ async function gracefulShutdown(exitCode = 0) {
   isShuttingDown = true;
   logger.info('Initiating graceful shutdown...');
 
-  const shutdownPromise = new Promise((resolve) => {
+  const shutdownPromise = new Promise(resolve => {
     let steps = 0;
     const total = 4;
     const done = () => {
@@ -433,7 +431,7 @@ async function gracefulShutdown(exitCode = 0) {
         logger.info('Database connections closed');
         done();
       })
-      .catch((error) => {
+      .catch(error => {
         logger.error('Error closing database connections:', error);
         done();
       });
@@ -476,7 +474,7 @@ process.on('SIGUSR2', () => {
 });
 
 // Fatal handlers
-process.on('uncaughtException', (error) => {
+process.on('uncaughtException', error => {
   logger.error('Uncaught Exception:', { error: error.message, stack: error.stack });
   gracefulShutdown(1);
 });
@@ -502,7 +500,7 @@ if (config.nodeEnv === 'production') {
 
 // Bootstrap
 if (require.main === module) {
-  initializeApplication().catch((error) => {
+  initializeApplication().catch(error => {
     logger.error('Failed to start application:', error);
     process.exit(1);
   });
