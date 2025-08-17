@@ -18,8 +18,7 @@ const isCIDR = (value) => {
   return Number.isInteger(p) && p >= 0 && p <= 32;
 };
 
-const strongPwd =
-  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/;
+const strongPwd = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/;
 
 /* ------------------------- common schemas ------------------------- */
 const commonSchemas = {
@@ -62,11 +61,7 @@ const commonSchemas = {
 const authSchemas = {
   login: z
     .object({
-      username: z
-        .string()
-        .min(3)
-        .max(30)
-        .regex(/^[A-Za-z0-9]+$/, 'Must be alphanumeric'),
+      username: z.string().min(3).max(30).regex(/^[A-Za-z0-9]+$/, 'Must be alphanumeric'),
       password: z.string().min(8).max(128),
       remember_me: z.boolean().default(false).optional(),
     })
@@ -74,18 +69,11 @@ const authSchemas = {
 
   register: z
     .object({
-      username: z
-        .string()
-        .min(3)
-        .max(30)
-        .regex(/^[A-Za-z0-9]+$/, 'Must be alphanumeric'),
+      username: z.string().min(3).max(30).regex(/^[A-Za-z0-9]+$/, 'Must be alphanumeric'),
       email: z.string().email(),
       password: z.string().min(8).max(128).regex(strongPwd, 'Weak password'),
       confirm_password: z.string().min(8).max(128),
-      role: z
-        .enum(['admin', 'operator', 'viewer', 'api_user'])
-        .default('viewer')
-        .optional(),
+      role: z.enum(['admin', 'operator', 'viewer', 'api_user']).default('viewer').optional(),
     })
     .strip()
     .superRefine((val, ctx) => {
@@ -145,12 +133,7 @@ const addressAlias = z
   })
   .strip();
 
-const endpointSchema = z.discriminatedUnion('type', [
-  addressAny,
-  addressSingle,
-  addressNetwork,
-  addressAlias,
-]);
+const endpointSchema = z.discriminatedUnion('type', [addressAny, addressSingle, addressNetwork, addressAlias]);
 
 const createRuleBase = z
   .object({
@@ -192,17 +175,7 @@ const scheduleSchema = z
     start_time: z.string().regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(),
     end_time: z.string().regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(),
     days: z
-      .array(
-        z.enum([
-          'monday',
-          'tuesday',
-          'wednesday',
-          'thursday',
-          'friday',
-          'saturday',
-          'sunday',
-        ])
-      )
+      .array(z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']))
       .optional(),
   })
   .strip();
@@ -236,11 +209,7 @@ const policySchemas = {
 
 const adminCreateBase = z
   .object({
-    username: z
-      .string()
-      .min(3)
-      .max(30)
-      .regex(/^[A-Za-z0-9]+$/, 'Must be alphanumeric'),
+    username: z.string().min(3).max(30).regex(/^[A-Za-z0-9]+$/, 'Must be alphanumeric'),
     email: z.string().email(),
     password: z.string().min(8).max(128).regex(strongPwd, 'Weak password'),
     role: z.enum(['admin', 'operator', 'viewer', 'api_user']),
@@ -284,7 +253,7 @@ const querySchemas = {
     .strip()
     .merge(paginationSchema),
 
-  // IMPORTANT: prima merge, poi superRefine (altrimenti merge non esiste)
+  // prima merge, poi superRefine
   auditLogs: z
     .object({
       user_id: commonSchemas.id.optional(),
@@ -321,11 +290,13 @@ const validateZod = (schema, source = 'body') => {
         : req[source];
 
     const parsed = schema.safeParse(data);
+
     if (!parsed.success) {
+      const issues = Array.isArray(parsed.error?.issues) ? parsed.error.issues : [];
       const validationError = new ValidationError('Validation failed', {
-        validation_errors: parsed.error.errors.map((e) => ({
-          field: e.path.join('.'),
-          message: e.message,
+        validation_errors: issues.map((i) => ({
+          field: Array.isArray(i.path) ? i.path.join('.') : '',
+          message: i.message,
         })),
       });
 
@@ -385,8 +356,8 @@ const sanitizers = {
     if (typeof value !== 'string') return value;
     return value
       .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
+      .replace(/</g, '&lt')
+      .replace(/>/g, '&gt')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#x27;');
   },
@@ -445,18 +416,12 @@ const validators = {
   auditLogsQuery: validateZod(querySchemas.auditLogs, 'query'),
 
   // Params con express-validator
-  idParam: [
-    param('id').isInt({ min: 1 }).withMessage('ID must be a positive integer'),
-    handleExpressValidation,
-  ],
-  uuidParam: [
-    param('id').isUUID(4).withMessage('ID must be a valid UUID'),
-    handleExpressValidation,
-  ],
+  idParam: [param('id').isInt({ min: 1 }).withMessage('ID must be a positive integer'), handleExpressValidation],
+  uuidParam: [param('id').isUUID(4).withMessage('ID must be a valid UUID'), handleExpressValidation],
 };
 
 /* ------------------------ dynamic route mapping ------------------------ */
-const dynamicValidation = (req, res, next) => {
+const dynamicValidation = (req, _res, next) => {
   const route = req.route?.path || req.path;
   const method = req.method.toLowerCase();
 
@@ -473,7 +438,7 @@ const dynamicValidation = (req, res, next) => {
     validator = validators.createPolicy;
   }
 
-  if (validator) return validator(req, res, next);
+  if (validator) return validator(req, _res, next);
   next();
 };
 
