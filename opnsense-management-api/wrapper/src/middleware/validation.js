@@ -402,12 +402,18 @@ const validateZod = (schema, source = 'body') => {
         }];
       }
 
+      // FIXED: Safe handling of issues array to prevent .map() errors
+      const safeIssues = Array.isArray(issues) ? issues : [];
+      
       // Create structured validation error
       const validationError = new ValidationError('Validation failed', {
-        validation_errors: issues.map((i) => ({
+        validation_errors: safeIssues.length > 0 ? safeIssues.map((i) => ({
           field: Array.isArray(i.path) ? i.path.join('.') : String(i.path || ''),
           message: i.message || 'Validation error',
-        })),
+        })) : [{
+          field: 'general',
+          message: 'Validation failed'
+        }],
       });
 
       // Log validation error for debugging
@@ -443,11 +449,14 @@ const handleExpressValidation = (req, res, next) => {
   const errors = validationResult(req);
   
   if (!errors.isEmpty()) {
+    // FIXED: Safe handling of errors array
+    const errorArray = errors.array() || [];
+    
     // Convert express-validator errors to our standard format
     const validationError = new ValidationError('Validation failed', {
-      validation_errors: errors.array().map((error) => ({
-        field: error.path || error.param,
-        message: error.msg,
+      validation_errors: errorArray.map((error) => ({
+        field: error.path || error.param || 'unknown',
+        message: error.msg || 'Validation error',
         value: error.value,
       })),
     });
