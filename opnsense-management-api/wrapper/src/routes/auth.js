@@ -1,7 +1,8 @@
 const express = require('express');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { validators } = require('../middleware/validation');
-const { authenticateApiKey, generateToken, hashPassword, comparePassword, auditSecurityEvent } = require('../middleware/auth');
+const { authenticateApiKey, generateToken, hashPassword, comparePassword} = require('../middleware/auth');
+const { auditSecurityEvent } = require('../middleware/audit');
 const User = require('../models/User');
 const logger = require('../utils/logger');
 const crypto = require('crypto');
