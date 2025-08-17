@@ -18,7 +18,9 @@ const isCIDR = (value) => {
   return Number.isInteger(p) && p >= 0 && p <= 32;
 };
 
-const strongPwd = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/;
+// Richiede almeno una minuscola, una maiuscola, un numero, un simbolo.
+// Consentiti solo i caratteri nel gruppo e **tutta** la stringa deve rispettarlo.
+const strongPwd = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]+$/;
 
 /* ------------------------- common schemas ------------------------- */
 const commonSchemas = {
@@ -73,7 +75,8 @@ const authSchemas = {
       email: z.string().email(),
       password: z.string().min(8).max(128).regex(strongPwd, 'Weak password'),
       confirm_password: z.string().min(8).max(128),
-      role: z.enum(['admin', 'operator', 'viewer', 'api_user']).default('viewer').optional(),
+      // Allineato al modello User: niente "api_user" qui
+      role: z.enum(['admin', 'operator', 'viewer']).default('viewer').optional(),
     })
     .strip()
     .superRefine((val, ctx) => {
@@ -133,7 +136,12 @@ const addressAlias = z
   })
   .strip();
 
-const endpointSchema = z.discriminatedUnion('type', [addressAny, addressSingle, addressNetwork, addressAlias]);
+const endpointSchema = z.discriminatedUnion('type', [
+  addressAny,
+  addressSingle,
+  addressNetwork,
+  addressAlias,
+]);
 
 const createRuleBase = z
   .object({
@@ -175,7 +183,17 @@ const scheduleSchema = z
     start_time: z.string().regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(),
     end_time: z.string().regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(),
     days: z
-      .array(z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']))
+      .array(
+        z.enum([
+          'monday',
+          'tuesday',
+          'wednesday',
+          'thursday',
+          'friday',
+          'saturday',
+          'sunday',
+        ])
+      )
       .optional(),
   })
   .strip();
@@ -212,7 +230,8 @@ const adminCreateBase = z
     username: z.string().min(3).max(30).regex(/^[A-Za-z0-9]+$/, 'Must be alphanumeric'),
     email: z.string().email(),
     password: z.string().min(8).max(128).regex(strongPwd, 'Weak password'),
-    role: z.enum(['admin', 'operator', 'viewer', 'api_user']),
+    // Allineato al modello User
+    role: z.enum(['admin', 'operator', 'viewer']),
     is_active: z.boolean().default(true).optional(),
     permissions: z.array(z.string()).optional(),
   })
@@ -356,8 +375,8 @@ const sanitizers = {
     if (typeof value !== 'string') return value;
     return value
       .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt')
-      .replace(/>/g, '&gt')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#x27;');
   },
@@ -416,12 +435,18 @@ const validators = {
   auditLogsQuery: validateZod(querySchemas.auditLogs, 'query'),
 
   // Params con express-validator
-  idParam: [param('id').isInt({ min: 1 }).withMessage('ID must be a positive integer'), handleExpressValidation],
-  uuidParam: [param('id').isUUID(4).withMessage('ID must be a valid UUID'), handleExpressValidation],
+  idParam: [
+    param('id').isInt({ min: 1 }).withMessage('ID must be a positive integer'),
+    handleExpressValidation,
+  ],
+  uuidParam: [
+    param('id').isUUID(4).withMessage('ID must be a valid UUID'),
+    handleExpressValidation,
+  ],
 };
 
 /* ------------------------ dynamic route mapping ------------------------ */
-const dynamicValidation = (req, _res, next) => {
+const dynamicValidation = (req, res, next) => {
   const route = req.route?.path || req.path;
   const method = req.method.toLowerCase();
 
@@ -438,29 +463,22 @@ const dynamicValidation = (req, _res, next) => {
     validator = validators.createPolicy;
   }
 
-  if (validator) return validator(req, _res, next);
+  if (validator) return validator(req, res, next);
   next();
 };
 
 /* -------------------------------- exports -------------------------------- */
 module.exports = {
-  // Validation middlewares
   validateZod,
   handleExpressValidation,
   dynamicValidation,
-
-  // Pre-configured validators
   validators,
-
-  // Schemas
   commonSchemas,
   authSchemas,
   firewallSchemas,
   policySchemas,
   adminSchemas,
   querySchemas,
-
-  // Utilities
   customValidators,
   sanitizers,
 };
