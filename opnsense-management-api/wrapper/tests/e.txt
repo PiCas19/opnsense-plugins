@@ -1,0 +1,301 @@
+L  tests/integration/routes/policies.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/middleware/errorHandler.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/middleware/audit.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/middleware/asyncHandler.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/middleware/validation.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/integration/routes/firewall.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/integration/routes/health.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/integration/routes/monitoring.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/integration/database/models.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/integration/routes/admin.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/middleware/auth.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/services/MonitoringService.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/middleware/rateLimit.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/integration/database/migrations.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/services/RuleService.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/utils/helpers.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/utils/ validators.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/services/OpnsenseService.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/services/PolicyService.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/utils/logger.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/services/AlertsService.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+Summary of all failing tests
+ FAIL  tests/integration/routes/policies.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/middleware/errorHandler.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/middleware/audit.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/middleware/asyncHandler.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/middleware/validation.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/integration/routes/firewall.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/integration/routes/health.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/integration/routes/monitoring.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/integration/database/models.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/integration/routes/admin.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/middleware/auth.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/services/MonitoringService.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/middleware/rateLimit.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/integration/database/migrations.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/services/RuleService.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/utils/helpers.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/utils/ validators.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/services/OpnsenseService.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/services/PolicyService.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/utils/logger.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+ FAIL  tests/unit/services/AlertsService.test.js
+  ● Test suite failed to run
+
+    TypeError: Class constructor FixturesHelper cannot be invoked without 'new'
+
+      at jestAdapter (node_modules/jest-circus/build/runner.js:86:15)
+
+
+Test Suites: 21 failed, 21 total
+Tests:       0 total
+Snapshots:   0 total
+Time:        6.115 s
+Ran all test suites.
