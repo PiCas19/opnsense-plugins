@@ -28,7 +28,7 @@ const generateApiKey = (payload) => {
 
 /**
  * @swagger
- * /auth/login:
+ * /api/v1/auth/login:
  *   post:
  *     summary: User login with password update or API key generation
  *     description: Authenticate a user and optionally update password or generate a JWT-based API key
@@ -181,7 +181,7 @@ router.post(
 
 /**
  * @swagger
- * /auth/validate:
+ * /api/v1/auth/validate:
  *   get:
  *     summary: Validate JWT token or API key
  *     description: Validate a JWT token (access token or API key) and return user info
@@ -238,7 +238,7 @@ router.get(
 
 /**
  * @swagger
- * /auth/refresh:
+ * /api/v1/auth/refresh:
  *   post:
  *     summary: Refresh access token
  *     description: Get a new access token using a valid JWT token
@@ -301,7 +301,7 @@ router.post(
 
 /**
  * @swagger
- * /auth/logout:
+ * /api/v1/auth/logout:
  *   post:
  *     summary: User logout
  *     description: Logout user and optionally blacklist the current token
