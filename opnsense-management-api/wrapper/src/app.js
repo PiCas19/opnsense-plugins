@@ -78,7 +78,7 @@ app.use(
   })
 );
 
-// Helmet: applica **globalmente**, ma **saltando /api-docs**
+// Helmet: applica **globalmente**, ma **saltando COMPLETAMENTE /api-docs**
 const globalHelmet = helmet({
   contentSecurityPolicy:
     config.nodeEnv === 'production'
@@ -96,8 +96,10 @@ const globalHelmet = helmet({
   crossOriginEmbedderPolicy: false,
 });
 app.use((req, res, next) => {
-  // Non applicare Helmet globale a /api-docs, /api-docs/ e asset sottostanti
-  if (req.path === '/api-docs' || req.path.startsWith('/api-docs/')) return next();
+  // SALTA COMPLETAMENTE Helmet per tutti i path che iniziano con /api-docs
+  if (req.path.startsWith('/api-docs')) {
+    return next();
+  }
   return globalHelmet(req, res, next);
 });
 
@@ -232,36 +234,22 @@ app.get(
 
 // ---- Swagger UI (solo se abilitato) ----
 if (config.enableSwagger) {
-  // Lo spec JSON per la UI
-  app.get('/api-docs.json', (_req, res) => res.json(swaggerSpec));
-
-  // CSP rilassata SOLO per /api-docs e asset sottostanti
-  const swaggerHelmet = helmet({
-    contentSecurityPolicy: {
-      useDefaults: false,
-      directives: {
-        defaultSrc: ["'self'"],
-        baseUri: ["'self'"],
-        blockAllMixedContent: [],
-        fontSrc: ["'self'", 'https:', 'data:'],
-        frameAncestors: ["'self'"],
-        imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
-        objectSrc: ["'none'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-        scriptSrcAttr: ["'none'"],
-        styleSrc: ["'self'", "'unsafe-inline'", 'https:'],
-        upgradeInsecureRequests: [],
-        connectSrc: ["'self'"],
-      },
-    },
-    crossOriginEmbedderPolicy: false,
-    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  // DISABILITA COMPLETAMENTE HELMET per /api-docs
+  app.use('/api-docs*', (req, res, next) => {
+    // Rimuovi tutti gli header di sicurezza per permettere a Swagger di funzionare
+    res.removeHeader('Content-Security-Policy');
+    res.removeHeader('X-Content-Security-Policy');
+    res.removeHeader('X-WebKit-CSP');
+    next();
   });
 
-  // Applica CSP rilassata solo per Swagger
-  app.use('/api-docs*', swaggerHelmet);
+  // Endpoint per lo spec JSON
+  app.get('/api-docs.json', (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.json(swaggerSpec);
+  });
 
-  // Swagger UI con configurazione migliorata
+  // Swagger UI con configurazione semplificata
   app.use(
     '/api-docs',
     swaggerUi.serve,
@@ -270,24 +258,12 @@ if (config.enableSwagger) {
       swaggerOptions: {
         displayRequestDuration: true,
         tryItOutEnabled: true,
-        requestInterceptor: (req) => {
-          // Aggiungi headers di default se necessario
-          req.headers['X-Request-ID'] = require('crypto').randomUUID();
-          return req;
-        },
+        docExpansion: 'list',
+        filter: true,
+        showRequestHeaders: true,
       },
-      customCss: `
-        .swagger-ui .topbar { display: none }
-        .swagger-ui .scheme-container { 
-          background: #fafafa; 
-          border: 1px solid #d3d3d3; 
-          border-radius: 4px; 
-          padding: 10px; 
-          margin: 10px 0; 
-        }
-      `,
-      customSiteTitle: 'OPNsense Management API Documentation',
-      customfavIcon: '/favicon.ico',
+      customCss: '.swagger-ui .topbar { display: none }',
+      customSiteTitle: 'OPNsense Management API',
     })
   );
 
