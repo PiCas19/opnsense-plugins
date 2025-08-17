@@ -372,37 +372,33 @@ const querySchemas = {
  */
 const validateZod = (schema, source = 'body') => {
   return (req, res, next) => {
-    // Extract data from the specified source
-    const data =
-      source === 'body'
-        ? req.body
-        : source === 'params'
-        ? req.params
-        : source === 'query'
-        ? req.query
-        : req[source];
+    const data = source === 'body' ? req.body : source === 'params' ? req.params : source === 'query' ? req.query : req[source];
 
-    // Parse and validate data against schema
+    logger.debug('Validating data:', { source, data }); // Add debug logging
     const parsed = schema.safeParse(data);
 
     if (!parsed.success) {
+      logger.debug('Validation failed:', { error: parsed.error }); // Log the raw error
       // Safely handle the error structure
       const issues = parsed.error?.issues || parsed.error?.errors || [{
         path: [],
-        message: parsed.error?.message || 'Validation failed',
+        message: parsed.error?.message || 'Validation failed due to unexpected error structure',
       }];
       
+      if (!Array.isArray(issues)) {
+        logger.error('Unexpected error structure in validation:', { issues });
+        return next(new ValidationError('Internal validation error', {
+          validation_errors: [{ field: 'general', message: 'An unexpected error occurred during validation' }],
+        }));
+      }
+
       const validationError = new ValidationError('Validation failed', {
-        validation_errors: Array.isArray(issues) ? issues.map((i) => ({
+        validation_errors: issues.map((i) => ({
           field: Array.isArray(i.path) ? i.path.join('.') : String(i.path || ''),
           message: i.message || 'Validation error',
-        })) : [{
-          field: 'general',
-          message: 'Validation failed',
-        }],
+        })),
       });
 
-      // Log validation error for debugging
       logger.warn('Validation error', {
         source,
         errors: validationError.details.validation_errors,
@@ -413,7 +409,6 @@ const validateZod = (schema, source = 'body') => {
       return next(validationError);
     }
 
-    // Replace original data with validated/sanitized data
     if (source === 'body') req.body = parsed.data;
     else if (source === 'params') req.params = parsed.data;
     else if (source === 'query') req.query = parsed.data;
