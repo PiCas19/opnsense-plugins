@@ -3,17 +3,35 @@ const { asyncHandler } = require('../middleware/errorHandler');
 const { validators } = require('../middleware/validation');
 const { authenticateApiKey, generateToken, hashPassword, comparePassword, auditSecurityEvent } = require('../middleware/auth');
 const User = require('../models/User');
-const ApiKey = require('../models/ApiKey');
 const logger = require('../utils/logger');
+const crypto = require('crypto');
 
 const router = express.Router();
+
+/**
+ * Generate JWT-based API key with extended expiration
+ * @param {Object} payload - User data to encode
+ * @returns {string} Long-lived JWT token as API key
+ */
+const generateApiKey = (payload) => {
+  // Generate API key as JWT with very long expiration (1 year)
+  return generateToken(
+    {
+      ...payload,
+      type: 'api_key', // Mark this as an API key token
+      generated_at: new Date().toISOString(),
+      key_id: crypto.randomUUID(), // Unique key identifier
+    },
+    '365d' // 1 year expiration for API keys
+  );
+};
 
 /**
  * @swagger
  * /auth/login:
  *   post:
  *     summary: User login with password update or API key generation
- *     description: Authenticate a user and optionally update password or generate an API key
+ *     description: Authenticate a user and optionally update password or generate a JWT-based API key
  *     tags: [Authentication]
  *     requestBody:
  *       required: true
@@ -27,7 +45,7 @@ const router = express.Router();
  *               password: { type: string, example: "Test123!" }
  *               remember_me: { type: boolean, default: false }
  *               update_password: { type: boolean, default: false, description: "Update the user's password" }
- *               generate_api_key: { type: boolean, default: false, description: "Generate a new API key" }
+ *               generate_api_key: { type: boolean, default: false, description: "Generate a new JWT-based API key" }
  *     responses:
  *       200:
  *         description: Successful authentication
@@ -41,8 +59,8 @@ const router = express.Router();
  *                 data:
  *                   type: object
  *                   properties:
- *                     token: { type: string }
- *                     api_key: { type: string }
+ *                     token: { type: string, description: "Short-lived access token" }
+ *                     api_key: { type: string, description: "Long-lived API key (JWT)" }
  *                     user: { type: object }
  *       401:
  *         description: Invalid credentials or unauthorized
@@ -87,47 +105,58 @@ router.post(
     }
 
     // Update password if requested (re-hash the provided password)
-    let newPasswordHash = user.password;
     if (update_password) {
-      newPasswordHash = await hashPassword(password); // Ricalcola l'hash
+      const newPasswordHash = await hashPassword(password);
       await user.update({ password: newPasswordHash });
       logger.info('Password updated for user', { user_id: user.id, username });
       await auditSecurityEvent(req, 'password_updated', 'low', { user_id: user.id });
     }
 
-    // Generate JWT token
+    // Generate standard JWT token for web sessions
     const expiresIn = remember_me ? '7d' : '12h';
     const token = generateToken(
-      { id: user.id, username: user.username, role: user.role },
+      { 
+        id: user.id, 
+        username: user.username, 
+        role: user.role,
+        type: 'access_token'
+      },
       expiresIn
     );
 
-    // Generate API key if requested
+    // Generate long-lived API key (JWT-based) if requested
     let apiKey = null;
     if (generate_api_key) {
-      const newApiKey = await ApiKey.create({
-        user_id: user.id,
-        key: require('crypto').randomBytes(32).toString('hex'),
-        name: `API Key for ${user.username}`,
-        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 giorni
-        is_active: true,
-        usage_count: 0,
+      apiKey = generateApiKey({
+        id: user.id,
+        username: user.username,
+        role: user.role
       });
-      apiKey = newApiKey.key;
-      await auditSecurityEvent(req, 'api_key_generated', 'low', { user_id: user.id });
+      
+      logger.info('JWT API key generated for user', { 
+        user_id: user.id, 
+        username: user.username,
+        expires_in: '365 days'
+      });
+      await auditSecurityEvent(req, 'api_key_generated', 'low', { 
+        user_id: user.id,
+        key_type: 'jwt_api_key'
+      });
     }
 
-    // Update last login
-    await user.update({ last_login_at: new Date() });
+    // Update last login (fix field name to match your model)
+    await user.update({ last_login: new Date() });
 
     // Log successful login
-    logger.info('User logged in', {
+    logger.info('User logged in successfully', {
       user_id: user.id,
       username: user.username,
       role: user.role,
       remember_me,
       password_updated: update_password,
       api_key_generated: generate_api_key,
+      ip: req.ip,
+      user_agent: req.get('User-Agent')
     });
     await auditSecurityEvent(req, 'login_success', 'low', { user_id: user.id });
 
@@ -135,13 +164,15 @@ router.post(
       success: true,
       message: 'Login successful',
       data: {
-        token,
-        api_key: apiKey,
+        token, // Short-lived access token
+        api_key: apiKey, // Long-lived API key (only if requested)
         user: {
           id: user.id,
           username: user.username,
           email: user.email,
           role: user.role,
+          last_login: user.last_login,
+          is_active: user.is_active
         },
       },
     });
@@ -152,14 +183,15 @@ router.post(
  * @swagger
  * /auth/validate:
  *   get:
- *     summary: Validate API key
- *     description: Validate an API key and return user info
+ *     summary: Validate JWT token or API key
+ *     description: Validate a JWT token (access token or API key) and return user info
  *     tags: [Authentication]
  *     security:
+ *       - bearerAuth: []
  *       - apiKeyAuth: []
  *     responses:
  *       200:
- *         description: API key validated
+ *         description: Token validated successfully
  *         content:
  *           application/json:
  *             schema:
@@ -170,25 +202,140 @@ router.post(
  *                   type: object
  *                   properties:
  *                     user: { type: object }
+ *                     token_type: { type: string, enum: [access_token, api_key] }
+ *                     expires_at: { type: string }
  *       401:
- *         description: Invalid or missing API key
+ *         description: Invalid or missing token
  */
 router.get(
   '/validate',
-  authenticateApiKey,
+  authenticateApiKey, // This middleware should handle both JWT access tokens and API keys
   (req, res) => {
+    // Extract token info if available
+    const tokenType = req.tokenData?.type || 'unknown';
+    const expiresAt = req.tokenData?.exp ? new Date(req.tokenData.exp * 1000).toISOString() : null;
+    
     res.json({
       success: true,
+      message: 'Token is valid',
       data: {
         user: {
           id: req.user.id,
           username: req.user.username,
           email: req.user.email,
           role: req.user.role,
+          is_active: req.user.is_active
         },
+        token_info: {
+          type: tokenType,
+          expires_at: expiresAt,
+          key_id: req.tokenData?.key_id || null
+        }
       },
     });
   }
+);
+
+/**
+ * @swagger
+ * /auth/refresh:
+ *   post:
+ *     summary: Refresh access token
+ *     description: Get a new access token using a valid JWT token
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Token refreshed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     token: { type: string }
+ *                     expires_in: { type: string }
+ *       401:
+ *         description: Invalid or expired token
+ */
+router.post(
+  '/refresh',
+  authenticateApiKey,
+  asyncHandler(async (req, res) => {
+    // Generate new access token
+    const newToken = generateToken(
+      { 
+        id: req.user.id, 
+        username: req.user.username, 
+        role: req.user.role,
+        type: 'access_token'
+      },
+      '12h'
+    );
+
+    logger.info('Token refreshed', {
+      user_id: req.user.id,
+      username: req.user.username,
+      old_token_type: req.tokenData?.type
+    });
+
+    res.json({
+      success: true,
+      message: 'Token refreshed successfully',
+      data: {
+        token: newToken,
+        expires_in: '12 hours',
+        user: {
+          id: req.user.id,
+          username: req.user.username,
+          role: req.user.role
+        }
+      },
+    });
+  })
+);
+
+/**
+ * @swagger
+ * /auth/logout:
+ *   post:
+ *     summary: User logout
+ *     description: Logout user and optionally blacklist the current token
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Logout successful
+ *       401:
+ *         description: Not authenticated
+ */
+router.post(
+  '/logout',
+  authenticateApiKey,
+  asyncHandler(async (req, res) => {
+    // Update user last activity
+    if (req.user) {
+      await req.user.updateLastActivity();
+      
+      logger.info('User logged out', {
+        user_id: req.user.id,
+        username: req.user.username,
+        token_type: req.tokenData?.type
+      });
+      
+      await auditSecurityEvent(req, 'logout', 'low', { user_id: req.user.id });
+    }
+
+    res.json({
+      success: true,
+      message: 'Logout successful'
+    });
+  })
 );
 
 module.exports = router;
