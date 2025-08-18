@@ -34,6 +34,76 @@ const {
   getMetrics,
 } = require('./config/monitoring');
 
+// ================ INIZIALIZZAZIONE MODELLI ================
+// 1. Prima importa tutti i modelli
+const User = require('./models/User');
+const Rule = require('./models/Rule');
+const Alert = require('./models/Alert');
+// ... aggiungi altri modelli se li hai
+
+// 2. Crea un oggetto con tutti i modelli
+const models = {
+  User,
+  Rule,
+  Alert,
+  // ... altri modelli
+};
+
+// 3. Funzione per inizializzare le associazioni
+function initializeModelAssociations() {
+  logger.info('Initializing model associations...');
+  
+  try {
+    // Inizializza le associazioni per ogni modello che le ha definite
+    if (User.associate) {
+      logger.debug('Setting up User associations');
+      User.associate(models);
+    }
+
+    if (Rule.associate) {
+      logger.debug('Setting up Rule associations');
+      Rule.associate(models);
+    }
+
+    if (Alert.associate) {
+      logger.debug('Setting up Alert associations');
+      Alert.associate(models);
+    }
+
+    // Verifica che le associazioni siano state create
+    const userAssociations = Object.keys(User.associations || {});
+    const ruleAssociations = Object.keys(Rule.associations || {});
+    const alertAssociations = Object.keys(Alert.associations || {});
+
+    logger.info('Model associations initialized successfully:', {
+      User: userAssociations,
+      Rule: ruleAssociations,
+      Alert: alertAssociations,
+    });
+
+    // Verifica che le associazioni chiave esistano
+    if (!Rule.associations.createdBy) {
+      logger.warn('Rule.createdBy association not found!');
+    }
+    if (!Rule.associations.updatedBy) {
+      logger.warn('Rule.updatedBy association not found!');
+    }
+    if (!Alert.associations.rule) {
+      logger.warn('Alert.rule association not found!');
+    }
+
+    return true;
+  } catch (error) {
+    logger.error('Failed to initialize model associations:', {
+      error: error.message,
+      stack: error.stack,
+    });
+    return false;
+  }
+}
+
+// ================ END INIZIALIZZAZIONE MODELLI ================
+
 // ---------------- Config ----------------
 const config = {
   port: process.env.PORT || 3000,
@@ -339,6 +409,15 @@ async function initializeApplication() {
     await initializeDatabase();
     logger.info('Database initialized successfully');
 
+    // ================ INIZIALIZZAZIONE ASSOCIAZIONI MODELLI ================
+    logger.info('Initializing model associations...');
+    const associationsOK = initializeModelAssociations();
+    if (!associationsOK) {
+      throw new Error('Failed to initialize model associations');
+    }
+    logger.info('Model associations initialized successfully');
+    // ================ END INIZIALIZZAZIONE ASSOCIAZIONI ================
+
     logger.info('Initializing monitoring...');
     await initializeMonitoring();
     logger.info('Monitoring initialized successfully');
@@ -487,4 +566,9 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, gracefulShutdown };
+// ================ ESPORTA I MODELLI INIZIALIZZATI ================
+module.exports = { 
+  app, 
+  gracefulShutdown,
+  models: { User, Rule, Alert } // Esporta i modelli per usarli nelle route se necessario
+};

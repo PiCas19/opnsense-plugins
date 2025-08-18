@@ -398,20 +398,58 @@ User.findByRole = function (role) {
   });
 };
 
-// Associations
+
 User.associate = (models) => {
-  User.hasMany(models.Alert, { as: 'acknowledgedAlerts', foreignKey: 'acknowledged_by', sourceKey: 'id' });
-  User.hasMany(models.Alert, { as: 'resolvedAlerts', foreignKey: 'resolved_by', sourceKey: 'id' });
-  User.hasMany(models.Alert, { as: 'suppressedAlerts', foreignKey: 'suppressed_by', sourceKey: 'id' });
+  // Alert associations
+  if (models.Alert) {
+    User.hasMany(models.Alert, { 
+      as: 'acknowledgedAlerts', 
+      foreignKey: 'acknowledged_by',
+    });
+    User.hasMany(models.Alert, { 
+      as: 'resolvedAlerts', 
+      foreignKey: 'resolved_by',
+    });
+    User.hasMany(models.Alert, { 
+      as: 'suppressedAlerts', 
+      foreignKey: 'suppressed_by',
+    });
+  }
 
-  User.hasMany(models.Rule, { as: 'createdRules', foreignKey: 'created_by', sourceKey: 'id' });
-  User.hasMany(models.Rule, { as: 'updatedRules', foreignKey: 'updated_by', sourceKey: 'id' });
+  // Rule associations
+  if (models.Rule) {
+    User.hasMany(models.Rule, { 
+      as: 'createdRules', 
+      foreignKey: 'created_by',
+    });
+    User.hasMany(models.Rule, { 
+      as: 'updatedRules', 
+      foreignKey: 'updated_by',
+    });
+    User.hasMany(models.Rule, { 
+      as: 'reviewedRules', 
+      foreignKey: 'reviewed_by',
+    });
+  }
 
-  User.hasMany(models.Policy, { as: 'createdPolicies', foreignKey: 'created_by', sourceKey: 'id' });
-  User.hasMany(models.Policy, { as: 'updatedPolicies', foreignKey: 'updated_by', sourceKey: 'id' });
+  // Policy associations (se esiste il modello Policy)
+  if (models.Policy) {
+    User.hasMany(models.Policy, { 
+      as: 'createdPolicies', 
+      foreignKey: 'created_by',
+    });
+    User.hasMany(models.Policy, { 
+      as: 'updatedPolicies', 
+      foreignKey: 'updated_by',
+    });
+  }
 
+  // AuditLog associations (se esiste)
   if (models.AuditLog) {
-    User.hasMany(models.AuditLog, { as: 'auditLogs', foreignKey: 'user_id', sourceKey: 'id' });
+    User.hasMany(models.AuditLog, { 
+      as: 'auditLogs', 
+      foreignKey: 'user_id',
+    });
   }
 };
 

@@ -321,4 +321,41 @@ Alert.getStatistics = async function() {
   }, {});
 };
 
+// Associations
+Alert.associate = (models) => {
+  // Alert appartiene a una Rule
+  if (models.Rule) {
+    Alert.belongsTo(models.Rule, {
+      as: 'rule',
+      foreignKey: 'rule_id',
+    });
+  }
+
+  // Alert appartiene a una Policy (se esiste)
+  if (models.Policy) {
+    Alert.belongsTo(models.Policy, {
+      as: 'policy',
+      foreignKey: 'policy_id',
+    });
+  }
+
+  // Alert appartiene a Users per acknowledge/resolve/suppress
+  if (models.User) {
+    Alert.belongsTo(models.User, {
+      as: 'acknowledgedBy',
+      foreignKey: 'acknowledged_by',
+    });
+    
+    Alert.belongsTo(models.User, {
+      as: 'resolvedBy',
+      foreignKey: 'resolved_by',
+    });
+    
+    Alert.belongsTo(models.User, {
+      as: 'suppressedBy',
+      foreignKey: 'suppressed_by',
+    });
+  }
+};
+
 module.exports = Alert;
