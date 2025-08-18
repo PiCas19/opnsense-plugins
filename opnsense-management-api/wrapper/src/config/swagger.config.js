@@ -35,12 +35,6 @@ module.exports = {
           bearerFormat: 'JWT',
           description: 'JWT token for API authentication',
         },
-        apiKeyAuth: {
-          type: 'apiKey',
-          in: 'header',
-          name: 'X-Api-Key',
-          description: 'API Key for authentication',
-        },
       },
       responses: {
         UnauthorizedError: {
@@ -113,7 +107,6 @@ module.exports = {
     },
     security: [
       { bearerAuth: [] },
-      { apiKeyAuth: [] },
     ],
     tags: [
       {
@@ -138,7 +131,7 @@ module.exports = {
       },
       {
         name: 'Authentication',
-        description: 'User authentication and API key management', 
+        description: 'User authentication', // Removed "and API key management" since API keys are no longer used
       }
     ],
   },
