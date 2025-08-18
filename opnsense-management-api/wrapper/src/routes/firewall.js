@@ -16,7 +16,6 @@ const { auditLog, AUDITED_ACTIONS } = require('../middleware/audit');
 const { createRateLimiter } = require('../middleware/rateLimit');
 const { asyncHandler, NotFoundError } = require('../middleware/errorHandler');
 const OpnsenseService = require('../services/OpnsenseService');
-// RIMOSSO: const RulesService = require('../services/RulesService');
 const Rule = require('../models/Rule');
 const User = require('../models/User');
 const Alert = require('../models/Alert');
@@ -37,33 +36,11 @@ const criticalLimiter = createRateLimiter({
   max: process.env.NODE_ENV === 'production' ? 10 : 100,
 });
 
-// Forza l'inizializzazione delle associazioni se non sono presenti
-if (Object.keys(Rule.associations || {}).length === 0) {
-  console.log('Associations not found, forcing initialization...');
-  const models = { User, Rule, Alert };
-  
-  try {
-    if (User.associate) {
-      User.associate(models);
-      console.log('User associations initialized');
-    }
-    if (Rule.associate) {
-      Rule.associate(models);
-      console.log('Rule associations initialized');
-    }
-    if (Alert.associate) {
-      Alert.associate(models);
-      console.log('Alert associations initialized');
-    }
-    
-    console.log('All associations forced successfully');
-  } catch (error) {
-    console.error('Error forcing associations:', error.message);
-  }
-}
+// RIMOSSO: inizializzazione forzata associazioni
+// L'app.js si occupa già dell'inizializzazione
 
-// Debug associazioni
-console.log('Current associations:');
+// Debug associazioni (solo per vedere se funzionano)
+console.log('Firewall route - Current associations:');
 console.log('Rule associations:', Object.keys(Rule.associations || {}));
 console.log('User associations:', Object.keys(User.associations || {}));
 console.log('Alert associations:', Object.keys(Alert.associations || {}));
@@ -124,7 +101,7 @@ router.get(
         offset: offset,
         order: [['sequence', 'ASC'], ['created_at', 'DESC']],
         // Prova con le associazioni SE funzionano
-        include: Rule.associations.createdBy ? [
+        include: Rule.associations && Rule.associations.createdBy ? [
           {
             model: User,
             as: 'createdBy',
@@ -233,7 +210,7 @@ router.get(
     try {
       // Query diretta
       const rule = await Rule.findByPk(parseInt(id, 10), {
-        include: Rule.associations.createdBy ? [
+        include: Rule.associations && Rule.associations.createdBy ? [
           {
             model: User,
             as: 'createdBy',
