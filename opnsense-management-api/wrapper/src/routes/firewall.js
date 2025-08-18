@@ -16,8 +16,10 @@ const { auditLog, AUDITED_ACTIONS } = require('../middleware/audit');
 const { createRateLimiter } = require('../middleware/rateLimit');
 const { asyncHandler, NotFoundError } = require('../middleware/errorHandler');
 const OpnsenseService = require('../services/OpnsenseService');
-const RulesService = require('../services/RulesService'); // Corretto: era RuleService, ora RulesService
+const RulesService = require('../services/RulesService');
 const Rule = require('../models/Rule');
+const User = require('../models/User');
+const Alert = require('../models/Alert');
 const logger = require('../utils/logger');
 
 const router = express.Router();
@@ -25,7 +27,7 @@ const router = express.Router();
 // helpers
 const getUserId = (req) => (req.user && req.user.id) ? req.user.id : null;
 
-// rate limiters locali (sostituisce rateLimiters.firewall/critical)
+// rate limiters locali
 const firewallLimiter = createRateLimiter({
   windowMs: 60 * 1000,
   max: process.env.NODE_ENV === 'production' ? 300 : 5000,
@@ -35,7 +37,38 @@ const criticalLimiter = createRateLimiter({
   max: process.env.NODE_ENV === 'production' ? 10 : 100,
 });
 
-// Applica limiter e (eventuale) auth
+// Forza l'inizializzazione delle associazioni se non sono presenti
+if (Object.keys(Rule.associations || {}).length === 0) {
+  console.log('Associations not found, forcing initialization...');
+  const models = { User, Rule, Alert };
+  
+  try {
+    if (User.associate) {
+      User.associate(models);
+      console.log('User associations initialized');
+    }
+    if (Rule.associate) {
+      Rule.associate(models);
+      console.log('Rule associations initialized');
+    }
+    if (Alert.associate) {
+      Alert.associate(models);
+      console.log('Alert associations initialized');
+    }
+    
+    console.log('All associations forced successfully');
+  } catch (error) {
+    console.error('Error forcing associations:', error.message);
+  }
+}
+
+// Debug associazioni
+console.log('Current associations:');
+console.log('Rule associations:', Object.keys(Rule.associations || {}));
+console.log('User associations:', Object.keys(User.associations || {}));
+console.log('Alert associations:', Object.keys(Alert.associations || {}));
+
+// Applica limiter e auth
 router.use(firewallLimiter);
 router.use(authenticate);
 
@@ -63,38 +96,121 @@ router.get(
       protocol,
     } = req.query;
 
-    const rulesService = new RulesService(req.user);
+    console.log('GET /rules called - using direct query approach');
     
-    // Adatta i filtri al formato aspettato dal service
-    const filters = {
-      description: search, // Il service usa 'description' per la ricerca, non 'search'
-      interface: interfaceFilter,
-      action,
-      enabled: enabled !== undefined ? enabled === 'true' : undefined,
-      protocol,
-    };
+    // Costruisci filtri
+    const { Op } = require('sequelize');
+    const whereClause = {};
+    
+    if (interfaceFilter) whereClause.interface = interfaceFilter;
+    if (action) whereClause.action = action;
+    if (enabled !== undefined) whereClause.enabled = enabled === 'true';
+    if (protocol) whereClause.protocol = protocol;
+    
+    if (search) {
+      whereClause[Op.or] = [
+        { description: { [Op.iLike]: `%${search}%` } },
+        { uuid: { [Op.iLike]: `%${search}%` } },
+      ];
+    }
 
-    const pagination = {
-      page: parseInt(page, 10),
-      limit: parseInt(limit, 10),
-    };
+    const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
 
-    // Usa la firma corretta del service: getRules(filters, pagination)
-    const result = await rulesService.getRules(filters, pagination);
+    try {
+      // Query DIRETTA senza service per evitare problemi
+      const { count, rows } = await Rule.findAndCountAll({
+        where: whereClause,
+        limit: parseInt(limit, 10),
+        offset: offset,
+        order: [['sequence', 'ASC'], ['created_at', 'DESC']],
+        // Prova con le associazioni SE funzionano
+        include: Rule.associations.createdBy ? [
+          {
+            model: User,
+            as: 'createdBy',
+            attributes: ['id', 'username', 'email'],
+            required: false,
+          },
+          {
+            model: User,
+            as: 'updatedBy',
+            attributes: ['id', 'username', 'email'],
+            required: false,
+          },
+        ] : [], // Se non ci sono associazioni, array vuoto
+      });
 
-    await auditLog(req, AUDITED_ACTIONS.API_ACCESS, 'info', {
-      action: 'list_firewall_rules',
-      filters,
-      count: result.data.length,
-    });
+      const pagination = {
+        current_page: parseInt(page, 10),
+        per_page: parseInt(limit, 10),
+        total: count,
+        total_pages: Math.ceil(count / parseInt(limit, 10)),
+        has_next: parseInt(page, 10) < Math.ceil(count / parseInt(limit, 10)),
+        has_prev: parseInt(page, 10) > 1,
+      };
 
-    res.json({
-      success: true,
-      message: 'Firewall rules retrieved successfully',
-      data: result.data,
-      pagination: result.pagination,
-      summary: result.summary, // Aggiungi il summary che il service restituisce
-    });
+      // Summary semplice
+      const summary = {
+        by_interface: {},
+        by_action: {},
+        enabled_count: 0,
+        disabled_count: 0,
+      };
+
+      for (const r of rows) {
+        summary.by_interface[r.interface] = (summary.by_interface[r.interface] || 0) + 1;
+        summary.by_action[r.action] = (summary.by_action[r.action] || 0) + 1;
+        if (r.enabled) summary.enabled_count++;
+        else summary.disabled_count++;
+      }
+
+      await auditLog(req, AUDITED_ACTIONS.API_ACCESS, 'info', {
+        action: 'list_firewall_rules',
+        filters: { search, interface: interfaceFilter, action, enabled, protocol },
+        count: rows.length,
+      });
+
+      console.log(`Rules retrieved successfully: ${rows.length} rules`);
+
+      res.json({
+        success: true,
+        message: 'Firewall rules retrieved successfully',
+        data: rows,
+        pagination: pagination,
+        summary: summary,
+      });
+
+    } catch (error) {
+      console.error('Error in direct query:', error.message);
+      
+      // Fallback SENZA include se anche quello fallisce
+      const { count, rows } = await Rule.findAndCountAll({
+        where: whereClause,
+        limit: parseInt(limit, 10),
+        offset: offset,
+        order: [['sequence', 'ASC'], ['created_at', 'DESC']],
+        // NESSUN INCLUDE
+      });
+
+      const pagination = {
+        current_page: parseInt(page, 10),
+        per_page: parseInt(limit, 10),
+        total: count,
+        total_pages: Math.ceil(count / parseInt(limit, 10)),
+        has_next: parseInt(page, 10) < Math.ceil(count / parseInt(limit, 10)),
+        has_prev: parseInt(page, 10) > 1,
+      };
+
+      console.log(`Fallback query successful: ${rows.length} rules (no associations)`);
+
+      res.json({
+        success: true,
+        message: 'Firewall rules retrieved successfully (fallback mode)',
+        data: rows,
+        pagination: pagination,
+        summary: { note: 'Summary not available in fallback mode' },
+      });
+    }
   })
 );
 
@@ -114,9 +230,25 @@ router.get(
   asyncHandler(async (req, res) => {
     const { id } = req.params;
 
-    // Usa il service invece di query diretta per consistenza
-    const rulesService = new RulesService(req.user);
-    const rule = await rulesService.getRuleById(parseInt(id, 10));
+    // Query diretta invece del service
+    const rule = await Rule.findByPk(parseInt(id, 10), {
+      include: Rule.associations.createdBy ? [
+        {
+          model: User,
+          as: 'createdBy',
+          attributes: ['id', 'username', 'email'],
+          required: false,
+        },
+        {
+          model: User,
+          as: 'updatedBy',
+          attributes: ['id', 'username', 'email'],
+          required: false,
+        },
+      ] : [], // Fallback senza include
+    });
+
+    if (!rule) throw new NotFoundError('Firewall rule not found');
 
     res.json({
       success: true,
@@ -142,7 +274,7 @@ router.post(
   asyncHandler(async (req, res) => {
     const ruleData = {
       ...req.body,
-      sync_to_opnsense: req.body.sync_to_opnsense || false, // Aggiunto flag per sync
+      sync_to_opnsense: req.body.sync_to_opnsense || false,
     };
 
     const rulesService = new RulesService(req.user);
@@ -190,7 +322,7 @@ router.put(
     const { id } = req.params;
     const updates = {
       ...req.body,
-      sync_to_opnsense: req.body.sync_to_opnsense || false, // Aggiunto flag per sync
+      sync_to_opnsense: req.body.sync_to_opnsense || false,
     };
 
     const rulesService = new RulesService(req.user);
