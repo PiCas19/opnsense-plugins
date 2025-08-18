@@ -247,58 +247,42 @@ class OpnsenseService {
    * @param {Object} filters - { page, limit, search, interface, action, enabled, protocol }
    * @returns {Array} Elenco normalizzato di tutte le regole
    */
-  async getFirewallRules(filters = {}) {
+    async getFirewallRules(filters = {}) {
     try {
-      // Sanitize filtri accettati da searchRule
-      const page = Number.isInteger(filters.page) ? filters.page : 1;
+      const page  = Number.isInteger(filters.page)  ? filters.page  : 1;
       const limit = Number.isInteger(filters.limit) ? filters.limit : 100;
 
       const paramsBase = {
         current: page,
-        rowCount: limit,
+        rowCount: limit,                 // <-- fondamentale! non lasciare 0
       };
 
       if (filters.search) paramsBase.searchPhrase = String(filters.search);
-      if (filters.interface && /^[A-Za-z0-9_]+$/.test(filters.interface)) {
-        paramsBase.interface = filters.interface;
-      }
-      if (typeof filters.enabled === 'boolean') {
-        paramsBase.enabled = filters.enabled ? '1' : '0';
-      }
-      if (filters.action && ['pass', 'block', 'reject'].includes(filters.action)) {
-        paramsBase.action = filters.action;
-      }
-      if (filters.protocol && /^[A-Za-z0-9]+$/.test(filters.protocol)) {
-        paramsBase.protocol = filters.protocol;
-      }
+      if (filters.interface && /^[A-Za-z0-9_]+$/.test(filters.interface)) paramsBase.interface = filters.interface;
+      if (typeof filters.enabled === 'boolean') paramsBase.enabled = filters.enabled ? '1' : '0';
+      if (filters.action && ['pass', 'block', 'reject'].includes(filters.action)) paramsBase.action = filters.action;
+      if (filters.protocol && /^[A-Za-z0-9]+$/.test(filters.protocol)) paramsBase.protocol = filters.protocol;
 
-      // Chiave cache
       const cacheKey = `firewall_rules_search_${JSON.stringify(paramsBase)}`;
       const cached = await this.safeGetCache(cacheKey);
-      if (cached) {
-        logger.info('Returning cached firewall rules', { cache_key: cacheKey });
-        return cached;
-      }
+      if (cached) return cached;
 
-      // Recupero TUTTE le pagine (come faceva la versione precedente)
-      let allRules = [];
+      let all = [];
       let current = paramsBase.current;
-      const rowCount = paramsBase.rowCount;
       let total = 0;
 
-      // loop di paginazione
       while (true) {
-        const data = await this.makeApiRequest(
-          'GET',
-          '/firewall/filter/searchRule',
-          { ...paramsBase, current, rowCount },
-          'get_rules'
-        );
+        let data;
+        try {
+          data = await this.makeApiRequest('GET', '/firewall/filter/search_rule', { ...paramsBase, current }, 'get_rules');
+        } catch (e) {
+          // fallback (alcune build espongono il camelCase)
+          data = await this.makeApiRequest('GET', '/firewall/filter/searchRule', { ...paramsBase, current }, 'get_rules');
+        }
 
         const rows = Array.isArray(data?.rows) ? data.rows : [];
-        total = Number.isFinite(+data?.total) ? +data.total : Math.max(total, allRules.length + rows.length);
+        total = Number.isFinite(+data?.total) ? +data.total : Math.max(total, all.length + rows.length);
 
-        // normalizzazione campi principali
         const normalized = rows
           .filter(r => r && (r.uuid || r['uuid']))
           .map(r => ({
@@ -306,7 +290,7 @@ class OpnsenseService {
             interface: r.interface ?? r['interface'],
             action: r.action,
             enabled: r.enabled === true || r.enabled === '1' || r.enabled === 1,
-            protocol: r.protocol ?? r.proto ?? r['protocol'] ?? r['proto'],
+            protocol: r.protocol ?? r.proto ?? null,
             description: r.description ?? r.descr ?? '',
             source: r.source ?? r.src ?? null,
             destination: r.destination ?? r.dst ?? null,
@@ -315,39 +299,22 @@ class OpnsenseService {
             order: r.order ?? r.sequence ?? null,
           }));
 
-        allRules = allRules.concat(normalized);
+        all.push(...normalized);
 
-        // fine se ho preso tutto o se la pagina è vuota
-        if (allRules.length >= total || rows.length === 0) break;
-
+        if (all.length >= total || rows.length < limit) break;
         current += 1;
       }
 
-      await this.safeSetCache(cacheKey, allRules, this.cacheTimeout);
-
-      logger.info('All firewall rules retrieved (searchRule) and cached', {
-        cache_key: cacheKey,
-        rules_count: allRules.length,
-        total,
-      });
-
-      return allRules;
+      await this.safeSetCache(cacheKey, all, this.cacheTimeout);
+      return all;
     } catch (error) {
-      logger.error('Failed to get firewall rules (searchRule)', {
-        error: error.message,
-        filters,
-        user_id: this.user?.id,
-      });
+      logger.error('Failed to get firewall rules (search_rule)', { error: error.message, filters, user_id: this.user?.id });
       await this.alertService.createSystemAlert({
         type: 'configuration_error',
         message: `Failed to retrieve firewall rules: ${error.message}`,
         severity: 'medium',
         source: 'opnsense',
-        metadata: {
-          filters,
-          error_type: 'api_failure',
-          endpoint: '/firewall/filter/searchRule',
-        },
+        metadata: { filters, error_type: 'api_failure', endpoint: '/firewall/filter/search_rule' },
       });
       throw error;
     }
