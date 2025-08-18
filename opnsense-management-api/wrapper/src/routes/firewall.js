@@ -16,7 +16,7 @@ const { auditLog, AUDITED_ACTIONS } = require('../middleware/audit');
 const { createRateLimiter } = require('../middleware/rateLimit');
 const { asyncHandler, NotFoundError } = require('../middleware/errorHandler');
 const OpnsenseService = require('../services/OpnsenseService');
-const RuleService = require('../services/RuleService');
+const RulesService = require('../services/RulesService'); // Corretto: era RuleService, ora RulesService
 const Rule = require('../models/Rule');
 const logger = require('../utils/logger');
 
@@ -63,20 +63,24 @@ router.get(
       protocol,
     } = req.query;
 
-    const ruleService = new RuleService(req.user);
+    const rulesService = new RulesService(req.user);
+    
+    // Adatta i filtri al formato aspettato dal service
     const filters = {
-      search,
+      description: search, // Il service usa 'description' per la ricerca, non 'search'
       interface: interfaceFilter,
       action,
       enabled: enabled !== undefined ? enabled === 'true' : undefined,
       protocol,
     };
 
-    const result = await ruleService.getRules(
-      parseInt(page, 10),
-      parseInt(limit, 10),
-      filters
-    );
+    const pagination = {
+      page: parseInt(page, 10),
+      limit: parseInt(limit, 10),
+    };
+
+    // Usa la firma corretta del service: getRules(filters, pagination)
+    const result = await rulesService.getRules(filters, pagination);
 
     await auditLog(req, AUDITED_ACTIONS.API_ACCESS, 'info', {
       action: 'list_firewall_rules',
@@ -89,6 +93,7 @@ router.get(
       message: 'Firewall rules retrieved successfully',
       data: result.data,
       pagination: result.pagination,
+      summary: result.summary, // Aggiungi il summary che il service restituisce
     });
   })
 );
@@ -109,17 +114,9 @@ router.get(
   asyncHandler(async (req, res) => {
     const { id } = req.params;
 
-    const rule = await Rule.findByPk(id, {
-      include: [
-        {
-          model: require('../models/User'),
-          as: 'creator',
-          attributes: ['username'],
-        },
-      ],
-    });
-
-    if (!rule) throw new NotFoundError('Firewall rule not found');
+    // Usa il service invece di query diretta per consistenza
+    const rulesService = new RulesService(req.user);
+    const rule = await rulesService.getRuleById(parseInt(id, 10));
 
     res.json({
       success: true,
@@ -145,41 +142,11 @@ router.post(
   asyncHandler(async (req, res) => {
     const ruleData = {
       ...req.body,
-      created_by: getUserId(req),
-      sync_status: 'pending',
+      sync_to_opnsense: req.body.sync_to_opnsense || false, // Aggiunto flag per sync
     };
 
-    const ruleService = new RuleService(req.user);
-    const rule = await ruleService.createRule(ruleData);
-
-    // Sync con OPNsense
-    try {
-      const opnsenseService = new OpnsenseService();
-      const opnsenseRuleId = await opnsenseService.createRule(rule);
-
-      await rule.update({
-        opnsense_uuid: opnsenseRuleId,
-        sync_status: 'synced',
-        last_synced_at: new Date(),
-      });
-
-      logger.info('Rule created and synced with OPNsense', {
-        rule_id: rule.id,
-        opnsense_uuid: opnsenseRuleId,
-        user_id: getUserId(req),
-      });
-    } catch (syncError) {
-      logger.error('Failed to sync rule with OPNsense', {
-        rule_id: rule.id,
-        error: syncError.message,
-        user_id: getUserId(req),
-      });
-
-      await rule.update({
-        sync_status: 'failed',
-        sync_error: syncError.message,
-      });
-    }
+    const rulesService = new RulesService(req.user);
+    const rule = await rulesService.createRule(ruleData);
 
     await auditLog(req, AUDITED_ACTIONS.RULE_CREATE, 'info', {
       rule_id: rule.id,
@@ -195,7 +162,11 @@ router.post(
         id: rule.id,
         uuid: rule.uuid,
         description: rule.description,
-        sync_status: rule.sync_status,
+        interface: rule.interface,
+        action: rule.action,
+        enabled: rule.enabled,
+        sequence: rule.sequence,
+        opnsense_rule_id: rule.opnsense_rule_id,
       },
     });
   })
@@ -219,38 +190,11 @@ router.put(
     const { id } = req.params;
     const updates = {
       ...req.body,
-      updated_by: getUserId(req),
+      sync_to_opnsense: req.body.sync_to_opnsense || false, // Aggiunto flag per sync
     };
 
-    const ruleService = new RuleService(req.user);
-    const rule = await ruleService.updateRule(id, updates);
-
-    try {
-      const opnsenseService = new OpnsenseService();
-      await opnsenseService.updateRule(rule.opnsense_uuid, rule);
-
-      await rule.update({
-        sync_status: 'synced',
-        last_synced_at: new Date(),
-        sync_error: null,
-      });
-
-      logger.info('Rule updated and synced with OPNsense', {
-        rule_id: rule.id,
-        user_id: getUserId(req),
-      });
-    } catch (syncError) {
-      logger.error('Failed to sync updated rule with OPNsense', {
-        rule_id: rule.id,
-        error: syncError.message,
-        user_id: getUserId(req),
-      });
-
-      await rule.update({
-        sync_status: 'failed',
-        sync_error: syncError.message,
-      });
-    }
+    const rulesService = new RulesService(req.user);
+    const rule = await rulesService.updateRule(parseInt(id, 10), updates);
 
     await auditLog(req, AUDITED_ACTIONS.RULE_UPDATE, 'info', {
       rule_id: rule.id,
@@ -261,7 +205,15 @@ router.put(
     res.json({
       success: true,
       message: 'Firewall rule updated successfully',
-      data: { id: rule.id, sync_status: rule.sync_status },
+      data: {
+        id: rule.id,
+        description: rule.description,
+        interface: rule.interface,
+        action: rule.action,
+        enabled: rule.enabled,
+        sequence: rule.sequence,
+        opnsense_rule_id: rule.opnsense_rule_id,
+      },
     });
   })
 );
@@ -282,55 +234,20 @@ router.patch(
   authorize(PERMISSIONS.FIREWALL_TOGGLE),
   asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { enabled, apply_immediately = false } = req.body;
+    const { enabled } = req.body;
 
-    const rule = await Rule.findByPk(id);
-    if (!rule) throw new NotFoundError('Firewall rule not found');
-
-    const previousState = rule.enabled;
-
-    await rule.update({
+    const rulesService = new RulesService(req.user);
+    
+    // Usa il service per l'update invece di query diretta
+    const rule = await rulesService.updateRule(parseInt(id, 10), { 
       enabled,
-      updated_by: getUserId(req),
-      sync_status: 'pending',
+      sync_to_opnsense: true // Forza sync quando toggli
     });
-
-    try {
-      const opnsenseService = new OpnsenseService();
-      await opnsenseService.toggleRule(rule.opnsense_uuid, enabled);
-      if (apply_immediately) await opnsenseService.applyChanges();
-
-      await rule.update({
-        sync_status: 'synced',
-        last_synced_at: new Date(),
-        sync_error: null,
-      });
-
-      logger.info(`Rule ${enabled ? 'enabled' : 'disabled'}`, {
-        rule_id: rule.id,
-        description: rule.description,
-        user_id: getUserId(req),
-        applied: apply_immediately,
-      });
-    } catch (syncError) {
-      logger.error('Failed to sync rule toggle with OPNsense', {
-        rule_id: rule.id,
-        error: syncError.message,
-        user_id: getUserId(req),
-      });
-
-      await rule.update({
-        sync_status: 'failed',
-        sync_error: syncError.message,
-      });
-    }
 
     await auditLog(req, AUDITED_ACTIONS.RULE_TOGGLE, 'info', {
       rule_id: rule.id,
       description: rule.description,
-      previous_state: previousState,
       new_state: enabled,
-      applied_immediately: apply_immediately,
     });
 
     res.json({
@@ -339,8 +256,7 @@ router.patch(
       data: {
         id: rule.id,
         enabled: rule.enabled,
-        sync_status: rule.sync_status,
-        applied: apply_immediately,
+        description: rule.description,
       },
     });
   })
@@ -362,37 +278,19 @@ router.delete(
   asyncHandler(async (req, res) => {
     const { id } = req.params;
 
-    const rule = await Rule.findByPk(id);
-    if (!rule) throw new NotFoundError('Firewall rule not found');
-
+    const rulesService = new RulesService(req.user);
+    
+    // Prima ottieni le info per l'audit log
+    const rule = await rulesService.getRuleById(parseInt(id, 10));
     const ruleInfo = {
       id: rule.id,
       description: rule.description,
       interface: rule.interface,
       action: rule.action,
-      opnsense_uuid: rule.opnsense_uuid,
     };
 
-    try {
-      if (rule.opnsense_uuid) {
-        const opnsenseService = new OpnsenseService();
-        await opnsenseService.deleteRule(rule.opnsense_uuid);
-
-        logger.info('Rule deleted from OPNsense', {
-          rule_id: rule.id,
-          opnsense_uuid: rule.opnsense_uuid,
-          user_id: getUserId(req),
-        });
-      }
-    } catch (syncError) {
-      logger.warn('Failed to delete rule from OPNsense, continuing with local deletion', {
-        rule_id: rule.id,
-        error: syncError.message,
-        user_id: getUserId(req),
-      });
-    }
-
-    await rule.destroy();
+    // Poi elimina
+    await rulesService.deleteRule(parseInt(id, 10));
 
     await auditLog(req, AUDITED_ACTIONS.RULE_DELETE, 'warning', {
       rule_id: ruleInfo.id,
@@ -401,7 +299,10 @@ router.delete(
       action: ruleInfo.action,
     });
 
-    res.json({ success: true, message: 'Firewall rule deleted successfully' });
+    res.json({ 
+      success: true, 
+      message: 'Firewall rule deleted successfully' 
+    });
   })
 );
 
@@ -419,25 +320,47 @@ router.patch(
   validators.bulkFirewallOperation,
   authorize(PERMISSIONS.FIREWALL_WRITE),
   asyncHandler(async (req, res) => {
-    const { rule_ids, operation, apply_immediately = false } = req.body;
+    const { rule_ids, operation } = req.body;
 
-    const ruleService = new RuleService(req.user);
-    const result = await ruleService.bulkOperation(
-      rule_ids,
-      operation,
-      apply_immediately
-    );
+    const rulesService = new RulesService(req.user);
+    
+    // Mappa le operazioni ai metodi del service
+    let result;
+    
+    if (operation === 'enable' || operation === 'disable') {
+      result = await rulesService.bulkUpdateRules(rule_ids, { 
+        enabled: operation === 'enable' 
+      });
+    } else if (operation === 'delete') {
+      // Per il bulk delete, elimina uno per uno
+      const deleteResults = [];
+      for (const ruleId of rule_ids) {
+        try {
+          await rulesService.deleteRule(ruleId);
+          deleteResults.push({ id: ruleId, success: true });
+        } catch (error) {
+          deleteResults.push({ id: ruleId, success: false, error: error.message });
+        }
+      }
+      result = {
+        success: deleteResults.every(r => r.success),
+        results: deleteResults,
+        updated_count: deleteResults.filter(r => r.success).length,
+      };
+    } else {
+      throw new Error(`Unsupported bulk operation: ${operation}`);
+    }
 
     await auditLog(req, AUDITED_ACTIONS.RULE_UPDATE, 'info', {
       bulk_operation: operation,
       rule_count: rule_ids.length,
       rule_ids,
-      applied_immediately: apply_immediately,
+      success_count: result.updated_count,
     });
 
     res.json({
-      success: true,
-      message: `Bulk ${operation} operation completed successfully`,
+      success: result.success,
+      message: `Bulk ${operation} operation completed`,
       data: result,
     });
   })
@@ -456,18 +379,18 @@ router.post(
   '/rules/sync',
   authorize(PERMISSIONS.FIREWALL_WRITE),
   asyncHandler(async (req, res) => {
-    const ruleService = new RuleService(req.user);
-    const result = await ruleService.syncPendingRules();
+    const rulesService = new RulesService(req.user);
+    const result = await rulesService.syncRulesWithOpnsense();
 
     await auditLog(req, AUDITED_ACTIONS.SYSTEM_ACCESS, 'info', {
       action: 'sync_rules',
-      synced_count: result.synced,
-      failed_count: result.failed,
-      total_pending: result.total,
+      synced_count: result.synced_count,
+      failed_count: result.error_count,
+      total_rules: result.total_rules,
     });
 
     res.json({
-      success: true,
+      success: result.success,
       message: 'Rule synchronization completed',
       data: result,
     });
@@ -545,35 +468,14 @@ router.get(
 router.get(
   '/stats',
   authorize(PERMISSIONS.FIREWALL_READ),
-  asyncHandler(async (_req, res) => {
-    const ruleStats = await Rule.getStatistics();
-    const totalRules = await Rule.count();
-    const activeRules = await Rule.count({ where: { enabled: true, suspended: false } });
-    const pendingSync = await Rule.count({ where: { sync_status: 'pending' } });
-    const failedSync = await Rule.count({ where: { sync_status: 'failed' } });
+  asyncHandler(async (req, res) => {
+    const rulesService = new RulesService(req.user);
+    const stats = await rulesService.getRuleStatistics();
 
     res.json({
       success: true,
       message: 'Firewall statistics retrieved successfully',
-      data: {
-        rules: {
-          total: totalRules,
-          active: activeRules,
-          inactive: totalRules - activeRules,
-          pending_sync: pendingSync,
-          failed_sync: failedSync,
-        },
-        by_interface: ruleStats.reduce((acc, stat) => {
-          if (!acc[stat.interface]) acc[stat.interface] = {};
-          acc[stat.interface][stat.action] = parseInt(stat.count, 10);
-          return acc;
-        }, {}),
-        sync_status: {
-          pending: pendingSync,
-          failed: failedSync,
-          synced: totalRules - pendingSync - failedSync,
-        },
-      },
+      data: stats,
     });
   })
 );
@@ -622,6 +524,176 @@ router.get(
       message: 'Redundant firewall rules retrieved successfully',
       data: redundantRules,
       count: redundantRules.length,
+    });
+  })
+);
+
+/**
+ * @swagger
+ * /api/v1/firewall/rules/{id}/clone:
+ *   post:
+ *     summary: Clone an existing firewall rule
+ *     tags: [Firewall]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post(
+  '/rules/:id/clone',
+  validators.idParam,
+  authorize(PERMISSIONS.FIREWALL_WRITE),
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const overrides = req.body || {};
+
+    const rulesService = new RulesService(req.user);
+    const clonedRule = await rulesService.cloneRule(parseInt(id, 10), overrides);
+
+    await auditLog(req, AUDITED_ACTIONS.RULE_CREATE, 'info', {
+      action: 'clone_rule',
+      original_rule_id: parseInt(id, 10),
+      cloned_rule_id: clonedRule.id,
+      description: clonedRule.description,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Firewall rule cloned successfully',
+      data: clonedRule,
+    });
+  })
+);
+
+/**
+ * @swagger
+ * /api/v1/firewall/rules/reorder:
+ *   post:
+ *     summary: Reorder rules within an interface
+ *     tags: [Firewall]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post(
+  '/rules/reorder',
+  authorize(PERMISSIONS.FIREWALL_WRITE),
+  asyncHandler(async (req, res) => {
+    const { interface: interfaceName, rule_order } = req.body;
+
+    if (!interfaceName || !Array.isArray(rule_order)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Interface name and rule_order array are required',
+      });
+    }
+
+    const rulesService = new RulesService(req.user);
+    const result = await rulesService.reorderRules(interfaceName, rule_order);
+
+    await auditLog(req, AUDITED_ACTIONS.RULE_UPDATE, 'info', {
+      action: 'reorder_rules',
+      interface: interfaceName,
+      rule_count: rule_order.length,
+    });
+
+    res.json({
+      success: result.success,
+      message: 'Rules reordered successfully',
+      data: result,
+    });
+  })
+);
+
+/**
+ * @swagger
+ * /api/v1/firewall/rules/export:
+ *   get:
+ *     summary: Export firewall rules
+ *     tags: [Firewall]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get(
+  '/rules/export',
+  authorize(PERMISSIONS.FIREWALL_READ),
+  asyncHandler(async (req, res) => {
+    const { rule_ids } = req.query;
+    const ruleIds = rule_ids ? rule_ids.split(',').map(id => parseInt(id, 10)) : null;
+
+    const rulesService = new RulesService(req.user);
+    const exportData = await rulesService.exportRules(ruleIds);
+
+    await auditLog(req, AUDITED_ACTIONS.API_ACCESS, 'info', {
+      action: 'export_rules',
+      rule_count: exportData.rules.length,
+    });
+
+    res.json({
+      success: true,
+      message: 'Rules exported successfully',
+      data: exportData,
+    });
+  })
+);
+
+/**
+ * @swagger
+ * /api/v1/firewall/rules/import:
+ *   post:
+ *     summary: Import firewall rules
+ *     tags: [Firewall]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post(
+  '/rules/import',
+  authorize(PERMISSIONS.FIREWALL_WRITE),
+  asyncHandler(async (req, res) => {
+    const importData = req.body;
+    const options = {
+      overwrite: req.body.overwrite || false,
+    };
+
+    const rulesService = new RulesService(req.user);
+    const result = await rulesService.importRules(importData, options);
+
+    await auditLog(req, AUDITED_ACTIONS.RULE_CREATE, 'info', {
+      action: 'import_rules',
+      imported_count: result.imported,
+      skipped_count: result.skipped,
+      error_count: result.errors.length,
+    });
+
+    res.json({
+      success: result.imported > 0,
+      message: 'Rules import completed',
+      data: result,
+    });
+  })
+);
+
+/**
+ * @swagger
+ * /api/v1/firewall/rules/{id}/validate:
+ *   get:
+ *     summary: Validate rule configuration
+ *     tags: [Firewall]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get(
+  '/rules/:id/validate',
+  validators.idParam,
+  authorize(PERMISSIONS.FIREWALL_READ),
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    const rulesService = new RulesService(req.user);
+    const rule = await rulesService.getRuleById(parseInt(id, 10));
+    const validation = await rulesService.validateRuleConfiguration(rule);
+
+    res.json({
+      success: true,
+      message: 'Rule validation completed',
+      data: validation,
     });
   })
 );
