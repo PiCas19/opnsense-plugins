@@ -3,21 +3,21 @@ const { sequelize } = require('../config/database');
 
 class Alert extends Model {
   /**
-   * Check if alert is active
+   * Check if the alert is still active
    */
   isActive() {
     return this.status === 'active' && !this.acknowledged_at;
   }
 
   /**
-   * Check if alert is critical
+   * Check if the alert is critical
    */
   isCritical() {
     return this.severity === 'critical';
   }
 
   /**
-   * Mark alert as acknowledged
+   * Mark the alert as acknowledged
    */
   async acknowledge(userId, note = null) {
     return await this.update({
@@ -29,7 +29,7 @@ class Alert extends Model {
   }
 
   /**
-   * Mark alert as resolved
+   * Mark the alert as resolved
    */
   async resolve(userId, resolution = null) {
     return await this.update({
@@ -41,14 +41,14 @@ class Alert extends Model {
   }
 
   /**
-   * Get alert age in minutes
+   * Get alert age in minutes since creation
    */
   getAge() {
     return Math.floor((new Date() - this.created_at) / (1000 * 60));
   }
 
   /**
-   * Get response time in minutes (time to acknowledge)
+   * Get time to acknowledge in minutes
    */
   getResponseTime() {
     if (!this.acknowledged_at) return null;
@@ -56,7 +56,7 @@ class Alert extends Model {
   }
 
   /**
-   * Get resolution time in minutes (time to resolve)
+   * Get time to resolve in minutes
    */
   getResolutionTime() {
     if (!this.resolved_at) return null;
@@ -64,7 +64,7 @@ class Alert extends Model {
   }
 
   /**
-   * Format alert for notification
+   * Format alert for notifications
    */
   toNotification() {
     return {
@@ -88,20 +88,19 @@ Alert.init({
     autoIncrement: true,
   },
   
-  // Alert identification
+  // Identification
   title: {
     type: DataTypes.STRING(255),
     allowNull: false,
     comment: 'Short descriptive title of the alert',
   },
-  
   message: {
     type: DataTypes.TEXT,
     allowNull: false,
     comment: 'Detailed alert message',
   },
   
-  // Alert classification
+  // Classification
   type: {
     type: DataTypes.ENUM(
       'security_breach',
@@ -116,92 +115,72 @@ Alert.init({
       'compliance_issue'
     ),
     allowNull: false,
-    comment: 'Type/category of the alert',
+    comment: 'Category/type of the alert',
   },
-  
   severity: {
     type: DataTypes.ENUM('low', 'medium', 'high', 'critical'),
     allowNull: false,
     defaultValue: 'medium',
-    comment: 'Alert severity level',
+    comment: 'Severity level of the alert',
   },
-  
   status: {
     type: DataTypes.ENUM('active', 'acknowledged', 'resolved', 'suppressed'),
     allowNull: false,
     defaultValue: 'active',
-    comment: 'Current status of the alert',
+    comment: 'Current lifecycle status of the alert',
   },
   
   // Source information
   source: {
     type: DataTypes.STRING(100),
     allowNull: false,
-    comment: 'Source system/component that generated the alert',
+    comment: 'System or component that generated the alert',
   },
-  
   source_ip: {
     type: DataTypes.INET,
     allowNull: true,
-    comment: 'IP address related to the alert',
+    comment: 'Related source IP address',
   },
-  
   source_port: {
     type: DataTypes.INTEGER,
     allowNull: true,
-    validate: {
-      min: 1,
-      max: 65535,
-    },
-    comment: 'Port number related to the alert',
+    validate: { min: 1, max: 65535 },
+    comment: 'Related source port number',
   },
   
   // Related entities
   rule_id: {
     type: DataTypes.INTEGER,
     allowNull: true,
-    references: {
-      model: 'rules',
-      key: 'id',
-    },
-    comment: 'Related firewall rule ID',
+    references: { model: 'rules', key: 'id' },
+    comment: 'Associated firewall rule ID',
   },
-  
   policy_id: {
     type: DataTypes.INTEGER,
     allowNull: true,
-    references: {
-      model: 'policies',
-      key: 'id',
-    },
-    comment: 'Related policy ID',
+    references: { model: 'policies', key: 'id' },
+    comment: 'Associated policy ID',
   },
-  
   user_id: {
     type: DataTypes.INTEGER,
     allowNull: true,
-    references: {
-      model: 'users',
-      key: 'id',
-    },
-    comment: 'Related user ID',
+    references: { model: 'users', key: 'id' },
+    comment: 'Associated user ID',
   },
   
-  // Alert lifecycle
+  // Lifecycle tracking
   first_occurrence: {
     type: DataTypes.DATE,
     allowNull: false,
     defaultValue: DataTypes.NOW,
-    comment: 'First time this alert occurred',
+    comment: 'Timestamp of the first occurrence',
   },
-  
   last_occurrence: {
     type: DataTypes.DATE,
     allowNull: false,
     defaultValue: DataTypes.NOW,
-    comment: 'Last time this alert occurred',
+    comment: 'Timestamp of the most recent occurrence',
   },
-  
   occurrence_count: {
     type: DataTypes.INTEGER,
     allowNull: false,
@@ -210,224 +189,95 @@ Alert.init({
   },
   
   // Response tracking
-  acknowledged_at: {
-    type: DataTypes.DATE,
-    allowNull: true,
-    comment: 'When the alert was acknowledged',
-  },
-  
+  acknowledged_at: { type: DataTypes.DATE, allowNull: true, comment: 'When alert was acknowledged' },
   acknowledged_by: {
     type: DataTypes.INTEGER,
     allowNull: true,
-    references: {
-      model: 'users',
-      key: 'id',
-    },
+    references: { model: 'users', key: 'id' },
     comment: 'User who acknowledged the alert',
   },
-  
-  acknowledgment_note: {
-    type: DataTypes.TEXT,
-    allowNull: true,
-    comment: 'Note added when acknowledging the alert',
-  },
-  
-  resolved_at: {
-    type: DataTypes.DATE,
-    allowNull: true,
-    comment: 'When the alert was resolved',
-  },
-  
+  acknowledgment_note: { type: DataTypes.TEXT, allowNull: true, comment: 'Optional note when acknowledging' },
+  resolved_at: { type: DataTypes.DATE, allowNull: true, comment: 'When alert was resolved' },
   resolved_by: {
     type: DataTypes.INTEGER,
     allowNull: true,
-    references: {
-      model: 'users',
-      key: 'id',
-    },
+    references: { model: 'users', key: 'id' },
     comment: 'User who resolved the alert',
   },
-  
-  resolution: {
-    type: DataTypes.TEXT,
-    allowNull: true,
-    comment: 'Description of how the alert was resolved',
-  },
+  resolution: { type: DataTypes.TEXT, allowNull: true, comment: 'Resolution details' },
   
   // Auto-resolution
   auto_resolve: {
     type: DataTypes.BOOLEAN,
     allowNull: false,
     defaultValue: false,
-    comment: 'Whether alert should auto-resolve',
+    comment: 'If true, the alert will auto-resolve after a set time',
   },
-  
-  auto_resolve_after: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-    comment: 'Minutes after which to auto-resolve',
-  },
+  auto_resolve_after: { type: DataTypes.INTEGER, allowNull: true, comment: 'Minutes until auto-resolution' },
   
   // Notification tracking
   notifications_sent: {
     type: DataTypes.INTEGER,
     allowNull: false,
     defaultValue: 0,
-    comment: 'Number of notifications sent for this alert',
+    comment: 'Number of notifications sent',
   },
-  
-  last_notification_at: {
-    type: DataTypes.DATE,
-    allowNull: true,
-    comment: 'When last notification was sent',
-  },
+  last_notification_at: { type: DataTypes.DATE, allowNull: true, comment: 'Last notification timestamp' },
   
   // Suppression
-  suppressed_until: {
-    type: DataTypes.DATE,
-    allowNull: true,
-    comment: 'Alert is suppressed until this time',
-  },
-  
+  suppressed_until: { type: DataTypes.DATE, allowNull: true, comment: 'Alert suppressed until this time' },
   suppressed_by: {
     type: DataTypes.INTEGER,
     allowNull: true,
-    references: {
-      model: 'users',
-      key: 'id',
-    },
+    references: { model: 'users', key: 'id' },
     comment: 'User who suppressed the alert',
   },
+  suppression_reason: { type: DataTypes.TEXT, allowNull: true, comment: 'Reason for suppression' },
   
-  suppression_reason: {
-    type: DataTypes.TEXT,
-    allowNull: true,
-    comment: 'Reason for suppressing the alert',
-  },
+  // Metadata
+  metadata: { type: DataTypes.JSONB, allowNull: true, comment: 'Additional alert metadata/context' },
+  tags: { type: DataTypes.ARRAY(DataTypes.STRING), allowNull: true, defaultValue: [], comment: 'Tag list for categorization' },
   
-  // Additional data
-  metadata: {
-    type: DataTypes.JSONB,
-    allowNull: true,
-    comment: 'Additional alert metadata and context',
-  },
-  
-  tags: {
-    type: DataTypes.ARRAY(DataTypes.STRING),
-    allowNull: true,
-    defaultValue: [],
-    comment: 'Tags for categorizing alerts',
-  },
-  
-  // External system integration
-  external_id: {
-    type: DataTypes.STRING(255),
-    allowNull: true,
-    comment: 'ID in external ticketing/monitoring system',
-  },
-  
-  external_url: {
-    type: DataTypes.TEXT,
-    allowNull: true,
-    comment: 'URL to view alert in external system',
-  },
+  // External integrations
+  external_id: { type: DataTypes.STRING(255), allowNull: true, comment: 'External system alert ID' },
+  external_url: { type: DataTypes.TEXT, allowNull: true, comment: 'External system alert URL' },
 }, {
   sequelize,
   modelName: 'Alert',
   tableName: 'alerts',
   timestamps: true,
-  paranoid: true, // Soft deletes
+  paranoid: true, // Soft delete enabled
   indexes: [
+    { fields: ['status', 'severity'], name: 'idx_alerts_status_severity' },
+    { fields: ['type', 'source'], name: 'idx_alerts_type_source' },
+    { fields: ['created_at'], name: 'idx_alerts_created_at' },
+    { fields: ['source_ip'], name: 'idx_alerts_source_ip' },
+    { fields: ['rule_id'], name: 'idx_alerts_rule_id' },
+    { fields: ['policy_id'], name: 'idx_alerts_policy_id' },
+    { fields: ['user_id'], name: 'idx_alerts_user_id' },
+    { fields: ['acknowledged_at'], name: 'idx_alerts_acknowledged_at' },
+    { fields: ['resolved_at'], name: 'idx_alerts_resolved_at' },
     {
-      fields: ['status', 'severity'],
-      name: 'idx_alerts_status_severity',
-    },
-    {
-      fields: ['type', 'source'],
-      name: 'idx_alerts_type_source',
-    },
-    {
-      fields: ['created_at'],
-      name: 'idx_alerts_created_at',
-    },
-    {
-      fields: ['source_ip'],
-      name: 'idx_alerts_source_ip',
-    },
-    {
-      fields: ['rule_id'],
-      name: 'idx_alerts_rule_id',
-    },
-    {
-      fields: ['policy_id'],
-      name: 'idx_alerts_policy_id',
-    },
-    {
-      fields: ['user_id'],
-      name: 'idx_alerts_user_id',
-    },
-    {
-      fields: ['acknowledged_at'],
-      name: 'idx_alerts_acknowledged_at',
-    },
-    {
-      fields: ['resolved_at'],
-      name: 'idx_alerts_resolved_at',
-    },
-    {
-      // Composite index for active alerts
       fields: ['status', 'severity', 'created_at'],
       name: 'idx_alerts_active',
-      where: {
-        status: 'active',
-      },
+      where: { status: 'active' },
     },
-    {
-      // GIN index for metadata JSONB queries
-      fields: ['metadata'],
-      using: 'gin',
-      name: 'idx_alerts_metadata',
-    },
-    {
-      // GIN index for tags array queries
-      fields: ['tags'],
-      using: 'gin',
-      name: 'idx_alerts_tags',
-    },
+    { fields: ['metadata'], using: 'gin', name: 'idx_alerts_metadata' },
+    { fields: ['tags'], using: 'gin', name: 'idx_alerts_tags' },
   ],
   scopes: {
-    active: {
-      where: {
-        status: 'active',
-      },
-    },
-    critical: {
-      where: {
-        severity: 'critical',
-      },
-    },
-    unacknowledged: {
-      where: {
-        acknowledged_at: null,
-      },
-    },
+    active: { where: { status: 'active' } },
+    critical: { where: { severity: 'critical' } },
+    unacknowledged: { where: { acknowledged_at: null } },
     recent: {
       where: {
         created_at: {
-          [sequelize.Sequelize.Op.gte]: new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24 hours
+          [sequelize.Sequelize.Op.gte]: new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24h
         },
       },
     },
-    byType: (type) => ({
-      where: {
-        type: type,
-      },
-    }),
-    bySeverity: (severity) => ({
-      where: {
-        severity: severity,
-      },
-    }),
+    byType: (type) => ({ where: { type } }),
+    bySeverity: (severity) => ({ where: { severity } }),
   },
 });
 
@@ -459,11 +309,7 @@ Alert.findBySourceIP = function(ip) {
 
 Alert.getStatistics = async function() {
   const stats = await this.findAll({
-    attributes: [
-      'status',
-      'severity',
-      [sequelize.fn('COUNT', '*'), 'count'],
-    ],
+    attributes: ['status', 'severity', [sequelize.fn('COUNT', '*'), 'count']],
     group: ['status', 'severity'],
     raw: true,
   });
