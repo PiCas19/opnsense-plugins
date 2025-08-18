@@ -26,7 +26,7 @@ const router = express.Router();
  * @swagger
  * tags:
  *   - name: Authentication
- *     description: JWT access + refresh
+ *     description: JWT access and refresh token management
  */
 
 /**
@@ -50,6 +50,8 @@ const router = express.Router();
  *     responses:
  *       200:
  *         description: Login successful
+ *       401:
+ *         description: Invalid credentials or account disabled
  */
 router.post(
   '/login',
@@ -62,18 +64,18 @@ router.post(
     const user = await User.findOne({ where: { username } });
     if (!user) {
       logger.warn('Auth: login failed (user not found)', { username });
-      return res.status(401).json({ success:false, error:'Invalid credentials', code:'INVALID_CREDENTIALS' });
+      return res.status(401).json({ success: false, error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' });
     }
 
     const ok = await comparePassword(password, user.password);
     if (!ok) {
       logger.warn('Auth: login failed (bad password)', { user_id: user.id, username });
-      return res.status(401).json({ success:false, error:'Invalid credentials', code:'INVALID_CREDENTIALS' });
+      return res.status(401).json({ success: false, error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' });
     }
 
     if (!user.is_active) {
       logger.warn('Auth: login blocked (user disabled)', { user_id: user.id, username });
-      return res.status(401).json({ success:false, error:'Account is disabled', code:'USER_DISABLED' });
+      return res.status(401).json({ success: false, error: 'Account is disabled', code: 'USER_DISABLED' });
     }
 
     if (update_password) {
@@ -83,7 +85,7 @@ router.post(
       await auditSecurityEvent(req, 'password_updated', 'low', { user_id: user.id });
     }
 
-    const accessTtl   = remember_me ? '7d' : (process.env.JWT_EXPIRES_IN || '12h');
+    const accessTtl = remember_me ? '7d' : (process.env.JWT_EXPIRES_IN || '12h');
     const accessToken = signAccessToken({ id: user.id, username: user.username, role: user.role }, accessTtl);
     const refreshToken = signRefreshToken({ id: user.id, username: user.username, role: user.role });
 
@@ -115,11 +117,13 @@ router.post(
  * /api/v1/auth/refresh:
  *   post:
  *     summary: Refresh access token
- *     description: Usa il refresh dal cookie httpOnly `refresh_token` o dall'header `X-Refresh-Token: Bearer <token>`.
+ *     description: Use the refresh token from the httpOnly `refresh_token` cookie or the `X-Refresh-Token: Bearer <token>` header.
  *     tags: [Authentication]
  *     responses:
  *       200:
  *         description: Token refreshed
+ *       401:
+ *         description: Invalid, expired, or missing refresh token
  */
 router.post(
   '/refresh',
@@ -131,7 +135,7 @@ router.post(
 
     if (!refreshToken) {
       logger.warn('Auth: refresh denied (missing token)');
-      return res.status(401).json({ success:false, error:'Refresh token required', code:'REFRESH_TOKEN_MISSING' });
+      return res.status(401).json({ success: false, error: 'Refresh token required', code: 'REFRESH_TOKEN_MISSING' });
     }
 
     let payload;
@@ -140,21 +144,21 @@ router.post(
     } catch (e) {
       logger.warn('Auth: refresh denied (invalid/expired)', { name: e.name, message: e.message });
       return res.status(401).json({
-        success:false,
+        success: false,
         error: e.name === 'TokenExpiredError' ? 'Refresh token expired' : 'Invalid refresh token',
-        code:  e.name === 'TokenExpiredError' ? 'REFRESH_EXPIRED' : 'REFRESH_INVALID'
+        code: e.name === 'TokenExpiredError' ? 'REFRESH_EXPIRED' : 'REFRESH_INVALID'
       });
     }
 
     if (payload.type !== 'refresh_token') {
       logger.warn('Auth: refresh denied (wrong token type)', { type: payload.type });
-      return res.status(401).json({ success:false, error:'Refresh token required', code:'TOKEN_WRONG_TYPE' });
+      return res.status(401).json({ success: false, error: 'Refresh token required', code: 'TOKEN_WRONG_TYPE' });
     }
 
     const allowed = await isRefreshAllowed(payload.jti);
     if (!allowed) {
       logger.warn('Auth: refresh denied (revoked/reused jti)', { jti: payload.jti });
-      return res.status(401).json({ success:false, error:'Refresh token revoked', code:'REFRESH_REVOKED' });
+      return res.status(401).json({ success: false, error: 'Refresh token revoked', code: 'REFRESH_REVOKED' });
     }
 
     await revokeRefreshJti(payload.jti);
@@ -162,19 +166,19 @@ router.post(
     const user = await User.findByPk(payload.id);
     if (!user || !user.is_active) {
       logger.warn('Auth: refresh denied (user invalid/disabled)', { user_id: payload.id });
-      return res.status(401).json({ success:false, error:'User invalid', code:'USER_INVALID' });
+      return res.status(401).json({ success: false, error: 'User invalid', code: 'USER_INVALID' });
     }
 
-    const newAccess  = signAccessToken({ id: user.id, username: user.username, role: user.role });
+    const newAccess = signAccessToken({ id: user.id, username: user.username, role: user.role });
     const newRefresh = signRefreshToken({ id: user.id, username: user.username, role: user.role });
 
-    const { jti:newJti, exp:newExp, iat:newIat } = jwt.decode(newRefresh);
+    const { jti: newJti, exp: newExp, iat: newIat } = jwt.decode(newRefresh);
     await allowRefreshJti(newJti, user.id, newExp, newIat);
     setRefreshCookie(res, newRefresh, (newExp - newIat) * 1000);
 
     logger.info('Auth: token refreshed', { user_id: user.id, username: user.username });
 
-    res.json({ success:true, message:'Token refreshed', data:{ token: newAccess, expires_in: process.env.JWT_EXPIRES_IN || '12h' }});
+    res.json({ success: true, message: 'Token refreshed', data: { token: newAccess, expires_in: process.env.JWT_EXPIRES_IN || '12h' } });
   })
 );
 
@@ -188,6 +192,8 @@ router.post(
  *     responses:
  *       200:
  *         description: Token is valid
+ *       401:
+ *         description: Invalid or missing access token
  */
 router.get(
   '/validate',
@@ -220,6 +226,11 @@ router.get(
  *     summary: Logout user (revoke tokens)
  *     tags: [Authentication]
  *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200:
+ *         description: Logout successful
+ *       401:
+ *         description: Invalid or missing access token
  */
 router.post(
   '/logout',
@@ -249,7 +260,7 @@ router.post(
 
     logger.info('Auth: logout success', { user_id: req.user.id, username: req.user.username });
 
-    res.json({ success:true, message:'Logout successful' });
+    res.json({ success: true, message: 'Logout successful' });
   })
 );
 
