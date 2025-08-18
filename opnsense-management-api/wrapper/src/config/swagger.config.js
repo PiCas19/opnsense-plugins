@@ -131,7 +131,7 @@ module.exports = {
       },
       {
         name: 'Authentication',
-        description: 'User authentication', // Removed "and API key management" since API keys are no longer used
+        description: 'User authentication',
       }
     ],
   },
