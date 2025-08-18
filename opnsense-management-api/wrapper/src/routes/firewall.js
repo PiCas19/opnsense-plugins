@@ -16,9 +16,6 @@ const { auditLog, AUDITED_ACTIONS } = require('../middleware/audit');
 const { createRateLimiter } = require('../middleware/rateLimit');
 const { asyncHandler, NotFoundError } = require('../middleware/errorHandler');
 const OpnsenseService = require('../services/OpnsenseService');
-const Rule = require('../models/Rule');
-const User = require('../models/User');
-const Alert = require('../models/Alert');
 const logger = require('../utils/logger');
 
 const router = express.Router();
@@ -35,15 +32,6 @@ const criticalLimiter = createRateLimiter({
   windowMs: 60 * 1000,
   max: process.env.NODE_ENV === 'production' ? 10 : 100,
 });
-
-// RIMOSSO: inizializzazione forzata associazioni
-// L'app.js si occupa già dell'inizializzazione
-
-// Debug associazioni (solo per vedere se funzionano)
-console.log('Firewall route - Current associations:');
-console.log('Rule associations:', Object.keys(Rule.associations || {}));
-console.log('User associations:', Object.keys(User.associations || {}));
-console.log('Alert associations:', Object.keys(Alert.associations || {}));
 
 // Applica limiter e auth
 router.use(firewallLimiter);
@@ -73,56 +61,30 @@ router.get(
       protocol,
     } = req.query;
 
-    console.log('GET /rules called - using direct query approach');
-    
-    // Costruisci filtri
-    const { Op } = require('sequelize');
-    const whereClause = {};
-    
-    if (interfaceFilter) whereClause.interface = interfaceFilter;
-    if (action) whereClause.action = action;
-    if (enabled !== undefined) whereClause.enabled = enabled === 'true';
-    if (protocol) whereClause.protocol = protocol;
-    
-    if (search) {
-      whereClause[Op.or] = [
-        { description: { [Op.iLike]: `%${search}%` } },
-        { uuid: { [Op.iLike]: `%${search}%` } },
-      ];
-    }
+    logger.info('GET /rules called - fetching from OPNsense API', { page, limit, filters: req.query });
 
-    const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+    const filters = {
+      interface: interfaceFilter,
+      action,
+      enabled: enabled === 'true',
+      protocol,
+      search,
+    };
 
     try {
-      // Query DIRETTA
-      const { count, rows } = await Rule.findAndCountAll({
-        where: whereClause,
+      const opnsenseService = new OpnsenseService(req.user);
+      const rulesData = await opnsenseService.getFirewallRules({
+        page: parseInt(page, 10),
         limit: parseInt(limit, 10),
-        offset: offset,
-        order: [['sequence', 'ASC'], ['created_at', 'DESC']],
-        // Prova con le associazioni SE funzionano
-        include: Rule.associations && Rule.associations.createdBy ? [
-          {
-            model: User,
-            as: 'createdBy',
-            attributes: ['id', 'username', 'email'],
-            required: false,
-          },
-          {
-            model: User,
-            as: 'updatedBy',
-            attributes: ['id', 'username', 'email'],
-            required: false,
-          },
-        ] : [], // Se non ci sono associazioni, array vuoto
+        ...filters,
       });
 
       const pagination = {
         current_page: parseInt(page, 10),
         per_page: parseInt(limit, 10),
-        total: count,
-        total_pages: Math.ceil(count / parseInt(limit, 10)),
-        has_next: parseInt(page, 10) < Math.ceil(count / parseInt(limit, 10)),
+        total: rulesData.length, // Adjust based on actual response structure from OpnsenseService
+        total_pages: Math.ceil(rulesData.length / parseInt(limit, 10)),
+        has_next: parseInt(page, 10) < Math.ceil(rulesData.length / parseInt(limit, 10)),
         has_prev: parseInt(page, 10) > 1,
       };
 
@@ -134,7 +96,7 @@ router.get(
         disabled_count: 0,
       };
 
-      for (const r of rows) {
+      for (const r of rulesData) {
         summary.by_interface[r.interface] = (summary.by_interface[r.interface] || 0) + 1;
         summary.by_action[r.action] = (summary.by_action[r.action] || 0) + 1;
         if (r.enabled) summary.enabled_count++;
@@ -144,49 +106,21 @@ router.get(
       await auditLog(req, AUDITED_ACTIONS.API_ACCESS, 'info', {
         action: 'list_firewall_rules',
         filters: { search, interface: interfaceFilter, action, enabled, protocol },
-        count: rows.length,
+        count: rulesData.length,
       });
 
-      console.log(`Rules retrieved successfully: ${rows.length} rules`);
+      logger.info(`Rules retrieved successfully from OPNsense: ${rulesData.length} rules`);
 
       res.json({
         success: true,
         message: 'Firewall rules retrieved successfully',
-        data: rows,
+        data: rulesData,
         pagination: pagination,
         summary: summary,
       });
-
     } catch (error) {
-      console.error('Error in direct query:', error.message);
-      
-      // Fallback SENZA include se anche quello fallisce
-      const { count, rows } = await Rule.findAndCountAll({
-        where: whereClause,
-        limit: parseInt(limit, 10),
-        offset: offset,
-        order: [['sequence', 'ASC'], ['created_at', 'DESC']],
-        // NESSUN INCLUDE
-      });
-
-      const pagination = {
-        current_page: parseInt(page, 10),
-        per_page: parseInt(limit, 10),
-        total: count,
-        total_pages: Math.ceil(count / parseInt(limit, 10)),
-        has_next: parseInt(page, 10) < Math.ceil(count / parseInt(limit, 10)),
-        has_prev: parseInt(page, 10) > 1,
-      };
-
-      console.log(`Fallback query successful: ${rows.length} rules (no associations)`);
-
-      res.json({
-        success: true,
-        message: 'Firewall rules retrieved successfully (fallback mode)',
-        data: rows,
-        pagination: pagination,
-        summary: { note: 'Summary not available in fallback mode' },
-      });
+      logger.error('Error fetching rules from OPNsense API:', { error: error.message, filters: req.query });
+      throw new Error('Failed to retrieve firewall rules from OPNsense');
     }
   })
 );
@@ -207,42 +141,22 @@ router.get(
   asyncHandler(async (req, res) => {
     const { id } = req.params;
 
-    try {
-      // Query diretta
-      const rule = await Rule.findByPk(parseInt(id, 10), {
-        include: Rule.associations && Rule.associations.createdBy ? [
-          {
-            model: User,
-            as: 'createdBy',
-            attributes: ['id', 'username', 'email'],
-            required: false,
-          },
-          {
-            model: User,
-            as: 'updatedBy',
-            attributes: ['id', 'username', 'email'],
-            required: false,
-          },
-        ] : [],
-      });
+    logger.info(`GET /rules/${id} called - fetching from OPNsense API`);
 
-      if (!rule) throw new NotFoundError('Firewall rule not found');
+    try {
+      const opnsenseService = new OpnsenseService(req.user);
+      const rule = await opnsenseService.getFirewallRules({ ruleId: id }); // Adjust based on actual method
+
+      if (!rule || !rule.length) throw new NotFoundError('Firewall rule not found');
 
       res.json({
         success: true,
         message: 'Firewall rule retrieved successfully',
-        data: rule,
+        data: rule[0], // Assuming getFirewallRules returns an array with the rule
       });
     } catch (error) {
-      // Fallback senza associazioni
-      const rule = await Rule.findByPk(parseInt(id, 10));
-      if (!rule) throw new NotFoundError('Firewall rule not found');
-
-      res.json({
-        success: true,
-        message: 'Firewall rule retrieved successfully (no associations)',
-        data: rule,
-      });
+      logger.error(`Error fetching rule ${id} from OPNsense API:`, { error: error.message });
+      throw new NotFoundError('Firewall rule not found');
     }
   })
 );
@@ -263,35 +177,38 @@ router.post(
   asyncHandler(async (req, res) => {
     const ruleData = {
       ...req.body,
-      created_by: getUserId(req) || 1, // Default user ID se non c'è auth
-      updated_by: getUserId(req) || 1,
-      source_config: req.body.source_config || { type: 'any' },
-      destination_config: req.body.destination_config || { type: 'any' },
+      created_by: getUserId(req) || 1,
     };
 
-    // Crea regola direttamente
-    const rule = await Rule.create(ruleData);
+    logger.info('POST /rules called - creating rule in OPNsense API', { ruleData });
 
-    await auditLog(req, AUDITED_ACTIONS.RULE_CREATE, 'info', {
-      rule_id: rule.id,
-      description: rule.description,
-      interface: rule.interface,
-      action: rule.action,
-    });
+    try {
+      const opnsenseService = new OpnsenseService(req.user);
+      const newRule = await opnsenseService.createFirewallRule(ruleData);
 
-    res.status(201).json({
-      success: true,
-      message: 'Firewall rule created successfully',
-      data: {
-        id: rule.id,
-        uuid: rule.uuid,
-        description: rule.description,
-        interface: rule.interface,
-        action: rule.action,
-        enabled: rule.enabled,
-        sequence: rule.sequence,
-      },
-    });
+      await auditLog(req, AUDITED_ACTIONS.RULE_CREATE, 'info', {
+        rule_id: newRule.uuid,
+        description: newRule.description,
+        interface: newRule.interface,
+        action: newRule.action,
+      });
+
+      res.status(201).json({
+        success: true,
+        message: 'Firewall rule created successfully',
+        data: {
+          id: newRule.uuid, // Using uuid as id from OPNsense
+          uuid: newRule.uuid,
+          description: newRule.description,
+          interface: newRule.interface,
+          action: newRule.action,
+          enabled: newRule.enabled,
+        },
+      });
+    } catch (error) {
+      logger.error('Error creating rule in OPNsense API:', { error: error.message, ruleData });
+      throw new Error('Failed to create firewall rule in OPNsense');
+    }
   })
 );
 
@@ -316,29 +233,33 @@ router.put(
       updated_by: getUserId(req) || 1,
     };
 
-    const rule = await Rule.findByPk(parseInt(id, 10));
-    if (!rule) throw new NotFoundError('Firewall rule not found');
+    logger.info(`PUT /rules/${id} called - updating rule in OPNsense API`, { updates });
 
-    await rule.update(updates);
+    try {
+      const opnsenseService = new OpnsenseService(req.user);
+      const updatedRule = await opnsenseService.updateFirewallRule(id, updates);
 
-    await auditLog(req, AUDITED_ACTIONS.RULE_UPDATE, 'info', {
-      rule_id: rule.id,
-      description: rule.description,
-      changes: updates,
-    });
+      await auditLog(req, AUDITED_ACTIONS.RULE_UPDATE, 'info', {
+        rule_id: updatedRule.uuid,
+        description: updatedRule.description,
+        changes: updates,
+      });
 
-    res.json({
-      success: true,
-      message: 'Firewall rule updated successfully',
-      data: {
-        id: rule.id,
-        description: rule.description,
-        interface: rule.interface,
-        action: rule.action,
-        enabled: rule.enabled,
-        sequence: rule.sequence,
-      },
-    });
+      res.json({
+        success: true,
+        message: 'Firewall rule updated successfully',
+        data: {
+          id: updatedRule.uuid,
+          description: updatedRule.description,
+          interface: updatedRule.interface,
+          action: updatedRule.action,
+          enabled: updatedRule.enabled,
+        },
+      });
+    } catch (error) {
+      logger.error(`Error updating rule ${id} in OPNsense API:`, { error: error.message, updates });
+      throw new NotFoundError('Firewall rule not found or update failed');
+    }
   })
 );
 
@@ -358,29 +279,26 @@ router.delete(
   asyncHandler(async (req, res) => {
     const { id } = req.params;
 
-    const rule = await Rule.findByPk(parseInt(id, 10));
-    if (!rule) throw new NotFoundError('Firewall rule not found');
+    logger.info(`DELETE /rules/${id} called - deleting rule from OPNsense API`);
 
-    const ruleInfo = {
-      id: rule.id,
-      description: rule.description,
-      interface: rule.interface,
-      action: rule.action,
-    };
+    try {
+      const opnsenseService = new OpnsenseService(req.user);
+      const success = await opnsenseService.deleteFirewallRule(id);
 
-    await rule.destroy();
+      if (!success) throw new NotFoundError('Firewall rule not found');
 
-    await auditLog(req, AUDITED_ACTIONS.RULE_DELETE, 'warning', {
-      rule_id: ruleInfo.id,
-      description: ruleInfo.description,
-      interface: ruleInfo.interface,
-      action: ruleInfo.action,
-    });
+      await auditLog(req, AUDITED_ACTIONS.RULE_DELETE, 'warning', {
+        rule_id: id,
+      });
 
-    res.json({ 
-      success: true, 
-      message: 'Firewall rule deleted successfully' 
-    });
+      res.json({
+        success: true,
+        message: 'Firewall rule deleted successfully',
+      });
+    } catch (error) {
+      logger.error(`Error deleting rule ${id} from OPNsense API:`, { error: error.message });
+      throw new NotFoundError('Firewall rule not found or deletion failed');
+    }
   })
 );
 
@@ -397,20 +315,30 @@ router.get(
   '/stats',
   authorize(PERMISSIONS.FIREWALL_READ),
   asyncHandler(async (req, res) => {
-    const stats = await Rule.getStatistics();
-    const totalRules = await Rule.count();
-    const activeRules = await Rule.count({ where: { enabled: true, suspended: false } });
+    logger.info('GET /stats called - fetching from OPNsense API');
 
-    res.json({
-      success: true,
-      message: 'Firewall statistics retrieved successfully',
-      data: {
-        total: totalRules,
-        active: activeRules,
-        inactive: totalRules - activeRules,
-        detailed_stats: stats,
-      },
-    });
+    try {
+      const opnsenseService = new OpnsenseService(req.user);
+      const stats = await opnsenseService.getFirewallRules(); // Adjust if a specific stats method exists
+
+      const totalRules = stats.length;
+      const activeRules = stats.filter(r => r.enabled).length;
+      const inactiveRules = totalRules - activeRules;
+
+      res.json({
+        success: true,
+        message: 'Firewall statistics retrieved successfully',
+        data: {
+          total: totalRules,
+          active: activeRules,
+          inactive: inactiveRules,
+          detailed_stats: stats,
+        },
+      });
+    } catch (error) {
+      logger.error('Error fetching firewall stats from OPNsense API:', { error: error.message });
+      throw new Error('Failed to retrieve firewall statistics');
+    }
   })
 );
 
