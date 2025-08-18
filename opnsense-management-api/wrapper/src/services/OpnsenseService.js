@@ -243,88 +243,116 @@ class OpnsenseService {
   }
 
   /**
- * Get all firewall rules with improved caching and pagination
- * @param {Object} filters - Filter criteria (optional)
- * @returns {Array} List of all firewall rules
- */
-async getFirewallRules(filters = {}) {
-  try {
-    // Validate and sanitize filters
-    const sanitizedFilters = { show_all: 1, ...filters }; // Aggiungi show_all per default
-    if (filters.interface && /^[a-zA-Z0-9]+$/.test(filters.interface)) {
-      sanitizedFilters.interface = filters.interface;
-    }
-    if (filters.action && ['pass', 'block', 'reject'].includes(filters.action)) {
-      sanitizedFilters.action = filters.action;
-    }
-    if (filters.enabled !== undefined && typeof filters.enabled === 'boolean') {
-      sanitizedFilters.enabled = filters.enabled;
-    }
+   * Get all firewall rules via searchRule, con cache e paginazione
+   * @param {Object} filters - { page, limit, search, interface, action, enabled, protocol }
+   * @returns {Array} Elenco normalizzato di tutte le regole
+   */
+  async getFirewallRules(filters = {}) {
+    try {
+      // Sanitize filtri accettati da searchRule
+      const page = Number.isInteger(filters.page) ? filters.page : 1;
+      const limit = Number.isInteger(filters.limit) ? filters.limit : 100;
 
-    // Usa una chiave cache che indica "tutte le regole" se non ci sono filtri restrittivi
-    const cacheKey = `firewall_rules_all_${JSON.stringify(sanitizedFilters)}`;
-    const cachedRules = await this.safeGetCache(cacheKey);
+      const paramsBase = {
+        current: page,
+        rowCount: limit,
+      };
 
-    if (cachedRules) {
-      logger.info('Returning cached firewall rules', { cache_key: cacheKey });
-      return cachedRules;
-    }
+      if (filters.search) paramsBase.searchPhrase = String(filters.search);
+      if (filters.interface && /^[A-Za-z0-9_]+$/.test(filters.interface)) {
+        paramsBase.interface = filters.interface;
+      }
+      if (typeof filters.enabled === 'boolean') {
+        paramsBase.enabled = filters.enabled ? '1' : '0';
+      }
+      if (filters.action && ['pass', 'block', 'reject'].includes(filters.action)) {
+        paramsBase.action = filters.action;
+      }
+      if (filters.protocol && /^[A-Za-z0-9]+$/.test(filters.protocol)) {
+        paramsBase.protocol = filters.protocol;
+      }
 
-    let allRules = [];
-    let page = 1;
-    const limit = 100; // Numero massimo di regole per pagina (regolabile)
+      // Chiave cache
+      const cacheKey = `firewall_rules_search_${JSON.stringify(paramsBase)}`;
+      const cached = await this.safeGetCache(cacheKey);
+      if (cached) {
+        logger.info('Returning cached firewall rules', { cache_key: cacheKey });
+        return cached;
+      }
 
-    while (true) {
-      const offset = (page - 1) * limit;
-      const data = await this.makeApiRequest('GET', '/firewall/filter/get', {
-        ...sanitizedFilters,
-        limit,
-        offset,
-      }, 'get_rules');
+      // Recupero TUTTE le pagine (come faceva la versione precedente)
+      let allRules = [];
+      let current = paramsBase.current;
+      const rowCount = paramsBase.rowCount;
+      let total = 0;
 
-      const rules = data?.rules || [];
-      const validatedRules = rules.filter(rule => rule && typeof rule === 'object' && rule.uuid);
+      // loop di paginazione
+      while (true) {
+        const data = await this.makeApiRequest(
+          'GET',
+          '/firewall/filter/searchRule',
+          { ...paramsBase, current, rowCount },
+          'get_rules'
+        );
 
-      allRules = allRules.concat(validatedRules);
+        const rows = Array.isArray(data?.rows) ? data.rows : [];
+        total = Number.isFinite(+data?.total) ? +data.total : Math.max(total, allRules.length + rows.length);
 
-      // Esci dal ciclo se non ci sono più regole
-      if (validatedRules.length < limit) break;
+        // normalizzazione campi principali
+        const normalized = rows
+          .filter(r => r && (r.uuid || r['uuid']))
+          .map(r => ({
+            uuid: r.uuid ?? r['uuid'],
+            interface: r.interface ?? r['interface'],
+            action: r.action,
+            enabled: r.enabled === true || r.enabled === '1' || r.enabled === 1,
+            protocol: r.protocol ?? r.proto ?? r['protocol'] ?? r['proto'],
+            description: r.description ?? r.descr ?? '',
+            source: r.source ?? r.src ?? null,
+            destination: r.destination ?? r.dst ?? null,
+            src_port: r.src_port ?? null,
+            dst_port: r.dst_port ?? null,
+            order: r.order ?? r.sequence ?? null,
+          }));
 
-      page++;
-    }
+        allRules = allRules.concat(normalized);
 
-    // Calcola il totale basato sul numero di regole recuperate
-    const total = allRules.length;
+        // fine se ho preso tutto o se la pagina è vuota
+        if (allRules.length >= total || rows.length === 0) break;
 
-    await this.safeSetCache(cacheKey, allRules, this.cacheTimeout);
+        current += 1;
+      }
 
-    logger.info('All firewall rules retrieved and cached', {
-      cache_key: cacheKey,
-      rules_count: allRules.length,
-      total,
-    });
+      await this.safeSetCache(cacheKey, allRules, this.cacheTimeout);
 
-    return allRules;
-  } catch (error) {
-    logger.error('Failed to get firewall rules', {
-      error: error.message,
-      filters,
-      user_id: this.user?.id,
-    });
-    await this.alertService.createSystemAlert({
-      type: 'configuration_error',
-      message: `Failed to retrieve firewall rules: ${error.message}`,
-      severity: 'medium',
-      source: 'opnsense',
-      metadata: { 
+      logger.info('All firewall rules retrieved (searchRule) and cached', {
+        cache_key: cacheKey,
+        rules_count: allRules.length,
+        total,
+      });
+
+      return allRules;
+    } catch (error) {
+      logger.error('Failed to get firewall rules (searchRule)', {
+        error: error.message,
         filters,
-        error_type: 'api_failure',
-        endpoint: '/firewall/filter/get'
-      },
-    });
-    throw error;
+        user_id: this.user?.id,
+      });
+      await this.alertService.createSystemAlert({
+        type: 'configuration_error',
+        message: `Failed to retrieve firewall rules: ${error.message}`,
+        severity: 'medium',
+        source: 'opnsense',
+        metadata: {
+          filters,
+          error_type: 'api_failure',
+          endpoint: '/firewall/filter/searchRule',
+        },
+      });
+      throw error;
+    }
   }
-}
+
 
   /**
    * Create a new firewall rule with transaction support
