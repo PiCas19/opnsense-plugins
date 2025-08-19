@@ -85,7 +85,8 @@
     "winston-daily-rotate-file": "5.0.0",
     "yaml": "2.8.1",
     "zod": "4.0.17",
-    "xml2js": "0.6.2"
+    "xml2js": "0.6.2",
+    "ssh2": "1.16.0"
   },
   "devDependencies": {
     "@types/node": "24.3.0",
