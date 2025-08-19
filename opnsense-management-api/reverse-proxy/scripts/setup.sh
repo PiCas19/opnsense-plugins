@@ -1,7 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Setup script for Wrapper-only Reverse Proxy (Nginx)
-# Builds & runs the edge, validates template, checks wrapper reachability.
+# Brings up the edge with docker compose (no build), validates template,
+# creates TLS + htpasswd, and checks wrapper reachability.
 
 set -euo pipefail
 
@@ -30,7 +31,8 @@ check_docker() {
   log_info "Checking Docker/Compose..."
   command -v docker >/dev/null || { log_error "Docker not installed"; exit 1; }
   docker info >/dev/null 2>&1 || { log_error "Docker is not running"; exit 1; }
-  (command -v docker-compose >/dev/null || docker compose version >/dev/null 2>&1) || { log_error "Compose not available"; exit 1; }
+  (command -v docker-compose >/dev/null || docker compose version >/dev/null 2>&1) \
+    || { log_error "Compose not available"; exit 1; }
   log_success "Docker/Compose OK"
 }
 
@@ -44,13 +46,26 @@ gen_env() {
   if [[ ! -f .env ]]; then
     log_info "Generating default .env ..."
     cat > .env <<'EOF'
+# === Edge/FQDN of the proxy (certificate CN) ===
 PUBLIC_FQDN=fw.example.com
+
+# === Wrapper (LAN) to publish ===
 WRAPPER_SCHEME=http
 WRAPPER_HOST=192.168.216.50:3000
+
+# === Nginx ===
 NGINX_CLIENT_MAX_BODY_SIZE=10m
+
+# === Basic Auth at the proxy (single allowed user) ===
 BASIC_AUTH_USER=monitoring-api
-BASIC_AUTH_PASSWORD=CambiaSubito_!
+BASIC_AUTH_PASSWORD=ChangeMe_Now!
+
+# === Container DNS (use your DMZ resolver) ===
 DOCKER_DNS=172.16.216.1
+
+# Optional host ports
+HTTP_PORT=80
+HTTPS_PORT=443
 EOF
     log_success ".env created"
   else
@@ -74,21 +89,50 @@ gen_certs() {
   fi
 }
 
+gen_htpasswd() {
+  log_info "Creating htpasswd..."
+  if [[ -n "${BASIC_AUTH_USER:-}" && -n "${BASIC_AUTH_PASSWORD:-}" ]]; then
+    # APR1 hash compatible with nginx
+    local hash
+    hash=$(openssl passwd -apr1 "${BASIC_AUTH_PASSWORD}")
+    printf "%s:%s\n" "${BASIC_AUTH_USER}" "${hash}" > nginx/htpasswd
+    chmod 640 nginx/htpasswd
+    log_success "htpasswd created for user '${BASIC_AUTH_USER}'"
+  else
+    : > nginx/htpasswd
+    log_warning "BASIC_AUTH_USER/PASSWORD empty. Created empty htpasswd (auth will fail)."
+  fi
+}
+
 verify_tpl() {
   log_info "Verifying Nginx template..."
-  docker run --rm -i \
-    -e WRAPPER_SCHEME -e WRAPPER_HOST -e NGINX_CLIENT_MAX_BODY_SIZE \
-    -v "$(pwd)/nginx/nginx.conf.template:/tmp/nginx.conf.template:ro" \
-    alpine:3.20 sh -c 'apk add --no-cache gettext >/dev/null && envsubst \
-      "${WRAPPER_SCHEME} ${WRAPPER_HOST} ${NGINX_CLIENT_MAX_BODY_SIZE}" \
-      < /tmp/nginx.conf.template' > temp/nginx.conf 2>/dev/null || true
+  [[ -f nginx/nginx.conf.template ]] || { log_error "Missing nginx/nginx.conf.template"; exit 1; }
 
+  # Render nginx.conf from template using envsubst (host or tiny container)
+  if command -v envsubst >/dev/null 2>&1; then
+    WRAPPER_SCHEME="$WRAPPER_SCHEME" WRAPPER_HOST="$WRAPPER_HOST" \
+    NGINX_CLIENT_MAX_BODY_SIZE="$NGINX_CLIENT_MAX_BODY_SIZE" \
+      envsubst '${WRAPPER_SCHEME} ${WRAPPER_HOST} ${NGINX_CLIENT_MAX_BODY_SIZE}' \
+      < nginx/nginx.conf.template > temp/nginx.conf
+  else
+    docker run --rm -i \
+      -e WRAPPER_SCHEME -e WRAPPER_HOST -e NGINX_CLIENT_MAX_BODY_SIZE \
+      -v "$(pwd)/nginx/nginx.conf.template:/tpl:ro" alpine:3.20 \
+      sh -c 'apk add --no-cache gettext >/dev/null && envsubst "${WRAPPER_SCHEME} ${WRAPPER_HOST} ${NGINX_CLIENT_MAX_BODY_SIZE}" < /tpl' \
+      > temp/nginx.conf
+  fi
+
+  # Syntax test with official nginx image
   if [[ -s temp/nginx.conf ]] && docker run --rm \
-       -v "$(pwd)/temp/nginx.conf:/etc/nginx/nginx.conf:ro" nginx:1.25-alpine nginx -t >/dev/null 2>&1; then
+       -v "$(pwd)/temp/nginx.conf:/etc/nginx/nginx.conf:ro" \
+       nginx:1.25-alpine nginx -t >/dev/null 2>&1; then
     log_success "Nginx syntax OK"
   else
     log_warning "Template render/syntax test failed (check nginx.conf.template)"
   fi
+
+  # Install the rendered config
+  cp -f temp/nginx.conf nginx/nginx.conf
 }
 
 check_wrapper() {
@@ -103,24 +147,28 @@ check_wrapper() {
 }
 
 start_services() {
-  log_info "Starting services..."
+  log_info "Starting services (no build)..."
   compose down >/dev/null 2>&1 || true
-  compose up -d --build
+  compose up -d
   log_success "Services up"
 }
 
 post_checks() {
   log_info "Edge quick checks..."
   sleep 6
-  curl -ksf "https://${PUBLIC_FQDN}/health" >/dev/null && log_success "/health OK" || log_warning "/health KO"
-  curl -ksI -u "${BASIC_AUTH_USER}:${BASIC_AUTH_PASSWORD}" "https://${PUBLIC_FQDN}/api/api-docs" >/dev/null \
-    && log_success "/api/api-docs OK (auth)" || log_warning "/api/api-docs KO"
+  curl -ksf "https://${PUBLIC_FQDN}/health" >/dev/null \
+    && log_success "/health OK" \
+    || log_warning "/health KO"
+  curl -ksI -u "${BASIC_AUTH_USER}:${BASIC_AUTH_PASSWORD}" \
+       "https://${PUBLIC_FQDN}/api/api-docs" >/dev/null \
+    && log_success "/api/api-docs OK (auth)" \
+    || log_warning "/api/api-docs KO"
 }
 
 final_banner() {
   echo -e "${BLUE}"
   echo "╔══════════════════════════════════════════════════════════════╗"
-  echo "║                 Wrapper Reverse Proxy: READY                ║"
+  echo "║                 Wrapper Reverse Proxy: READY                 ║"
   echo "╚══════════════════════════════════════════════════════════════╝"
   echo -e "${NC}"
   echo -e "${BLUE}Endpoints:${NC}"
@@ -145,6 +193,7 @@ check_docker
 create_dirs
 gen_env
 gen_certs
+gen_htpasswd
 verify_tpl
 check_wrapper
 start_services

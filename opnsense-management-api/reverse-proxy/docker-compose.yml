@@ -1,41 +1,29 @@
 services:
   nginx:
-    build:
-      context: .
-      dockerfile: ${DOCKERFILE_PATH:-Dockerfile}
+    image: nginx:1.25-alpine
     container_name: ${CONTAINER_NAME:-opnsense-reverse-proxy}
     restart: unless-stopped
 
-    # Porte pubblicate (parametrizzabili)
     ports:
       - "${HTTP_PORT:-80}:80"
       - "${HTTPS_PORT:-443}:443"
 
-    # Carica tutte le variabili anche dentro al container
-    env_file:
-      - .env
-    # E passa esplicitamente quelle usate dall'entrypoint/template
-    environment:
-      WRAPPER_SCHEME: ${WRAPPER_SCHEME}
-      WRAPPER_HOST: ${WRAPPER_HOST}
-      PUBLIC_FQDN: ${PUBLIC_FQDN}
-      NGINX_CLIENT_MAX_BODY_SIZE: ${NGINX_CLIENT_MAX_BODY_SIZE:-10m}
-      BASIC_AUTH_USER: ${BASIC_AUTH_USER}
-      BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD}
-
-    volumes:
-      - ./nginx/nginx.conf.template:/etc/nginx/templates/nginx.conf.template:ro
-      - ./nginx/entrypoint.sh:/entrypoint.sh:ro
-      - ./nginx/ssl:/etc/ssl/nginx
-      - ./nginx/htpasswd:/etc/nginx/htpasswd:ro           # (opzionale) se vuoi fissare le credenziali
-      - ./logs/nginx:/var/log/nginx
-
-    # DNS per i container (utile in DMZ)
     dns:
       - ${DOCKER_DNS:-172.16.216.1}
 
+    env_file:
+      - .env
+    environment:
+      NGINX_CLIENT_MAX_BODY_SIZE: ${NGINX_CLIENT_MAX_BODY_SIZE:-10m}
+
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/htpasswd:/etc/nginx/htpasswd:ro
+      - ./nginx/ssl:/etc/ssl/nginx
+      - ./logs/nginx:/var/log/nginx
+
     healthcheck:
-      test: ["CMD-SHELL", "curl -ksf https://localhost/health >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost/health >/dev/null 2>&1 || exit 1"]
       interval: ${HEALTHCHECK_INTERVAL:-30s}
       timeout: ${HEALTHCHECK_TIMEOUT:-10s}
       retries: ${HEALTHCHECK_RETRIES:-3}
