@@ -1,4 +1,3 @@
-// src/services/OpnsenseService.js
 const axios = require('axios');
 const https = require('https');
 const { parseStringPromise } = require('xml2js');
@@ -16,7 +15,7 @@ class OpnsenseService {
     this.baseUrl = opnsenseConfig.apiUrl;
     this.apiKey = opnsenseConfig.apiKey;
     this.apiSecret = opnsenseConfig.apiSecret;
-    this.allowSelfSigned = !!opnsenseConfig.allowSelfSigned; // <-- opzionale
+    this.allowSelfSigned = !!opnsenseConfig.allowSelfSigned;
     this.alertService = new AlertService(user);
     this.cacheTimeout = Number(process.env.OPNSENSE_CACHE_TIMEOUT || 60);
     this.maxRetries = Number(process.env.MAX_API_RETRIES || 3);
@@ -24,7 +23,7 @@ class OpnsenseService {
     this.rateLimitMap = new Map();
   }
 
-  // -------------------- infra helpers --------------------
+  // ---------------- infra helpers ----------------
 
   checkRateLimit(operation, maxRequests = 60) {
     const now = Date.now();
@@ -119,18 +118,15 @@ class OpnsenseService {
       } catch (error) {
         lastError = error;
         const status = error.response?.status;
-        const body = wantsText ? error.response?.data : undefined;
-
         logger.warn('API request failed', {
           method,
           endpoint,
           attempt,
           status,
           error: error.message,
-          body_snippet: typeof body === 'string' ? body.slice(0, 200) : undefined,
         });
 
-        // no retry on 4xx
+        // 4xx non si ritenta
         if (status >= 400 && status < 500) break;
 
         if (attempt < this.maxRetries) {
@@ -142,7 +138,7 @@ class OpnsenseService {
     throw lastError;
   }
 
-  // -------------------- validation/auth --------------------
+  // ---------------- validation/auth ----------------
 
   validateRuleData(ruleData) {
     const requiredFields = ['interface', 'action', 'description'];
@@ -178,7 +174,7 @@ class OpnsenseService {
     return user;
   }
 
-  // -------------------- CORE RULES via config.xml --------------------
+  // ---------------- CORE RULES via config.xml ----------------
 
   async _fetchConfigXmlCached(ttl = Math.min(this.cacheTimeout, 30)) {
     const key = 'opnsense_config_xml';
@@ -194,9 +190,8 @@ class OpnsenseService {
     } catch (e) {
       const status = e.response?.status;
       if (status === 403) {
-        // permessi mancanti lato OPNsense
         throw new Error(
-          'OPNsense denied access to download config (403). Grant the user permission to download/backup configuration.'
+          'OPNsense denied access to download config (403). Grant the API user permission to download configuration.'
         );
       }
       throw e;
@@ -211,20 +206,18 @@ class OpnsenseService {
   }
 
   _normalizeCoreRule(rule, idx = 0) {
+    // enabled se il tag <disabled> NON c'è; disabled se <disabled>1</disabled> o <disabled/>
     const toBool = v => v === '1' || v === 1 || v === true;
-
     const hasDisabled = Object.prototype.hasOwnProperty.call(rule, 'disabled');
     const isDisabled = hasDisabled && (rule.disabled === '' || toBool(rule.disabled));
+    const enabled = !isDisabled;
 
     const pickEp = (node = {}) => {
-      if (node.any && toBool(node.any)) return { type: 'any', value: 'any', port: null };
+      if ('any' in node && toBool(node.any)) return { type: 'any', value: 'any', port: null };
       if (node.address) return { type: 'address', value: node.address, port: node.port ?? null };
       if (node.network) return { type: 'network', value: node.network, port: node.port ?? null };
       return { type: null, value: null, port: null };
     };
-
-    const source = pickEp(rule.source);
-    const destination = pickEp(rule.destination);
 
     const uuid = rule?.$?.uuid || rule?.uuid || rule?.tracker || `rule_${idx}`;
 
@@ -232,7 +225,7 @@ class OpnsenseService {
       uuid,
       interface: rule?.interface || null,
       action: rule?.type || rule?.action || null,
-      enabled: !isDisabled,
+      enabled,
       protocol: rule?.protocol || null,
       ipprotocol: rule?.ipprotocol || null,
       direction: rule?.direction || null,
@@ -240,8 +233,8 @@ class OpnsenseService {
       statetype: rule?.statetype || null,
       log: toBool(rule?.log || '0'),
       description: rule?.descr || rule?.description || '',
-      source,
-      destination,
+      source: (function s() { return pickEp(rule.source); })(),
+      destination: (function d() { return pickEp(rule.destination); })(),
       associated_rule_id: rule?.['associated-rule-id'] || null,
       created_at: rule?.created?.time || null,
       updated_at: rule?.updated?.time || null,
@@ -258,7 +251,6 @@ class OpnsenseService {
     let list = rules.map((r, i) => this._normalizeCoreRule(r, i));
 
     const { interface: iface, enabled, action, search } = filters;
-
     if (iface) list = list.filter(r => r.interface === iface);
     if (typeof enabled === 'boolean') list = list.filter(r => r.enabled === enabled);
     if (action) list = list.filter(r => r.action === action);
@@ -272,20 +264,18 @@ class OpnsenseService {
       );
     }
 
+    // paginazione lato service
     const page = Number.isInteger(filters.page) ? filters.page : 1;
     const limit = Number.isInteger(filters.limit) ? filters.limit : list.length || 1000;
     const start = (page - 1) * limit;
     const end = start + limit;
 
-    return { total: list.length, page, limit, rows: list.slice(start, end) };
+    return { rows: list.slice(start, end), total: list.length, page, limit };
   }
 
-  /**
-   * Lista regole core dai tab LAN/WAN/OPT/Floating (no Automation)
-   */
   async getFirewallRules(filters = {}) {
     try {
-      const cacheKey = `core_rules_${JSON.stringify({
+      const key = `core_rules_${JSON.stringify({
         page: filters.page ?? 1,
         limit: filters.limit ?? 1000,
         interface: filters.interface ?? null,
@@ -293,13 +283,12 @@ class OpnsenseService {
         action: filters.action ?? null,
         search: filters.search ?? null,
       })}`;
-      const cached = await this.safeGetCache(cacheKey);
+      const cached = await this.safeGetCache(key);
       if (cached) return cached;
 
-      const { rows } = await this._loadCoreRulesFromConfig(filters);
-
-      await this.safeSetCache(cacheKey, rows, this.cacheTimeout);
-      return rows;
+      const result = await this._loadCoreRulesFromConfig(filters);
+      await this.safeSetCache(key, result, this.cacheTimeout);
+      return result; // { rows, total, page, limit }
     } catch (error) {
       logger.error('Failed to read core firewall rules from config.xml', {
         error: error.message,
@@ -317,7 +306,12 @@ class OpnsenseService {
     }
   }
 
-  // -------------------- CRUD via Automation (lasciati com’erano) --------------------
+  async getFirewallRuleById(uuid) {
+    const { rows } = await this._loadCoreRulesFromConfig({});
+    return rows.find(r => r.uuid === uuid) || null;
+  }
+
+  // ------------- le operazioni qui sotto sono lasciate come prima -------------
 
   async createFirewallRule(ruleData) {
     const transaction = await sequelize.transaction();
@@ -330,7 +324,6 @@ class OpnsenseService {
       if (!newRule || !newRule.uuid) throw new Error('Invalid response from OPNsense API');
 
       await transaction.commit();
-
       await this.invalidateCachePattern('core_rules_');
       await this.invalidateCachePattern('opnsense_config_xml');
 
@@ -375,7 +368,6 @@ class OpnsenseService {
       if (!updatedRule) throw new Error('Invalid response from OPNsense API');
 
       await transaction.commit();
-
       await this.invalidateCachePattern('core_rules_');
       await this.invalidateCachePattern('opnsense_config_xml');
 
@@ -416,7 +408,6 @@ class OpnsenseService {
       await this.makeApiRequest('POST', `/firewall/filter/delete/${ruleId}`, {}, 'delete_rule');
 
       await transaction.commit();
-
       await this.invalidateCachePattern('core_rules_');
       await this.invalidateCachePattern('opnsense_config_xml');
 
@@ -445,8 +436,6 @@ class OpnsenseService {
       throw error;
     }
   }
-
-  // -------------------- interfaces / apply / health --------------------
 
   async getInterfaceConfigurations() {
     try {
