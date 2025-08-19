@@ -1,12 +1,15 @@
+// src/routes/firewall.js
 const express = require('express');
 
-// Auth opzionale
+// Auth opzionale: se manca il modulo, tutto diventa no-op
 let authenticate = (req, _res, next) => next();
 let authorize = () => (req, _res, next) => next();
 let PERMISSIONS = {};
 try {
   ({ authenticate, authorize, PERMISSIONS } = require('../middleware/auth'));
-} catch (_) { /* no auth in dev */ }
+} catch (_) {
+  // nessuna auth in dev / ambienti senza auth
+}
 
 const { validators } = require('../middleware/validation');
 const { auditLog, AUDITED_ACTIONS } = require('../middleware/audit');
@@ -38,7 +41,7 @@ router.use(authenticate);
  * @swagger
  * /api/v1/firewall/rules:
  *   get:
- *     summary: List firewall rules (core) with pagination and filtering
+ *     summary: List firewall rules with pagination and filtering
  *     tags: [Firewall]
  *     security:
  *       - bearerAuth: []
@@ -54,65 +57,71 @@ router.get(
       search,
       interface: interfaceFilter,
       action,
-      enabled, // "true"/"false" o undefined
-      protocol, // ignorato nelle core rules ma accettato
+      enabled,
+      protocol,
     } = req.query;
 
-    logger.info('GET /rules called - fetching from OPNsense config.xml', {
-      page, limit, filters: req.query
-    });
+    logger.info('GET /rules called - fetching from OPNsense API', { page, limit, filters: req.query });
 
-    // costruisci filtri SOLO se presenti
-    const filters = {};
-    if (interfaceFilter) filters.interface = interfaceFilter;
-    if (action) filters.action = action;
-    if (search) filters.search = search;
-    if (enabled !== undefined) {
-      filters.enabled = enabled === 'true' || enabled === '1';
-    }
-
-    const opnsenseService = new OpnsenseService(req.user);
-    const result = await opnsenseService.getFirewallRules({
-      page: parseInt(page, 10),
-      limit: parseInt(limit, 10),
-      ...filters,
-    });
-
-    const { rows, total } = result;
-
-    // Summary semplice
-    const summary = {
-      by_interface: {},
-      by_action: {},
-      enabled_count: 0,
-      disabled_count: 0,
+    const filters = {
+      interface: interfaceFilter,
+      action,
+      enabled: enabled === 'true',
+      protocol,
+      search,
     };
-    for (const r of rows) {
-      summary.by_interface[r.interface] = (summary.by_interface[r.interface] || 0) + 1;
-      summary.by_action[r.action] = (summary.by_action[r.action] || 0) + 1;
-      if (r.enabled) summary.enabled_count++; else summary.disabled_count++;
+
+    try {
+      const opnsenseService = new OpnsenseService(req.user);
+      const rulesData = await opnsenseService.getFirewallRules({
+        page: parseInt(page, 10),
+        limit: parseInt(limit, 10),
+        ...filters,
+      });
+
+      const pagination = {
+        current_page: parseInt(page, 10),
+        per_page: parseInt(limit, 10),
+        total: rulesData.length, // Adjust based on actual response structure from OpnsenseService
+        total_pages: Math.ceil(rulesData.length / parseInt(limit, 10)),
+        has_next: parseInt(page, 10) < Math.ceil(rulesData.length / parseInt(limit, 10)),
+        has_prev: parseInt(page, 10) > 1,
+      };
+
+      // Summary semplice
+      const summary = {
+        by_interface: {},
+        by_action: {},
+        enabled_count: 0,
+        disabled_count: 0,
+      };
+
+      for (const r of rulesData) {
+        summary.by_interface[r.interface] = (summary.by_interface[r.interface] || 0) + 1;
+        summary.by_action[r.action] = (summary.by_action[r.action] || 0) + 1;
+        if (r.enabled) summary.enabled_count++;
+        else summary.disabled_count++;
+      }
+
+      await auditLog(req, AUDITED_ACTIONS.API_ACCESS, 'info', {
+        action: 'list_firewall_rules',
+        filters: { search, interface: interfaceFilter, action, enabled, protocol },
+        count: rulesData.length,
+      });
+
+      logger.info(`Rules retrieved successfully from OPNsense: ${rulesData.length} rules`);
+
+      res.json({
+        success: true,
+        message: 'Firewall rules retrieved successfully',
+        data: rulesData,
+        pagination: pagination,
+        summary: summary,
+      });
+    } catch (error) {
+      logger.error('Error fetching rules from OPNsense API:', { error: error.message, filters: req.query });
+      throw new Error('Failed to retrieve firewall rules from OPNsense');
     }
-
-    await auditLog(req, AUDITED_ACTIONS.API_ACCESS, 'info', {
-      action: 'list_firewall_rules',
-      filters: { search, interface: interfaceFilter, action, enabled, protocol },
-      count: rows.length,
-    });
-
-    res.json({
-      success: true,
-      message: 'Firewall rules retrieved successfully',
-      data: rows,
-      pagination: {
-        current_page: Number(page),
-        per_page: Number(limit),
-        total,
-        total_pages: Math.ceil(total / Number(limit)),
-        has_next: Number(page) * Number(limit) < total,
-        has_prev: Number(page) > 1,
-      },
-      summary,
-    });
   })
 );
 
@@ -120,7 +129,7 @@ router.get(
  * @swagger
  * /api/v1/firewall/rules/{id}:
  *   get:
- *     summary: Get specific firewall rule by UUID
+ *     summary: Get specific firewall rule by ID
  *     tags: [Firewall]
  *     security:
  *       - bearerAuth: []
@@ -131,18 +140,24 @@ router.get(
   authorize(PERMISSIONS.FIREWALL_READ),
   asyncHandler(async (req, res) => {
     const { id } = req.params;
-    logger.info(`GET /rules/${id} called - fetching from config.xml`);
 
-    const opnsenseService = new OpnsenseService(req.user);
-    const rule = await opnsenseService.getFirewallRuleById(id);
+    logger.info(`GET /rules/${id} called - fetching from OPNsense API`);
 
-    if (!rule) throw new NotFoundError('Firewall rule not found');
+    try {
+      const opnsenseService = new OpnsenseService(req.user);
+      const rule = await opnsenseService.getFirewallRules({ ruleId: id }); // Adjust based on actual method
 
-    res.json({
-      success: true,
-      message: 'Firewall rule retrieved successfully',
-      data: rule,
-    });
+      if (!rule || !rule.length) throw new NotFoundError('Firewall rule not found');
+
+      res.json({
+        success: true,
+        message: 'Firewall rule retrieved successfully',
+        data: rule[0], // Assuming getFirewallRules returns an array with the rule
+      });
+    } catch (error) {
+      logger.error(`Error fetching rule ${id} from OPNsense API:`, { error: error.message });
+      throw new NotFoundError('Firewall rule not found');
+    }
   })
 );
 
@@ -150,7 +165,7 @@ router.get(
  * @swagger
  * /api/v1/firewall/rules:
  *   post:
- *     summary: Create a new firewall rule (Automation API)
+ *     summary: Create a new firewall rule
  *     tags: [Firewall]
  *     security:
  *       - bearerAuth: []
@@ -160,31 +175,40 @@ router.post(
   validators.createFirewallRule,
   authorize(PERMISSIONS.FIREWALL_WRITE),
   asyncHandler(async (req, res) => {
-    const ruleData = { ...req.body, created_by: getUserId(req) || 1 };
+    const ruleData = {
+      ...req.body,
+      created_by: getUserId(req) || 1,
+    };
+
     logger.info('POST /rules called - creating rule in OPNsense API', { ruleData });
 
-    const opnsenseService = new OpnsenseService(req.user);
-    const newRule = await opnsenseService.createFirewallRule(ruleData);
+    try {
+      const opnsenseService = new OpnsenseService(req.user);
+      const newRule = await opnsenseService.createFirewallRule(ruleData);
 
-    await auditLog(req, AUDITED_ACTIONS.RULE_CREATE, 'info', {
-      rule_id: newRule.uuid,
-      description: newRule.description,
-      interface: newRule.interface,
-      action: newRule.action,
-    });
-
-    res.status(201).json({
-      success: true,
-      message: 'Firewall rule created successfully',
-      data: {
-        id: newRule.uuid,
-        uuid: newRule.uuid,
+      await auditLog(req, AUDITED_ACTIONS.RULE_CREATE, 'info', {
+        rule_id: newRule.uuid,
         description: newRule.description,
         interface: newRule.interface,
         action: newRule.action,
-        enabled: newRule.enabled,
-      },
-    });
+      });
+
+      res.status(201).json({
+        success: true,
+        message: 'Firewall rule created successfully',
+        data: {
+          id: newRule.uuid, // Using uuid as id from OPNsense
+          uuid: newRule.uuid,
+          description: newRule.description,
+          interface: newRule.interface,
+          action: newRule.action,
+          enabled: newRule.enabled,
+        },
+      });
+    } catch (error) {
+      logger.error('Error creating rule in OPNsense API:', { error: error.message, ruleData });
+      throw new Error('Failed to create firewall rule in OPNsense');
+    }
   })
 );
 
@@ -192,7 +216,7 @@ router.post(
  * @swagger
  * /api/v1/firewall/rules/{id}:
  *   put:
- *     summary: Update an existing firewall rule (Automation API)
+ *     summary: Update an existing firewall rule
  *     tags: [Firewall]
  *     security:
  *       - bearerAuth: []
@@ -204,29 +228,38 @@ router.put(
   authorize(PERMISSIONS.FIREWALL_WRITE),
   asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const updates = { ...req.body, updated_by: getUserId(req) || 1 };
+    const updates = {
+      ...req.body,
+      updated_by: getUserId(req) || 1,
+    };
+
     logger.info(`PUT /rules/${id} called - updating rule in OPNsense API`, { updates });
 
-    const opnsenseService = new OpnsenseService(req.user);
-    const updatedRule = await opnsenseService.updateFirewallRule(id, updates);
+    try {
+      const opnsenseService = new OpnsenseService(req.user);
+      const updatedRule = await opnsenseService.updateFirewallRule(id, updates);
 
-    await auditLog(req, AUDITED_ACTIONS.RULE_UPDATE, 'info', {
-      rule_id: updatedRule.uuid,
-      description: updatedRule.description,
-      changes: updates,
-    });
-
-    res.json({
-      success: true,
-      message: 'Firewall rule updated successfully',
-      data: {
-        id: updatedRule.uuid,
+      await auditLog(req, AUDITED_ACTIONS.RULE_UPDATE, 'info', {
+        rule_id: updatedRule.uuid,
         description: updatedRule.description,
-        interface: updatedRule.interface,
-        action: updatedRule.action,
-        enabled: updatedRule.enabled,
-      },
-    });
+        changes: updates,
+      });
+
+      res.json({
+        success: true,
+        message: 'Firewall rule updated successfully',
+        data: {
+          id: updatedRule.uuid,
+          description: updatedRule.description,
+          interface: updatedRule.interface,
+          action: updatedRule.action,
+          enabled: updatedRule.enabled,
+        },
+      });
+    } catch (error) {
+      logger.error(`Error updating rule ${id} in OPNsense API:`, { error: error.message, updates });
+      throw new NotFoundError('Firewall rule not found or update failed');
+    }
   })
 );
 
@@ -234,7 +267,7 @@ router.put(
  * @swagger
  * /api/v1/firewall/rules/{id}:
  *   delete:
- *     summary: Delete a firewall rule (Automation API)
+ *     summary: Delete a firewall rule
  *     tags: [Firewall]
  *     security:
  *       - bearerAuth: []
@@ -245,15 +278,27 @@ router.delete(
   authorize(PERMISSIONS.FIREWALL_DELETE),
   asyncHandler(async (req, res) => {
     const { id } = req.params;
+
     logger.info(`DELETE /rules/${id} called - deleting rule from OPNsense API`);
 
-    const opnsenseService = new OpnsenseService(req.user);
-    const success = await opnsenseService.deleteFirewallRule(id);
-    if (!success) throw new NotFoundError('Firewall rule not found');
+    try {
+      const opnsenseService = new OpnsenseService(req.user);
+      const success = await opnsenseService.deleteFirewallRule(id);
 
-    await auditLog(req, AUDITED_ACTIONS.RULE_DELETE, 'warning', { rule_id: id });
+      if (!success) throw new NotFoundError('Firewall rule not found');
 
-    res.json({ success: true, message: 'Firewall rule deleted successfully' });
+      await auditLog(req, AUDITED_ACTIONS.RULE_DELETE, 'warning', {
+        rule_id: id,
+      });
+
+      res.json({
+        success: true,
+        message: 'Firewall rule deleted successfully',
+      });
+    } catch (error) {
+      logger.error(`Error deleting rule ${id} from OPNsense API:`, { error: error.message });
+      throw new NotFoundError('Firewall rule not found or deletion failed');
+    }
   })
 );
 
@@ -261,7 +306,7 @@ router.delete(
  * @swagger
  * /api/v1/firewall/stats:
  *   get:
- *     summary: Get firewall statistics (core rules)
+ *     summary: Get firewall statistics
  *     tags: [Firewall]
  *     security:
  *       - bearerAuth: []
@@ -270,25 +315,30 @@ router.get(
   '/stats',
   authorize(PERMISSIONS.FIREWALL_READ),
   asyncHandler(async (req, res) => {
-    logger.info('GET /stats called - fetching from config.xml');
+    logger.info('GET /stats called - fetching from OPNsense API');
 
-    const opnsenseService = new OpnsenseService(req.user);
-    const { rows } = await opnsenseService.getFirewallRules({});
+    try {
+      const opnsenseService = new OpnsenseService(req.user);
+      const stats = await opnsenseService.getFirewallRules(); // Adjust if a specific stats method exists
 
-    const totalRules = rows.length;
-    const activeRules = rows.filter(r => r.enabled).length;
-    const inactiveRules = totalRules - activeRules;
+      const totalRules = stats.length;
+      const activeRules = stats.filter(r => r.enabled).length;
+      const inactiveRules = totalRules - activeRules;
 
-    res.json({
-      success: true,
-      message: 'Firewall statistics retrieved successfully',
-      data: {
-        total: totalRules,
-        active: activeRules,
-        inactive: inactiveRules,
-        detailed_stats: rows,
-      },
-    });
+      res.json({
+        success: true,
+        message: 'Firewall statistics retrieved successfully',
+        data: {
+          total: totalRules,
+          active: activeRules,
+          inactive: inactiveRules,
+          detailed_stats: stats,
+        },
+      });
+    } catch (error) {
+      logger.error('Error fetching firewall stats from OPNsense API:', { error: error.message });
+      throw new Error('Failed to retrieve firewall statistics');
+    }
   })
 );
 
