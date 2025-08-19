@@ -1,5 +1,7 @@
+// src/services/OpnsenseService.js
 const axios = require('axios');
 const https = require('https');
+const { Client: SSHClient } = require('ssh2');
 const { parseStringPromise } = require('xml2js');
 
 const logger = require('../utils/logger');
@@ -15,6 +17,11 @@ class OpnsenseService {
     this.baseUrl = opnsenseConfig.apiUrl;
     this.apiKey = opnsenseConfig.apiKey;
     this.apiSecret = opnsenseConfig.apiSecret;
+
+    // SSH settings (richiesti per il read delle rules)
+    this.ssh = opnsenseConfig?.ssh || null;
+    // es.: { host, port, username, password|privateKey, useSudo, readyTimeout, hostFingerprint }
+
     this.allowSelfSigned = !!opnsenseConfig.allowSelfSigned;
     this.alertService = new AlertService(user);
     this.cacheTimeout = Number(process.env.OPNSENSE_CACHE_TIMEOUT || 60);
@@ -40,38 +47,24 @@ class OpnsenseService {
   }
 
   async safeGetCache(key) {
-    try {
-      return await cache.get(key);
-    } catch (e) {
-      logger.warn('Cache get failed', { key, error: e.message });
-      return null;
-    }
+    try { return await cache.get(key); }
+    catch (e) { logger.warn('Cache get failed', { key, error: e.message }); return null; }
   }
 
   async safeSetCache(key, value, ttl = this.cacheTimeout) {
-    try {
-      await cache.set(key, value, ttl);
-    } catch (e) {
-      logger.warn('Cache set failed', { key, error: e.message });
-    }
+    try { await cache.set(key, value, ttl); }
+    catch (e) { logger.warn('Cache set failed', { key, error: e.message }); }
   }
 
   async invalidateCachePattern(pattern) {
     try {
       const keys = await cache.keys(pattern);
-      if (keys.length) {
-        await cache.del(keys);
-        logger.info('Cache invalidated', { pattern, keys_count: keys.length });
-      }
-    } catch (e) {
-      logger.warn('Cache invalidation failed', { pattern, error: e.message });
-    }
+      if (keys.length) { await cache.del(keys); logger.info('Cache invalidated', { pattern, keys_count: keys.length }); }
+    } catch (e) { logger.warn('Cache invalidation failed', { pattern, error: e.message }); }
   }
 
   getHttpClient() {
-    const httpsAgent = new https.Agent({
-      rejectUnauthorized: !this.allowSelfSigned,
-    });
+    const httpsAgent = new https.Agent({ rejectUnauthorized: !this.allowSelfSigned });
     return axios.create({
       baseURL: this.baseUrl,
       auth: { username: this.apiKey, password: this.apiSecret },
@@ -82,53 +75,23 @@ class OpnsenseService {
   }
 
   async makeApiRequest(method, endpoint, data = {}, operation = 'default') {
-    if (!this.checkRateLimit(operation)) {
-      throw new Error(`Rate limit exceeded for operation: ${operation}`);
-    }
-
-    const wantsText =
-      endpoint.includes('/core/backup/download/this') ||
-      endpoint.includes('/backup/backup/download');
-
+    if (!this.checkRateLimit(operation)) throw new Error(`Rate limit exceeded for operation: ${operation}`);
     let lastError;
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
       try {
         const client = this.getHttpClient();
-
-        if (method.toLowerCase() === 'get') {
-          const res = await client.get(endpoint, {
-            params: data,
-            responseType: wantsText ? 'text' : 'json',
-          });
-          return res.data;
-        }
-        if (method.toLowerCase() === 'post') {
-          const res = await client.post(endpoint, data);
-          return res.data;
-        }
-        if (method.toLowerCase() === 'put') {
-          const res = await client.put(endpoint, data);
-          return res.data;
-        }
-        if (method.toLowerCase() === 'delete') {
-          const res = await client.delete(endpoint);
-          return res.data;
-        }
+        if (method.toLowerCase() === 'get')  return (await client.get(endpoint, { params: data })).data;
+        if (method.toLowerCase() === 'post') return (await client.post(endpoint, data)).data;
+        if (method.toLowerCase() === 'put')  return (await client.put(endpoint, data)).data;
+        if (method.toLowerCase() === 'delete') return (await client.delete(endpoint)).data;
         throw new Error(`Unsupported HTTP method: ${method}`);
       } catch (error) {
         lastError = error;
         const status = error.response?.status;
         logger.warn('API request failed', {
-          method,
-          endpoint,
-          attempt,
-          status,
-          error: error.message,
+          method, endpoint, attempt, status, error: error.message,
         });
-
-        // 4xx non si ritenta
-        if (status >= 400 && status < 500) break;
-
+        if (status >= 400 && status < 500) break; // no retry 4xx
         if (attempt < this.maxRetries) {
           const delay = Math.min(1000 * 2 ** attempt, 10000);
           await new Promise(r => setTimeout(r, delay));
@@ -144,24 +107,13 @@ class OpnsenseService {
     const requiredFields = ['interface', 'action', 'description'];
     const validActions = ['pass', 'block', 'reject'];
     const validInterfaces = ['wan', 'lan', 'opt1', 'opt2', 'opt3'];
-
     for (const f of requiredFields) if (!ruleData[f]) throw new Error(`${f} is required`);
-    if (!validActions.includes(ruleData.action)) {
-      throw new Error(`Invalid action. Must be one of: ${validActions.join(', ')}`);
-    }
-    if (!validInterfaces.includes(ruleData.interface)) {
-      throw new Error(`Invalid interface. Must be one of: ${validInterfaces.join(', ')}`);
-    }
-    if (ruleData.description && ruleData.description.length > 255) {
-      throw new Error('Description too long (max 255 characters)');
-    }
+    if (!validActions.includes(ruleData.action)) throw new Error(`Invalid action. Must be one of: ${validActions.join(', ')}`);
+    if (!validInterfaces.includes(ruleData.interface)) throw new Error(`Invalid interface. Must be one of: ${validInterfaces.join(', ')}`);
+    if (ruleData.description && ruleData.description.length > 255) throw new Error('Description too long (max 255 characters)');
     const ipRe = /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/;
-    if (ruleData.source && ruleData.source !== 'any' && !ipRe.test(ruleData.source)) {
-      throw new Error('Invalid source IP/CIDR format');
-    }
-    if (ruleData.destination && ruleData.destination !== 'any' && !ipRe.test(ruleData.destination)) {
-      throw new Error('Invalid destination IP/CIDR format');
-    }
+    if (ruleData.source && ruleData.source !== 'any' && !ipRe.test(ruleData.source)) throw new Error('Invalid source IP/CIDR format');
+    if (ruleData.destination && ruleData.destination !== 'any' && !ipRe.test(ruleData.destination)) throw new Error('Invalid destination IP/CIDR format');
   }
 
   async validateUserPermissions(action) {
@@ -174,39 +126,60 @@ class OpnsenseService {
     return user;
   }
 
-  // ---------------- CORE RULES via config.xml ----------------
+  // ---------------- SSH: lettura config.xml ----------------
+
+  async _fetchConfigXmlViaSSH() {
+    if (!this.ssh || !this.ssh.host) throw new Error('SSH fallback not configured (opnsenseConfig.ssh missing)');
+
+    return await new Promise((resolve, reject) => {
+      const conn = new SSHClient();
+      let stdout = '';
+      let stderr = '';
+
+      conn.on('ready', () => {
+        const cmd = this.ssh.useSudo ? 'sudo -n cat /conf/config.xml' : 'cat /conf/config.xml';
+        conn.exec(cmd, (err, stream) => {
+          if (err) { conn.end(); return reject(err); }
+          stream
+            .on('close', (code) => {
+              conn.end();
+              if (code !== 0) return reject(new Error(`SSH cat exited with ${code}: ${stderr || stdout}`));
+              if (!stdout.includes('<opnsense')) return reject(new Error('SSH returned non-OPNsense XML payload'));
+              resolve(stdout);
+            })
+            .on('data', (d) => { stdout += d.toString('utf8'); })
+            .stderr.on('data', (d) => { stderr += d.toString('utf8'); });
+        });
+      })
+      .on('error', (e) => reject(e))
+      .connect({
+        host: this.ssh.host,
+        port: this.ssh.port ?? 22,
+        username: this.ssh.username,
+        password: this.ssh.password,
+        privateKey: this.ssh.privateKey,
+        readyTimeout: this.ssh.readyTimeout ?? 10000,
+        hostVerifier: this.ssh.hostFingerprint
+          ? (hash) => (hash.toString('hex') === this.ssh.hostFingerprint.toLowerCase())
+          : undefined,
+      });
+    });
+  }
 
   async _fetchConfigXmlCached(ttl = Math.min(this.cacheTimeout, 30)) {
     const key = 'opnsense_config_xml';
     const cached = await this.safeGetCache(key);
-    if (cached) {
-      logger.info('Returning cached config.xml');
-      return cached;
-    }
+    if (cached) { logger.info('Returning cached config.xml'); return cached; }
 
-    let xml;
-    try {
-      xml = await this.makeApiRequest('GET', '/core/backup/download/this', {}, 'download_config');
-    } catch (e) {
-      const status = e.response?.status;
-      if (status === 403) {
-        throw new Error(
-          'OPNsense denied access to download config (403). Grant the API user permission to download configuration.'
-        );
-      }
-      throw e;
-    }
-
-    if (typeof xml !== 'string' || !xml.includes('<opnsense')) {
-      throw new Error('Unexpected config.xml content');
-    }
-
+    // SOLO SSH (nessun endpoint HTTP)
+    const xml = await this._fetchConfigXmlViaSSH();
     await this.safeSetCache(key, xml, ttl);
+    logger.info('Downloaded config.xml via SSH');
     return xml;
   }
 
   _normalizeCoreRule(rule, idx = 0) {
-    // enabled se il tag <disabled> NON c'è; disabled se <disabled>1</disabled> o <disabled/>
+    // enabled = true se NON c'è <disabled>; false se <disabled>1</disabled> o <disabled/>
     const toBool = v => v === '1' || v === 1 || v === true;
     const hasDisabled = Object.prototype.hasOwnProperty.call(rule, 'disabled');
     const isDisabled = hasDisabled && (rule.disabled === '' || toBool(rule.disabled));
@@ -273,6 +246,8 @@ class OpnsenseService {
     return { rows: list.slice(start, end), total: list.length, page, limit };
   }
 
+  // --------- API pubblico usato dal router ---------
+
   async getFirewallRules(filters = {}) {
     try {
       const key = `core_rules_${JSON.stringify({
@@ -290,17 +265,17 @@ class OpnsenseService {
       await this.safeSetCache(key, result, this.cacheTimeout);
       return result; // { rows, total, page, limit }
     } catch (error) {
-      logger.error('Failed to read core firewall rules from config.xml', {
+      logger.error('Failed to read core firewall rules from config.xml (SSH)', {
         error: error.message,
         filters,
         user_id: this.user?.id,
       });
       await this.alertService.createSystemAlert({
         type: 'configuration_error',
-        message: `Failed to read firewall rules from config.xml: ${error.message}`,
+        message: `Failed to read firewall rules via SSH: ${error.message}`,
         severity: 'medium',
         source: 'opnsense',
-        metadata: { filters, error_type: 'config_parse', endpoint: '/core/backup/download/this' },
+        metadata: { filters, error_type: 'ssh_read', endpoint: 'ssh:/conf/config.xml' },
       });
       throw error;
     }
@@ -311,7 +286,7 @@ class OpnsenseService {
     return rows.find(r => r.uuid === uuid) || null;
   }
 
-  // ------------- le operazioni qui sotto sono lasciate come prima -------------
+  // --------- Automation endpoints (CRUD) restano via API ---------
 
   async createFirewallRule(ruleData) {
     const transaction = await sequelize.transaction();
@@ -328,17 +303,11 @@ class OpnsenseService {
       await this.invalidateCachePattern('opnsense_config_xml');
 
       metricsHelpers.recordConfigurationChange('firewall_rule_created', {
-        interface: ruleData.interface,
-        action: ruleData.action,
-        user_id: this.user.id,
+        interface: ruleData.interface, action: ruleData.action, user_id: this.user.id,
       });
 
       logger.info('Firewall rule created successfully', {
-        rule_id: newRule.uuid,
-        user_id: this.user.id,
-        username: user.username,
-        interface: ruleData.interface,
-        action: ruleData.action,
+        rule_id: newRule.uuid, user_id: this.user.id, username: user.username,
       });
 
       return newRule;
@@ -372,16 +341,11 @@ class OpnsenseService {
       await this.invalidateCachePattern('opnsense_config_xml');
 
       metricsHelpers.recordConfigurationChange('firewall_rule_updated', {
-        rule_id: ruleId,
-        interface: ruleData.interface,
-        action: ruleData.action,
-        user_id: this.user.id,
+        rule_id: ruleId, interface: ruleData.interface, action: ruleData.action, user_id: this.user.id,
       });
 
       logger.info('Firewall rule updated successfully', {
-        rule_id: ruleId,
-        user_id: this.user.id,
-        username: user.username,
+        rule_id: ruleId, user_id: this.user.id, username: user.username,
       });
 
       return updatedRule;
@@ -412,14 +376,11 @@ class OpnsenseService {
       await this.invalidateCachePattern('opnsense_config_xml');
 
       metricsHelpers.recordConfigurationChange('firewall_rule_deleted', {
-        rule_id: ruleId,
-        user_id: this.user.id,
+        rule_id: ruleId, user_id: this.user.id,
       });
 
       logger.info('Firewall rule deleted successfully', {
-        rule_id: ruleId,
-        user_id: this.user.id,
-        username: user.username,
+        rule_id: ruleId, user_id: this.user.id, username: user.username,
       });
 
       return true;
@@ -441,22 +402,14 @@ class OpnsenseService {
     try {
       const key = 'interface_configurations';
       const cached = await this.safeGetCache(key);
-      if (cached) {
-        logger.info('Returning cached interface configurations', { cache_key: key });
-        return cached;
-      }
+      if (cached) { logger.info('Returning cached interface configurations', { cache_key: key }); return cached; }
 
       const data = await this.makeApiRequest('GET', '/interfaces/settings', {}, 'get_interfaces');
       const interfaces = data?.interfaces || [];
       const validated = interfaces.filter(intf => intf && typeof intf === 'object' && intf.name);
 
       await this.safeSetCache(key, validated, this.cacheTimeout);
-
-      logger.info('Interface configurations retrieved and cached', {
-        cache_key: key,
-        interfaces_count: validated.length,
-      });
-
+      logger.info('Interface configurations retrieved and cached', { cache_key: key, interfaces_count: validated.length });
       return validated;
     } catch (error) {
       logger.error('Failed to get interface configurations', { error: error.message, user_id: this.user?.id });
@@ -477,9 +430,7 @@ class OpnsenseService {
       const user = await this.validateUserPermissions('apply_configuration');
 
       const data = await this.makeApiRequest('POST', '/firewall/filter/apply', {}, 'apply_config');
-      if (data?.status !== 'ok' && data?.result !== 'success') {
-        throw new Error('Configuration apply failed on OPNsense');
-      }
+      if (data?.status !== 'ok' && data?.result !== 'success') throw new Error('Configuration apply failed on OPNsense');
 
       await transaction.commit();
 
@@ -487,16 +438,8 @@ class OpnsenseService {
       await this.invalidateCachePattern('opnsense_config_xml');
       await this.invalidateCachePattern('interface_configurations');
 
-      metricsHelpers.recordConfigurationChange('configuration_applied', {
-        user_id: this.user.id,
-        timestamp: new Date(),
-      });
-
-      logger.info('Configuration changes applied successfully', {
-        user_id: this.user.id,
-        username: user.username,
-      });
-
+      metricsHelpers.recordConfigurationChange('configuration_applied', { user_id: this.user.id, timestamp: new Date() });
+      logger.info('Configuration changes applied successfully', { user_id: this.user.id, username: user.username });
       return true;
     } catch (error) {
       await transaction.rollback();
@@ -515,32 +458,12 @@ class OpnsenseService {
   async testConnection() {
     try {
       const t0 = Date.now();
+      // test solo API base (facoltativo)
       const data = await this.makeApiRequest('GET', '/core/system/status', {}, 'test_connection');
       const dt = Date.now() - t0;
-
-      const result = {
-        success: true,
-        response_time_ms: dt,
-        api_version: data?.api_version || 'unknown',
-        system_version: data?.version || 'unknown',
-        timestamp: new Date(),
-      };
-
-      logger.info('OPNsense connection test successful', { response_time_ms: dt, user_id: this.user?.id });
-      return result;
+      return { success: true, response_time_ms: dt, api_version: data?.api_version || 'unknown', system_version: data?.version || 'unknown', timestamp: new Date() };
     } catch (error) {
-      const result = {
-        success: false,
-        error: error.message,
-        status_code: error.response?.status,
-        timestamp: new Date(),
-      };
-      logger.error('OPNsense connection test failed', {
-        error: error.message,
-        status_code: error.response?.status,
-        user_id: this.user?.id,
-      });
-      return result;
+      return { success: false, error: error.message, status_code: error.response?.status, timestamp: new Date() };
     }
   }
 
@@ -548,10 +471,7 @@ class OpnsenseService {
     try {
       const cacheKey = 'opnsense_service_health';
       const cached = await this.safeGetCache(cacheKey);
-      if (cached) {
-        logger.info('Returning cached service health', { cache_key: cacheKey });
-        return cached;
-      }
+      if (cached) { logger.info('Returning cached service health', { cache_key: cacheKey }); return cached; }
 
       const checks = await Promise.allSettled([
         this.testConnection(),
