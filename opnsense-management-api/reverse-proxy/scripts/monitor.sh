@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Monitor script for OPNsense Reverse Proxy (Nginx only)
-# Checks edge endpoints (/health, /opnsense/, /api/), container health,
+# Monitor script for Wrapper-only Reverse Proxy (Nginx)
+# Checks edge endpoints (/health, /api/), container health,
 # TLS certificate expiry, and optionally backend reachability.
 
 set -euo pipefail
@@ -26,16 +26,14 @@ compose() {
 
 # Defaults (will be overridden by .env if present)
 PUBLIC_FQDN="${PUBLIC_FQDN:-localhost}"
-BASIC_AUTH_USER="${BASIC_AUTH_USER:-opnsense-api}"
+BASIC_AUTH_USER="${BASIC_AUTH_USER:-monitoring-api}"
 BASIC_AUTH_PASSWORD="${BASIC_AUTH_PASSWORD:-}"
 
-OPNSENSE_WEB_HOST="${OPNSENSE_WEB_HOST:-192.168.216.1:443}"
 WRAPPER_HOST="${WRAPPER_HOST:-192.168.216.50:3000}"
-
 CONTAINER_NAME="${CONTAINER_NAME:-opnsense-reverse-proxy}"
 
 HOST_URL=""
-CHECK_BACKENDS=0
+CHECK_BACKEND=0
 COUNT=1
 INTERVAL=5
 NO_AUTH=0
@@ -47,7 +45,6 @@ load_env() {
     PUBLIC_FQDN="${PUBLIC_FQDN:-$PUBLIC_FQDN}"
     BASIC_AUTH_USER="${BASIC_AUTH_USER:-$BASIC_AUTH_USER}"
     BASIC_AUTH_PASSWORD="${BASIC_AUTH_PASSWORD:-$BASIC_AUTH_PASSWORD}"
-    OPNSENSE_WEB_HOST="${OPNSENSE_WEB_HOST:-$OPNSENSE_WEB_HOST}"
     WRAPPER_HOST="${WRAPPER_HOST:-$WRAPPER_HOST}"
   fi
   HOST_URL="${HOST_URL:-https://${PUBLIC_FQDN}}"
@@ -60,13 +57,13 @@ Usage: $0 [options]
 Options:
   --host URL            Override edge host URL (default: https://\$PUBLIC_FQDN)
   --no-auth             Do not send Basic Auth (default: send if BASIC_AUTH_PASSWORD set)
-  --backends            Also check backends (OPNsense and wrapper hosts)
+  --backend             Also check wrapper backend reachability
   --count N             Run N iterations (default: 1)
   --interval S          Sleep S seconds between iterations (default: 5)
   --container NAME      Container name (default: ${CONTAINER_NAME})
   --help                Show this help
 
-Reads .env for PUBLIC_FQDN, BASIC_AUTH_USER/PASSWORD, OPNSENSE_WEB_HOST, WRAPPER_HOST.
+Reads .env for PUBLIC_FQDN, BASIC_AUTH_USER/PASSWORD, WRAPPER_HOST.
 EOF
 }
 
@@ -75,7 +72,7 @@ parse_args() {
     case "$1" in
       --host) HOST_URL="$2"; shift 2 ;;
       --no-auth) NO_AUTH=1; shift ;;
-      --backends) CHECK_BACKENDS=1; shift ;;
+      --backend) CHECK_BACKEND=1; shift ;;
       --count) COUNT="$2"; shift 2 ;;
       --interval) INTERVAL="$2"; shift 2 ;;
       --container) CONTAINER_NAME="$2"; shift 2 ;;
@@ -101,18 +98,12 @@ check_edge() {
   read -r code t < <(http_probe "${HOST_URL}/health")
   [[ "$code" == "200" ]] && log_success "/health OK (${t}s)" || log_warning "/health -> ${code} (${t}s)"
 
-  read -r code t < <(http_probe "${HOST_URL}/opnsense/")
+  # Swagger (o cambia in /api/v1/health se preferisci)
+  read -r code t < <(http_probe "${HOST_URL}/api/api-docs")
   if [[ "$code" =~ ^(200|301|302|401)$ ]]; then
-    log_success "/opnsense/ reachable (HTTP ${code}, ${t}s)"
+    log_success "/api/api-docs reachable (HTTP ${code}, ${t}s)"
   else
-    log_warning "/opnsense/ -> ${code} (${t}s)"
-  fi
-
-  read -r code t < <(http_probe "${HOST_URL}/api/")
-  if [[ "$code" =~ ^(200|301|302|401)$ ]]; then
-    log_success "/api/ reachable (HTTP ${code}, ${t}s)"
-  else
-    log_warning "/api/ -> ${code} (${t}s)"
+    log_warning "/api/api-docs -> ${code} (${t}s)"
   fi
 }
 
@@ -140,11 +131,9 @@ check_tls_expiry() {
   if command -v openssl >/dev/null 2>&1; then
     exp=$(echo | openssl s_client -servername "$host" -connect "$host:$port" 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2 || true)
     if [[ -n "$exp" ]]; then
-      # Convert to epoch (portable)
       if date -d "$exp" +%s >/dev/null 2>&1; then
         days_left=$(( ( $(date -d "$exp" +%s) - $(date +%s) ) / 86400 ))
       else
-        # macOS/BSD fallback
         days_left=$(( ( $(date -j -f "%b %d %T %Y %Z" "$exp" +%s 2>/dev/null || echo $(date +%s)) - $(date +%s) ) / 86400 ))
       fi
       if [[ "$days_left" -ge 14 ]]; then
@@ -162,26 +151,18 @@ check_tls_expiry() {
   fi
 }
 
-check_backends() {
-  [[ "$CHECK_BACKENDS" -eq 1 ]] || return 0
-  log_info "Checking backend reachability..."
-  local opn_host opn_port wrp_host wrp_port
-  opn_host="${OPNSENSE_WEB_HOST%:*}"
-  opn_port="${OPNSENSE_WEB_HOST##*:}"
+check_backend() {
+  [[ "$CHECK_BACKEND" -eq 1 ]] || return 0
+  log_info "Checking wrapper backend reachability..."
+  local wrp_host wrp_port
   wrp_host="${WRAPPER_HOST%:*}"
   wrp_port="${WRAPPER_HOST##*:}"
 
-  if curl -skf --connect-timeout 5 "https://${opn_host}:${opn_port}" >/dev/null; then
-    log_success "OPNsense backend reachable at ${opn_host}:${opn_port}"
-  else
-    log_warning "OPNsense backend NOT reachable at ${opn_host}:${opn_port}"
-  fi
-
   if curl -sf --connect-timeout 5 "http://${wrp_host}:${wrp_port}/health" >/dev/null \
   || curl -sf --connect-timeout 5 "http://${wrp_host}:${wrp_port}/api/v1/health" >/dev/null; then
-    log_success "Wrapper backend reachable at ${wrp_host}:${wrp_port}"
+    log_success "Wrapper backend reachable at ${WRAPPER_HOST}"
   else
-    log_warning "Wrapper backend NOT reachable at ${wrp_host}:${wrp_port}"
+    log_warning "Wrapper backend NOT reachable at ${WRAPPER_HOST}"
   fi
 }
 
@@ -190,7 +171,7 @@ iteration() {
   check_container
   check_edge
   check_tls_expiry
-  check_backends
+  check_backend
 }
 
 main_loop() {
@@ -209,7 +190,7 @@ load_env
 
 echo -e "${BLUE}"
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║                Reverse Proxy Monitoring Utility              ║"
+echo "║              Wrapper Reverse Proxy Monitoring Tool          ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 

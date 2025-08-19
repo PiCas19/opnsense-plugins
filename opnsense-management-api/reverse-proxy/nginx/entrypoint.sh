@@ -21,20 +21,24 @@ if [[ ! -f "$SSL_DIR/server.crt" || ! -f "$SSL_DIR/server.key" ]]; then
 fi
 chmod 600 "$SSL_DIR/server.key" || true
 
-# 2) Basic Auth (htpasswd)
-if [[ -n "${BASIC_AUTH_USER:-}" && -n "${BASIC_AUTH_PASSWORD:-}" ]]; then
-  echo "[entrypoint] Creo htpasswd per utente '$BASIC_AUTH_USER'"
-  htpasswd -bBc "$HTPASS" "$BASIC_AUTH_USER" "$BASIC_AUTH_PASSWORD" >/dev/null
+# 2) Basic Auth (se non monti il file, lo creo dalle env)
+if [[ -f "$HTPASS" && -s "$HTPASS" ]]; then
+  echo "[entrypoint] Uso htpasswd esistente in $HTPASS"
 else
-  # File vuoto ma presente per non far fallire Nginx (o rimuovi auth nel template)
-  touch "$HTPASS"
+  if [[ -n "${BASIC_AUTH_USER:-}" && -n "${BASIC_AUTH_PASSWORD:-}" ]]; then
+    echo "[entrypoint] Creo htpasswd per utente '$BASIC_AUTH_USER'"
+    htpasswd -bBc "$HTPASS" "$BASIC_AUTH_USER" "$BASIC_AUTH_PASSWORD" >/dev/null
+  else
+    echo "[entrypoint][ERROR] Niente /etc/nginx/htpasswd e variabili BASIC_AUTH_* non settate."
+    exit 1
+  fi
 fi
 chmod 640 "$HTPASS" || true
 
 # 3) Render del template nginx con le env
 echo "[entrypoint] Rendering di $TEMPLATE -> $CONF"
-export OPNSENSE_WEB_SCHEME OPNSENSE_WEB_HOST WRAPPER_SCHEME WRAPPER_HOST NGINX_CLIENT_MAX_BODY_SIZE
-envsubst '${OPNSENSE_WEB_SCHEME} ${OPNSENSE_WEB_HOST} ${WRAPPER_SCHEME} ${WRAPPER_HOST} ${NGINX_CLIENT_MAX_BODY_SIZE}' \
+export WRAPPER_SCHEME WRAPPER_HOST NGINX_CLIENT_MAX_BODY_SIZE
+envsubst '${WRAPPER_SCHEME} ${WRAPPER_HOST} ${NGINX_CLIENT_MAX_BODY_SIZE}' \
   < "$TEMPLATE" > "$CONF"
 
 # 4) Avvia Nginx
