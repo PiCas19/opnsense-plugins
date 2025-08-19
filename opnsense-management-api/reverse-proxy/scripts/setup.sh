@@ -59,9 +59,23 @@ create_directories() {
 # Generate .env
 generate_env_file() {
     if [ ! -f .env ]; then
-        log_info "Generating .env..."
-        BASIC_PASS=$(openssl rand -base64 24 | tr -d '=+/')
-        cat > .env << 'EOF'
+        if [ -f .env.template ]; then
+            log_info "Creating .env from .env.template..."
+            cp .env.template .env
+            
+            # Generate a secure password if placeholder exists
+            if grep -q "cambia_questa_subito" .env; then
+                BASIC_PASS=$(openssl rand -base64 24 | tr -d '=+/')
+                sed -i.bak "s|cambia_questa_subito|${BASIC_PASS}|" .env && rm -f .env.bak
+                log_info "Generated secure password for BASIC_AUTH_PASSWORD"
+            fi
+            
+            log_success ".env created from template"
+            log_warning "IMPORTANT: review .env and update IPs if needed (OPNSENSE_WEB_HOST, WRAPPER_HOST, PUBLIC_FQDN)."
+        else
+            log_info "No .env.template found, generating default .env..."
+            BASIC_PASS=$(openssl rand -base64 24 | tr -d '=+/')
+            cat > .env << 'EOF'
 # === Environment variables for OPNsense Reverse Proxy ===
 
 # Backend OPNsense (GUI/API)
@@ -82,10 +96,11 @@ NGINX_CLIENT_MAX_BODY_SIZE=10m
 BASIC_AUTH_USER=opnsense-api
 BASIC_AUTH_PASSWORD=__AUTOFILL__
 EOF
-        # inject random password
-        sed -i.bak "s|BASIC_AUTH_PASSWORD=__AUTOFILL__|BASIC_AUTH_PASSWORD=${BASIC_PASS}|" .env && rm -f .env.bak
-        log_success ".env created"
-        log_warning "IMPORTANT: review .env (OPNSENSE_WEB_HOST, WRAPPER_HOST, PUBLIC_FQDN)."
+            # inject random password
+            sed -i.bak "s|BASIC_AUTH_PASSWORD=__AUTOFILL__|BASIC_AUTH_PASSWORD=${BASIC_PASS}|" .env && rm -f .env.bak
+            log_success ".env created"
+            log_warning "IMPORTANT: review .env (OPNSENSE_WEB_HOST, WRAPPER_HOST, PUBLIC_FQDN)."
+        fi
     else
         log_info ".env already exists; leaving as is"
     fi
