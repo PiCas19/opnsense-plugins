@@ -1,11 +1,19 @@
+version: "3.9"
+
 services:
   opnsense-api:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: opnsense-management-api
-    init: true 
+    init: true                 # usa l'init del runtime (niente dumb-init/tini nel container)
     restart: unless-stopped
+
+    # DNS espliciti per evitare problemi di risoluzione in build/run
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+
     environment:
       # Core App
       NODE_ENV: ${NODE_ENV:-production}
@@ -14,15 +22,15 @@ services:
       REQUEST_SIZE_LIMIT: ${REQUEST_SIZE_LIMIT:-10mb}
       ENABLE_SWAGGER: ${ENABLE_SWAGGER:-true}
       SHUTDOWN_TIMEOUT: ${SHUTDOWN_TIMEOUT:-10000}
-      
+
       # Logging
       LOG_LEVEL: ${LOG_LEVEL:-info}
       LOG_FORMAT: ${LOG_FORMAT:-json}
-      
+
       # Security & CORS
       CORS_ORIGIN: ${CORS_ORIGIN:-http://192.168.216.50:3000,http://localhost:3000}
       TRUST_PROXY: ${TRUST_PROXY:-1}
-      
+
       # Database (PostgreSQL)
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
@@ -30,7 +38,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-opnsense_mgmt}
       POSTGRES_SSL: ${POSTGRES_SSL:-false}
-      
+
       # Redis Cache
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
@@ -39,8 +47,8 @@ services:
       REDIS_TTL: ${REDIS_TTL:-3600}
       REDIS_CONNECT_TIMEOUT: ${REDIS_CONNECT_TIMEOUT:-10000}
       REDIS_KEEP_ALIVE: ${REDIS_KEEP_ALIVE:-30000}
-      
-      # OPNsense API - CONFIGURAZIONE SSL CORRETTA
+
+      # OPNsense API - SSL
       OPNSENSE_BASE_URL: ${OPNSENSE_BASE_URL:-https://192.168.216.1}
       OPNSENSE_API_KEY: ${OPNSENSE_API_KEY}
       OPNSENSE_API_SECRET: ${OPNSENSE_API_SECRET}
@@ -48,26 +56,25 @@ services:
       OPNSENSE_TIMEOUT: ${OPNSENSE_TIMEOUT:-30000}
       OPNSENSE_RETRIES: ${OPNSENSE_RETRIES:-3}
       OPNSENSE_RETRY_DELAY: ${OPNSENSE_RETRY_DELAY:-1000}
-      # Certificato CA personalizzato (se presente)
       NODE_EXTRA_CA_CERTS: ${NODE_EXTRA_CA_CERTS:-/app/certs/lan-ca.pem}
       OPNSENSE_CA_CERT_PATH: ${OPNSENSE_CA_CERT_PATH:-/app/certs/lan-ca.pem}
-      
-      # Authentication & JWT
+
+      # Auth & JWT
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-12h}
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
       COOKIE_SECRET: ${COOKIE_SECRET}
       BCRYPT_SALT_ROUNDS: ${BCRYPT_SALT_ROUNDS:-12}
-      
+
       # Account lockout
       MAX_LOGIN_ATTEMPTS: ${MAX_LOGIN_ATTEMPTS:-5}
       LOCKOUT_DURATION_MINUTES: ${LOCKOUT_DURATION_MINUTES:-30}
-      
+
       # Monitoring & Metrics
       METRICS_ENABLED: ${METRICS_ENABLED:-true}
       HEALTH_CHECK_INTERVAL: ${HEALTH_CHECK_INTERVAL:-30000}
       METRICS_ALLOWED_IPS: ${METRICS_ALLOWED_IPS:-192.168.216.100,127.0.0.1}
-      
+
       # Rate Limiting
       RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
       RATE_LIMIT_GENERAL_MAX: ${RATE_LIMIT_GENERAL_MAX:-500}
@@ -75,22 +82,22 @@ services:
       RATE_LIMIT_FIREWALL_MAX: ${RATE_LIMIT_FIREWALL_MAX:-200}
       RATE_LIMIT_MONITORING_MAX: ${RATE_LIMIT_MONITORING_MAX:-300}
       RATE_LIMIT_CRITICAL_MAX: ${RATE_LIMIT_CRITICAL_MAX:-10}
-      
+
       # Audit
       AUDIT_ENABLED: ${AUDIT_ENABLED:-true}
       AUDIT_RETENTION_DAYS: ${AUDIT_RETENTION_DAYS:-2555}
-      
+
       # Debug
       DEBUG_SQL: ${DEBUG_SQL:-false}
       DEBUG_API_CALLS: ${DEBUG_API_CALLS:-false}
-      
+
       # Build Info (CI/CD)
       BUILD_TIMESTAMP: ${BUILD_TIMESTAMP:-}
       GIT_COMMIT: ${GIT_COMMIT:-}
       GIT_BRANCH: ${GIT_BRANCH:-}
       BUILD_NUMBER: ${BUILD_NUMBER:-}
-      
-      # SSH Configuration (opzionale)
+
+      # SSH (opzionale)
       OPNSENSE_SSH_HOST: ${OPNSENSE_SSH_HOST:-192.168.216.1}
       OPNSENSE_SSH_PORT: ${OPNSENSE_SSH_PORT:-22}
       OPNSENSE_SSH_USER: ${OPNSENSE_SSH_USER:-root}
@@ -100,26 +107,28 @@ services:
       OPNSENSE_SSH_USE_SUDO: ${OPNSENSE_SSH_USE_SUDO:-false}
       OPNSENSE_SSH_READY_TIMEOUT: ${OPNSENSE_SSH_READY_TIMEOUT:-10000}
       OPNSENSE_SSH_HOST_FINGERPRINT: ${OPNSENSE_SSH_HOST_FINGERPRINT:-}
-      
+
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+
     ports:
-      # Espone sulla LAN della VM (192.168.216.50:3000)
       - "${LAN_HOST_IP:-192.168.216.50}:3000:3000"
+
     volumes:
       - ./logs:/app/logs
       - ./temp:/app/temp
-      # IMPORTANTE: Monta la cartella certs come read-only
-      - ./certs:/app/certs:ro 
+      - ./certs:/app/certs:ro
+
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/v1/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+
     networks:
       - backend
 
@@ -134,8 +143,6 @@ services:
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      # Opzionale: init scripts
-      # - ./database/init:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-opnsense} -d ${POSTGRES_DB:-opnsense_mgmt}"]
       interval: 10s
@@ -144,8 +151,6 @@ services:
       start_period: 30s
     networks:
       - backend
-    # Security: non esporre porta esternamente
-    # ports non definiti = solo accessibile internamente
 
   redis:
     image: redis:7-alpine
@@ -164,8 +169,6 @@ services:
       start_period: 15s
     networks:
       - backend
-    # Security: non esporre porta esternamente
-    # ports non definiti = solo accessibile internamente
 
 networks:
   backend:
