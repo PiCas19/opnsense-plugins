@@ -11,28 +11,100 @@ services:
     env_file:
       - .env
     environment:
-      NGINX_CLIENT_MAX_BODY_SIZE: ${NGINX_CLIENT_MAX_BODY_SIZE:-10m}
+      NGINX_CLIENT_MAX_BODY_SIZE: ${NGINX_CLIENT_MAX_BODY_SIZE:-50m}
+      WRAPPER_SCHEME: ${WRAPPER_SCHEME:-http}
+      WRAPPER_HOST: ${WRAPPER_HOST:-192.168.216.50:3000}
+      RATE_LIMIT_API: ${RATE_LIMIT_API:-10r/s}
+      RATE_LIMIT_LOGIN: ${RATE_LIMIT_LOGIN:-1r/s}
+      SSL_PROTOCOLS: ${SSL_PROTOCOLS:-TLSv1.2 TLSv1.3}
+      HSTS_MAX_AGE: ${HSTS_MAX_AGE:-63072000}
     volumes:
+      # Nginx configuration
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/htpasswd:/etc/nginx/htpasswd:ro
-      - ./nginx/ssl:/etc/ssl/nginx
+      - ./nginx/ssl:/etc/ssl/nginx:ro
+      
+      # Logs
       - ./logs/nginx:/var/log/nginx
+      
+      # Demo firewall files
+      - ./firewall-demo:/var/www/firewall-demo:ro
+      
+      # Scripts per automazione
+      - ./scripts:/var/scripts:ro
+      
+      # Temp directory for dynamic configs
+      - ./temp:/tmp/nginx-temp
+    
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost/health >/dev/null 2>&1 || exit 1"]
       interval: ${HEALTHCHECK_INTERVAL:-30s}
       timeout: ${HEALTHCHECK_TIMEOUT:-10s}
       retries: ${HEALTHCHECK_RETRIES:-3}
-      start_period: ${HEALTHCHECK_START_PERIOD:-10s}
+      start_period: ${HEALTHCHECK_START_PERIOD:-15s}
+    
+    labels:
+      - "traefik.enable=false"
+      - "description=OPNsense Reverse Proxy with Firewall Demo"
+      - "maintainer=admin@example.com"
+    
     networks:
       dmz_macvlan:
-        ipv4_address: 172.16.216.21   # IP DEDICATO del container
+        ipv4_address: ${DMZ_PROXY_IP:-172.16.216.21}
+
+  # Servizio helper per monitoring e backup (opzionale)
+  maintenance:
+    image: alpine:3.20
+    container_name: ${CONTAINER_NAME:-opnsense-reverse-proxy}-maintenance
+    restart: "no"
+    profiles:
+      - maintenance
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./logs:/logs
+      - ./backups:/backups
+      - .:/app
+    working_dir: /app
+    command: tail -f /dev/null
+    environment:
+      - CONTAINER_NAME=${CONTAINER_NAME:-opnsense-reverse-proxy}
+      - BACKUP_DIR=${BACKUP_DIR:-backups}
+      - BACKUP_RETENTION=${BACKUP_RETENTION:-7}
+    networks:
+      - dmz_macvlan
+
+  # Firewall demo controller (opzionale, per test API)
+  firewall-demo:
+    image: python:3.11-alpine
+    container_name: ${CONTAINER_NAME:-opnsense-reverse-proxy}-demo
+    restart: "no"
+    profiles:
+      - demo
+    volumes:
+      - ./firewall-demo:/app:ro
+      - ./logs:/logs
+    working_dir: /app
+    environment:
+      - OPNSENSE_HOST=${OPNSENSE_HOST:-192.168.216.1}
+      - OPNSENSE_PORT=${OPNSENSE_PORT:-443}
+      - OPNSENSE_API_KEY=${OPNSENSE_API_KEY:-}
+      - OPNSENSE_API_SECRET=${OPNSENSE_API_SECRET:-}
+    command: |
+      sh -c "
+        pip install -r requirements.txt >/dev/null 2>&1 &&
+        echo 'Demo controller ready' &&
+        tail -f /dev/null
+      "
+    networks:
+      - dmz_macvlan
 
 networks:
   dmz_macvlan:
     driver: macvlan
     driver_opts:
-      parent: enp0s3                  # NIC dell’host collegata alla DMZ (cambiala se diverso)
+      parent: ${DMZ_INTERFACE:-enp0s3}  # NIC dell'host collegata alla DMZ
     ipam:
       config:
         - subnet: "172.16.216.0/24"
           gateway: "172.16.216.1"
+          ip_range: "172.16.216.20/30"  # Range limitato per i container
