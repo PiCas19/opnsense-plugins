@@ -1,7 +1,9 @@
 const axios = require('axios');
 const https = require('https');
+const fs = require('fs');
+const path = require('path');
 const logger = require('../utils/logger');
-const { opnsenseConfig } = require('../config/opnsense');
+const { opnsenseConfig, createSecureHttpsAgent } = require('../config/opnsense');
 const { cache } = require('../config/database');
 const { metricsHelpers } = require('../config/monitoring');
 const AlertService = require('./AlertService');
@@ -10,6 +12,7 @@ const User = require('../models/User');
 class OpnsenseService {
   constructor(user = null) {
     this.user = user;
+    
     // Read configuration from environment variables first, fallback to config file
     this.baseUrl = process.env.OPNSENSE_BASE_URL || opnsenseConfig.baseURL;
     this.apiKey = process.env.OPNSENSE_API_KEY || opnsenseConfig.apiKey;
@@ -20,8 +23,8 @@ class OpnsenseService {
     this.requestTimeout = process.env.OPNSENSE_TIMEOUT || 30000;
     this.rateLimitMap = new Map();
 
-    // SSL verification configuration from environment
-    this.sslVerify = process.env.OPNSENSE_SSL_VERIFY === 'true' ? true : false;
+    // SSL verification configuration
+    this.sslVerify = process.env.OPNSENSE_SSL_VERIFY === 'true';
     
     logger.info('OPNsense Service Configuration:', {
       baseUrl: this.baseUrl,
@@ -29,23 +32,44 @@ class OpnsenseService {
       hasApiSecret: !!this.apiSecret,
       sslVerify: this.sslVerify,
       timeout: this.requestTimeout,
-      retries: this.maxRetries
+      retries: this.maxRetries,
+      customCert: !!(process.env.OPNSENSE_CA_CERT_PATH || process.env.NODE_EXTRA_CA_CERTS)
     });
 
-    // Configure HTTPS Agent based on environment settings
-    this.httpsAgent = new https.Agent({
-      rejectUnauthorized: false,
-      requestCert: false,
-      agent: false,
-      timeout: this.requestTimeout,
-      secureProtocol: 'TLSv1_2_method',
-      checkServerIdentity: this.sslVerify ? undefined : (() => undefined)
-    });
+    // Usa l'HTTPS agent sicuro dalla configurazione
+    this.httpsAgent = this.createHttpsAgent();
+  }
 
-    if (!this.sslVerify) {
-      logger.warn('SSL certificate verification DISABLED per configuration');
-    } else {
-      logger.info('SSL certificate verification ENABLED');
+  /**
+   * Crea HTTPS agent con configurazione SSL corretta
+   * @private
+   */
+  createHttpsAgent() {
+    try {
+      // Usa la funzione sicura dal config
+      const agent = createSecureHttpsAgent();
+      
+      // Log della configurazione SSL effettiva
+      const agentConfig = {
+        rejectUnauthorized: agent.options.rejectUnauthorized,
+        hasCustomCA: !!agent.options.ca,
+        sslVerifyEnv: process.env.OPNSENSE_SSL_VERIFY,
+        customCertPath: process.env.OPNSENSE_CA_CERT_PATH || process.env.NODE_EXTRA_CA_CERTS
+      };
+      
+      logger.info('HTTPS Agent configured:', agentConfig);
+      
+      return agent;
+    } catch (error) {
+      logger.error('Failed to create HTTPS agent:', error.message);
+      
+      // Fallback sicuro
+      return new https.Agent({
+        rejectUnauthorized: this.sslVerify,
+        keepAlive: true,
+        keepAliveMsecs: 30000,
+        maxSockets: 10
+      });
     }
   }
 
@@ -106,7 +130,8 @@ class OpnsenseService {
       (config) => {
         logger.debug(`API Request: ${config.method?.toUpperCase()} ${config.url}`, {
           target: `${config.baseURL}${config.url}`,
-          sslVerify: this.sslVerify
+          sslVerify: this.sslVerify,
+          hasCustomCert: !!this.httpsAgent.options.ca
         });
         return config;
       },
@@ -123,17 +148,30 @@ class OpnsenseService {
         return response;
       },
       (error) => {
-        logger.error('API Response error:', {
-          message: error.message,
-          code: error.code,
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          url: error.config?.url
-        });
-
-        // Handle SSL specific errors
-        if (error.code && error.code.includes('CERT')) {
-          logger.error('SSL Certificate Error - Check OPNSENSE_SSL_VERIFY setting in .env');
+        // Enhanced SSL error handling
+        if (error.code && (
+          error.code.includes('CERT') ||
+          error.code === 'SELF_SIGNED_CERT_IN_CHAIN' ||
+          error.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE'
+        )) {
+          logger.error('SSL Certificate Error in OpnsenseService:', {
+            code: error.code,
+            message: error.message,
+            url: error.config?.url,
+            sslVerify: this.sslVerify,
+            customCertPath: process.env.OPNSENSE_CA_CERT_PATH || process.env.NODE_EXTRA_CA_CERTS,
+            suggestion: this.sslVerify ? 
+              'Check certificate configuration or set OPNSENSE_SSL_VERIFY=false' : 
+              'SSL verification is disabled but still getting certificate errors'
+          });
+        } else {
+          logger.error('API Response error:', {
+            message: error.message,
+            code: error.code,
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            url: error.config?.url
+          });
         }
 
         return Promise.reject(error);
@@ -214,16 +252,18 @@ class OpnsenseService {
           code: error.code
         });
 
-        // Handle SSL specific errors
-        if (error.code === 'SELF_SIGNED_CERT_IN_CHAIN' || 
-            error.code === 'CERT_HAS_EXPIRED' ||
-            error.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' ||
-            error.code === 'DEPTH_ZERO_SELF_SIGNED_CERT') {
-          logger.error('SSL Certificate Error:', {
+        // Handle SSL specific errors - don't retry on certificate issues
+        if (error.code && (
+          error.code.includes('CERT') ||
+          error.code === 'SELF_SIGNED_CERT_IN_CHAIN' ||
+          error.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE'
+        )) {
+          logger.error('SSL Certificate Error - stopping retries:', {
             code: error.code,
             message: error.message,
-            suggestion: 'Set OPNSENSE_SSL_VERIFY=false in .env for development'
+            suggestion: 'Check SSL configuration in environment variables'
           });
+          break;
         }
 
         // Don't retry on client errors (4xx) except 429
@@ -460,199 +500,6 @@ class OpnsenseService {
   }
 
   /**
-   * Get specific firewall rule by ID
-   */
-  async getFirewallRuleById(ruleId) {
-    try {
-      // Try filter rules first
-      try {
-        const filterData = await this.makeApiRequest('GET', `/api/firewall/filter/getRule/${ruleId}`, {}, 'get_filter_rule');
-        if (filterData && filterData.rule) {
-          return this.normalizeFilterRule(filterData.rule);
-        }
-      } catch (error) {
-        logger.debug('Rule not found in filter API', { ruleId, error: error.message });
-      }
-
-      // Try automation rules
-      try {
-        const automationData = await this.makeApiRequest('GET', `/api/firewall/filter_util/get/${ruleId}`, {}, 'get_automation_rule');
-        if (automationData && automationData.rule) {
-          return this.normalizeAutomationRule(automationData.rule);
-        }
-      } catch (error) {
-        logger.debug('Rule not found in automation API', { ruleId, error: error.message });
-      }
-
-      // If not found in APIs, search in all rules
-      const allRules = await this.getFirewallRules();
-      return allRules.find(rule => rule.uuid === ruleId);
-
-    } catch (error) {
-      logger.error('Failed to get firewall rule by ID', { 
-        error: error.message, 
-        ruleId,
-        user_id: this.user?.id 
-      });
-      return null;
-    }
-  }
-
-  /**
-   * Toggle firewall rule (enable/disable)
-   */
-  async toggleFirewallRule(ruleId, enabled) {
-    try {
-      // Validate permissions
-      const user = await this.validateUserPermissions('update_rules');
-
-      // First, get the current rule to determine its type and current state
-      const currentRule = await this.getFirewallRuleById(ruleId);
-      if (!currentRule) {
-        throw new Error(`Rule with ID ${ruleId} not found`);
-      }
-
-      if (!currentRule.manageable) {
-        throw new Error('This rule cannot be modified (system rule)');
-      }
-
-      let result;
-      
-      // Handle different rule types differently
-      if (currentRule.source_type === 'automation') {
-        result = await this.toggleAutomationRule(ruleId, enabled);
-      } else {
-        result = await this.toggleFilterRule(ruleId, enabled);
-      }
-
-      // Apply configuration changes
-      await this.applyConfigurationChanges();
-
-      // Invalidate cache
-      await this.invalidateCachePattern('firewall_rules_*');
-
-      // Record metrics
-      if (metricsHelpers) {
-        metricsHelpers.recordConfigurationChange('firewall_rule_toggled', {
-          rule_id: ruleId,
-          enabled: enabled,
-          rule_type: currentRule.source_type,
-          user_id: this.user?.id
-        });
-      }
-
-      logger.info('Firewall rule toggled successfully', {
-        rule_id: ruleId,
-        enabled: enabled,
-        rule_type: currentRule.source_type,
-        user_id: this.user?.id,
-        username: user.username
-      });
-
-      return {
-        success: true,
-        rule_id: ruleId,
-        enabled: enabled,
-        message: `Rule ${enabled ? 'enabled' : 'disabled'} successfully`
-      };
-
-    } catch (error) {
-      logger.error('Failed to toggle firewall rule', {
-        error: error.message,
-        rule_id: ruleId,
-        enabled: enabled,
-        user_id: this.user?.id
-      });
-
-      if (this.alertService) {
-        await this.alertService.createSystemAlert({
-          type: 'configuration_error',
-          message: `Failed to toggle firewall rule: ${error.message}`,
-          severity: 'high',
-          source: 'opnsense',
-          metadata: { 
-            ruleId, 
-            enabled,
-            error_type: 'toggle_failure'
-          }
-        });
-      }
-
-      throw error;
-    }
-  }
-
-  /**
-   * Toggle filter rule via filter API
-   */
-  async toggleFilterRule(ruleId, enabled) {
-    try {
-      // Get current rule
-      const ruleData = await this.makeApiRequest('GET', `/api/firewall/filter/getRule/${ruleId}`, {}, 'get_filter_rule');
-      
-      if (!ruleData || !ruleData.rule) {
-        throw new Error(`Filter rule ${ruleId} not found`);
-      }
-
-      // Update the enabled state
-      const updatedRule = {
-        ...ruleData.rule,
-        enabled: enabled ? '1' : '0'
-      };
-
-      // Save the updated rule
-      const result = await this.makeApiRequest('POST', `/api/firewall/filter/setRule/${ruleId}`, {
-        rule: updatedRule
-      }, 'update_filter_rule');
-
-      return result;
-
-    } catch (error) {
-      logger.error('Failed to toggle filter rule', { 
-        error: error.message, 
-        ruleId, 
-        enabled 
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Toggle automation rule via automation API
-   */
-  async toggleAutomationRule(ruleId, enabled) {
-    try {
-      // Get current automation rule
-      const ruleData = await this.makeApiRequest('GET', `/api/firewall/filter_util/get/${ruleId}`, {}, 'get_automation_rule');
-      
-      if (!ruleData || !ruleData.rule) {
-        throw new Error(`Automation rule ${ruleId} not found`);
-      }
-
-      // Update the enabled state
-      const updatedRule = {
-        ...ruleData.rule,
-        enabled: enabled ? '1' : '0'
-      };
-
-      // Save the updated rule
-      const result = await this.makeApiRequest('POST', `/api/firewall/filter_util/set/${ruleId}`, {
-        rule: updatedRule
-      }, 'update_automation_rule');
-
-      return result;
-
-    } catch (error) {
-      logger.error('Failed to toggle automation rule', { 
-        error: error.message, 
-        ruleId, 
-        enabled 
-      });
-      throw error;
-    }
-  }
-
-  /**
    * Create new firewall rule using the appropriate API
    */
   async createFirewallRule(ruleData) {
@@ -804,289 +651,6 @@ class OpnsenseService {
   }
 
   /**
-   * Create automation rule (separate from web UI)
-   */
-  async createAutomationRule(ruleData) {
-    const formattedRule = {
-      enabled: ruleData.enabled ? '1' : '0',
-      interface: ruleData.interface || 'wan',
-      action: ruleData.action || 'pass',
-      source: this.formatAddressForOPNsense(ruleData.source),
-      destination: this.formatAddressForOPNsense(ruleData.destination),
-      protocol: ruleData.protocol || 'any',
-      description: ruleData.description || 'API Automation Rule',
-      sequence: ruleData.sequence || 1,
-      quick: true
-    };
-
-    logger.info('Creating automation rule with formatted data:', formattedRule);
-
-    try {
-      const result = await this.makeApiRequest('POST', '/api/firewall/filter_util/add', {
-        rule: formattedRule
-      }, 'create_automation_rule');
-
-      return {
-        uuid: result.uuid || `auto-${Date.now()}`,
-        ...formattedRule,
-        source_type: 'automation'
-      };
-
-    } catch (error) {
-      logger.error('Failed to create automation rule:', {
-        error: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-        formattedRule
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Update existing firewall rule
-   */
-  async updateFirewallRule(ruleId, updates) {
-    try {
-      // Validate permissions
-      const user = await this.validateUserPermissions('update_rules');
-
-      // Get existing rule
-      const existingRule = await this.getFirewallRuleById(ruleId);
-      if (!existingRule) {
-        throw new Error(`Rule with ID ${ruleId} not found`);
-      }
-
-      if (!existingRule.manageable) {
-        throw new Error('This rule cannot be modified (system rule)');
-      }
-
-      let result;
-      if (existingRule.source_type === 'automation') {
-        result = await this.updateAutomationRule(ruleId, updates);
-      } else {
-        result = await this.updateFilterRule(ruleId, updates);
-      }
-
-      // Apply configuration
-      await this.applyConfigurationChanges();
-
-      // Invalidate cache
-      await this.invalidateCachePattern('firewall_rules_*');
-
-      logger.info('Firewall rule updated successfully', {
-        rule_id: ruleId,
-        user_id: this.user?.id,
-        username: user.username
-      });
-
-      return result;
-
-    } catch (error) {
-      logger.error('Failed to update firewall rule', {
-        error: error.message,
-        ruleId,
-        updates,
-        user_id: this.user?.id
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Update filter rule
-   */
-  async updateFilterRule(ruleId, updates) {
-    try {
-      // Get current rule
-      const ruleData = await this.makeApiRequest('GET', `/api/firewall/filter/getRule/${ruleId}`, {}, 'get_filter_rule');
-      
-      if (!ruleData || !ruleData.rule) {
-        throw new Error(`Filter rule ${ruleId} not found`);
-      }
-
-      // Merge updates with existing rule
-      const updatedRule = {
-        ...ruleData.rule,
-        ...this.formatUpdatesForOPNsense(updates)
-      };
-
-      // Save the updated rule
-      const result = await this.makeApiRequest('POST', `/api/firewall/filter/setRule/${ruleId}`, {
-        rule: updatedRule
-      }, 'update_filter_rule');
-
-      return this.normalizeFilterRule(updatedRule);
-
-    } catch (error) {
-      logger.error('Failed to update filter rule', { 
-        error: error.message, 
-        ruleId, 
-        updates 
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Update automation rule
-   */
-  async updateAutomationRule(ruleId, updates) {
-    try {
-      // Get current rule
-      const ruleData = await this.makeApiRequest('GET', `/api/firewall/filter_util/get/${ruleId}`, {}, 'get_automation_rule');
-      
-      if (!ruleData || !ruleData.rule) {
-        throw new Error(`Automation rule ${ruleId} not found`);
-      }
-
-      // Merge updates
-      const updatedRule = {
-        ...ruleData.rule,
-        ...updates
-      };
-
-      // Save the updated rule
-      const result = await this.makeApiRequest('POST', `/api/firewall/filter_util/set/${ruleId}`, {
-        rule: updatedRule
-      }, 'update_automation_rule');
-
-      return this.normalizeAutomationRule(updatedRule);
-
-    } catch (error) {
-      logger.error('Failed to update automation rule', { 
-        error: error.message, 
-        ruleId, 
-        updates 
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Format updates for OPNsense API
-   */
-  formatUpdatesForOPNsense(updates) {
-    const formatted = {};
-
-    if (updates.description !== undefined) {
-      formatted.descr = updates.description;
-    }
-    if (updates.enabled !== undefined) {
-      formatted.enabled = updates.enabled ? '1' : '0';
-    }
-    if (updates.action !== undefined) {
-      formatted.type = updates.action;
-    }
-    if (updates.interface !== undefined) {
-      formatted.interface = updates.interface;
-    }
-    if (updates.protocol !== undefined) {
-      formatted.protocol = updates.protocol;
-    }
-    if (updates.source !== undefined) {
-      formatted.source_net = this.formatAddressForOPNsense(updates.source);
-    }
-    if (updates.destination !== undefined) {
-      formatted.destination_net = this.formatAddressForOPNsense(updates.destination);
-    }
-    if (updates.source_port !== undefined) {
-      formatted.source_port = updates.source_port;
-    }
-    if (updates.destination_port !== undefined) {
-      formatted.destination_port = updates.destination_port;
-    }
-    if (updates.log !== undefined) {
-      formatted.log = updates.log ? '1' : '0';
-    }
-
-    return formatted;
-  }
-
-  /**
-   * Delete firewall rule
-   */
-  async deleteFirewallRule(ruleId) {
-    try {
-      // Validate permissions
-      const user = await this.validateUserPermissions('delete_rules');
-
-      // Get existing rule to determine type
-      const existingRule = await this.getFirewallRuleById(ruleId);
-      if (!existingRule) {
-        throw new Error(`Rule with ID ${ruleId} not found`);
-      }
-
-      if (!existingRule.manageable) {
-        throw new Error('This rule cannot be deleted (system rule)');
-      }
-
-      let success;
-      if (existingRule.source_type === 'automation') {
-        success = await this.deleteAutomationRule(ruleId);
-      } else {
-        success = await this.deleteFilterRule(ruleId);
-      }
-
-      if (success) {
-        // Apply configuration
-        await this.applyConfigurationChanges();
-
-        // Invalidate cache
-        await this.invalidateCachePattern('firewall_rules_*');
-
-        logger.info('Firewall rule deleted successfully', {
-          rule_id: ruleId,
-          user_id: this.user?.id,
-          username: user.username
-        });
-      }
-
-      return success;
-
-    } catch (error) {
-      logger.error('Failed to delete firewall rule', {
-        error: error.message,
-        ruleId,
-        user_id: this.user?.id
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Delete filter rule
-   */
-  async deleteFilterRule(ruleId) {
-    try {
-      const result = await this.makeApiRequest('POST', `/api/firewall/filter/delRule/${ruleId}`, {}, 'delete_filter_rule');
-      return result.result === 'deleted' || result.success === true;
-    } catch (error) {
-      logger.error('Failed to delete filter rule', { 
-        error: error.message, 
-        ruleId 
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Delete automation rule
-   */
-  async deleteAutomationRule(ruleId) {
-    try {
-      const result = await this.makeApiRequest('POST', `/api/firewall/filter_util/del/${ruleId}`, {}, 'delete_automation_rule');
-      return result.result === 'deleted' || result.success === true;
-    } catch (error) {
-      logger.error('Failed to delete automation rule', { 
-        error: error.message, 
-        ruleId 
-      });
-      throw error;
-    }
-  }
-
-  /**
    * Apply pending configuration changes
    * This is CRITICAL - changes don't take effect until applied
    */
@@ -1128,104 +692,14 @@ class OpnsenseService {
   }
 
   /**
-   * Get service health information
-   */
-  async getServiceHealth() {
-    try {
-      const startTime = Date.now();
-      
-      // Test basic connectivity
-      const connectionTest = await this.testConnection();
-      const responseTime = Date.now() - startTime;
-
-      // Try to get system status
-      let systemStatus = 'unknown';
-      let systemInfo = {};
-      
-      try {
-        const statusData = await this.makeApiRequest('GET', '/api/core/system/status', {}, 'get_system_status');
-        systemStatus = 'healthy';
-        systemInfo = statusData;
-      } catch (error) {
-        logger.warn('Could not get system status', { error: error.message });
-        systemStatus = connectionTest.success ? 'degraded' : 'unhealthy';
-      }
-
-      return {
-        overall_status: systemStatus,
-        components: {
-          api_connectivity: connectionTest.success,
-          firewall_rules_accessible: await this.testFirewallAccess(),
-          api_response_time_ms: responseTime
-        },
-        system_info: systemInfo,
-        rate_limit_status: this.getRateLimitStatus(),
-        timestamp: new Date().toISOString()
-      };
-
-    } catch (error) {
-      logger.error('Failed to get service health', { error: error.message });
-      return {
-        overall_status: 'unhealthy',
-        error: error.message,
-        timestamp: new Date().toISOString()
-      };
-    }
-  }
-
-  /**
-   * Test firewall API access
-   */
-  async testFirewallAccess() {
-    try {
-      await this.makeApiRequest('GET', '/api/firewall/filter/searchRule', { 
-        current: 1, 
-        rowCount: 1 
-      }, 'test_firewall_access');
-      return true;
-    } catch (error) {
-      logger.warn('Firewall access test failed', { error: error.message });
-      return false;
-    }
-  }
-
-  /**
-   * Get rate limit status
-   */
-  getRateLimitStatus() {
-    const now = Date.now();
-    const windowMs = 60000; // 1 minute
-    let totalRequests = 0;
-    let activeOperations = 0;
-
-    for (const [operation, requests] of this.rateLimitMap.entries()) {
-      const validRequests = requests.filter(timestamp => now - timestamp < windowMs);
-      totalRequests += validRequests.length;
-      if (validRequests.length > 0) {
-        activeOperations++;
-      }
-    }
-
-    return {
-      active_operations: activeOperations,
-      total_requests_last_minute: totalRequests,
-      operations: Object.fromEntries(
-        Array.from(this.rateLimitMap.entries()).map(([op, requests]) => [
-          op, 
-          requests.filter(timestamp => now - timestamp < windowMs).length
-        ])
-      )
-    };
-  }
-
-  /**
    * Test connection to OPNsense
    */
   async testConnection() {
     logger.info('Testing OPNsense connection', {
       baseUrl: this.baseUrl,
       sslVerify: this.sslVerify,
-      timeout: this.requestTimeout
+      timeout: this.requestTimeout,
+      hasCustomCert: !!this.httpsAgent.options.ca
     });
 
     try {
@@ -1250,6 +724,11 @@ class OpnsenseService {
             api_version: data?.api_version || 'unknown',
             system_version: data?.version || data?.product_version || 'unknown',
             endpoint_used: endpoint,
+            ssl_config: {
+              verify: this.sslVerify,
+              custom_cert: !!this.httpsAgent.options.ca,
+              cert_path: process.env.OPNSENSE_CA_CERT_PATH || process.env.NODE_EXTRA_CA_CERTS
+            },
             timestamp: new Date().toISOString()
           };
         } catch (error) {
@@ -1265,13 +744,22 @@ class OpnsenseService {
       logger.error('OPNsense connection test failed', {
         error: error.message,
         code: error.code,
-        status: error.response?.status
+        status: error.response?.status,
+        ssl_config: {
+          verify: this.sslVerify,
+          custom_cert: !!this.httpsAgent.options.ca
+        }
       });
 
       return {
         success: false,
         error: error.message,
         status_code: error.response?.status,
+        ssl_config: {
+          verify: this.sslVerify,
+          custom_cert: !!this.httpsAgent.options.ca,
+          cert_path: process.env.OPNSENSE_CA_CERT_PATH || process.env.NODE_EXTRA_CA_CERTS
+        },
         timestamp: new Date().toISOString()
       };
     }
@@ -1310,63 +798,6 @@ class OpnsenseService {
     if (ruleData.description && ruleData.description.length > 255) {
       throw new Error('Description too long (max 255 characters)');
     }
-
-    // Validate address formats
-    if (ruleData.source && typeof ruleData.source === 'object') {
-      this.validateAddressObject(ruleData.source, 'source');
-    }
-
-    if (ruleData.destination && typeof ruleData.destination === 'object') {
-      this.validateAddressObject(ruleData.destination, 'destination');
-    }
-  }
-
-  /**
-   * Validate address objects
-   */
-  validateAddressObject(addressObj, fieldName) {
-    const validTypes = ['any', 'network', 'single'];
-    
-    if (!addressObj.type || !validTypes.includes(addressObj.type)) {
-      throw new Error(`${fieldName} type must be one of: ${validTypes.join(', ')}`);
-    }
-
-    if (addressObj.type === 'network' && !addressObj.network) {
-      throw new Error(`${fieldName} of type 'network' must specify 'network'`);
-    }
-
-    if (addressObj.type === 'single' && !addressObj.address) {
-      throw new Error(`${fieldName} of type 'single' must specify 'address'`);
-    }
-
-    // Basic IP/CIDR format validation
-    if (addressObj.network) {
-      if (!this.isValidNetworkFormat(addressObj.network)) {
-        throw new Error(`${fieldName} network has invalid format: ${addressObj.network}`);
-      }
-    }
-
-    if (addressObj.address) {
-      if (!this.isValidIPFormat(addressObj.address)) {
-        throw new Error(`${fieldName} address has invalid format: ${addressObj.address}`);
-      }
-    }
-  }
-
-  /**
-   * Validate CIDR network format
-   */
-  isValidNetworkFormat(network) {
-    const cidrRegex = /^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/;
-    return cidrRegex.test(network);
-  }
-
-  /**
-   * Validate IP format
-   */
-  isValidIPFormat(ip) {
-    const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
-    return ipRegex.test(ip);
   }
 
   /**
@@ -1428,21 +859,6 @@ class OpnsenseService {
         created_via: 'Demo',
         created: new Date().toISOString(),
         log: false
-      },
-      {
-        uuid: 'demo-rule-3',
-        description: 'Block Suspicious Port Scans',
-        interface: 'wan',
-        action: 'block',
-        enabled: false,
-        source: 'any',
-        destination: '192.168.216.0/24',
-        protocol: 'tcp',
-        source_type: 'demo',
-        manageable: true,
-        created_via: 'Demo',
-        created: new Date().toISOString(),
-        log: true
       }
     ];
   }

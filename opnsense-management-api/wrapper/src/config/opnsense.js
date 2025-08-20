@@ -1,4 +1,3 @@
-// src/config/opnsense.js
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
@@ -12,6 +11,56 @@ const https = require('https');
 const logger = require('../utils/logger');
 
 /* ===========================
+ * Configurazione SSL Sicura
+ * =========================== */
+function createSecureHttpsAgent() {
+  const agentOptions = {
+    keepAlive: true,
+    keepAliveMsecs: 30000,
+    maxSockets: 10,
+  };
+
+  // 1. Priorità: Certificato personalizzato
+  const customCertPath = process.env.OPNSENSE_CA_CERT_PATH || process.env.NODE_EXTRA_CA_CERTS;
+  if (customCertPath && fs.existsSync(customCertPath)) {
+    try {
+      agentOptions.ca = fs.readFileSync(customCertPath);
+      agentOptions.rejectUnauthorized = true;
+      logger.info('Using custom CA certificate for OPNsense', { path: customCertPath });
+      return new https.Agent(agentOptions);
+    } catch (error) {
+      logger.warn('Failed to load custom CA certificate', { 
+        path: customCertPath, 
+        error: error.message 
+      });
+    }
+  }
+
+  // 2. Configurazione basata su OPNSENSE_SSL_VERIFY
+  const sslVerify = process.env.OPNSENSE_SSL_VERIFY;
+  if (sslVerify === 'false') {
+    agentOptions.rejectUnauthorized = false;
+    logger.warn('SSL certificate verification DISABLED per OPNSENSE_SSL_VERIFY=false');
+    return new https.Agent(agentOptions);
+  } else if (sslVerify === 'true') {
+    agentOptions.rejectUnauthorized = true;
+    logger.info('SSL certificate verification ENABLED per OPNSENSE_SSL_VERIFY=true');
+    return new https.Agent(agentOptions);
+  }
+
+  // 3. Default basato su NODE_ENV
+  if (process.env.NODE_ENV === 'production') {
+    agentOptions.rejectUnauthorized = true;
+    logger.info('Using system certificates (production mode)');
+  } else {
+    agentOptions.rejectUnauthorized = false;
+    logger.warn('Accepting self-signed certificates (development mode)');
+  }
+
+  return new https.Agent(agentOptions);
+}
+
+/* ===========================
  * OPNsense API & SSH config
  * =========================== */
 const opnsenseConfig = {
@@ -19,7 +68,6 @@ const opnsenseConfig = {
   apiKey: process.env.OPNSENSE_API_KEY,
   apiSecret: process.env.OPNSENSE_API_SECRET,
   timeout: parseInt(process.env.OPNSENSE_TIMEOUT, 10) || 30000,
-  // se vuoi accettare certificati self-signed metti OPNSENSE_SSL_VERIFY=false
   sslVerify: process.env.OPNSENSE_SSL_VERIFY === 'true',
   retries: parseInt(process.env.OPNSENSE_RETRIES, 10) || 3,
   retryDelay: parseInt(process.env.OPNSENSE_RETRY_DELAY, 10) || 1000,
@@ -47,9 +95,8 @@ const opnsenseConfig = {
           return undefined;
         }
       })(),
-    useSudo: process.env.OPNSENSE_SSH_USE_SUDO === 'true',        // true se utente non-root
+    useSudo: process.env.OPNSENSE_SSH_USE_SUDO === 'true',
     readyTimeout: parseInt(process.env.OPNSENSE_SSH_READY_TIMEOUT || '10000', 10),
-    // opzionale: pin della host key (hex lowercase). La verifica viene eseguita nel service.
     hostFingerprint: (process.env.OPNSENSE_SSH_HOST_FINGERPRINT || '').toLowerCase(),
   },
 };
@@ -63,14 +110,9 @@ if (!opnsenseConfig.apiKey || !opnsenseConfig.apiSecret) {
 }
 
 /* ==============================
- * HTTPS agent per chiamate API
+ * HTTPS agent sicuro
  * ============================== */
-const httpsAgent = new https.Agent({
-  rejectUnauthorized: opnsenseConfig.sslVerify,
-  keepAlive: true,
-  keepAliveMsecs: 30000,
-  maxSockets: 10,
-});
+const httpsAgent = createSecureHttpsAgent();
 
 /* ==============================
  * Axios instance + retry/logging
@@ -140,13 +182,29 @@ opnsenseApi.interceptors.response.use(
   },
   (error) => {
     const duration = error.config?.metadata ? Date.now() - error.config.metadata.startTime : 0;
-    logger.error('OPNsense API Response Error', {
-      method: error.config?.method?.toUpperCase(),
-      url: error.config?.url,
-      status: error.response?.status,
-      message: error.message,
-      duration: `${duration}ms`,
-    });
+    
+    // Logging dettagliato per errori SSL
+    if (error.code && error.code.includes('CERT')) {
+      logger.error('SSL Certificate Error detected', {
+        code: error.code,
+        message: error.message,
+        method: error.config?.method?.toUpperCase(),
+        url: error.config?.url,
+        sslVerify: process.env.OPNSENSE_SSL_VERIFY,
+        customCert: !!(process.env.OPNSENSE_CA_CERT_PATH || process.env.NODE_EXTRA_CA_CERTS),
+        suggestion: 'Check certificate configuration or set OPNSENSE_SSL_VERIFY=false'
+      });
+    } else {
+      logger.error('OPNsense API Response Error', {
+        method: error.config?.method?.toUpperCase(),
+        url: error.config?.url,
+        status: error.response?.status,
+        message: error.message,
+        duration: `${duration}ms`,
+        code: error.code,
+      });
+    }
+    
     try {
       const { metricsHelpers } = require('./monitoring');
       metricsHelpers?.recordOpnsenseApiCall?.(
@@ -260,7 +318,18 @@ const handleApiError = (error, context = '') => {
     url: error.config?.url,
     method: error.config?.method,
     context,
+    code: error.code,
   };
+
+  // Gestione specifica errori SSL
+  if (error.code && error.code.includes('CERT')) {
+    logger.error('SSL Certificate Error in OPNsense API', {
+      ...info,
+      sslVerify: process.env.OPNSENSE_SSL_VERIFY,
+      suggestion: 'Check OPNSENSE_SSL_VERIFY setting or certificate configuration'
+    });
+    throw new Error('SSL certificate error - check OPNsense SSL configuration');
+  }
 
   if (error.response?.status === 401) {
     logger.error('OPNsense API authentication failed', info);
@@ -289,6 +358,12 @@ const handleApiError = (error, context = '') => {
 
 const testConnection = async () => {
   try {
+    logger.info('Testing OPNsense API connection...', {
+      baseURL: opnsenseConfig.baseURL,
+      sslVerify: opnsenseConfig.sslVerify,
+      customCert: !!(process.env.OPNSENSE_CA_CERT_PATH || process.env.NODE_EXTRA_CA_CERTS)
+    });
+
     const response = await opnsenseApi.get(endpoints.system.status);
     logger.info('OPNsense API connection test successful', {
       status: response.status,
@@ -300,6 +375,7 @@ const testConnection = async () => {
       message: error.message,
       status: error.response?.status,
       url: error.config?.url,
+      code: error.code,
     });
     return false;
   }
@@ -317,7 +393,7 @@ const getSystemInfo = async () => {
 
 module.exports = {
   opnsenseApi,
-  opnsenseConfig,    // <-- contiene anche opnsenseConfig.ssh
+  opnsenseConfig,
   endpoints,
   rateLimits,
   testConnection,
@@ -325,4 +401,5 @@ module.exports = {
   categorizeEndpoint,
   handleApiError,
   httpsAgent,
+  createSecureHttpsAgent, // Esporto per uso in altri servizi
 };
