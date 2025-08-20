@@ -600,29 +600,45 @@ class OpnsenseService {
    * Create filter rule (integrates with web UI)
    */
   async createFilterRule(ruleData) {
-    const formattedRule = {
-      enabled: ruleData.enabled ? '1' : '0',
-      interface: ruleData.interface || 'wan',
-      direction: ruleData.direction || 'in',
-      ipprotocol: ruleData.ipprotocol || 'inet',
-      protocol: ruleData.protocol || 'any',
-      source_net: ruleData.source || 'any',
-      destination_net: ruleData.destination || 'any',
-      action: ruleData.action || 'pass',
-      description: ruleData.description || 'API Created Rule',
-      log: ruleData.log ? '1' : '0'
-    };
+  const formattedRule = {
+    enabled: ruleData.enabled ? '1' : '0',
+    interface: ruleData.interface || 'wan',
+    direction: ruleData.direction || 'in',
+    ipprotocol: ruleData.ipprotocol || 'inet',
+    protocol: ruleData.protocol || 'any',
+    source_net: this.convertToOPNsenseFormat(ruleData.source) || 'any',
+    destination_net: this.convertToOPNsenseFormat(ruleData.destination) || 'any',
+    action: ruleData.action || 'pass',
+    description: ruleData.description || 'API Created Rule',
+    log: ruleData.log ? '1' : '0'
+  };
 
-    const result = await this.makeApiRequest('POST', '/api/firewall/filter/addRule', {
-      rule: formattedRule
-    }, 'create_filter_rule');
+  const result = await this.makeApiRequest('POST', '/api/firewall/filter/addRule', {
+    rule: formattedRule
+  }, 'create_filter_rule');
 
-    return {
-      uuid: result.uuid,
-      ...formattedRule,
-      source_type: 'filter'
-    };
+  return {
+    uuid: result.uuid,
+    ...formattedRule,
+    source_type: 'filter'
+  };
+}
+
+convertToOPNsenseFormat(addressObj) {
+  // Se è già una stringa, restituiscila
+  if (typeof addressObj === 'string') {
+    return addressObj;
   }
+  
+  // Se è un oggetto, convertilo
+  if (addressObj && typeof addressObj === 'object') {
+    if (addressObj.type === 'any') return 'any';
+    if (addressObj.type === 'network') return addressObj.network;
+    if (addressObj.type === 'single') return addressObj.address;
+  }
+  
+  return 'any';
+}
 
   /**
    * Create automation rule (separate from web UI)
