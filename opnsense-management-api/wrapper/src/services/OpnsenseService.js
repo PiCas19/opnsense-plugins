@@ -796,7 +796,7 @@ convertToOPNsenseFormat(addressObj) {
     if (!validInterfaces.includes(ruleData.interface)) {
       throw new Error(`Invalid interface. Must be one of: ${validInterfaces.join(', ')}`);
     }*/
-    logger.info('Validation bypassed for rule data', { ruleData });
+    logger.info('Validation bypassed', { description: ruleData.description });
     return true;
   }
 
