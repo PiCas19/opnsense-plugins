@@ -194,22 +194,26 @@ const endpointSchema = z.discriminatedUnion('type', [
 const createRuleBase = z
   .object({
     description: z.string().max(255),
-    interface: z.enum(['wan', 'lan', 'dmz', 'opt1', 'opt2', 'opt3']), // ← Aggiungi opt3
+    interface: z.enum(['wan', 'lan', 'dmz', 'opt1', 'opt2', 'opt3']),
     direction: z.enum(['in', 'out']).default('in'),
     action: z.enum(['pass', 'block', 'reject']),
-    protocol: commonSchemas.protocol,
-    source: z.union([
-      endpointSchema,
-      z.string() // ← Accetta anche stringhe come fallback
-    ]),
-    destination: z.union([
-      endpointSchema,
-      z.string() // ← Accetta anche stringhe come fallback
-    ]),
+    protocol: z.enum(['tcp', 'udp', 'icmp', 'any']),
+    source: z.object({
+      type: z.string(),
+      network: z.string().optional(),
+      address: z.string().optional(),
+    }).optional().or(z.string()),
+    destination: z.object({
+      type: z.string(),
+      network: z.string().optional(), 
+      address: z.string().optional(),
+    }).optional().or(z.string()),
     enabled: z.boolean().default(true),
     log: z.boolean().default(false),
     sequence: z.coerce.number().int().min(1).max(9999).optional(),
     api_managed: z.boolean().default(false).optional(),
+    source_port: z.string().optional(),
+    destination_port: z.string().optional(),
   })
   .strip();
 
