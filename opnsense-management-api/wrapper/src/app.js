@@ -1,6 +1,3 @@
-// src/app.js
-require('dotenv').config();
-
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
@@ -392,46 +389,46 @@ async function initializeApplication() {
   try {
     logger.info('Starting application initialization...');
 
-    // PROVA il database, ma NON FERMARE L'APP se fallisce
-    try {
-      logger.info('Testing PostgreSQL connection...');
-      const dbOK = await testDatabaseConnection();
-      if (dbOK) {
-        logger.info('PostgreSQL connection test successful');
-        
-        logger.info('Initializing database...');
-        await initializeDatabase();
-        logger.info('Database initialized successfully');
-        
-        logger.info('Initializing model associations...');
-        const associationsOK = initializeModelAssociations();
-        if (associationsOK) {
-          logger.info('Model associations initialized successfully');
-        }
-      }
-    } catch (dbError) {
-      logger.warn('Database failed, continuing anyway:', dbError.message);
+    logger.info('Testing PostgreSQL connection...');
+    const dbOK = await testDatabaseConnection();
+    if (!dbOK) throw new Error('Database connection test failed');
+    logger.info('PostgreSQL connection test successful');
+
+    logger.info('Testing Redis connection...');
+    const redisOK = await testRedisConnection();
+    if (!redisOK) {
+      logger.warn('Redis connection test failed, continuing with cache disabled');
+    } else {
+      logger.info('Redis connection test successful');
     }
 
-    // PROVA Redis
-    try {
-      logger.info('Testing Redis connection...');
-      const redisOK = await testRedisConnection();
-      if (redisOK) {
-        logger.info('Redis connection test successful');
-      }
-    } catch (redisError) {
-      logger.warn('Redis failed, continuing anyway:', redisError.message);
-    }
+    logger.info('Initializing database...');
+    await initializeDatabase();
+    logger.info('Database initialized successfully');
 
-    // Il resto...
+    // ================ INIZIALIZZAZIONE ASSOCIAZIONI MODELLI ================
+    logger.info('Initializing model associations...');
+    const associationsOK = initializeModelAssociations();
+    if (!associationsOK) {
+      throw new Error('Failed to initialize model associations');
+    }
+    logger.info('Model associations initialized successfully');
+    // ================ END INIZIALIZZAZIONE ASSOCIAZIONI ================
+
+    logger.info('Initializing monitoring...');
+    await initializeMonitoring();
+    logger.info('Monitoring initialized successfully');
+
     startHealthChecks();
     await startServer();
-    
-    logger.info('Application started successfully');
+
+    logger.info('Application initialization completed successfully');
   } catch (error) {
-    logger.error('Failed to start:', error.message);
-    process.exit(1);
+    logger.error('Failed to initialize application:', {
+      error: error.message,
+      stack: error.stack,
+    });
+    await gracefulShutdown(1);
   }
 }
 
