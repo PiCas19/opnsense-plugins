@@ -8,12 +8,12 @@ RUN printf '%s\n' \
   "https://mirror.leaseweb.net/alpine/v3.20/main" \
   "https://mirror.leaseweb.net/alpine/v3.20/community" > /etc/apk/repositories
 
-# Install con retry e senza update/upgrade
+# Install dependencies with robust retry logic and explicit dumb-init installation
 RUN set -eux; \
   for i in 1 2 3; do \
-    apk add --no-cache curl ca-certificates tzdata dumb-init && break; \
+    apk add --no-cache dumb-init curl ca-certificates tzdata && break; \
     echo "apk add fallito, retry $i/3"; sleep 5; \
-  done
+  done || { echo "Failed to install dependencies after 3 retries"; exit 1; }
 
 # Utente non-root
 RUN addgroup -g 1001 -S nodejs && \
