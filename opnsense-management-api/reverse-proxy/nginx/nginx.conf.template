@@ -3,72 +3,192 @@ worker_processes auto;
 error_log /var/log/nginx/error.log notice;
 pid /var/run/nginx.pid;
 
-events { worker_connections 1024; }
+events { 
+    worker_connections 1024;
+    use epoll;
+    multi_accept on;
+}
 
 http {
     include /etc/nginx/mime.types;
     default_type application/octet-stream;
-    access_log /var/log/nginx/access.log;
-
+    
+    # Log format personalizzato
+    log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                    '$status $body_bytes_sent "$http_referer" '
+                    '"$http_user_agent" "$http_x_forwarded_for" '
+                    'rt=$request_time uct="$upstream_connect_time" '
+                    'uht="$upstream_header_time" urt="$upstream_response_time"';
+    
+    access_log /var/log/nginx/access.log main;
+    
+    # Performance optimizations
     sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
     keepalive_timeout 65;
+    types_hash_max_size 2048;
+    
+    # Security headers
+    add_header X-Frame-Options DENY always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    
+    # Client settings
     client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE};
-
-    # --- Unico backend: WRAPPER ---
-    upstream wrapper_api {
-        server ${WRAPPER_HOST};
+    client_body_timeout 12;
+    client_header_timeout 12;
+    send_timeout 10;
+    
+    # Rate limiting zones
+    limit_req_zone $binary_remote_addr zone=api:10m rate=${RATE_LIMIT_API};
+    limit_req_zone $binary_remote_addr zone=login:10m rate=${RATE_LIMIT_LOGIN};
+    
+    # Upstream per il wrapper
+    upstream wrapper_backend {
+        server ${WRAPPER_HOST} max_fails=3 fail_timeout=30s;
+        keepalive 32;
     }
-
-    # Redirect HTTP -> HTTPS
+    
+    # Redirect HTTP -> HTTPS (solo se HTTPS_PORT è definito)
     server {
         listen 80;
         server_name _;
-        return 301 https://$host$request_uri;
-    }
-
-    server {
-        listen 443 ssl;
-        server_name _;
-
-        ssl_certificate     /etc/ssl/nginx/server.crt;
-        ssl_certificate_key /etc/ssl/nginx/server.key;
-        ssl_protocols       TLSv1.2 TLSv1.3;
-
-        # Health check (senza auth)
+        
+        # Health check anche su HTTP
         location = /health {
-            auth_basic off;
             access_log off;
             default_type text/plain;
             return 200 "healthy\n";
         }
-
-        # Home -> docs del wrapper (più comodo in demo)
-        location = / { return 302 https://$host/api/api-docs; }
-
+        
+        # Redirect tutto il resto
+        location / {
+            return 301 https://$host$request_uri;
+        }
+    }
+    
+    # Server HTTPS principale
+    server {
+        listen 443 ssl http2;
+        server_name _;
+        
+        # Configurazione SSL/TLS
+        ssl_certificate /etc/ssl/nginx/server.crt;
+        ssl_certificate_key /etc/ssl/nginx/server.key;
+        ssl_protocols ${SSL_PROTOCOLS};
+        ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384;
+        ssl_prefer_server_ciphers off;
+        ssl_session_cache shared:SSL:10m;
+        ssl_session_timeout 1d;
+        ssl_session_tickets off;
+        
+        # HSTS
+        add_header Strict-Transport-Security "max-age=${HSTS_MAX_AGE}; includeSubDomains" always;
+        
+        # Health check endpoint (senza autenticazione)
+        location = /health {
+            access_log off;
+            default_type text/plain;
+            return 200 "healthy\n";
+        }
+        
+        # Ping endpoint per monitoring
+        location = /ping {
+            access_log off;
+            default_type text/plain;
+            return 200 "pong\n";
+        }
+        
+        # Root redirect alla documentazione API
+        location = / {
+            return 302 https://$host/api/api-docs;
+        }
+        
+        # Demo firewall management (senza auth per demo)
+        location /demo {
+            alias /var/www/firewall-demo;
+            index index.html;
+            try_files $uri $uri/ @demo_fallback;
+        }
+        
+        location @demo_fallback {
+            return 404;
+        }
+        
         # Basic Auth per tutto il resto
-        auth_basic "Restricted";
+        auth_basic "OPNsense Reverse Proxy - Restricted Access";
         auth_basic_user_file /etc/nginx/htpasswd;
-
-        # Normalizza /api -> /api/
-        location = /api  { return 301 /api/; }
-        # Atterra su Swagger (cambia in /api/v1/health se preferisci)
-        location = /api/ { return 302 /api/api-docs; }
-
-        # Tutto /api/* va al wrapper (riscrive /api/ -> /)
+        
+        # Normalizzazione /api -> /api/
+        location = /api {
+            return 301 /api/;
+        }
+        
+        # Landing page API - redirect a Swagger
+        location = /api/ {
+            return 302 /api/api-docs;
+        }
+        
+        # Proxy verso wrapper - tutto /api/* va al backend
         location /api/ {
-            proxy_pass ${WRAPPER_SCHEME}://wrapper_api/;
-
-            proxy_set_header Host              $host;
-            proxy_set_header X-Real-IP         $remote_addr;
-            proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+            # Rate limiting per API
+            limit_req zone=api burst=20 nodelay;
+            
+            # Rimuovi /api/ dal path e passa al backend
+            rewrite ^/api/(.*)$ /$1 break;
+            
+            proxy_pass ${WRAPPER_SCHEME}://wrapper_backend;
+            
+            # Headers per il proxy
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
-
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_set_header X-Forwarded-Port $server_port;
+            
+            # Timeouts
+            proxy_connect_timeout 30s;
+            proxy_send_timeout 30s;
+            proxy_read_timeout 30s;
+            
+            # Buffering
             proxy_buffering off;
             proxy_request_buffering off;
-
-            proxy_connect_timeout 30s;
-            proxy_send_timeout    30s;
-            proxy_read_timeout    30s;
+            proxy_http_version 1.1;
+            proxy_set_header Connection "";
+            
+            # Error handling
+            proxy_intercept_errors on;
+            error_page 502 503 504 /50x.html;
+        }
+        
+        # Endpoint per testing connettività backend
+        location = /api/backend-status {
+            access_log off;
+            proxy_pass ${WRAPPER_SCHEME}://wrapper_backend/health;
+            proxy_set_header Host $host;
+        }
+        
+        # Pagina di errore personalizzata
+        location = /50x.html {
+            root /usr/share/nginx/html;
+            internal;
+        }
+        
+        # Security: blocca accesso a file sensibili
+        location ~ /\. {
+            deny all;
+            access_log off;
+            log_not_found off;
+        }
+        
+        location ~* \.(bak|config|sql|fla|psd|ini|log|sh|inc|swp|dist)$ {
+            deny all;
+            access_log off;
+            log_not_found off;
         }
     }
 }
