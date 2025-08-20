@@ -273,7 +273,7 @@ app.use(dynamicValidation);
 
 // ---------------- Routes ----------------
 const adminRoutes = require('./routes/admin');
-const firewallRoutes = require('./routes/firewall');
+const firewallRoutes = require('./routes/firewall'); // ⚠️ QUESTO È IL FILE CHE HAI MODIFICATO
 const healthRoutes = require('./routes/health');
 const monitoringRoutes = require('./routes/monitoring');
 const policiesRoutes = require('./routes/policies');
@@ -344,14 +344,19 @@ if (config.enableSwagger) {
   }
 }
 
-// API vere e proprie
-app.use('/api/v1/admin', adminRoutes);
+// ================ API ROUTES ================
+
+// 1. Auth routes (se necessarie per l'autenticazione)
+app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/firewall', firewallRoutes);
+
+// 3. Altri routes API
+app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/monitoring', monitoringRoutes);
 app.use('/api/v1/policies', policiesRoutes);
-app.use('/api/v1/auth', authRoutes);
 
-// Root API info
+// ================ END API ROUTES ================
+
 app.get('/api/v1', (_req, res) => {
   res.json({
     name: 'OPNsense Management API',
@@ -363,6 +368,13 @@ app.get('/api/v1', (_req, res) => {
       health: '/api/v1/health',
       docs: config.enableSwagger ? '/api-docs' : null,
       metrics: '/metrics',
+      firewall_automation: {
+        rules: '/api/v1/firewall/automation/rules',
+        stats: '/api/v1/firewall/automation/stats',
+        health: '/api/v1/firewall/automation/health',
+        apply: '/api/v1/firewall/automation/apply',
+        bulk: '/api/v1/firewall/automation/bulk'
+      }
     },
   });
 });
@@ -426,6 +438,18 @@ async function initializeApplication() {
     await startServer();
 
     logger.info('Application initialization completed successfully');
+    logger.info('Firewall Automation API endpoints available:');
+    logger.info('  - GET    /api/v1/firewall/automation/rules     - List automation rules');
+    logger.info('  - POST   /api/v1/firewall/automation/rules     - Create automation rule');
+    logger.info('  - GET    /api/v1/firewall/automation/rules/:id - Get specific rule');
+    logger.info('  - PUT    /api/v1/firewall/automation/rules/:id - Update rule');
+    logger.info('  - DELETE /api/v1/firewall/automation/rules/:id - Delete rule');
+    logger.info('  - POST   /api/v1/firewall/automation/rules/:id/toggle - Toggle rule');
+    logger.info('  - GET    /api/v1/firewall/automation/stats     - Get automation stats');
+    logger.info('  - GET    /api/v1/firewall/automation/health    - Get automation health');
+    logger.info('  - POST   /api/v1/firewall/automation/apply     - Apply configuration');
+    logger.info('  - POST   /api/v1/firewall/automation/bulk      - Bulk operations');
+    
   } catch (error) {
     logger.error('Failed to initialize application:', {
       error: error.message,
