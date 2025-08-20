@@ -203,6 +203,7 @@ const createRuleBase = z
     enabled: z.boolean().default(true),
     log: z.boolean().default(false),
     sequence: z.coerce.number().int().min(1).max(9999).optional(),
+    api_managed: z.boolean().default(false).optional(),
   })
   .strip();
 
