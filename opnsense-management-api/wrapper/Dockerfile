@@ -1,43 +1,59 @@
-# Pinna la versione Alpine per evitare cambi improvvisi del tag
-FROM node:20-alpine3.20
+# Usa Node.js LTS con Alpine per dimensioni ridotte
+FROM node:20-alpine
 
+# Metadata
+LABEL maintainer="OPNsense Management API"
+LABEL version="1.0.0"
+LABEL description="REST API wrapper for OPNsense firewall management"
+
+# Imposta working directory
 WORKDIR /app
 
-# Imposta esplicitamente i repository (scegline uno vicino; questo è Leaseweb)
-RUN printf '%s\n' \
-  "https://mirror.leaseweb.net/alpine/v3.20/main" \
-  "https://mirror.leaseweb.net/alpine/v3.20/community" > /etc/apk/repositories
+# Installa dipendenze di sistema minime
+RUN apk update && apk upgrade && \
+    apk add --no-cache \
+        curl \
+        ca-certificates \
+        tzdata \
+        dumb-init \
+    && rm -rf /var/cache/apk/*
 
-# Install dependencies with robust retry logic and explicit dumb-init installation
-RUN set -eux; \
-  for i in 1 2 3; do \
-    apk add --no-cache dumb-init curl ca-certificates tzdata && break; \
-    echo "apk add fallito, retry $i/3"; sleep 5; \
-  done || { echo "Failed to install dependencies after 3 retries"; exit 1; }
-
-# Utente non-root
+# Crea utente non-root per sicurezza
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S opnsense -u 1001 -G nodejs
 
-# Dipendenze Node
+# Copia package files per layer caching ottimale
 COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force && rm -rf /tmp/* /var/tmp/*
 
-# Sorgenti
+# Installa solo dipendenze di produzione
+RUN npm ci --omit=dev && \
+    npm cache clean --force && \
+    rm -rf /tmp/* /var/tmp/*
+
+# Copia codice sorgente
 COPY src/ ./src/
 
-# Permessi e dirs
+# Crea directory per logs e temp files
 RUN mkdir -p /app/logs /app/temp && \
-    chown -R opnsense:nodejs /app && chmod -R 755 /app
+    chown -R opnsense:nodejs /app && \
+    chmod -R 755 /app
 
+# Cambia all'utente non-root
 USER opnsense
+
+# Espone porta dell'applicazione
 EXPOSE 3000
 
+# Imposta variabili ambiente di default
 ENV NODE_ENV=production
 ENV PORT=3000
 
+# Healthcheck integrato nel container
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD curl -fsS http://localhost:3000/api/v1/health || exit 1
+    CMD curl -f http://localhost:3000/api/v1/health || exit 1
 
+# Usa dumb-init per gestire segnali correttamente
 ENTRYPOINT ["dumb-init", "--"]
+
+# Comando di avvio
 CMD ["node", "src/app.js"]
