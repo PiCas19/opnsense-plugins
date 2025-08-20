@@ -1,4 +1,5 @@
 const axios = require('axios');
+const https = require('https');
 const logger = require('../utils/logger');
 const { opnsenseConfig } = require('../config/opnsense');
 const { cache } = require('../config/database');
@@ -18,6 +19,20 @@ class OpnsenseService {
     this.maxRetries = process.env.MAX_API_RETRIES || 3;
     this.requestTimeout = process.env.API_REQUEST_TIMEOUT || 10000;
     this.rateLimitMap = new Map();
+
+    // NUOVO: Configurazione HTTPS Agent per gestire certificati auto-firmati
+    this.httpsAgent = new https.Agent({
+      rejectUnauthorized: process.env.NODE_ENV === 'production' ? true : false,
+      timeout: 30000,
+      secureProtocol: 'TLSv1_2_method',
+      // Per development con certificati auto-firmati
+      checkServerIdentity: (host, cert) => {
+        if (process.env.NODE_ENV !== 'production') {
+          return undefined; // Accetta qualsiasi hostname in development
+        }
+        return https.Agent.prototype.checkServerIdentity(host, cert);
+      }
+    });
   }
 
   /**
@@ -49,12 +64,13 @@ class OpnsenseService {
   }
 
   /**
-   * Initialize HTTP client for OPNsense API with retry logic
+   * Initialize HTTP client for OPNsense API with SSL support
    * @private
    */
   getHttpClient() {
     return axios.create({
       baseURL: this.baseUrl,
+      httpsAgent: this.httpsAgent, // AGGIUNTO: gestione SSL
       auth: {
         username: this.apiKey,
         password: this.apiSecret,
@@ -64,12 +80,16 @@ class OpnsenseService {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
+      },
+      // Interceptors per debugging SSL
+      validateStatus: function (status) {
+        return status < 500; // Non rigettare automaticamente errori 4xx
       }
     });
   }
 
   /**
-   * Make API request with retry logic and rate limiting
+   * Make API request with retry logic and enhanced error handling
    * @param {string} method - HTTP method
    * @param {string} endpoint - API endpoint
    * @param {Object} data - Request data
@@ -89,6 +109,14 @@ class OpnsenseService {
         const client = this.getHttpClient();
         let response;
 
+        logger.debug(`API Request attempt ${attempt}/${this.maxRetries}:`, {
+          method,
+          endpoint,
+          operation,
+          dataKeys: Object.keys(data),
+          baseUrl: this.baseUrl
+        });
+
         switch (method.toLowerCase()) {
           case 'get':
             response = await client.get(endpoint, { params: data });
@@ -106,30 +134,67 @@ class OpnsenseService {
             throw new Error(`Unsupported HTTP method: ${method}`);
         }
 
+        logger.debug('API Request successful:', {
+          method,
+          endpoint,
+          status: response.status,
+          operation
+        });
+
         return response.data;
+
       } catch (error) {
         lastError = error;
-        logger.warn('API request failed', {
+        
+        // Log dettagliato dell'errore
+        logger.warn('API request failed:', {
           method,
           endpoint,
           attempt,
           error: error.message,
-          status: error.response?.status
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          responseData: error.response?.data,
+          operation,
+          code: error.code
         });
 
-        // Don't retry on client errors (4xx)
-        if (error.response?.status >= 400 && error.response?.status < 500) {
+        // Gestione specifica errori SSL
+        if (error.code === 'SELF_SIGNED_CERT_IN_CHAIN' || 
+            error.code === 'CERT_HAS_EXPIRED' ||
+            error.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' ||
+            error.code === 'DEPTH_ZERO_SELF_SIGNED_CERT') {
+          logger.error('SSL Certificate Error:', {
+            code: error.code,
+            message: error.message,
+            suggestion: 'Verifica configurazione SSL o imposta NODE_TLS_REJECT_UNAUTHORIZED=0 per development'
+          });
+        }
+
+        // Don't retry on client errors (4xx) except 429
+        if (error.response?.status >= 400 && error.response?.status < 500 && error.response?.status !== 429) {
           break;
         }
 
         if (attempt < this.maxRetries) {
           const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+          logger.debug(`Retrying in ${delay}ms...`);
           await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
     }
 
-    throw lastError;
+    // Enhance error with context
+    const enhancedError = new Error(
+      `API request failed after ${this.maxRetries} attempts: ${lastError.message}`
+    );
+    enhancedError.originalError = lastError;
+    enhancedError.endpoint = endpoint;
+    enhancedError.method = method;
+    enhancedError.operation = operation;
+    enhancedError.statusCode = lastError.response?.status;
+    
+    throw enhancedError;
   }
 
   /**
@@ -140,10 +205,6 @@ class OpnsenseService {
 
   /**
    * Get all firewall rules using the CORRECT API endpoints
-   * OPNsense stores rules in different sections:
-   * - /api/firewall/filter/searchRule (main filter rules)
-   * - /api/firewall/nat/searchRule (NAT rules)
-   * - /api/firewall/alias/searchItem (aliases)
    */
   async getFirewallRules(filters = {}) {
     try {
@@ -156,7 +217,7 @@ class OpnsenseService {
       try {
         const filterData = await this.makeApiRequest('GET', '/api/firewall/filter/searchRule', {
           current: 1,
-          rowCount: 1000, // Get many rules at once
+          rowCount: 1000,
           ...filters
         }, 'get_filter_rules');
         
@@ -198,7 +259,7 @@ class OpnsenseService {
       const enrichedRules = allRules.map(rule => ({
         ...rule,
         source_type: rule.source_type || 'filter',
-        manageable: rule.source_type !== 'system', // System rules can't be modified
+        manageable: rule.source_type !== 'system',
         created_via: rule.source_type === 'automation' ? 'API' : 'WebUI'
       }));
 
@@ -221,6 +282,7 @@ class OpnsenseService {
       
       // Return demo rules as fallback for development
       if (process.env.NODE_ENV === 'development') {
+        logger.warn('Returning demo rules for development');
         return this.getDemoRules();
       }
       
@@ -230,7 +292,6 @@ class OpnsenseService {
 
   /**
    * Get firewall configuration via XML configuration dump
-   * This provides access to ALL rules including those not in automation API
    */
   async getFirewallConfiguration() {
     try {
@@ -315,16 +376,17 @@ class OpnsenseService {
       uuid: rule.uuid || rule.id,
       description: rule.description || rule.descr || 'Unnamed Rule',
       interface: rule.interface || 'wan',
-      action: rule.action || 'pass',
+      action: rule.action || rule.type || 'pass',
       enabled: rule.enabled === '1' || rule.enabled === true,
-      source: rule.source || 'any',
-      destination: rule.destination || 'any',
+      source: rule.source || rule.source_net || 'any',
+      destination: rule.destination || rule.destination_net || 'any',
       protocol: rule.protocol || 'any',
       source_port: rule.source_port || null,
       destination_port: rule.destination_port || null,
       created: rule.created || new Date().toISOString(),
       source_type: 'filter',
-      manageable: true
+      manageable: true,
+      log: rule.log === '1' || rule.log === true
     };
   }
 
@@ -345,89 +407,6 @@ class OpnsenseService {
       source_type: 'automation',
       manageable: true
     };
-  }
-
-  /**
-   * Toggle firewall rule (enable/disable)
-   * Works with REAL OPNsense rules via proper API endpoints
-   */
-  async toggleFirewallRule(ruleId, enabled) {
-    try {
-      // Validate permissions
-      const user = await this.validateUserPermissions('update_rules');
-
-      // First, get the current rule to determine its type and current state
-      const currentRule = await this.getFirewallRuleById(ruleId);
-      if (!currentRule) {
-        throw new Error(`Rule with ID ${ruleId} not found`);
-      }
-
-      if (!currentRule.manageable) {
-        throw new Error('This rule cannot be modified (system rule)');
-      }
-
-      let result;
-      
-      // Handle different rule types differently
-      if (currentRule.source_type === 'automation') {
-        // Use automation API for automation rules
-        result = await this.toggleAutomationRule(ruleId, enabled);
-      } else {
-        // Use filter API for standard rules
-        result = await this.toggleFilterRule(ruleId, enabled);
-      }
-
-      // Apply configuration changes
-      await this.applyConfigurationChanges();
-
-      // Invalidate cache
-      await this.invalidateCachePattern('firewall_rules_*');
-
-      // Record metrics
-      metricsHelpers.recordConfigurationChange('firewall_rule_toggled', {
-        rule_id: ruleId,
-        enabled: enabled,
-        rule_type: currentRule.source_type,
-        user_id: this.user.id
-      });
-
-      logger.info('Firewall rule toggled successfully', {
-        rule_id: ruleId,
-        enabled: enabled,
-        rule_type: currentRule.source_type,
-        user_id: this.user.id,
-        username: user.username
-      });
-
-      return {
-        success: true,
-        rule_id: ruleId,
-        enabled: enabled,
-        message: `Rule ${enabled ? 'enabled' : 'disabled'} successfully`
-      };
-
-    } catch (error) {
-      logger.error('Failed to toggle firewall rule', {
-        error: error.message,
-        rule_id: ruleId,
-        enabled: enabled,
-        user_id: this.user?.id
-      });
-
-      await this.alertService.createSystemAlert({
-        type: 'configuration_error',
-        message: `Failed to toggle firewall rule: ${error.message}`,
-        severity: 'high',
-        source: 'opnsense',
-        metadata: { 
-          ruleId, 
-          enabled,
-          error_type: 'toggle_failure'
-        }
-      });
-
-      throw error;
-    }
   }
 
   /**
@@ -466,6 +445,90 @@ class OpnsenseService {
         user_id: this.user?.id 
       });
       return null;
+    }
+  }
+
+  /**
+   * Toggle firewall rule (enable/disable)
+   */
+  async toggleFirewallRule(ruleId, enabled) {
+    try {
+      // Validate permissions
+      const user = await this.validateUserPermissions('update_rules');
+
+      // First, get the current rule to determine its type and current state
+      const currentRule = await this.getFirewallRuleById(ruleId);
+      if (!currentRule) {
+        throw new Error(`Rule with ID ${ruleId} not found`);
+      }
+
+      if (!currentRule.manageable) {
+        throw new Error('This rule cannot be modified (system rule)');
+      }
+
+      let result;
+      
+      // Handle different rule types differently
+      if (currentRule.source_type === 'automation') {
+        result = await this.toggleAutomationRule(ruleId, enabled);
+      } else {
+        result = await this.toggleFilterRule(ruleId, enabled);
+      }
+
+      // Apply configuration changes
+      await this.applyConfigurationChanges();
+
+      // Invalidate cache
+      await this.invalidateCachePattern('firewall_rules_*');
+
+      // Record metrics
+      if (metricsHelpers) {
+        metricsHelpers.recordConfigurationChange('firewall_rule_toggled', {
+          rule_id: ruleId,
+          enabled: enabled,
+          rule_type: currentRule.source_type,
+          user_id: this.user?.id
+        });
+      }
+
+      logger.info('Firewall rule toggled successfully', {
+        rule_id: ruleId,
+        enabled: enabled,
+        rule_type: currentRule.source_type,
+        user_id: this.user?.id,
+        username: user.username
+      });
+
+      return {
+        success: true,
+        rule_id: ruleId,
+        enabled: enabled,
+        message: `Rule ${enabled ? 'enabled' : 'disabled'} successfully`
+      };
+
+    } catch (error) {
+      logger.error('Failed to toggle firewall rule', {
+        error: error.message,
+        rule_id: ruleId,
+        enabled: enabled,
+        user_id: this.user?.id
+      });
+
+      if (this.alertService) {
+        await this.alertService.createSystemAlert({
+          type: 'configuration_error',
+          message: `Failed to toggle firewall rule: ${error.message}`,
+          severity: 'high',
+          source: 'opnsense',
+          metadata: { 
+            ruleId, 
+            enabled,
+            error_type: 'toggle_failure'
+          }
+        });
+      }
+
+      throw error;
     }
   }
 
@@ -541,7 +604,6 @@ class OpnsenseService {
 
   /**
    * Create new firewall rule using the appropriate API
-   * Creates rules that integrate with the main firewall system
    */
   async createFirewallRule(ruleData) {
     try {
@@ -570,17 +632,19 @@ class OpnsenseService {
       await this.invalidateCachePattern('firewall_rules_*');
 
       // Record metrics
-      metricsHelpers.recordConfigurationChange('firewall_rule_created', {
-        rule_type: useAutomationAPI ? 'automation' : 'filter',
-        interface: ruleData.interface,
-        action: ruleData.action,
-        user_id: this.user.id
-      });
+      if (metricsHelpers) {
+        metricsHelpers.recordConfigurationChange('firewall_rule_created', {
+          rule_type: useAutomationAPI ? 'automation' : 'filter',
+          interface: ruleData.interface,
+          action: ruleData.action,
+          user_id: this.user?.id
+        });
+      }
 
       logger.info('Firewall rule created successfully', {
         rule_id: result.uuid,
         rule_type: useAutomationAPI ? 'automation' : 'filter',
-        user_id: this.user.id,
+        user_id: this.user?.id,
         username: user.username
       });
 
@@ -597,48 +661,97 @@ class OpnsenseService {
   }
 
   /**
-   * Create filter rule (integrates with web UI)
+   * CORRETTO: Create filter rule (integrates with web UI)
    */
   async createFilterRule(ruleData) {
-  const formattedRule = {
-    enabled: ruleData.enabled ? '1' : '0',
-    interface: ruleData.interface || 'wan',
-    direction: ruleData.direction || 'in',
-    ipprotocol: ruleData.ipprotocol || 'inet',
-    protocol: ruleData.protocol || 'any',
-    source_net: this.convertToOPNsenseFormat(ruleData.source) || 'any',
-    destination_net: this.convertToOPNsenseFormat(ruleData.destination) || 'any',
-    action: ruleData.action || 'pass',
-    description: ruleData.description || 'API Created Rule',
-    log: ruleData.log ? '1' : '0'
-  };
+    // Formato corretto per OPNsense Filter API
+    const formattedRule = {
+      enabled: ruleData.enabled ? '1' : '0',
+      interface: ruleData.interface || 'wan',
+      direction: 'in', // OPNsense richiede direction
+      ipprotocol: 'inet', // IPv4
+      protocol: ruleData.protocol || 'any',
+      
+      // CORRETTO: Formato source/destination per OPNsense
+      source_net: this.formatAddressForOPNsense(ruleData.source),
+      source_port: ruleData.source_port || '',
+      destination_net: this.formatAddressForOPNsense(ruleData.destination),
+      destination_port: ruleData.destination_port || '',
+      
+      // Action mapping corretto
+      type: ruleData.action || 'pass', // OPNsense usa 'type' non 'action'
+      descr: ruleData.description || 'API Created Rule', // OPNsense usa 'descr'
+      log: ruleData.log ? '1' : '0',
+      
+      // Campi aggiuntivi richiesti da OPNsense
+      quick: '1', // Applica regola immediatamente
+      floating: '0' // Non è una regola floating
+    };
 
-  const result = await this.makeApiRequest('POST', '/api/firewall/filter/addRule', {
-    rule: formattedRule
-  }, 'create_filter_rule');
+    logger.info('Creating filter rule with formatted data:', formattedRule);
 
-  return {
-    uuid: result.uuid,
-    ...formattedRule,
-    source_type: 'filter'
-  };
-}
+    try {
+      const result = await this.makeApiRequest('POST', '/api/firewall/filter/addRule', {
+        rule: formattedRule
+      }, 'create_filter_rule');
 
-convertToOPNsenseFormat(addressObj) {
-  // Se è già una stringa, restituiscila
-  if (typeof addressObj === 'string') {
-    return addressObj;
+      if (!result || !result.uuid) {
+        throw new Error('OPNsense API did not return a valid rule UUID');
+      }
+
+      return {
+        uuid: result.uuid,
+        description: formattedRule.descr,
+        interface: formattedRule.interface,
+        action: ruleData.action,
+        enabled: ruleData.enabled,
+        source: this.formatAddressForOPNsense(ruleData.source),
+        destination: this.formatAddressForOPNsense(ruleData.destination),
+        protocol: formattedRule.protocol,
+        source_type: 'filter',
+        manageable: true
+      };
+
+    } catch (error) {
+      logger.error('Failed to create filter rule:', {
+        error: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        formattedRule
+      });
+      throw error;
+    }
   }
-  
-  // Se è un oggetto, convertilo
-  if (addressObj && typeof addressObj === 'object') {
-    if (addressObj.type === 'any') return 'any';
-    if (addressObj.type === 'network') return addressObj.network;
-    if (addressObj.type === 'single') return addressObj.address;
+
+  /**
+   * NUOVO: Formatta indirizzi per OPNsense in modo corretto
+   */
+  formatAddressForOPNsense(addressInput) {
+    if (!addressInput || addressInput === 'any') {
+      return 'any';
+    }
+
+    // Se è già una stringa semplice, restituiscila
+    if (typeof addressInput === 'string') {
+      return addressInput;
+    }
+
+    // Se è un oggetto con type/network/address
+    if (typeof addressInput === 'object') {
+      switch (addressInput.type) {
+        case 'any':
+          return 'any';
+        case 'network':
+          return addressInput.network;
+        case 'single':
+          return addressInput.address;
+        default:
+          return 'any';
+      }
+    }
+
+    return 'any';
   }
-  
-  return 'any';
-}
 
   /**
    * Create automation rule (separate from web UI)
@@ -648,21 +761,279 @@ convertToOPNsenseFormat(addressObj) {
       enabled: ruleData.enabled ? '1' : '0',
       interface: ruleData.interface || 'wan',
       action: ruleData.action || 'pass',
-      source: ruleData.source || 'any',
-      destination: ruleData.destination || 'any',
+      source: this.formatAddressForOPNsense(ruleData.source),
+      destination: this.formatAddressForOPNsense(ruleData.destination),
       protocol: ruleData.protocol || 'any',
-      description: ruleData.description || 'API Automation Rule'
+      description: ruleData.description || 'API Automation Rule',
+      sequence: ruleData.sequence || 1,
+      quick: true
     };
 
-    const result = await this.makeApiRequest('POST', '/api/firewall/filter_util/add', {
-      rule: formattedRule
-    }, 'create_automation_rule');
+    logger.info('Creating automation rule with formatted data:', formattedRule);
 
-    return {
-      uuid: result.uuid,
-      ...formattedRule,
-      source_type: 'automation'
-    };
+    try {
+      const result = await this.makeApiRequest('POST', '/api/firewall/filter_util/add', {
+        rule: formattedRule
+      }, 'create_automation_rule');
+
+      return {
+        uuid: result.uuid || `auto-${Date.now()}`,
+        ...formattedRule,
+        source_type: 'automation'
+      };
+
+    } catch (error) {
+      logger.error('Failed to create automation rule:', {
+        error: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        formattedRule
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Update existing firewall rule
+   */
+  async updateFirewallRule(ruleId, updates) {
+    try {
+      // Validate permissions
+      const user = await this.validateUserPermissions('update_rules');
+
+      // Get existing rule
+      const existingRule = await this.getFirewallRuleById(ruleId);
+      if (!existingRule) {
+        throw new Error(`Rule with ID ${ruleId} not found`);
+      }
+
+      if (!existingRule.manageable) {
+        throw new Error('This rule cannot be modified (system rule)');
+      }
+
+      let result;
+      if (existingRule.source_type === 'automation') {
+        result = await this.updateAutomationRule(ruleId, updates);
+      } else {
+        result = await this.updateFilterRule(ruleId, updates);
+      }
+
+      // Apply configuration
+      await this.applyConfigurationChanges();
+
+      // Invalidate cache
+      await this.invalidateCachePattern('firewall_rules_*');
+
+      logger.info('Firewall rule updated successfully', {
+        rule_id: ruleId,
+        user_id: this.user?.id,
+        username: user.username
+      });
+
+      return result;
+
+    } catch (error) {
+      logger.error('Failed to update firewall rule', {
+        error: error.message,
+        ruleId,
+        updates,
+        user_id: this.user?.id
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Update filter rule
+   */
+  async updateFilterRule(ruleId, updates) {
+    try {
+      // Get current rule
+      const ruleData = await this.makeApiRequest('GET', `/api/firewall/filter/getRule/${ruleId}`, {}, 'get_filter_rule');
+      
+      if (!ruleData || !ruleData.rule) {
+        throw new Error(`Filter rule ${ruleId} not found`);
+      }
+
+      // Merge updates with existing rule
+      const updatedRule = {
+        ...ruleData.rule,
+        ...this.formatUpdatesForOPNsense(updates)
+      };
+
+      // Save the updated rule
+      const result = await this.makeApiRequest('POST', `/api/firewall/filter/setRule/${ruleId}`, {
+        rule: updatedRule
+      }, 'update_filter_rule');
+
+      return this.normalizeFilterRule(updatedRule);
+
+    } catch (error) {
+      logger.error('Failed to update filter rule', { 
+        error: error.message, 
+        ruleId, 
+        updates 
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Update automation rule
+   */
+  async updateAutomationRule(ruleId, updates) {
+    try {
+      // Get current rule
+      const ruleData = await this.makeApiRequest('GET', `/api/firewall/filter_util/get/${ruleId}`, {}, 'get_automation_rule');
+      
+      if (!ruleData || !ruleData.rule) {
+        throw new Error(`Automation rule ${ruleId} not found`);
+      }
+
+      // Merge updates
+      const updatedRule = {
+        ...ruleData.rule,
+        ...updates
+      };
+
+      // Save the updated rule
+      const result = await this.makeApiRequest('POST', `/api/firewall/filter_util/set/${ruleId}`, {
+        rule: updatedRule
+      }, 'update_automation_rule');
+
+      return this.normalizeAutomationRule(updatedRule);
+
+    } catch (error) {
+      logger.error('Failed to update automation rule', { 
+        error: error.message, 
+        ruleId, 
+        updates 
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Format updates for OPNsense API
+   */
+  formatUpdatesForOPNsense(updates) {
+    const formatted = {};
+
+    if (updates.description !== undefined) {
+      formatted.descr = updates.description;
+    }
+    if (updates.enabled !== undefined) {
+      formatted.enabled = updates.enabled ? '1' : '0';
+    }
+    if (updates.action !== undefined) {
+      formatted.type = updates.action;
+    }
+    if (updates.interface !== undefined) {
+      formatted.interface = updates.interface;
+    }
+    if (updates.protocol !== undefined) {
+      formatted.protocol = updates.protocol;
+    }
+    if (updates.source !== undefined) {
+      formatted.source_net = this.formatAddressForOPNsense(updates.source);
+    }
+    if (updates.destination !== undefined) {
+      formatted.destination_net = this.formatAddressForOPNsense(updates.destination);
+    }
+    if (updates.source_port !== undefined) {
+      formatted.source_port = updates.source_port;
+    }
+    if (updates.destination_port !== undefined) {
+      formatted.destination_port = updates.destination_port;
+    }
+    if (updates.log !== undefined) {
+      formatted.log = updates.log ? '1' : '0';
+    }
+
+    return formatted;
+  }
+
+  /**
+   * Delete firewall rule
+   */
+  async deleteFirewallRule(ruleId) {
+    try {
+      // Validate permissions
+      const user = await this.validateUserPermissions('delete_rules');
+
+      // Get existing rule to determine type
+      const existingRule = await this.getFirewallRuleById(ruleId);
+      if (!existingRule) {
+        throw new Error(`Rule with ID ${ruleId} not found`);
+      }
+
+      if (!existingRule.manageable) {
+        throw new Error('This rule cannot be deleted (system rule)');
+      }
+
+      let success;
+      if (existingRule.source_type === 'automation') {
+        success = await this.deleteAutomationRule(ruleId);
+      } else {
+        success = await this.deleteFilterRule(ruleId);
+      }
+
+      if (success) {
+        // Apply configuration
+        await this.applyConfigurationChanges();
+
+        // Invalidate cache
+        await this.invalidateCachePattern('firewall_rules_*');
+
+        logger.info('Firewall rule deleted successfully', {
+          rule_id: ruleId,
+          user_id: this.user?.id,
+          username: user.username
+        });
+      }
+
+      return success;
+
+    } catch (error) {
+      logger.error('Failed to delete firewall rule', {
+        error: error.message,
+        ruleId,
+        user_id: this.user?.id
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Delete filter rule
+   */
+  async deleteFilterRule(ruleId) {
+    try {
+      const result = await this.makeApiRequest('POST', `/api/firewall/filter/delRule/${ruleId}`, {}, 'delete_filter_rule');
+      return result.result === 'deleted' || result.success === true;
+    } catch (error) {
+      logger.error('Failed to delete filter rule', { 
+        error: error.message, 
+        ruleId 
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Delete automation rule
+   */
+  async deleteAutomationRule(ruleId) {
+    try {
+      const result = await this.makeApiRequest('POST', `/api/firewall/filter_util/del/${ruleId}`, {}, 'delete_automation_rule');
+      return result.result === 'deleted' || result.success === true;
+    } catch (error) {
+      logger.error('Failed to delete automation rule', { 
+        error: error.message, 
+        ruleId 
+      });
+      throw error;
+    }
   }
 
   /**
@@ -677,14 +1048,21 @@ convertToOPNsenseFormat(addressObj) {
         '/api/firewall/filter_util/apply'
       ];
 
+      let appliedSuccessfully = false;
+
       for (const endpoint of applyEndpoints) {
         try {
           const result = await this.makeApiRequest('POST', endpoint, {}, 'apply_config');
           logger.debug('Configuration applied via endpoint', { endpoint, result });
+          appliedSuccessfully = true;
         } catch (error) {
           logger.warn('Apply failed for endpoint', { endpoint, error: error.message });
           // Continue to next endpoint
         }
+      }
+
+      if (!appliedSuccessfully) {
+        throw new Error('Failed to apply configuration via any endpoint');
       }
 
       // Wait a moment for changes to propagate
@@ -697,6 +1075,241 @@ convertToOPNsenseFormat(addressObj) {
       logger.error('Failed to apply configuration changes', { error: error.message });
       throw error;
     }
+  }
+
+  /**
+   * Get service health information
+   */
+  async getServiceHealth() {
+    try {
+      const startTime = Date.now();
+      
+      // Test basic connectivity
+      const connectionTest = await this.testConnection();
+      const responseTime = Date.now() - startTime;
+
+      // Try to get system status
+      let systemStatus = 'unknown';
+      let systemInfo = {};
+      
+      try {
+        const statusData = await this.makeApiRequest('GET', '/api/core/system/status', {}, 'get_system_status');
+        systemStatus = 'healthy';
+        systemInfo = statusData;
+      } catch (error) {
+        logger.warn('Could not get system status', { error: error.message });
+        systemStatus = connectionTest.success ? 'degraded' : 'unhealthy';
+      }
+
+      return {
+        overall_status: systemStatus,
+        components: {
+          api_connectivity: connectionTest.success,
+          firewall_rules_accessible: await this.testFirewallAccess(),
+          api_response_time_ms: responseTime
+        },
+        system_info: systemInfo,
+        rate_limit_status: this.getRateLimitStatus(),
+        timestamp: new Date().toISOString()
+      };
+
+    } catch (error) {
+      logger.error('Failed to get service health', { error: error.message });
+      return {
+        overall_status: 'unhealthy',
+        error: error.message,
+        timestamp: new Date().toISOString()
+      };
+    }
+  }
+
+  /**
+   * Test firewall API access
+   */
+  async testFirewallAccess() {
+    try {
+      await this.makeApiRequest('GET', '/api/firewall/filter/searchRule', { 
+        current: 1, 
+        rowCount: 1 
+      }, 'test_firewall_access');
+      return true;
+    } catch (error) {
+      logger.warn('Firewall access test failed', { error: error.message });
+      return false;
+    }
+  }
+
+  /**
+   * Get rate limit status
+   */
+  getRateLimitStatus() {
+    const now = Date.now();
+    const windowMs = 60000; // 1 minute
+    let totalRequests = 0;
+    let activeOperations = 0;
+
+    for (const [operation, requests] of this.rateLimitMap.entries()) {
+      const validRequests = requests.filter(timestamp => now - timestamp < windowMs);
+      totalRequests += validRequests.length;
+      if (validRequests.length > 0) {
+        activeOperations++;
+      }
+    }
+
+    return {
+      active_operations: activeOperations,
+      total_requests_last_minute: totalRequests,
+      operations: Object.fromEntries(
+        Array.from(this.rateLimitMap.entries()).map(([op, requests]) => [
+          op, 
+          requests.filter(timestamp => now - timestamp < windowMs).length
+        ])
+      )
+    };
+  }
+
+  /**
+   * Test connection to OPNsense
+   */
+  async testConnection() {
+    try {
+      const startTime = Date.now();
+      
+      const data = await this.makeApiRequest('GET', '/api/core/firmware/status', {}, 'test_connection');
+      
+      const responseTime = Date.now() - startTime;
+      
+      return {
+        success: true,
+        response_time_ms: responseTime,
+        api_version: data?.api_version || 'unknown',
+        system_version: data?.version || data?.product_version || 'unknown',
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        status_code: error.response?.status,
+        timestamp: new Date().toISOString()
+      };
+    }
+  }
+
+  /**
+   * MIGLIORATO: Validazione dati regola più robusta
+   */
+  validateRuleData(ruleData) {
+    const requiredFields = ['interface', 'action', 'description'];
+    const validActions = ['pass', 'block', 'reject'];
+    const validInterfaces = ['wan', 'lan', 'opt1', 'opt2', 'opt3', 'dmz'];
+    const validProtocols = ['tcp', 'udp', 'icmp', 'any'];
+
+    // Verifica campi obbligatori
+    for (const field of requiredFields) {
+      if (!ruleData[field]) {
+        throw new Error(`Campo obbligatorio mancante: ${field}`);
+      }
+    }
+
+    // Verifica valori validi
+    if (!validActions.includes(ruleData.action)) {
+      throw new Error(`Action non valida. Deve essere uno di: ${validActions.join(', ')}`);
+    }
+
+    if (!validInterfaces.includes(ruleData.interface)) {
+      throw new Error(`Interface non valida. Deve essere una di: ${validInterfaces.join(', ')}`);
+    }
+
+    if (ruleData.protocol && !validProtocols.includes(ruleData.protocol)) {
+      throw new Error(`Protocol non valido. Deve essere uno di: ${validProtocols.join(', ')}`);
+    }
+
+    // Verifica descrizione
+    if (ruleData.description && ruleData.description.length > 255) {
+      throw new Error('Descrizione troppo lunga (max 255 caratteri)');
+    }
+
+    // Verifica formato indirizzi
+    if (ruleData.source && typeof ruleData.source === 'object') {
+      this.validateAddressObject(ruleData.source, 'source');
+    }
+
+    if (ruleData.destination && typeof ruleData.destination === 'object') {
+      this.validateAddressObject(ruleData.destination, 'destination');
+    }
+  }
+
+  /**
+   * NUOVO: Validazione oggetti indirizzo
+   */
+  validateAddressObject(addressObj, fieldName) {
+    const validTypes = ['any', 'network', 'single'];
+    
+    if (!addressObj.type || !validTypes.includes(addressObj.type)) {
+      throw new Error(`${fieldName} type deve essere uno di: ${validTypes.join(', ')}`);
+    }
+
+    if (addressObj.type === 'network' && !addressObj.network) {
+      throw new Error(`${fieldName} di tipo 'network' deve specificare 'network'`);
+    }
+
+    if (addressObj.type === 'single' && !addressObj.address) {
+      throw new Error(`${fieldName} di tipo 'single' deve specificare 'address'`);
+    }
+
+    // Validazione formato IP/CIDR di base
+    if (addressObj.network) {
+      if (!this.isValidNetworkFormat(addressObj.network)) {
+        throw new Error(`${fieldName} network ha formato non valido: ${addressObj.network}`);
+      }
+    }
+
+    if (addressObj.address) {
+      if (!this.isValidIPFormat(addressObj.address)) {
+        throw new Error(`${fieldName} address ha formato non valido: ${addressObj.address}`);
+      }
+    }
+  }
+
+  /**
+   * NUOVO: Validazione formato network CIDR
+   */
+  isValidNetworkFormat(network) {
+    const cidrRegex = /^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/;
+    return cidrRegex.test(network);
+  }
+
+  /**
+   * NUOVO: Validazione formato IP
+   */
+  isValidIPFormat(ip) {
+    const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+    return ipRegex.test(ip);
+  }
+
+  /**
+   * Validate user permissions
+   */
+  async validateUserPermissions(action) {
+    if (!this.user) {
+      throw new Error('User authentication required');
+    }
+
+    const user = await User.findByPk(this.user.id);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    if (!user.is_active) {
+      throw new Error('User account is disabled');
+    }
+
+    if (user.hasPermission && !user.hasPermission(action)) {
+      throw new Error(`User does not have permission to ${action}`);
+    }
+
+    return user;
   }
 
   /**
@@ -715,7 +1328,9 @@ convertToOPNsenseFormat(addressObj) {
         protocol: 'any',
         source_type: 'demo',
         manageable: true,
-        created_via: 'Demo'
+        created_via: 'Demo',
+        created: new Date().toISOString(),
+        log: true
       },
       {
         uuid: 'demo-rule-2',
@@ -726,9 +1341,12 @@ convertToOPNsenseFormat(addressObj) {
         source: '192.168.1.0/24',
         destination: '192.168.216.1',
         protocol: 'tcp',
+        destination_port: '22',
         source_type: 'demo',
         manageable: true,
-        created_via: 'Demo'
+        created_via: 'Demo',
+        created: new Date().toISOString(),
+        log: false
       },
       {
         uuid: 'demo-rule-3',
@@ -741,17 +1359,22 @@ convertToOPNsenseFormat(addressObj) {
         protocol: 'tcp',
         source_type: 'demo',
         manageable: true,
-        created_via: 'Demo'
+        created_via: 'Demo',
+        created: new Date().toISOString(),
+        log: true
       }
     ];
   }
 
-  // ... rest of the existing methods (safeGetCache, safeSetCache, etc.)
-  // mantenere gli altri metodi esistenti senza modifiche
-
+  /**
+   * Cache management methods
+   */
   async safeGetCache(key) {
     try {
-      return await cache.get(key);
+      if (cache && cache.get) {
+        return await cache.get(key);
+      }
+      return null;
     } catch (error) {
       logger.warn('Cache get failed', { key, error: error.message });
       return null;
@@ -760,7 +1383,9 @@ convertToOPNsenseFormat(addressObj) {
 
   async safeSetCache(key, value, ttl = this.cacheTimeout) {
     try {
-      await cache.set(key, value, ttl);
+      if (cache && cache.set) {
+        await cache.set(key, value, ttl);
+      }
     } catch (error) {
       logger.warn('Cache set failed', { key, error: error.message });
     }
@@ -768,79 +1393,15 @@ convertToOPNsenseFormat(addressObj) {
 
   async invalidateCachePattern(pattern) {
     try {
-      const keys = await cache.keys(pattern);
-      if (keys.length > 0) {
-        await cache.del(keys);
-        logger.info('Cache invalidated', { pattern, keys_count: keys.length });
+      if (cache && cache.keys && cache.del) {
+        const keys = await cache.keys(pattern);
+        if (keys.length > 0) {
+          await cache.del(keys);
+          logger.info('Cache invalidated', { pattern, keys_count: keys.length });
+        }
       }
     } catch (error) {
       logger.warn('Cache invalidation failed', { pattern, error: error.message });
-    }
-  }
-
-  validateRuleData(ruleData) {
-    const requiredFields = ['interface', 'action', 'description'];
-    const validActions = ['pass', 'block', 'reject'];
-    const validInterfaces = ['wan', 'lan', 'opt1', 'opt2', 'opt3'];
-
-    for (const field of requiredFields) {
-      if (!ruleData[field]) {
-        throw new Error(`${field} is required`);
-      }
-    }
-
-    if (!validActions.includes(ruleData.action)) {
-      throw new Error(`Invalid action. Must be one of: ${validActions.join(', ')}`);
-    }
-
-    if (!validInterfaces.includes(ruleData.interface)) {
-      throw new Error(`Invalid interface. Must be one of: ${validInterfaces.join(', ')}`);
-    }
-  }
-
-  async validateUserPermissions(action) {
-    if (!this.user) {
-      throw new Error('User authentication required');
-    }
-
-    const user = await User.findByPk(this.user.id);
-    if (!user) {
-      throw new Error('User not found');
-    }
-
-    if (!user.is_active) {
-      throw new Error('User account is disabled');
-    }
-
-    if (!user.hasPermission(action)) {
-      throw new Error(`User does not have permission to ${action}`);
-    }
-
-    return user;
-  }
-
-  async testConnection() {
-    try {
-      const startTime = Date.now();
-      
-      const data = await this.makeApiRequest('GET', '/api/core/firmware/status', {}, 'test_connection');
-      
-      const responseTime = Date.now() - startTime;
-      
-      return {
-        success: true,
-        response_time_ms: responseTime,
-        api_version: data?.api_version || 'unknown',
-        system_version: data?.version || 'unknown',
-        timestamp: new Date()
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error.message,
-        status_code: error.response?.status,
-        timestamp: new Date()
-      };
     }
   }
 }
