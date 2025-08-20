@@ -9,15 +9,10 @@ WORKDIR /app
 
 # Imposta repo espliciti e installa con retry
 # (puoi cambiare mirror se preferisci)
-RUN set -eux; \
-  printf '%s\n' \
-    "https://mirror.leaseweb.net/alpine/v3.20/main" \
-    "https://mirror.leaseweb.net/alpine/v3.20/community" \
-    > /etc/apk/repositories; \
-  for i in 1 2 3; do \
-    apk add --no-cache curl ca-certificates tzdata dumb-init && break; \
-    echo "apk add fallito, retry $i/3"; sleep 5; \
-  done
+RUN printf '%s\n' \
+  "https://mirror.leaseweb.net/alpine/v3.20/main" \
+  "https://mirror.leaseweb.net/alpine/v3.20/community" > /etc/apk/repositories \
+ && apk add --no-cache curl ca-certificates tzdata tini
 
 # Utente non-root
 RUN addgroup -g 1001 -S nodejs && \
@@ -45,5 +40,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD curl -fsS http://localhost:3000/api/v1/health || exit 1
 
 # Usa il percorso ASSOLUTO, così non dipendi dal PATH
-ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["node", "src/app.js"]
