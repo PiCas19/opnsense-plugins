@@ -39,17 +39,15 @@ services:
       REDIS_CONNECT_TIMEOUT: ${REDIS_CONNECT_TIMEOUT:-10000}
       REDIS_KEEP_ALIVE: ${REDIS_KEEP_ALIVE:-30000}
       
-      # OPNsense API - CONFIGURAZIONE SSL CORRETTA
-      OPNSENSE_BASE_URL: ${OPNSENSE_BASE_URL:-https://192.168.216.1}
+      # OPNsense API
+      OPNSENSE_BASE_URL: ${OPNSENSE_BASE_URL}
       OPNSENSE_API_KEY: ${OPNSENSE_API_KEY}
       OPNSENSE_API_SECRET: ${OPNSENSE_API_SECRET}
       OPNSENSE_SSL_VERIFY: ${OPNSENSE_SSL_VERIFY:-false}
       OPNSENSE_TIMEOUT: ${OPNSENSE_TIMEOUT:-30000}
       OPNSENSE_RETRIES: ${OPNSENSE_RETRIES:-3}
       OPNSENSE_RETRY_DELAY: ${OPNSENSE_RETRY_DELAY:-1000}
-      # Certificato CA personalizzato (se presente)
       NODE_EXTRA_CA_CERTS: ${NODE_EXTRA_CA_CERTS:-/app/certs/lan-ca.pem}
-      OPNSENSE_CA_CERT_PATH: ${OPNSENSE_CA_CERT_PATH:-/app/certs/lan-ca.pem}
       
       # Authentication & JWT
       JWT_SECRET: ${JWT_SECRET}
@@ -89,17 +87,6 @@ services:
       GIT_BRANCH: ${GIT_BRANCH:-}
       BUILD_NUMBER: ${BUILD_NUMBER:-}
       
-      # SSH Configuration (opzionale)
-      OPNSENSE_SSH_HOST: ${OPNSENSE_SSH_HOST:-192.168.216.1}
-      OPNSENSE_SSH_PORT: ${OPNSENSE_SSH_PORT:-22}
-      OPNSENSE_SSH_USER: ${OPNSENSE_SSH_USER:-root}
-      OPNSENSE_SSH_PASSWORD: ${OPNSENSE_SSH_PASSWORD:-}
-      OPNSENSE_SSH_PRIVATE_KEY: ${OPNSENSE_SSH_PRIVATE_KEY:-}
-      OPNSENSE_SSH_PRIVATE_KEY_PATH: ${OPNSENSE_SSH_PRIVATE_KEY_PATH:-}
-      OPNSENSE_SSH_USE_SUDO: ${OPNSENSE_SSH_USE_SUDO:-false}
-      OPNSENSE_SSH_READY_TIMEOUT: ${OPNSENSE_SSH_READY_TIMEOUT:-10000}
-      OPNSENSE_SSH_HOST_FINGERPRINT: ${OPNSENSE_SSH_HOST_FINGERPRINT:-}
-      
     depends_on:
       postgres:
         condition: service_healthy
@@ -111,7 +98,6 @@ services:
     volumes:
       - ./logs:/app/logs
       - ./temp:/app/temp
-      # IMPORTANTE: Monta la cartella certs come read-only
       - ./certs:/app/certs:ro 
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/v1/health"]
