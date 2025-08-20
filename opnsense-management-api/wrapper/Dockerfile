@@ -1,49 +1,59 @@
-FROM node:20-alpine3.20
+# Usa Node.js LTS con Alpine per dimensioni ridotte
+FROM node:20-alpine
 
+# Metadata
 LABEL maintainer="OPNsense Management API"
 LABEL version="1.0.0"
 LABEL description="REST API wrapper for OPNsense firewall management"
 
+# Imposta working directory
 WORKDIR /app
 
-# utente non-root
-RUN addgroup -g 1001 -S nodejs && adduser -S opnsense -u 1001 -G nodejs
+# Installa dipendenze di sistema minime
+RUN apk update && apk upgrade && \
+    apk add --no-cache \
+        curl \
+        ca-certificates \
+        tzdata \
+        dumb-init \
+    && rm -rf /var/cache/apk/*
 
-# ---- deps (diagnostica + fallback) ----
-COPY package.json package-lock.json* ./
+# Crea utente non-root per sicurezza
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S opnsense -u 1001 -G nodejs
 
-# (facoltativo) stampa l'entry del lock per dotenv
-RUN node -e "const l=require('./package-lock.json'); \
-  const e=l && l.packages && l.packages['node_modules/dotenv']; \
-  console.log('lock dotenv entry:', e || 'NONE');"
+# Copia package files per layer caching ottimale
+COPY package*.json ./
 
-# installa solo deps prod
-RUN npm ci --omit=dev --silent
+# Installa solo dipendenze di produzione
+RUN npm ci --omit=dev && \
+    npm cache clean --force && \
+    rm -rf /tmp/* /var/tmp/*
 
-# prova a risolvere dotenv; se fallisce, forza install e riprova
-RUN set -eux; \
-  node -e "console.log('cwd=',process.cwd()); \
-           try{console.log('resolve dotenv =',require.resolve('dotenv'))} \
-           catch(e){process.exit(42)}" \
-  || { \
-       echo 'dotenv non risolvibile: eseguo npm install --no-save dotenv@17.2.1'; \
-       npm install --no-save dotenv@17.2.1 --silent; \
-       node -e "console.log('after install, resolve =', require.resolve('dotenv'))"; \
-     }
-
-# ---- codice ----
+# Copia codice sorgente
 COPY src/ ./src/
 
-# dirs & permessi
-RUN mkdir -p /app/logs /app/temp /app/certs \
- && chown -R opnsense:nodejs /app \
- && chmod -R 755 /app
+# Crea directory per logs e temp files
+RUN mkdir -p /app/logs /app/temp && \
+    chown -R opnsense:nodejs /app && \
+    chmod -R 755 /app
 
+# Cambia all'utente non-root
 USER opnsense
 
-ENV NODE_ENV=production \
-    PORT=3000 \
-    NODE_PATH=/app/node_modules
-
+# Espone porta dell'applicazione
 EXPOSE 3000
+
+# Imposta variabili ambiente di default
+ENV NODE_ENV=production
+ENV PORT=3000
+
+# Healthcheck integrato nel container
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:3000/api/v1/health || exit 1
+
+# Usa dumb-init per gestire segnali correttamente
+ENTRYPOINT ["dumb-init", "--"]
+
+# Comando di avvio
 CMD ["node", "src/app.js"]
