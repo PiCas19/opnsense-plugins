@@ -34,7 +34,7 @@ class OpnsenseService {
 
     // Configure HTTPS Agent based on environment settings
     this.httpsAgent = new https.Agent({
-      rejectUnauthorized: this.sslVerify,
+      rejectUnauthorized: false,
       requestCert: false,
       agent: false,
       timeout: this.requestTimeout,
