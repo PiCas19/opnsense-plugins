@@ -964,7 +964,7 @@ router.post(
  */
 router.post(
   '/rules',
-  validators.createFirewallRule,
+  //validators.createFirewallRule,
   criticalLimiter,
   authorize(PERMISSIONS.FIREWALL_WRITE),
   asyncHandler(async (req, res) => {
