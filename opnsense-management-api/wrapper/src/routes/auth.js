@@ -43,8 +43,8 @@ const router = express.Router();
  *             type: object
  *             required: [username, password]
  *             properties:
- *               username: { type: string, example: "testuser" }
- *               password: { type: string, example: "Test123!" }
+ *               username: { type: string, example: "johndoe123" }
+ *               password: { type: string, example: "MyStr0ng!Pass" }
  *               remember_me: { type: boolean, default: false }
  *               update_password: { type: boolean, default: false }
  *     responses:
