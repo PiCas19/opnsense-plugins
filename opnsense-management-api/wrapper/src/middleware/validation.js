@@ -194,12 +194,18 @@ const endpointSchema = z.discriminatedUnion('type', [
 const createRuleBase = z
   .object({
     description: z.string().max(255),
-    interface: z.enum(['wan', 'lan', 'dmz', 'opt1', 'opt2']),
+    interface: z.enum(['wan', 'lan', 'dmz', 'opt1', 'opt2', 'opt3']), // ← Aggiungi opt3
     direction: z.enum(['in', 'out']).default('in'),
     action: z.enum(['pass', 'block', 'reject']),
     protocol: commonSchemas.protocol,
-    source: endpointSchema,
-    destination: endpointSchema,
+    source: z.union([
+      endpointSchema,
+      z.string() // ← Accetta anche stringhe come fallback
+    ]),
+    destination: z.union([
+      endpointSchema,
+      z.string() // ← Accetta anche stringhe come fallback
+    ]),
     enabled: z.boolean().default(true),
     log: z.boolean().default(false),
     sequence: z.coerce.number().int().min(1).max(9999).optional(),
