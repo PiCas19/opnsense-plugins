@@ -391,48 +391,47 @@ function startHealthChecks() {
 async function initializeApplication() {
   try {
     logger.info('Starting application initialization...');
-    
-    // SALTA database e Redis - API only mode
-    logger.info('Running in API-only mode (no database/Redis required)');
-    
-    // Monitoring opzionale - se fallisce continua
-    try {
-      logger.info('Initializing monitoring...');
-      await initializeMonitoring();
-      logger.info('Monitoring initialized successfully');
-    } catch (monitoringError) {
-      logger.warn('Monitoring failed, continuing without it:', monitoringError.message);
+
+    logger.info('Testing PostgreSQL connection...');
+    const dbOK = await testDatabaseConnection();
+    if (!dbOK) throw new Error('Database connection test failed');
+    logger.info('PostgreSQL connection test successful');
+
+    logger.info('Testing Redis connection...');
+    const redisOK = await testRedisConnection();
+    if (!redisOK) {
+      logger.warn('Redis connection test failed, continuing with cache disabled');
+    } else {
+      logger.info('Redis connection test successful');
     }
+
+    logger.info('Initializing database...');
+    await initializeDatabase();
+    logger.info('Database initialized successfully');
+
+    // ================ INIZIALIZZAZIONE ASSOCIAZIONI MODELLI ================
+    logger.info('Initializing model associations...');
+    const associationsOK = initializeModelAssociations();
+    if (!associationsOK) {
+      throw new Error('Failed to initialize model associations');
+    }
+    logger.info('Model associations initialized successfully');
+    // ================ END INIZIALIZZAZIONE ASSOCIAZIONI ================
+
+    logger.info('Initializing monitoring...');
+    await initializeMonitoring();
+    logger.info('Monitoring initialized successfully');
 
     startHealthChecks();
     await startServer();
 
-    logger.info('🚀 Application started successfully in API-only mode');
-    
-    logger.info('🔥 Firewall Automation API endpoints available:');
-    logger.info('  - GET    /api/v1/firewall/automation/rules     - List automation rules');
-    logger.info('  - POST   /api/v1/firewall/automation/rules     - Create automation rule');
-    logger.info('  - GET    /api/v1/firewall/automation/rules/:id - Get specific rule');
-    logger.info('  - PUT    /api/v1/firewall/automation/rules/:id - Update rule');
-    logger.info('  - DELETE /api/v1/firewall/automation/rules/:id - Delete rule');
-    logger.info('  - POST   /api/v1/firewall/automation/rules/:id/toggle - Toggle rule');
-    logger.info('  - GET    /api/v1/firewall/automation/stats     - Get automation stats');
-    logger.info('  - GET    /api/v1/firewall/automation/health    - Get automation health');
-    logger.info('  - POST   /api/v1/firewall/automation/apply     - Apply configuration');
-    logger.info('  - POST   /api/v1/firewall/automation/bulk      - Bulk operations');
-    
-    logger.info('📊 System Status:');
-    logger.info('  - Mode: API-only (no database)');
-    logger.info(`  - Swagger: ${config.enableSwagger ? '✅ http://localhost:' + config.port + '/api-docs' : '❌ Disabled'}`);
-    logger.info(`  - Environment: ${config.nodeEnv}`);
-    logger.info(`  - Port: ${config.port}`);
-    
+    logger.info('Application initialization completed successfully');
   } catch (error) {
-    logger.error('❌ Failed to initialize application:', {
+    logger.error('Failed to initialize application:', {
       error: error.message,
       stack: error.stack,
     });
-    process.exit(1);
+    await gracefulShutdown(1);
   }
 }
 
