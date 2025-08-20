@@ -10,7 +10,7 @@ const User = require('../models/User');
 class OpnsenseService {
   constructor(user = null) {
     this.user = user;
-    this.baseUrl = opnsenseConfig.apiUrl;
+    this.baseUrl = opnsenseConfig.baseURL;
     this.apiKey = opnsenseConfig.apiKey;
     this.apiSecret = opnsenseConfig.apiSecret;
     this.alertService = new AlertService(user);
