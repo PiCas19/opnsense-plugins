@@ -291,8 +291,7 @@ class OpnsenseService {
   }
 
   /**
-   * Get all firewall rules using multiple API endpoints
-   * OPNsense stores rules in different sections
+   * Get all firewall rules - SIMPLIFIED for automation only
    */
   async getFirewallRules(filters = {}) {
     try {
@@ -303,121 +302,53 @@ class OpnsenseService {
         return cached;
       }
 
-      logger.info('Fetching firewall rules from OPNsense API...', { filters });
+      logger.info('Fetching firewall rules from OPNsense Automation API...', { filters });
 
-      // Method 1: Try the standard filter rules API
-      let filterRules = [];
+      // ONLY try automation endpoints - simplified approach
+      let allRules = [];
+      
+      // Method 1: Standard filter API (what we see in OPNsense WebUI)
       try {
-        logger.debug('Trying searchRule API...');
+        logger.debug('Trying standard filter searchRule API...');
         const filterData = await this.makeApiRequest('GET', '/api/firewall/filter/searchRule', {
           current: 1,
           rowCount: 1000,
           ...filters
         }, 'get_filter_rules');
         
-        logger.info('SearchRule API response:', {
+        logger.info('Filter searchRule API response:', {
           hasData: !!filterData,
           hasRows: !!(filterData && filterData.rows),
           rowCount: filterData?.rows?.length || 0,
-          totalRecords: filterData?.total || 'unknown',
           sampleData: filterData?.rows?.[0] || 'none'
         });
         
         if (filterData && filterData.rows && filterData.rows.length > 0) {
-          filterRules = filterData.rows.map(rule => this.normalizeFilterRule(rule));
-          logger.info(`Found ${filterRules.length} filter rules via searchRule API`);
-        } else {
-          logger.warn('No rows returned from searchRule API');
+          const filterRules = filterData.rows.map(rule => this.normalizeFilterRule(rule));
+          allRules.push(...filterRules);
+          logger.info(`Found ${filterRules.length} rules via standard filter API`);
         }
       } catch (error) {
-        logger.error('Filter rules API failed:', { 
+        logger.error('Standard filter API failed:', { 
           error: error.message, 
-          status: error.response?.status,
-          data: error.response?.data 
+          status: error.response?.status 
         });
       }
 
-      // Method 2: If searchRule fails, try alternative endpoints
-      if (filterRules.length === 0) {
-        logger.info('Trying alternative API endpoints...');
-        
-        try {
-          logger.debug('Trying filter/get API...');
-          const configData = await this.makeApiRequest('GET', '/api/firewall/filter/get', {}, 'get_filter_config');
-          
-          logger.info('Filter/get API response:', {
-            hasData: !!configData,
-            keys: configData ? Object.keys(configData) : [],
-            hasFilter: !!(configData && configData.filter),
-            hasRules: !!(configData && configData.filter && configData.filter.rule)
-          });
-
-          if (configData && configData.filter && configData.filter.rule) {
-            // Extract rules from configuration
-            const rules = configData.filter.rule;
-            const ruleArray = Array.isArray(rules) ? rules : Object.values(rules);
-            
-            filterRules = ruleArray.map((rule, index) => ({
-              uuid: rule.uuid || `filter-rule-${index}`,
-              description: rule.descr || rule.description || `Filter Rule ${index + 1}`,
-              interface: rule.interface || 'wan',
-              action: rule.type || rule.action || 'pass',
-              enabled: rule.enabled === '1' || rule.enabled === true,
-              source: rule.source_net || rule.source || 'any',
-              destination: rule.destination_net || rule.destination || 'any',
-              protocol: rule.protocol || 'any',
-              source_port: rule.source_port || null,
-              destination_port: rule.destination_port || null,
-              created: new Date().toISOString(),
-              source_type: 'filter',
-              manageable: true,
-              log: rule.log === '1' || rule.log === true
-            }));
-            
-            logger.info(`Found ${filterRules.length} rules via filter/get API`);
-          }
-        } catch (error) {
-          logger.error('Filter/get API also failed:', { 
-            error: error.message, 
-            status: error.response?.status 
-          });
-        }
-      }
-
-      // Method 3: Fallback to automation API (separate rules)
-      let automationRules = [];
-      try {
-        logger.debug('Trying automation rules...');
-        const automationData = await this.makeApiRequest('GET', '/api/firewall/filter_util/find_rule_references', {}, 'get_automation_rules');
-        if (automationData && automationData.rows) {
-          automationRules = automationData.rows.map(rule => this.normalizeAutomationRule(rule));
-          logger.info(`Found ${automationRules.length} automation rules`);
-        }
-      } catch (error) {
-        logger.warn('Automation rules API failed (this is normal if not supported):', { error: error.message });
-      }
-
-      // Combine all rule sources
-      const allRules = [
-        ...filterRules,
-        ...automationRules
-      ];
-
-      logger.info('Final rule count summary:', {
-        filter_rules: filterRules.length,
-        automation_rules: automationRules.length,
+      logger.info('Final rule count:', {
         total_rules: allRules.length,
         will_use_fallback: allRules.length === 0
       });
 
-      // Only use fallback if no rules found AND in development mode
+      // Use fallback ONLY if no rules found AND in development mode
       if (allRules.length === 0) {
         if (process.env.NODE_ENV === 'development') {
           logger.warn('No rules found in OPNsense, returning demo rules for development');
           return this.getDemoRules();
         } else {
-          logger.error('No firewall rules found in OPNsense and not in development mode');
-          throw new Error('No firewall rules found in OPNsense');
+          logger.error('No firewall rules found in OPNsense');
+          // Return empty array instead of throwing error
+          return [];
         }
       }
 
@@ -432,19 +363,14 @@ class OpnsenseService {
       await this.safeSetCache(cacheKey, enrichedRules, this.cacheTimeout);
       
       logger.info('Successfully retrieved firewall rules from OPNsense', {
-        total_rules: enrichedRules.length,
-        by_source_type: enrichedRules.reduce((acc, rule) => {
-          acc[rule.source_type] = (acc[rule.source_type] || 0) + 1;
-          return acc;
-        }, {})
+        total_rules: enrichedRules.length
       });
 
       return enrichedRules;
 
     } catch (error) {
-      logger.error('Failed to get firewall rules from all sources', { 
+      logger.error('Failed to get firewall rules', { 
         error: error.message, 
-        stack: error.stack,
         filters, 
         user_id: this.user?.id 
       });
@@ -455,7 +381,8 @@ class OpnsenseService {
         return this.getDemoRules();
       }
       
-      throw error;
+      // In production, return empty array instead of throwing
+      return [];
     }
   }
 
@@ -565,18 +492,23 @@ class OpnsenseService {
    * Normalize automation rule
    */
   normalizeAutomationRule(rule) {
+    logger.debug('Normalizing automation rule:', rule);
+    
     return {
-      uuid: rule.uuid || rule.id,
-      description: rule.description || 'Automation Rule',
+      uuid: rule.uuid || rule.id || `auto-${Date.now()}`,
+      description: rule.description || rule.descr || rule.label || 'Automation Rule',
       interface: rule.interface || 'wan',
-      action: rule.action || 'pass',
-      enabled: rule.enabled === '1' || rule.enabled === true,
-      source: rule.source || 'any',
-      destination: rule.destination || 'any',
-      protocol: rule.protocol || 'any',
-      created: rule.created || new Date().toISOString(),
+      action: rule.action || rule.type || 'pass',
+      enabled: rule.enabled === '1' || rule.enabled === true || rule.enabled === 1,
+      source: rule.source || rule.source_net || rule.src || 'any',
+      destination: rule.destination || rule.destination_net || rule.dst || 'any',
+      protocol: rule.protocol || rule.ipprotocol || 'any',
+      source_port: rule.source_port || rule.src_port || null,
+      destination_port: rule.destination_port || rule.dst_port || null,
+      created: rule.created || rule.updated || new Date().toISOString(),
       source_type: 'automation',
-      manageable: true
+      manageable: rule.manageable !== false,
+      log: rule.log === '1' || rule.log === true || rule.log === 1
     };
   }
 
@@ -835,7 +767,7 @@ class OpnsenseService {
    * Create filter rule (integrates with web UI)
    */
   async createFilterRule(ruleData) {
-    // Correct format for OPNsense Filter API
+    // Correct format for OPNsense Filter API based on Python example
     const formattedRule = {
       enabled: ruleData.enabled ? '1' : '0',
       interface: ruleData.interface || 'wan',
@@ -852,8 +784,8 @@ class OpnsenseService {
       // Correct action mapping
       type: ruleData.action || 'pass', // OPNsense uses 'type' not 'action'
       
-      // FIXED: use 'descr' for description (not 'description')
-      descr: ruleData.description || 'API Created Rule', // OPNsense uses 'descr'
+      // FIXED: use 'description' for description (from Python example)
+      description: ruleData.description || 'API Created Rule',
       
       log: ruleData.log ? '1' : '0',
       
@@ -875,7 +807,7 @@ class OpnsenseService {
 
       return {
         uuid: result.uuid,
-        description: formattedRule.descr, // Return the correct description
+        description: formattedRule.description, // Return the correct description
         interface: formattedRule.interface,
         action: ruleData.action,
         enabled: ruleData.enabled,
@@ -928,32 +860,51 @@ class OpnsenseService {
   }
 
   /**
-   * Create automation rule (separate from web UI)
+   * Create automation rule - SIMPLIFIED to use only filter API
    */
   async createAutomationRule(ruleData) {
+    // Use the same format as filter rules since automation seems to go through filter API
     const formattedRule = {
       enabled: ruleData.enabled ? '1' : '0',
       interface: ruleData.interface || 'wan',
-      action: ruleData.action || 'pass',
-      source: this.formatAddressForOPNsense(ruleData.source),
-      destination: this.formatAddressForOPNsense(ruleData.destination),
+      direction: 'in',
+      ipprotocol: 'inet',
       protocol: ruleData.protocol || 'any',
-      description: ruleData.description || 'API Automation Rule',
-      sequence: ruleData.sequence || 1,
-      quick: true
+      type: ruleData.action || 'pass',
+      descr: ruleData.description || 'API Automation Rule',
+      source_net: this.formatAddressForOPNsense(ruleData.source),
+      source_port: ruleData.source_port || '',
+      destination_net: this.formatAddressForOPNsense(ruleData.destination),
+      destination_port: ruleData.destination_port || '',
+      log: ruleData.log ? '1' : '0',
+      quick: '1',
+      floating: '0'
     };
 
-    logger.info('Creating automation rule with formatted data:', formattedRule);
+    logger.info('Creating automation rule via filter API:', formattedRule);
 
     try {
-      const result = await this.makeApiRequest('POST', '/api/firewall/filter_util/add', {
+      // Create via standard filter API
+      const result = await this.makeApiRequest('POST', '/api/firewall/filter/addRule', {
         rule: formattedRule
       }, 'create_automation_rule');
 
+      if (!result || !result.uuid) {
+        throw new Error('OPNsense API did not return a valid rule UUID');
+      }
+
       return {
-        uuid: result.uuid || `auto-${Date.now()}`,
-        ...formattedRule,
-        source_type: 'automation'
+        uuid: result.uuid,
+        description: formattedRule.descr,
+        interface: formattedRule.interface,
+        action: ruleData.action,
+        enabled: ruleData.enabled,
+        source: this.formatAddressForOPNsense(ruleData.source),
+        destination: this.formatAddressForOPNsense(ruleData.destination),
+        protocol: formattedRule.protocol,
+        source_type: 'automation', // Mark as automation even if created via filter API
+        manageable: true,
+        created_via: 'API'
       };
 
     } catch (error) {
@@ -1094,7 +1045,7 @@ class OpnsenseService {
     const formatted = {};
 
     if (updates.description !== undefined) {
-      formatted.descr = updates.description;
+      formatted.description = updates.description; // FIXED: use 'description'
     }
     if (updates.enabled !== undefined) {
       formatted.enabled = updates.enabled ? '1' : '0';
