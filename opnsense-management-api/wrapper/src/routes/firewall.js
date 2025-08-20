@@ -861,8 +861,11 @@ router.post(
  *                 interface: "wan"
  *                 action: "block"
  *                 enabled: true
- *                 source: "192.168.100.0/24"
- *                 destination: "any"
+ *                 source:
+ *                   type: "network"
+ *                   network: "192.168.100.0/24"
+ *                 destination:
+ *                   type: "any"
  *                 protocol: "any"
  *                 log: true
  *                 api_managed: false
@@ -873,8 +876,12 @@ router.post(
  *                 interface: "lan"
  *                 action: "pass"
  *                 enabled: true
- *                 source: "192.168.1.0/24"
- *                 destination: "192.168.216.1"
+ *                 source:
+ *                   type: "network"
+ *                   network: "192.168.1.0/24"
+ *                 destination:
+ *                   type: "single"
+ *                   address: "192.168.216.1"
  *                 protocol: "tcp"
  *                 destination_port: "22"
  *                 log: false
