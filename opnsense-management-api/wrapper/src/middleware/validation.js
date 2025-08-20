@@ -328,14 +328,23 @@ const querySchemas = {
 
   // Firewall rules query filters
   firewallRules: z
-    .object({
-      interface: z.enum(['wan', 'lan', 'dmz', 'opt1', 'opt2']).optional(),
-      action: z.enum(['pass', 'block', 'reject']).optional(),
-      enabled: z.boolean().optional(),
-      protocol: commonSchemas.protocol.optional(),
-    })
-    .strip()
-    .merge(paginationSchema),
+  .object({
+    interface: z.enum(['wan', 'lan', 'dmz', 'opt1', 'opt2']).optional(),
+    action: z.enum(['pass', 'block', 'reject']).optional(),
+    enabled: z.union([
+      z.boolean(),
+      z.string().transform((val) => {
+        if (val === 'true') return true;
+        if (val === 'false') return false;
+        return undefined;
+      })
+    ]).optional(),
+    protocol: commonSchemas.protocol.optional(),
+    search: z.string().optional(),
+    source_type: z.enum(['filter', 'automation', 'config', 'all']).optional(),
+  })
+  .strip()
+  .merge(paginationSchema),
 
   // Audit logs query with date range validation
   auditLogs: z
