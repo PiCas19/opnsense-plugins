@@ -115,6 +115,9 @@ const config = {
   shutdownTimeout: parseInt(process.env.SHUTDOWN_TIMEOUT, 10) || 10000,
   requestSizeLimit: process.env.REQUEST_SIZE_LIMIT || '10mb',
   enableSwagger: process.env.ENABLE_SWAGGER !== 'false',
+  // 🔥 NUOVA OPZIONE PER SALTARE I CHECK DEL DATABASE
+  skipDbCheck: process.env.SKIP_DB_CHECK === 'true',
+  skipRedisCheck: process.env.SKIP_REDIS_CHECK === 'true',
 };
 
 // ---------- Swagger (JSDoc → OpenAPI) ----------
@@ -348,6 +351,8 @@ if (config.enableSwagger) {
 
 // 1. Auth routes (se necessarie per l'autenticazione)
 app.use('/api/v1/auth', authRoutes);
+
+// 2. ⭐ FIREWALL AUTOMATION ROUTES - Ora il tuo file firewall.js gestisce SOLO automation
 app.use('/api/v1/firewall', firewallRoutes);
 
 // 3. Altri routes API
@@ -357,6 +362,7 @@ app.use('/api/v1/policies', policiesRoutes);
 
 // ================ END API ROUTES ================
 
+// Root API info - Aggiornato per riflettere le nuove route automation
 app.get('/api/v1', (_req, res) => {
   res.json({
     name: 'OPNsense Management API',
@@ -364,10 +370,13 @@ app.get('/api/v1', (_req, res) => {
     environment: config.nodeEnv,
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
+    database_status: config.skipDbCheck ? 'skipped' : 'enabled',
+    redis_status: config.skipRedisCheck ? 'skipped' : 'enabled',
     endpoints: {
       health: '/api/v1/health',
       docs: config.enableSwagger ? '/api-docs' : null,
       metrics: '/metrics',
+      // ⭐ NUOVI ENDPOINTS AUTOMATION
       firewall_automation: {
         rules: '/api/v1/firewall/automation/rules',
         stats: '/api/v1/firewall/automation/stats',
@@ -402,43 +411,78 @@ function startHealthChecks() {
 // ---------------- Server bootstrap ----------------
 async function initializeApplication() {
   try {
-    logger.info('Starting application initialization...');
+    logger.info('Starting application initialization...', {
+      skipDbCheck: config.skipDbCheck,
+      skipRedisCheck: config.skipRedisCheck,
+      nodeEnv: config.nodeEnv
+    });
 
-    logger.info('Testing PostgreSQL connection...');
-    const dbOK = await testDatabaseConnection();
-    if (!dbOK) throw new Error('Database connection test failed');
-    logger.info('PostgreSQL connection test successful');
-
-    logger.info('Testing Redis connection...');
-    const redisOK = await testRedisConnection();
-    if (!redisOK) {
-      logger.warn('Redis connection test failed, continuing with cache disabled');
+    // 🔥 CHECK DATABASE CON OPZIONE DI SKIP
+    if (!config.skipDbCheck) {
+      logger.info('Testing PostgreSQL connection...');
+      try {
+        const dbOK = await testDatabaseConnection();
+        if (!dbOK) {
+          throw new Error('Database connection test failed');
+        }
+        logger.info('PostgreSQL connection test successful');
+        
+        logger.info('Initializing database...');
+        await initializeDatabase();
+        logger.info('Database initialized successfully');
+        
+        // ================ INIZIALIZZAZIONE ASSOCIAZIONI MODELLI ================
+        logger.info('Initializing model associations...');
+        const associationsOK = initializeModelAssociations();
+        if (!associationsOK) {
+          logger.warn('Failed to initialize model associations, but continuing...');
+        } else {
+          logger.info('Model associations initialized successfully');
+        }
+        // ================ END INIZIALIZZAZIONE ASSOCIAZIONI ================
+        
+      } catch (dbError) {
+        logger.error('Database initialization failed:', {
+          error: dbError.message,
+          suggestion: 'Set SKIP_DB_CHECK=true in .env to start without database'
+        });
+        throw dbError;
+      }
     } else {
-      logger.info('Redis connection test successful');
+      logger.warn('🔥 DATABASE CHECK SKIPPED (SKIP_DB_CHECK=true)');
+      logger.warn('⚠️  Database-dependent features will not work!');
     }
 
-    logger.info('Initializing database...');
-    await initializeDatabase();
-    logger.info('Database initialized successfully');
-
-    // ================ INIZIALIZZAZIONE ASSOCIAZIONI MODELLI ================
-    logger.info('Initializing model associations...');
-    const associationsOK = initializeModelAssociations();
-    if (!associationsOK) {
-      throw new Error('Failed to initialize model associations');
+    // 🔥 CHECK REDIS CON OPZIONE DI SKIP
+    if (!config.skipRedisCheck) {
+      logger.info('Testing Redis connection...');
+      const redisOK = await testRedisConnection();
+      if (!redisOK) {
+        logger.warn('Redis connection test failed, continuing with cache disabled');
+      } else {
+        logger.info('Redis connection test successful');
+      }
+    } else {
+      logger.warn('🔥 REDIS CHECK SKIPPED (SKIP_REDIS_CHECK=true)');
+      logger.warn('⚠️  Cache features will not work!');
     }
-    logger.info('Model associations initialized successfully');
-    // ================ END INIZIALIZZAZIONE ASSOCIAZIONI ================
 
+    // 🔥 MONITORING - SEMPRE ATTIVO
     logger.info('Initializing monitoring...');
-    await initializeMonitoring();
-    logger.info('Monitoring initialized successfully');
+    try {
+      await initializeMonitoring();
+      logger.info('Monitoring initialized successfully');
+    } catch (monitoringError) {
+      logger.warn('Monitoring initialization failed, continuing without it:', monitoringError.message);
+    }
 
     startHealthChecks();
     await startServer();
 
-    logger.info('Application initialization completed successfully');
-    logger.info('Firewall Automation API endpoints available:');
+    logger.info('🚀 Application initialization completed successfully');
+    
+    // ⭐ LOG LE NUOVE ROUTE AUTOMATION
+    logger.info('🔥 Firewall Automation API endpoints available:');
     logger.info('  - GET    /api/v1/firewall/automation/rules     - List automation rules');
     logger.info('  - POST   /api/v1/firewall/automation/rules     - Create automation rule');
     logger.info('  - GET    /api/v1/firewall/automation/rules/:id - Get specific rule');
@@ -450,8 +494,16 @@ async function initializeApplication() {
     logger.info('  - POST   /api/v1/firewall/automation/apply     - Apply configuration');
     logger.info('  - POST   /api/v1/firewall/automation/bulk      - Bulk operations');
     
+    // ⭐ STATUS SUMMARY
+    logger.info('📊 System Status Summary:');
+    logger.info(`  - Database: ${config.skipDbCheck ? '❌ SKIPPED' : '✅ Connected'}`);
+    logger.info(`  - Redis: ${config.skipRedisCheck ? '❌ SKIPPED' : '✅ Connected'}`);
+    logger.info(`  - Swagger: ${config.enableSwagger ? '✅ Enabled at /api-docs' : '❌ Disabled'}`);
+    logger.info(`  - Environment: ${config.nodeEnv}`);
+    logger.info(`  - Port: ${config.port}`);
+    
   } catch (error) {
-    logger.error('Failed to initialize application:', {
+    logger.error('❌ Failed to initialize application:', {
       error: error.message,
       stack: error.stack,
     });
@@ -463,11 +515,11 @@ function startServer() {
   return new Promise((resolve, reject) => {
     server = app.listen(config.port, err => {
       if (err) return reject(err);
-      logger.info(`Server running on port ${config.port} in ${config.nodeEnv} mode`);
+      logger.info(`🚀 Server running on port ${config.port} in ${config.nodeEnv} mode`);
       if (config.enableSwagger)
-        logger.info(`API Documentation available at http://localhost:${config.port}/api-docs`);
-      logger.info(`Health endpoint available at http://localhost:${config.port}/api/v1/health`);
-      logger.info(`Metrics endpoint available at http://localhost:${config.port}/metrics`);
+        logger.info(`📚 API Documentation available at http://localhost:${config.port}/api-docs`);
+      logger.info(`❤️  Health endpoint available at http://localhost:${config.port}/api/v1/health`);
+      logger.info(`📊 Metrics endpoint available at http://localhost:${config.port}/metrics`);
       resolve();
     });
 
@@ -510,15 +562,21 @@ async function gracefulShutdown(exitCode = 0) {
       });
     else done();
 
-    closeConnections()
-      .then(() => {
-        logger.info('Database connections closed');
-        done();
-      })
-      .catch(err => {
-        logger.error('Error closing database connections:', err);
-        done();
-      });
+    // 🔥 CHIUDI CONNESSIONI SOLO SE NON SKIPPATE
+    if (!config.skipDbCheck) {
+      closeConnections()
+        .then(() => {
+          logger.info('Database connections closed');
+          done();
+        })
+        .catch(err => {
+          logger.error('Error closing database connections:', err);
+          done();
+        });
+    } else {
+      logger.info('Database connections skipped (not initialized)');
+      done();
+    }
 
     setTimeout(() => {
       logger.info('Additional cleanup completed');
