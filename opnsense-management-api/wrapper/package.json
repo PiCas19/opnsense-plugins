@@ -115,7 +115,7 @@
     "lodash.clonedeep": false
   },
   "engines": {
-    "node": ">=18.19.1 <19.0.0",
+    "node": ">=18.19.1 <21.0.0",
     "npm": ">=9.2.0"
   },
   "packageManager": "npm@9.2.0",
