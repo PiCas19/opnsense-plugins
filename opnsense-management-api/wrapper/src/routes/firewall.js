@@ -964,7 +964,7 @@ router.post(
  */
 router.post(
   '/rules',
-  //validators.createFirewallRule,
+  validators.createFirewallRule,
   criticalLimiter,
   authorize(PERMISSIONS.FIREWALL_WRITE),
   asyncHandler(async (req, res) => {
@@ -973,7 +973,7 @@ router.post(
       created_by: getUserId(req) || 1,
     };
 
-    logger.info('POST /rules called - creating rule in OPNsense API', {
+    logger.info('POST /rules called - creating rule in OPNsense API', { 
       ruleData: { ...ruleData, created_by: getUserId(req) },
       user_id: getUserId(req)
     });
@@ -1018,18 +1018,20 @@ router.post(
         },
         timestamp: new Date().toISOString()
       });
-
+      
     } catch (error) {
-      logger.error('Error creating rule in OPNsense API:', {
+      logger.error('Error creating rule in OPNsense API:', { 
         error: error.message,
         stack: error.stack,
         ruleData,
         user_id: getUserId(req)
       });
-
-      // RIMUOVO LA LOGICA CHE CAUSA "Invalid URL"
-      // Rilancio direttamente l'errore originale
-      throw error;
+      
+      if (error.message.includes('Invalid') || error.message.includes('required')) {
+        throw new ValidationError(`Rule validation failed: ${error.message}`);
+      }
+      
+      throw new Error(`Failed to create firewall rule in OPNsense: ${error.message}`);
     }
   })
 );
