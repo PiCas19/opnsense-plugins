@@ -126,6 +126,7 @@ logger.info(`Swagger spec generata: ${swaggerPathsCount} path trovati`);
 let server;
 let healthCheckInterval;
 let isShuttingDown = false;
+let dbInitialized = false;
 
 // Error handler globali uncaught/unhandled
 initializeErrorHandling();
@@ -364,6 +365,7 @@ app.get('/api/v1', (_req, res) => {
     environment: config.nodeEnv,
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
+    database_status: dbInitialized ? 'connected' : 'disconnected',
     endpoints: {
       health: '/api/v1/health',
       docs: config.enableSwagger ? '/api-docs' : null,
@@ -404,40 +406,62 @@ async function initializeApplication() {
   try {
     logger.info('Starting application initialization...');
 
-    logger.info('Testing PostgreSQL connection...');
-    const dbOK = await testDatabaseConnection();
-    if (!dbOK) throw new Error('Database connection test failed');
-    logger.info('PostgreSQL connection test successful');
-
-    logger.info('Testing Redis connection...');
-    const redisOK = await testRedisConnection();
-    if (!redisOK) {
-      logger.warn('Redis connection test failed, continuing with cache disabled');
-    } else {
-      logger.info('Redis connection test successful');
+    // PROVA il database, ma NON FERMARE L'APP se fallisce
+    try {
+      logger.info('Testing PostgreSQL connection...');
+      const dbOK = await testDatabaseConnection();
+      if (dbOK) {
+        logger.info('PostgreSQL connection test successful');
+        
+        logger.info('Initializing database...');
+        await initializeDatabase();
+        logger.info('Database initialized successfully');
+        
+        logger.info('Initializing model associations...');
+        const associationsOK = initializeModelAssociations();
+        if (associationsOK) {
+          logger.info('Model associations initialized successfully');
+        } else {
+          logger.warn('Model associations failed but continuing...');
+        }
+        
+        dbInitialized = true;
+      } else {
+        logger.warn('Database connection failed, continuing without database');
+        dbInitialized = false;
+      }
+    } catch (dbError) {
+      logger.warn('Database initialization failed, continuing without database:', dbError.message);
+      dbInitialized = false;
     }
 
-    logger.info('Initializing database...');
-    await initializeDatabase();
-    logger.info('Database initialized successfully');
-
-    // ================ INIZIALIZZAZIONE ASSOCIAZIONI MODELLI ================
-    logger.info('Initializing model associations...');
-    const associationsOK = initializeModelAssociations();
-    if (!associationsOK) {
-      throw new Error('Failed to initialize model associations');
+    // PROVA Redis, ma NON FERMARE L'APP se fallisce
+    try {
+      logger.info('Testing Redis connection...');
+      const redisOK = await testRedisConnection();
+      if (redisOK) {
+        logger.info('Redis connection test successful');
+      } else {
+        logger.warn('Redis connection failed, continuing with cache disabled');
+      }
+    } catch (redisError) {
+      logger.warn('Redis connection failed, continuing with cache disabled:', redisError.message);
     }
-    logger.info('Model associations initialized successfully');
-    // ================ END INIZIALIZZAZIONE ASSOCIAZIONI ================
 
-    logger.info('Initializing monitoring...');
-    await initializeMonitoring();
-    logger.info('Monitoring initialized successfully');
+    // PROVA monitoring, ma NON FERMARE L'APP se fallisce
+    try {
+      logger.info('Initializing monitoring...');
+      await initializeMonitoring();
+      logger.info('Monitoring initialized successfully');
+    } catch (monitoringError) {
+      logger.warn('Monitoring initialization failed, continuing without it:', monitoringError.message);
+    }
 
     startHealthChecks();
     await startServer();
 
     logger.info('Application initialization completed successfully');
+    
     logger.info('Firewall Automation API endpoints available:');
     logger.info('  - GET    /api/v1/firewall/automation/rules     - List automation rules');
     logger.info('  - POST   /api/v1/firewall/automation/rules     - Create automation rule');
@@ -449,6 +473,12 @@ async function initializeApplication() {
     logger.info('  - GET    /api/v1/firewall/automation/health    - Get automation health');
     logger.info('  - POST   /api/v1/firewall/automation/apply     - Apply configuration');
     logger.info('  - POST   /api/v1/firewall/automation/bulk      - Bulk operations');
+    
+    logger.info('System Status Summary:');
+    logger.info(`  - Database: ${dbInitialized ? 'Connected' : 'Disconnected (continuing anyway)'}`);
+    logger.info(`  - Swagger: ${config.enableSwagger ? 'Enabled at /api-docs' : 'Disabled'}`);
+    logger.info(`  - Environment: ${config.nodeEnv}`);
+    logger.info(`  - Port: ${config.port}`);
     
   } catch (error) {
     logger.error('Failed to initialize application:', {
@@ -510,15 +540,21 @@ async function gracefulShutdown(exitCode = 0) {
       });
     else done();
 
-    closeConnections()
-      .then(() => {
-        logger.info('Database connections closed');
-        done();
-      })
-      .catch(err => {
-        logger.error('Error closing database connections:', err);
-        done();
-      });
+    // Chiudi connessioni solo se sono state inizializzate
+    if (dbInitialized) {
+      closeConnections()
+        .then(() => {
+          logger.info('Database connections closed');
+          done();
+        })
+        .catch(err => {
+          logger.error('Error closing database connections:', err);
+          done();
+        });
+    } else {
+      logger.info('Database connections skipped (not initialized)');
+      done();
+    }
 
     setTimeout(() => {
       logger.info('Additional cleanup completed');
