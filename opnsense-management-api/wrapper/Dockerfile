@@ -9,6 +9,10 @@ LABEL description="REST API wrapper for OPNsense firewall management"
 # Imposta working directory
 WORKDIR /app
 
+# Configura mirror alternativo per Alpine
+RUN echo "http://nl.alpinelinux.org/alpine/v3.22/main" > /etc/apk/repositories && \
+    echo "http://nl.alpinelinux.org/alpine/v3.22/community" >> /etc/apk/repositories
+
 # Installa dipendenze di sistema minime
 RUN apk update && apk upgrade && \
     apk add --no-cache \
