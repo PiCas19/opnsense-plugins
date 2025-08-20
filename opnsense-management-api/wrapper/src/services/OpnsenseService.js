@@ -4,35 +4,49 @@ const logger = require('../utils/logger');
 const { opnsenseConfig } = require('../config/opnsense');
 const { cache } = require('../config/database');
 const { metricsHelpers } = require('../config/monitoring');
-const { sequelize } = require('../config/database');
 const AlertService = require('./AlertService');
 const User = require('../models/User');
 
 class OpnsenseService {
   constructor(user = null) {
     this.user = user;
-    this.baseUrl = opnsenseConfig.baseURL;
-    this.apiKey = opnsenseConfig.apiKey;
-    this.apiSecret = opnsenseConfig.apiSecret;
+    // Read configuration from environment variables first, fallback to config file
+    this.baseUrl = process.env.OPNSENSE_BASE_URL || opnsenseConfig.baseURL;
+    this.apiKey = process.env.OPNSENSE_API_KEY || opnsenseConfig.apiKey;
+    this.apiSecret = process.env.OPNSENSE_API_SECRET || opnsenseConfig.apiSecret;
     this.alertService = new AlertService(user);
     this.cacheTimeout = process.env.OPNSENSE_CACHE_TIMEOUT || 60;
-    this.maxRetries = process.env.MAX_API_RETRIES || 3;
-    this.requestTimeout = process.env.API_REQUEST_TIMEOUT || 10000;
+    this.maxRetries = process.env.OPNSENSE_RETRIES || 3;
+    this.requestTimeout = process.env.OPNSENSE_TIMEOUT || 30000;
     this.rateLimitMap = new Map();
 
-    // NUOVO: Configurazione HTTPS Agent per gestire certificati auto-firmati
-    this.httpsAgent = new https.Agent({
-      rejectUnauthorized: process.env.NODE_ENV === 'production' ? true : false,
-      timeout: 30000,
-      secureProtocol: 'TLSv1_2_method',
-      // Per development con certificati auto-firmati
-      checkServerIdentity: (host, cert) => {
-        if (process.env.NODE_ENV !== 'production') {
-          return undefined; // Accetta qualsiasi hostname in development
-        }
-        return https.Agent.prototype.checkServerIdentity(host, cert);
-      }
+    // SSL verification configuration from environment
+    this.sslVerify = process.env.OPNSENSE_SSL_VERIFY === 'true';
+    
+    logger.info('OPNsense Service Configuration:', {
+      baseUrl: this.baseUrl,
+      hasApiKey: !!this.apiKey,
+      hasApiSecret: !!this.apiSecret,
+      sslVerify: this.sslVerify,
+      timeout: this.requestTimeout,
+      retries: this.maxRetries
     });
+
+    // Configure HTTPS Agent based on environment settings
+    this.httpsAgent = new https.Agent({
+      rejectUnauthorized: this.sslVerify,
+      requestCert: false,
+      agent: false,
+      timeout: this.requestTimeout,
+      secureProtocol: 'TLSv1_2_method',
+      checkServerIdentity: this.sslVerify ? undefined : (() => undefined)
+    });
+
+    if (!this.sslVerify) {
+      logger.warn('SSL certificate verification DISABLED per configuration');
+    } else {
+      logger.info('SSL certificate verification ENABLED');
+    }
   }
 
   /**
@@ -64,13 +78,13 @@ class OpnsenseService {
   }
 
   /**
-   * Initialize HTTP client for OPNsense API with SSL support
+   * Initialize HTTP client for OPNsense API with proper SSL configuration
    * @private
    */
   getHttpClient() {
-    return axios.create({
+    const client = axios.create({
       baseURL: this.baseUrl,
-      httpsAgent: this.httpsAgent, // AGGIUNTO: gestione SSL
+      httpsAgent: this.httpsAgent,
       auth: {
         username: this.apiKey,
         password: this.apiSecret,
@@ -79,13 +93,54 @@ class OpnsenseService {
       maxRedirects: 0,
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'User-Agent': 'OPNsense-Management-API/1.0'
       },
-      // Interceptors per debugging SSL
       validateStatus: function (status) {
-        return status < 500; // Non rigettare automaticamente errori 4xx
+        return status < 600; // Accept all status codes below 600
       }
     });
+
+    // Add request interceptor for debugging
+    client.interceptors.request.use(
+      (config) => {
+        logger.debug(`API Request: ${config.method?.toUpperCase()} ${config.url}`, {
+          target: `${config.baseURL}${config.url}`,
+          sslVerify: this.sslVerify
+        });
+        return config;
+      },
+      (error) => {
+        logger.error('Request interceptor error:', error.message);
+        return Promise.reject(error);
+      }
+    );
+
+    // Add response interceptor for debugging
+    client.interceptors.response.use(
+      (response) => {
+        logger.debug(`API Response: ${response.status} ${response.statusText}`);
+        return response;
+      },
+      (error) => {
+        logger.error('API Response error:', {
+          message: error.message,
+          code: error.code,
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          url: error.config?.url
+        });
+
+        // Handle SSL specific errors
+        if (error.code && error.code.includes('CERT')) {
+          logger.error('SSL Certificate Error - Check OPNSENSE_SSL_VERIFY setting in .env');
+        }
+
+        return Promise.reject(error);
+      }
+    );
+
+    return client;
   }
 
   /**
@@ -146,7 +201,7 @@ class OpnsenseService {
       } catch (error) {
         lastError = error;
         
-        // Log dettagliato dell'errore
+        // Detailed error logging
         logger.warn('API request failed:', {
           method,
           endpoint,
@@ -159,7 +214,7 @@ class OpnsenseService {
           code: error.code
         });
 
-        // Gestione specifica errori SSL
+        // Handle SSL specific errors
         if (error.code === 'SELF_SIGNED_CERT_IN_CHAIN' || 
             error.code === 'CERT_HAS_EXPIRED' ||
             error.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' ||
@@ -167,7 +222,7 @@ class OpnsenseService {
           logger.error('SSL Certificate Error:', {
             code: error.code,
             message: error.message,
-            suggestion: 'Verifica configurazione SSL o imposta NODE_TLS_REJECT_UNAUTHORIZED=0 per development'
+            suggestion: 'Set OPNSENSE_SSL_VERIFY=false in .env for development'
           });
         }
 
@@ -198,13 +253,8 @@ class OpnsenseService {
   }
 
   /**
-   * =========================================================================
-   * METODI CORRETTI PER LE REGOLE FIREWALL REALI DI OPNSENSE
-   * =========================================================================
-   */
-
-  /**
-   * Get all firewall rules using the CORRECT API endpoints
+   * Get all firewall rules using multiple API endpoints
+   * OPNsense stores rules in different sections
    */
   async getFirewallRules(filters = {}) {
     try {
@@ -661,31 +711,31 @@ class OpnsenseService {
   }
 
   /**
-   * CORRETTO: Create filter rule (integrates with web UI)
+   * Create filter rule (integrates with web UI)
    */
   async createFilterRule(ruleData) {
-    // Formato corretto per OPNsense Filter API
+    // Correct format for OPNsense Filter API
     const formattedRule = {
       enabled: ruleData.enabled ? '1' : '0',
       interface: ruleData.interface || 'wan',
-      direction: 'in', // OPNsense richiede direction
+      direction: 'in', // OPNsense requires direction
       ipprotocol: 'inet', // IPv4
       protocol: ruleData.protocol || 'any',
       
-      // CORRETTO: Formato source/destination per OPNsense
+      // Correct source/destination format for OPNsense
       source_net: this.formatAddressForOPNsense(ruleData.source),
       source_port: ruleData.source_port || '',
       destination_net: this.formatAddressForOPNsense(ruleData.destination),
       destination_port: ruleData.destination_port || '',
       
-      // Action mapping corretto
-      type: ruleData.action || 'pass', // OPNsense usa 'type' non 'action'
-      descr: ruleData.description || 'API Created Rule', // OPNsense usa 'descr'
+      // Correct action mapping
+      type: ruleData.action || 'pass', // OPNsense uses 'type' not 'action'
+      descr: ruleData.description || 'API Created Rule', // OPNsense uses 'descr'
       log: ruleData.log ? '1' : '0',
       
-      // Campi aggiuntivi richiesti da OPNsense
-      quick: '1', // Applica regola immediatamente
-      floating: '0' // Non è una regola floating
+      // Additional fields required by OPNsense
+      quick: '1', // Apply rule immediately
+      floating: '0' // Not a floating rule
     };
 
     logger.info('Creating filter rule with formatted data:', formattedRule);
@@ -724,19 +774,19 @@ class OpnsenseService {
   }
 
   /**
-   * NUOVO: Formatta indirizzi per OPNsense in modo corretto
+   * Format addresses for OPNsense correctly
    */
   formatAddressForOPNsense(addressInput) {
     if (!addressInput || addressInput === 'any') {
       return 'any';
     }
 
-    // Se è già una stringa semplice, restituiscila
+    // If it's already a simple string, return it
     if (typeof addressInput === 'string') {
       return addressInput;
     }
 
-    // Se è un oggetto con type/network/address
+    // If it's an object with type/network/address
     if (typeof addressInput === 'object') {
       switch (addressInput.type) {
         case 'any':
@@ -1172,21 +1222,52 @@ class OpnsenseService {
    * Test connection to OPNsense
    */
   async testConnection() {
+    logger.info('Testing OPNsense connection', {
+      baseUrl: this.baseUrl,
+      sslVerify: this.sslVerify,
+      timeout: this.requestTimeout
+    });
+
     try {
       const startTime = Date.now();
       
-      const data = await this.makeApiRequest('GET', '/api/core/firmware/status', {}, 'test_connection');
-      
-      const responseTime = Date.now() - startTime;
-      
-      return {
-        success: true,
-        response_time_ms: responseTime,
-        api_version: data?.api_version || 'unknown',
-        system_version: data?.version || data?.product_version || 'unknown',
-        timestamp: new Date().toISOString()
-      };
+      // Try multiple endpoints for better compatibility
+      const testEndpoints = [
+        '/api/core/firmware/status',
+        '/api/core/system/status',
+        '/api/diagnostics/interface/getInterfaceConfig'
+      ];
+
+      let lastError;
+      for (const endpoint of testEndpoints) {
+        try {
+          const data = await this.makeApiRequest('GET', endpoint, {}, 'test_connection');
+          const responseTime = Date.now() - startTime;
+          
+          return {
+            success: true,
+            response_time_ms: responseTime,
+            api_version: data?.api_version || 'unknown',
+            system_version: data?.version || data?.product_version || 'unknown',
+            endpoint_used: endpoint,
+            timestamp: new Date().toISOString()
+          };
+        } catch (error) {
+          lastError = error;
+          logger.debug(`Test endpoint ${endpoint} failed:`, error.message);
+          continue;
+        }
+      }
+
+      throw lastError;
+
     } catch (error) {
+      logger.error('OPNsense connection test failed', {
+        error: error.message,
+        code: error.code,
+        status: error.response?.status
+      });
+
       return {
         success: false,
         error: error.message,
@@ -1197,7 +1278,7 @@ class OpnsenseService {
   }
 
   /**
-   * MIGLIORATO: Validazione dati regola più robusta
+   * Enhanced rule data validation
    */
   validateRuleData(ruleData) {
     const requiredFields = ['interface', 'action', 'description'];
@@ -1205,32 +1286,32 @@ class OpnsenseService {
     const validInterfaces = ['wan', 'lan', 'opt1', 'opt2', 'opt3', 'dmz'];
     const validProtocols = ['tcp', 'udp', 'icmp', 'any'];
 
-    // Verifica campi obbligatori
+    // Check required fields
     for (const field of requiredFields) {
       if (!ruleData[field]) {
-        throw new Error(`Campo obbligatorio mancante: ${field}`);
+        throw new Error(`Required field missing: ${field}`);
       }
     }
 
-    // Verifica valori validi
+    // Validate values
     if (!validActions.includes(ruleData.action)) {
-      throw new Error(`Action non valida. Deve essere uno di: ${validActions.join(', ')}`);
+      throw new Error(`Invalid action. Must be one of: ${validActions.join(', ')}`);
     }
 
     if (!validInterfaces.includes(ruleData.interface)) {
-      throw new Error(`Interface non valida. Deve essere una di: ${validInterfaces.join(', ')}`);
+      throw new Error(`Invalid interface. Must be one of: ${validInterfaces.join(', ')}`);
     }
 
     if (ruleData.protocol && !validProtocols.includes(ruleData.protocol)) {
-      throw new Error(`Protocol non valido. Deve essere uno di: ${validProtocols.join(', ')}`);
+      throw new Error(`Invalid protocol. Must be one of: ${validProtocols.join(', ')}`);
     }
 
-    // Verifica descrizione
+    // Check description length
     if (ruleData.description && ruleData.description.length > 255) {
-      throw new Error('Descrizione troppo lunga (max 255 caratteri)');
+      throw new Error('Description too long (max 255 characters)');
     }
 
-    // Verifica formato indirizzi
+    // Validate address formats
     if (ruleData.source && typeof ruleData.source === 'object') {
       this.validateAddressObject(ruleData.source, 'source');
     }
@@ -1241,39 +1322,39 @@ class OpnsenseService {
   }
 
   /**
-   * NUOVO: Validazione oggetti indirizzo
+   * Validate address objects
    */
   validateAddressObject(addressObj, fieldName) {
     const validTypes = ['any', 'network', 'single'];
     
     if (!addressObj.type || !validTypes.includes(addressObj.type)) {
-      throw new Error(`${fieldName} type deve essere uno di: ${validTypes.join(', ')}`);
+      throw new Error(`${fieldName} type must be one of: ${validTypes.join(', ')}`);
     }
 
     if (addressObj.type === 'network' && !addressObj.network) {
-      throw new Error(`${fieldName} di tipo 'network' deve specificare 'network'`);
+      throw new Error(`${fieldName} of type 'network' must specify 'network'`);
     }
 
     if (addressObj.type === 'single' && !addressObj.address) {
-      throw new Error(`${fieldName} di tipo 'single' deve specificare 'address'`);
+      throw new Error(`${fieldName} of type 'single' must specify 'address'`);
     }
 
-    // Validazione formato IP/CIDR di base
+    // Basic IP/CIDR format validation
     if (addressObj.network) {
       if (!this.isValidNetworkFormat(addressObj.network)) {
-        throw new Error(`${fieldName} network ha formato non valido: ${addressObj.network}`);
+        throw new Error(`${fieldName} network has invalid format: ${addressObj.network}`);
       }
     }
 
     if (addressObj.address) {
       if (!this.isValidIPFormat(addressObj.address)) {
-        throw new Error(`${fieldName} address ha formato non valido: ${addressObj.address}`);
+        throw new Error(`${fieldName} address has invalid format: ${addressObj.address}`);
       }
     }
   }
 
   /**
-   * NUOVO: Validazione formato network CIDR
+   * Validate CIDR network format
    */
   isValidNetworkFormat(network) {
     const cidrRegex = /^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/;
@@ -1281,7 +1362,7 @@ class OpnsenseService {
   }
 
   /**
-   * NUOVO: Validazione formato IP
+   * Validate IP format
    */
   isValidIPFormat(ip) {
     const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
