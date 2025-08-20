@@ -21,7 +21,7 @@ class OpnsenseService {
     this.rateLimitMap = new Map();
 
     // SSL verification configuration from environment
-    this.sslVerify = process.env.OPNSENSE_SSL_VERIFY === 'true';
+    this.sslVerify = process.env.OPNSENSE_SSL_VERIFY === 'true' ? true : false;
     
     logger.info('OPNsense Service Configuration:', {
       baseUrl: this.baseUrl,
