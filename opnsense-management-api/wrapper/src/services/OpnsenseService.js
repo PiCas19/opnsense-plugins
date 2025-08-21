@@ -362,16 +362,23 @@ class OpnsenseService {
 
   // Chiamata generica API OPNsense
   async apiCall(method, url, data = undefined) {
-    try {
-      const client = this.getHttpClient();
-      const resp = await client.request({ method, url, data });
-      if (resp.status >= 400) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
-      return resp.data;
-    } catch (err) {
-      this._logError(err);
-      throw err;
+  try {
+    const client = this.getHttpClient();
+    const resp = await client.request({ method, url, data });
+    logger.debug('OPNsense raw response', {
+      status: resp.status,
+      data: resp.data,
+      url
+    });
+    if (resp.status >= 400) {
+      throw new Error(`HTTP ${resp.status}: ${resp.statusText} - ${JSON.stringify(resp.data)}`);
     }
+    return resp.data;
+  } catch (err) {
+    this._logError(err);
+    throw err;
   }
+}
 
   // Stato del servizio
   getServiceHealth() {
