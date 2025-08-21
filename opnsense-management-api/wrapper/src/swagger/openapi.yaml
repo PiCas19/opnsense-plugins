@@ -1,0 +1,91 @@
+openapi: 3.0.3
+info:
+  title: OPNsense Wrapper
+  version: "1.0.0"
+  description: API wrapper per gestire regole firewall OPNsense
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/rules:
+    get:
+      summary: Lista regole (searchRule)
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+    post:
+      summary: Crea regola (addRule)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rule: { type: object }
+                apply: { type: boolean, default: false }
+      responses:
+        "200": { description: Creata }
+  /api/rules/{uuid}:
+    get:
+      summary: Dettaglio regola (get_rule / getRule)
+      parameters:
+        - in: path
+          name: uuid
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+        "404": { description: Non trovata }
+    put:
+      summary: Aggiorna regola (setRule)
+      parameters:
+        - in: path
+          name: uuid
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rule: { type: object }
+      responses:
+        "200": { description: Aggiornata }
+    delete:
+      summary: Elimina regola (delRule)
+      parameters:
+        - in: path
+          name: uuid
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Eliminata }
+  /api/rules/{uuid}/toggle:
+    post:
+      summary: Abilita/Disabilita (toggleRule)
+      parameters:
+        - in: path
+          name: uuid
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled: { type: boolean, nullable: true, description: "null = toggle puro" }
+                apply: { type: boolean, default: false }
+      responses:
+        "200": { description: OK }
+  /api/rules/apply:
+    post:
+      summary: Applica configurazione
+      responses:
+        "200": { description: OK }
