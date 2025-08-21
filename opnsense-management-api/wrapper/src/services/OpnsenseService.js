@@ -365,14 +365,15 @@ class OpnsenseService {
   try {
     const client = this.getHttpClient();
     const resp = await client.request({ method, url, data });
-    logger.debug('OPNsense raw response', {
-      status: resp.status,
-      data: resp.data,
-      url
-    });
-    if (resp.status >= 400) {
-      throw new Error(`HTTP ${resp.status}: ${resp.statusText} - ${JSON.stringify(resp.data)}`);
-    }
+    logger.debug('OPNsense response', { url, status: resp.status, data: resp.data });
+
+    // mappa errori per non trasformare tutto in 500 generico
+    if (resp.status === 401) throw new Error(`HTTP 401 Unauthorized - ${JSON.stringify(resp.data)}`);
+    if (resp.status === 403) throw new Error(`HTTP 403 Forbidden - ${JSON.stringify(resp.data)}`);
+    if (resp.status === 404) throw new Error(`HTTP 404 Not Found - ${JSON.stringify(resp.data)}`);
+    if (resp.status >= 500) throw new Error(`HTTP ${resp.status} Server Error - ${JSON.stringify(resp.data)}`);
+    if (resp.status >= 400) throw new Error(`HTTP ${resp.status} - ${JSON.stringify(resp.data)}`);
+
     return resp.data;
   } catch (err) {
     this._logError(err);
