@@ -1,4 +1,527 @@
-const express = require('express');
+/**
+ * @swagger
+ * /api/rules/sync:
+ *   post:
+ *     summary: Sincronizza regole con OPNsense
+ *     description: Forza la sincronizzazione di tutte le regole pending con OPNsense
+ *     tags: [Firewall Rules]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Sincronizzazione completata
+ *       401:
+ *         description: Token di accesso richiesto
+ *       403:
+ *         description: Permessi insufficienti
+ */
+router.post('/sync', asyncHandler(async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.id);
+    if (!user || !user.hasPermission('apply_config')) {
+      return res.status(403).json({
+        success: false,
+        message: 'Permessi insufficienti per sincronizzare regole'
+      });
+    }
+
+    // Trova regole che necessitano sincronizzazione
+    const pendingRules = await Rule.findAll({
+      where: {
+        [Rule.sequelize.Op.or]: [
+          { sync_status: 'pending' },
+          { sync_status: 'failed' },
+          { sync_status: null }
+        ]
+      }
+    });
+
+    let synced = 0;
+    let failed = 0;
+    const errors = [];
+
+    for (const rule of pendingRules) {
+      try {
+        // Verifica se il metodo syncToOPNsense esiste
+        if (rule.syncToOPNsense && typeof rule.syncToOPNsense === 'function') {
+          await rule.syncToOPNsense();
+        } else {
+          // Fallback manuale
+          const ruleForOPNsense = rule.toOpnsenseFormat ? 
+            rule.toOpnsenseFormat() : 
+            {
+              description: rule.description,
+              interface: rule.interface,
+              action: rule.action,
+              protocol: rule.protocol || 'any',
+              enabled: rule.enabled,
+              source_config: rule.source_config,
+              destination_config: rule.destination_config
+            };
+
+          let opnsenseResult;
+          if (rule.opnsense_uuid) {
+            // Aggiorna regola esistente
+            opnsenseResult = await OpnsenseService.updateRule(rule.opnsense_uuid, ruleForOPNsense);
+          } else {
+            // Crea nuova regola
+            opnsenseResult = await OpnsenseService.createRule(ruleForOPNsense);
+            await rule.update({ opnsense_uuid: opnsenseResult.uuid });
+          }
+
+          await rule.update({
+            sync_status: 'synced',
+            last_synced_at: new Date(),
+            sync_error: null
+          });
+        }
+        synced++;
+      } catch (error) {
+        failed++;
+        errors.push({
+          rule_id: rule.id,
+          uuid: rule.uuid || rule.id,
+          error: error.message
+        });
+        
+        await rule.update({
+          sync_status: 'failed',
+          sync_error: error.message
+        });
+        
+        logger.error('Errore sincronizzazione regola', {
+          rule_id: rule.id,
+          error: error.message
+        });
+      }
+    }
+
+    logger.info('Sincronizzazione bulk completata', {
+      synced,
+      failed,
+      total: pendingRules.length,
+      user: req.user.username
+    });
+
+    res.json({
+      success: true,
+      message: 'Sincronizzazione completata',
+      data: {
+        synced,
+        failed,
+        total: pendingRules.length,
+        errors: errors.length > 0 ? errors : undefined
+      }
+    });
+
+  } catch (error) {
+    logger.error('Errore nella sincronizzazione bulk', {
+      error: error.message,
+      stack: error.stack,
+      user: req.user.username
+    });
+
+    res.status(500).json({
+      success: false,
+      message: 'Errore nella sincronizzazione',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Errore interno del server'
+    });
+  }
+}));
+
+/**
+ * @swagger
+ * /api/rules/statistics:
+ *   get:
+ *     summary: Statistiche regole
+ *     description: Ottieni statistiche sulle regole firewall
+ *     tags: [Firewall Rules]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Statistiche recuperate con successo
+ *       401:
+ *         description: Token di accesso richiesto
+ */
+router.get('/statistics', asyncHandler(async (req, res) => {
+  try {
+    const [
+      totalRules,
+      activeRules,
+      byInterface,
+      byAction,
+      syncStats
+    ] = await Promise.all([
+      Rule.count(),
+      Rule.count({ where: { enabled: true } }),
+      Rule.findAll({
+        attributes: [
+          'interface',
+          [Rule.sequelize.fn('COUNT', '*'), 'count']
+        ],
+        group: ['interface'],
+        raw: true
+      }),
+      Rule.findAll({
+        attributes: [
+          'action',
+          [Rule.sequelize.fn('COUNT', '*'), 'count']
+        ],
+        group: ['action'],
+        raw: true
+      }),
+      Rule.findAll({
+        attributes: [
+          'sync_status',
+          [Rule.sequelize.fn('COUNT', '*'), 'count']
+        ],
+        group: ['sync_status'],
+        raw: true
+      })
+    ]);
+
+    const syncStatusMap = syncStats.reduce((acc, item) => {
+      acc[item.sync_status || 'unknown'] = parseInt(item.count);
+      return acc;
+    }, {});
+
+    res.json({
+      success: true,
+      message: 'Statistiche recuperate con successo',
+      data: {
+        total_rules: totalRules,
+        active_rules: activeRules,
+        by_interface: byInterface,
+        by_action: byAction,
+        sync_status: syncStatusMap
+      }
+    });
+
+  } catch (error) {
+    logger.error('Errore nel recupero statistiche', {
+      error: error.message,
+      stack: error.stack,
+      user: req.user.username
+    });
+
+    res.status(500).json({
+      success: false,
+      message: 'Errore nel recupero delle statistiche',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Errore interno del server'
+    });
+  }
+}));
+
+/**
+ * @swagger
+ * /api/rules/{uuid}/clone:
+ *   post:
+ *     summary: Clona regola
+ *     description: Crea una copia di una regola esistente
+ *     tags: [Firewall Rules]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: uuid
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: UUID della regola da clonare
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               description:
+ *                 type: string
+ *                 description: Nuova descrizione per la regola clonata
+ *                 example: "Copia di: Block malicious IPs"
+ *     responses:
+ *       201:
+ *         description: Regola clonata con successo
+ *       404:
+ *         description: Regola non trovata
+ *       401:
+ *         description: Token di accesso richiesto
+ *       403:
+ *         description: Permessi insufficienti
+ */
+router.post('/:uuid/clone', validateUUID, asyncHandler(async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.id);
+    if (!user || !user.hasPermission('create_rules')) {
+      return res.status(403).json({
+        success: false,
+        message: 'Permessi insufficienti per clonare regole'
+      });
+    }
+
+    const { uuid } = req.params;
+    const { description } = req.body;
+
+    // Cerca la regola usando uuid o id
+    let originalRule = await Rule.findOne({ where: { uuid } });
+    if (!originalRule && !isNaN(uuid)) {
+      // Fallback: prova a cercare per ID se UUID non trovato
+      originalRule = await Rule.findByPk(uuid);
+    }
+
+    if (!originalRule) {
+      return res.status(404).json({
+        success: false,
+        message: 'Regola originale non trovata'
+      });
+    }
+
+    // Clona la regola
+    const clonedData = {
+      ...originalRule.dataValues,
+      id: undefined, // Rimuovi ID per permettere auto-increment
+      uuid: undefined, // Genera nuovo UUID se presente
+      description: description || `Copia di: ${originalRule.description}`,
+      created_by: req.user.id,
+      opnsense_uuid: null, // Reset UUID OPNsense
+      sync_status: 'pending',
+      sync_error: null,
+      last_synced_at: null,
+      created_at: undefined,
+      updated_at: undefined
+    };
+
+    const clonedRule = await Rule.create(clonedData);
+
+    logger.info('Regola clonata', {
+      original_id: originalRule.id,
+      original_uuid: originalRule.uuid || originalRule.id,
+      cloned_id: clonedRule.id,
+      cloned_uuid: clonedRule.uuid || clonedRule.id,
+      user: req.user.username
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Regola clonata con successo',
+      data: {
+        id: clonedRule.id,
+        uuid: clonedRule.uuid || clonedRule.id,
+        description: clonedRule.description
+      }
+    });
+
+  } catch (error) {
+    logger.error('Errore nella clonazione regola', {
+      uuid: req.params.uuid,
+      error: error.message,
+      stack: error.stack,
+      user: req.user.username
+    });
+
+    res.status(500).json({
+      success: false,
+      message: 'Errore nella clonazione della regola',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Errore interno del server'
+    });
+  }
+}));
+
+/**
+ * @swagger
+ * /api/rules/bulk:
+ *   post:
+ *     summary: Operazioni bulk su regole
+ *     description: Esegue operazioni su multiple regole contemporaneamente
+ *     tags: [Firewall Rules]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - operation
+ *               - rule_uuids
+ *             properties:
+ *               operation:
+ *                 type: string
+ *                 enum: [enable, disable, delete]
+ *                 description: Operazione da eseguire
+ *               rule_uuids:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Lista UUID/ID delle regole
+ *                 minItems: 1
+ *                 maxItems: 50
+ *     responses:
+ *       200:
+ *         description: Operazione bulk completata
+ *       400:
+ *         description: Parametri non validi
+ *       401:
+ *         description: Token di accesso richiesto
+ *       403:
+ *         description: Permessi insufficienti
+ */
+router.post('/bulk', asyncHandler(async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.id);
+    const { operation, rule_uuids } = req.body;
+
+    // Validazione input
+    if (!operation || !rule_uuids || !Array.isArray(rule_uuids)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Parametri operation e rule_uuids richiesti'
+      });
+    }
+
+    const validOperations = ['enable', 'disable', 'delete'];
+    if (!validOperations.includes(operation)) {
+      return res.status(400).json({
+        success: false,
+        message: `Operazione non valida. Usare: ${validOperations.join(', ')}`
+      });
+    }
+
+    if (rule_uuids.length === 0 || rule_uuids.length > 50) {
+      return res.status(400).json({
+        success: false,
+        message: 'Lista UUID deve contenere tra 1 e 50 elementi'
+      });
+    }
+
+    // Verifica permessi
+    const requiredPermission = operation === 'delete' ? 'delete_rules' : 'update_rules';
+    if (!user || !user.hasPermission(requiredPermission)) {
+      return res.status(403).json({
+        success: false,
+        message: `Permessi insufficienti per operazione: ${operation}`
+      });
+    }
+
+    // Trova regole
+    const rules = await Rule.findAll({
+      where: {
+        [Rule.sequelize.Op.or]: [
+          { uuid: rule_uuids },
+          { id: rule_uuids.filter(id => !isNaN(id)) }
+        ]
+      }
+    });
+
+    if (rules.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Nessuna regola trovata con gli identificatori forniti'
+      });
+    }
+
+    const results = {
+      success: 0,
+      failed: 0,
+      errors: []
+    };
+
+    for (const rule of rules) {
+      try {
+        switch (operation) {
+          case 'enable':
+          case 'disable':
+            const enabled = operation === 'enable';
+            await rule.update({ 
+              enabled, 
+              updated_by: req.user.id 
+            });
+            
+            // Sincronizza con OPNsense se possibile
+            if (rule.opnsense_uuid) {
+              try {
+                await OpnsenseService.toggleRule(rule.opnsense_uuid, enabled);
+                await rule.update({
+                  sync_status: 'synced',
+                  last_synced_at: new Date(),
+                  sync_error: null
+                });
+              } catch (syncError) {
+                await rule.update({
+                  sync_status: 'failed',
+                  sync_error: syncError.message
+                });
+              }
+            }
+            break;
+
+          case 'delete':
+            // Elimina da OPNsense se sincronizzata
+            if (rule.opnsense_uuid) {
+              try {
+                await OpnsenseService.deleteRule(rule.opnsense_uuid);
+              } catch (syncError) {
+                logger.warn('Errore eliminazione regola da OPNsense durante bulk delete', {
+                  rule_id: rule.id,
+                  rule_uuid: rule.uuid || rule.id,
+                  error: syncError.message
+                });
+              }
+            }
+            await rule.destroy();
+            break;
+        }
+        
+        results.success++;
+      } catch (error) {
+        results.failed++;
+        results.errors.push({
+          rule_id: rule.id,
+          rule_uuid: rule.uuid || rule.id,
+          error: error.message
+        });
+      }
+    }
+
+    logger.info('Operazione bulk completata', {
+      operation,
+      total: rules.length,
+      success: results.success,
+      failed: results.failed,
+      user: req.user.username
+    });
+
+    res.json({
+      success: true,
+      message: `Operazione ${operation} completata`,
+      data: {
+        operation,
+        total: rules.length,
+        success: results.success,
+        failed: results.failed,
+        errors: results.errors.length > 0 ? results.errors : undefined
+      }
+    });
+
+  } catch (error) {
+    logger.error('Errore nell\'operazione bulk', {
+      operation: req.body.operation,
+      error: error.message,
+      stack: error.stack,
+      user: req.user.username
+    });
+
+    res.status(500).json({
+      success: false,
+      message: 'Errore nell\'operazione bulk',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Errore interno del server'
+    });
+  }
+}));
+
+module.exports = router;const express = require('express');
 const { authenticate } = require('../middleware/auth');
 const { validateRule, validateUUID, validateSearchQuery } = require('../middleware/validation');
 const Rule = require('../models/Rule');
@@ -82,68 +605,88 @@ router.use(authenticate);
  *         description: Permessi insufficienti
  */
 router.get('/', validateSearchQuery, asyncHandler(async (req, res) => {
-  const { 
-    page = 1, 
-    limit = 25, 
-    search, 
-    interface: iface, 
-    action, 
-    enabled, 
-    sortBy = 'sequence', 
-    sortOrder = 'asc' 
-  } = req.query;
+  try {
+    const { 
+      page = 1, 
+      limit = 25, 
+      search, 
+      interface: iface, 
+      action, 
+      enabled, 
+      sortBy = 'sequence', 
+      sortOrder = 'asc' 
+    } = req.query;
 
-  const offset = (page - 1) * limit;
-  const where = {};
-  const order = [[sortBy, sortOrder.toUpperCase()]];
+    const offset = (page - 1) * limit;
+    const where = {};
+    const order = [[sortBy, sortOrder.toUpperCase()]];
 
-  // Costruisci filtri
-  if (search) {
-    where.description = { [Rule.sequelize.Op.iLike]: `%${search}%` };
-  }
-  if (iface) where.interface = iface;
-  if (action) where.action = action;
-  if (enabled !== undefined) where.enabled = enabled;
-
-  // Solo regole approvate per utenti non admin
-  const user = await User.findByPk(req.user.id);
-  if (user.role !== 'admin') {
-    where.approval_status = 'approved';
-  }
-
-  const { count, rows } = await Rule.findAndCountAll({
-    where,
-    offset: parseInt(offset),
-    limit: parseInt(limit),
-    order,
-    include: [
-      {
-        model: User,
-        as: 'createdBy',
-        attributes: ['id', 'username', 'first_name', 'last_name']
-      }
-    ]
-  });
-
-  logger.info('Lista regole recuperata', {
-    count,
-    page,
-    limit,
-    user: req.user.username,
-    filters: { search, iface, action, enabled }
-  });
-
-  res.json({
-    success: true,
-    message: 'Regole recuperate con successo',
-    data: rows,
-    meta: {
-      total: count,
-      page: parseInt(page),
-      limit: parseInt(limit),
-      pages: Math.ceil(count / limit)
+    // Costruisci filtri
+    if (search) {
+      where.description = { [Rule.sequelize.Op.iLike]: `%${search}%` };
     }
-  });
+    if (iface) where.interface = iface;
+    if (action) where.action = action;
+    if (enabled !== undefined) where.enabled = enabled;
+
+    // Solo regole approvate per utenti non admin
+    const user = await User.findByPk(req.user.id);
+    if (user.role !== 'admin') {
+      // Assumiamo che ci sia un campo approval_status o simile
+      // Se non esiste, rimuovi questa riga
+      if (Rule.rawAttributes.approval_status) {
+        where.approval_status = 'approved';
+      }
+    }
+
+    const { count, rows } = await Rule.findAndCountAll({
+      where,
+      offset: parseInt(offset),
+      limit: parseInt(limit),
+      order,
+      include: [
+        {
+          model: User,
+          as: 'createdBy',
+          attributes: ['id', 'username', 'first_name', 'last_name'],
+          required: false
+        }
+      ]
+    });
+
+    logger.info('Lista regole recuperata', {
+      count,
+      page,
+      limit,
+      user: req.user.username,
+      filters: { search, iface, action, enabled }
+    });
+
+    res.json({
+      success: true,
+      message: 'Regole recuperate con successo',
+      data: rows,
+      meta: {
+        total: count,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(count / limit)
+      }
+    });
+
+  } catch (error) {
+    logger.error('Errore nel recupero lista regole', {
+      error: error.message,
+      stack: error.stack,
+      user: req.user.username
+    });
+
+    res.status(500).json({
+      success: false,
+      message: 'Errore nel recupero delle regole',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Errore interno del server'
+    });
+  }
 }));
 
 /**
@@ -290,20 +833,20 @@ router.get('/:uuid', validateUUID, asyncHandler(async (req, res) => {
  *         description: Permessi insufficienti
  */
 router.post('/', validateRule, asyncHandler(async (req, res) => {
-  const user = await User.findByPk(req.user.id);
-  if (!user.hasPermission('create_rules')) {
-    return res.status(403).json({
-      success: false,
-      message: 'Permessi insufficienti per creare regole'
-    });
-  }
-
-  const ruleData = {
-    ...req.body,
-    created_by: req.user.id
-  };
-
   try {
+    const user = await User.findByPk(req.user.id);
+    if (!user || !user.hasPermission('create_rules')) {
+      return res.status(403).json({
+        success: false,
+        message: 'Permessi insufficienti per creare regole'
+      });
+    }
+
+    const ruleData = {
+      ...req.body,
+      created_by: req.user.id
+    };
+
     // Crea regola nel database
     const rule = await Rule.create(ruleData);
 
@@ -315,7 +858,21 @@ router.post('/', validateRule, asyncHandler(async (req, res) => {
     };
 
     try {
-      const opnsenseResult = await OpnsenseService.createRule(rule.toOpnsenseFormat());
+      // Verifica se il modello Rule ha il metodo toOpnsenseFormat
+      const ruleForOPNsense = rule.toOpnsenseFormat ? 
+        rule.toOpnsenseFormat() : 
+        {
+          description: rule.description,
+          interface: rule.interface,
+          action: rule.action,
+          protocol: rule.protocol || 'any',
+          enabled: rule.enabled,
+          source_config: rule.source_config,
+          destination_config: rule.destination_config
+        };
+
+      const opnsenseResult = await OpnsenseService.createRule(ruleForOPNsense);
+      
       syncResult = {
         opnsense_uuid: opnsenseResult.uuid,
         sync_status: 'synced',
@@ -338,7 +895,7 @@ router.post('/', validateRule, asyncHandler(async (req, res) => {
 
     logger.info('Regola creata', {
       rule_id: rule.id,
-      uuid: rule.uuid,
+      uuid: rule.uuid || rule.id,
       description: rule.description,
       sync_status: syncResult.sync_status,
       user: req.user.username
@@ -348,7 +905,8 @@ router.post('/', validateRule, asyncHandler(async (req, res) => {
       success: true,
       message: 'Regola creata con successo',
       data: {
-        uuid: rule.uuid,
+        id: rule.id,
+        uuid: rule.uuid || rule.id,
         opnsense_uuid: syncResult.opnsense_uuid,
         sync_status: syncResult.sync_status,
         sync_error: syncResult.sync_error
@@ -358,14 +916,15 @@ router.post('/', validateRule, asyncHandler(async (req, res) => {
   } catch (error) {
     logger.error('Errore nella creazione regola', {
       error: error.message,
-      ruleData,
+      stack: error.stack,
+      ruleData: req.body,
       user: req.user.username
     });
 
     res.status(500).json({
       success: false,
       message: 'Errore nella creazione della regola',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Errore interno del server'
     });
   }
 }));
