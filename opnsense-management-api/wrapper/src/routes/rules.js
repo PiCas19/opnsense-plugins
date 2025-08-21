@@ -615,65 +615,84 @@ router.patch('/:id/toggle', asyncHandler(async (req, res) => {
   try {
     const user = await User.findByPk(req.user.id);
     if (!user || !user.hasPermission('update_rules')) {
-      return res.status(403).json({
-        success: false,
-        message: 'Permessi insufficienti per modificare regole'
-      });
+      return res.status(403).json({ success: false, message: 'Permessi insufficienti per modificare regole' });
     }
 
     const { id } = req.params;
-    const { enabled } = req.body;
-    
-    // Cerca regola locale
+
+    // normalizza enabled: accetta boolean, "true"/"false", "1"/"0"
+    let { enabled } = req.body;
+    if (typeof enabled === 'string') {
+      enabled = enabled === 'true' || enabled === '1';
+    }
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ success: false, message: 'Campo "enabled" booleano richiesto' });
+    }
+
+    const applyNow = String(req.query.apply || '').toLowerCase() === 'true';
+
+    // trova regola locale (id numerico o uuid)
     let rule;
     if (!isNaN(id)) {
       rule = await Rule.findByPk(id);
-    } else if (Rule.rawAttributes && Rule.rawAttributes.uuid) {
+    } else if (Rule.rawAttributes?.uuid) {
       rule = await Rule.findOne({ where: { uuid: id } });
     }
 
-    if (!rule) {
-      return res.status(404).json({
-        success: false,
-        message: 'Regola non trovata'
-      });
-    }
-
+    if (!rule) return res.status(404).json({ success: false, message: 'Regola non trovata' });
     if (!rule.opnsense_uuid) {
-      return res.status(400).json({
-        success: false,
-        message: 'Regola non sincronizzata con OPNsense'
-      });
+      return res.status(400).json({ success: false, message: 'Regola non sincronizzata con OPNsense' });
     }
 
-    // Test connessione OPNsense
+    // test connessione
     const connectionTest = await OpnsenseService.testConnection();
     if (!connectionTest.success) {
       return res.status(502).json({
         success: false,
         message: 'OPNsense non raggiungibile',
-        details: connectionTest.tests
+        details: connectionTest
       });
     }
 
-    // Aggiorna stato su OPNsense
-    await OpnsenseService.toggleRule(rule.opnsense_uuid, enabled);
+    // === TOGGLE lato OPNsense (uguale a update: get -> merge -> setRule) ===
+    const result = await OpnsenseService.toggleRule(rule.opnsense_uuid, enabled);
 
-    logger.info('Stato regola cambiato su OPNsense', {
+    // apply immediato opzionale
+    if (applyNow) {
+      await OpnsenseService.applyConfig();
+    }
+
+    // === sincronizza DB locale ===
+    const payload = { enabled };
+    if (Rule.rawAttributes?.sync_status) {
+      payload.sync_status = applyNow ? 'synced' : 'synced_pending_apply';
+    }
+    if (Rule.rawAttributes?.last_synced_at) {
+      payload.last_synced_at = new Date();
+    }
+    await rule.update(payload);
+
+    logger.info('Stato regola cambiato su OPNsense e DB aggiornato', {
       rule_id: rule.id,
       opnsense_uuid: rule.opnsense_uuid,
-      enabled: enabled,
+      enabled,
+      apply: applyNow,
       user: req.user.username
     });
 
-    res.json({
+    return res.json({
       success: true,
-      message: `Regola ${enabled ? 'abilitata' : 'disabilitata'} su OPNsense con successo`,
+      message: `Regola ${enabled ? 'abilitata' : 'disabilitata'} su OPNsense${applyNow ? ' e applicata' : ''}`,
       data: {
         id: rule.id,
+        uuid: rule.uuid || String(rule.id),
         description: rule.description,
+        interface: rule.interface,
+        action: rule.action,
         opnsense_uuid: rule.opnsense_uuid,
-        opnsense_enabled: enabled
+        opnsense_enabled: enabled,
+        applied: applyNow,
+        opnsense_response: result?.opnsense_response || null
       }
     });
 
@@ -684,13 +703,14 @@ router.patch('/:id/toggle', asyncHandler(async (req, res) => {
       user: req.user?.username
     });
 
-    res.status(502).json({
+    return res.status(502).json({
       success: false,
       message: 'Errore nel cambio stato della regola su OPNsense',
       error: process.env.NODE_ENV === 'development' ? error.message : 'Errore di comunicazione con OPNsense'
     });
   }
 }));
+
 
 /**
  * @swagger
