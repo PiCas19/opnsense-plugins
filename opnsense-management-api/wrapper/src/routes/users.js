@@ -36,7 +36,7 @@ router.use(authenticate);
  *         password:
  *           type: string
  *           minLength: 8
- *           pattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`])'
+ *           pattern: '^[a-zA-Z0-9_-]+$'
  *           description: Password (min 8 char, maiuscola, minuscola, numero, carattere speciale)
  *           example: NewUser123!
  *         first_name:
