@@ -229,6 +229,8 @@ router.get('/:id', asyncHandler(async (req, res) => {
  
     const { id } = req.params;
 
+    console.log(id);
+
     const conn = await OpnsenseService.testConnection();
     if (!conn.success) {
       return res.status(502).json({ success: false, message: 'OPNsense non raggiungibile', details: conn });
