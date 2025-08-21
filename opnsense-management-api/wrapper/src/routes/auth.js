@@ -86,7 +86,7 @@ const refreshTokens = new Set();
  *         new_password:
  *           type: string
  *           description: Nuova password
- *           pattern: "^[a-zA-Z0-9_-]+$"
+ *           pattern: '^[a-zA-Z0-9_-]+$'
  */
 
 /**
