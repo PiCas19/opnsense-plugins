@@ -2,45 +2,129 @@ openapi: 3.0.3
 info:
   title: OPNsense Wrapper
   version: "1.0.0"
-  description: API wrapper per gestire regole firewall OPNsense
+  description: >
+    Simple API wrapper to manage OPNsense firewall rules.  
+    Error mapping: upstream 5xx responses are returned as HTTP 502 (Bad Gateway);
+    upstream 4xx responses are propagated with the same status code.
+
 servers:
   - url: http://localhost:8080
+
+tags:
+  - name: rules
+    description: Manage OPNsense firewall rules
+
 paths:
   /api/rules:
     get:
-      summary: Lista regole (searchRule)
+      tags: [rules]
+      summary: List rules (searchRule)
+      description: >
+        Returns rules from OPNsense's search endpoint. Supports an optional
+        search phrase that filters by description (server-side).
       parameters:
         - in: query
           name: search
           schema: { type: string }
+          description: Optional search phrase to filter by description.
       responses:
-        "200": { description: OK }
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListRulesResponse"
+              examples:
+                ok:
+                  value:
+                    success: true
+                    total: 1
+                    rows:
+                      - uuid: "abcd-1234"
+                        description: "Allow HTTPS"
+                        interface: "wan"
+                        action: "pass"
+                        enable: "1"
+        "4XX":
+          $ref: "#/components/responses/UpstreamError4xx"
+        "502":
+          $ref: "#/components/responses/UpstreamBadGateway"
     post:
-      summary: Crea regola (addRule)
+      tags: [rules]
+      summary: Create rule (addRule)
+      description: >
+        Creates a rule on OPNsense using `addRule`.  
+        If `apply=true`, a subsequent `apply` is triggered.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                rule: { type: object }
-                apply: { type: boolean, default: false }
+              $ref: "#/components/schemas/CreateRuleRequest"
+            examples:
+              create:
+                value:
+                  rule:
+                    enabled: "1"
+                    interface: "wan"
+                    direction: "in"
+                    ipprotocol: "inet"
+                    protocol: "tcp"
+                    action: "pass"
+                    description: "API Created Rule"
+                    source_net: "any"
+                    source_port: ""
+                    destination_net: "any"
+                    destination_port: "443"
+                    log: "0"
+                    quick: "1"
+                    floating: "0"
+                  apply: false
       responses:
-        "200": { description: Creata }
+        "200":
+          description: Created on OPNsense
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MutatingActionResponse"
+        "4XX":
+          $ref: "#/components/responses/UpstreamError4xx"
+        "502":
+          $ref: "#/components/responses/UpstreamBadGateway"
+
   /api/rules/{uuid}:
     get:
-      summary: Dettaglio regola (get_rule / getRule)
+      tags: [rules]
+      summary: Get rule details (get_rule / getRule)
       parameters:
         - in: path
           name: uuid
           required: true
           schema: { type: string }
       responses:
-        "200": { description: OK }
-        "404": { description: Non trovata }
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetRuleResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BasicError"
+              examples:
+                notFound:
+                  value:
+                    detail: "Regola non trovata"
+        "4XX":
+          $ref: "#/components/responses/UpstreamError4xx"
+        "502":
+          $ref: "#/components/responses/UpstreamBadGateway"
     put:
-      summary: Aggiorna regola (setRule)
+      tags: [rules]
+      summary: Update rule (setRule)
       parameters:
         - in: path
           name: uuid
@@ -51,23 +135,46 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                rule: { type: object }
+              $ref: "#/components/schemas/UpdateRuleRequest"
       responses:
-        "200": { description: Aggiornata }
+        "200":
+          description: Updated on OPNsense
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MutatingActionResponse"
+        "4XX":
+          $ref: "#/components/responses/UpstreamError4xx"
+        "502":
+          $ref: "#/components/responses/UpstreamBadGateway"
     delete:
-      summary: Elimina regola (delRule)
+      tags: [rules]
+      summary: Delete rule (delRule)
       parameters:
         - in: path
           name: uuid
           required: true
           schema: { type: string }
       responses:
-        "200": { description: Eliminata }
+        "200":
+          description: Deleted on OPNsense
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MutatingActionResponse"
+        "4XX":
+          $ref: "#/components/responses/UpstreamError4xx"
+        "502":
+          $ref: "#/components/responses/UpstreamBadGateway"
+
   /api/rules/{uuid}/toggle:
     post:
-      summary: Abilita/Disabilita (toggleRule)
+      tags: [rules]
+      summary: Enable/Disable rule (toggleRule)
+      description: >
+        Toggles a rule status.  
+        If `enabled` is `null`, performs a pure toggle.  
+        If `apply=true`, a subsequent `apply` is triggered.
       parameters:
         - in: path
           name: uuid
@@ -78,14 +185,195 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                enabled: { type: boolean, nullable: true, description: "null = toggle puro" }
-                apply: { type: boolean, default: false }
+              $ref: "#/components/schemas/ToggleRuleRequest"
+            examples:
+              enable:
+                value: { enabled: true, apply: false }
+              disable_and_apply:
+                value: { enabled: false, apply: true }
+              pure_toggle:
+                value: { enabled: null, apply: false }
       responses:
-        "200": { description: OK }
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MutatingActionResponse"
+        "4XX":
+          $ref: "#/components/responses/UpstreamError4xx"
+        "502":
+          $ref: "#/components/responses/UpstreamBadGateway"
+
   /api/rules/apply:
     post:
-      summary: Applica configurazione
+      tags: [rules]
+      summary: Apply pending configuration
       responses:
-        "200": { description: OK }
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MutatingActionResponse"
+        "4XX":
+          $ref: "#/components/responses/UpstreamError4xx"
+        "502":
+          $ref: "#/components/responses/UpstreamBadGateway"
+
+components:
+  schemas:
+    BasicError:
+      type: object
+      properties:
+        detail:
+          oneOf:
+            - type: string
+            - type: object
+    UpstreamErrorDetail:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: false
+        latency_ms:
+          type: integer
+          example: 42
+        upstream_status:
+          type: integer
+          example: 503
+        upstream_url:
+          type: string
+          example: "https://fw.local/api/firewall/filter/searchRule"
+        body:
+          description: Upstream response body (as object or plain text)
+          oneOf:
+            - type: object
+            - type: string
+
+    ListRulesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        total:
+          type: integer
+          example: 2
+        rows:
+          type: array
+          description: Raw rows from OPNsense search (shape may vary by version).
+          items:
+            type: object
+            additionalProperties: true
+
+    GetRuleResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        rule:
+          type: object
+          description: Rule object as returned by OPNsense.
+          additionalProperties: true
+          example:
+            uuid: "abcd-1234"
+            description: "Allow HTTPS"
+            interface: "wan"
+            action: "pass"
+            protocol: "tcp"
+            enable: "1"
+
+    CreateRuleRequest:
+      type: object
+      required: [rule]
+      properties:
+        rule:
+          $ref: "#/components/schemas/RulePayload"
+        apply:
+          type: boolean
+          default: false
+
+    UpdateRuleRequest:
+      type: object
+      required: [rule]
+      properties:
+        rule:
+          $ref: "#/components/schemas/RulePayload"
+
+    ToggleRuleRequest:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          nullable: true
+          description: "null = pure toggle (no forced state)."
+        apply:
+          type: boolean
+          default: false
+
+    MutatingActionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        result:
+          description: Upstream response body from OPNsense.
+          oneOf:
+            - type: object
+              additionalProperties: true
+            - type: string
+        applied:
+          type: boolean
+          description: Present for create/toggle when `apply` was requested.
+          example: false
+
+    RulePayload:
+      type: object
+      description: >
+        OPNsense rule payload (as accepted by addRule/setRule).  
+        Properties are passed through to OPNsense as-is.
+      properties:
+        enabled: { type: string, enum: ["0", "1"] }
+        interface: { type: string, example: "wan" }
+        direction: { type: string, enum: ["in", "out"], example: "in" }
+        ipprotocol: { type: string, example: "inet" }
+        protocol: { type: string, example: "tcp" }
+        action: { type: string, enum: ["pass", "block", "reject"], example: "pass" }
+        description: { type: string, example: "API Created Rule" }
+        source_net: { type: string, example: "any" }
+        source_port: { type: string, example: "" }
+        destination_net: { type: string, example: "any" }
+        destination_port: { type: string, example: "443" }
+        log: { type: string, enum: ["0", "1"] }
+        quick: { type: string, enum: ["0", "1"] }
+        floating: { type: string, enum: ["0", "1"] }
+      additionalProperties: true
+
+  responses:
+    UpstreamError4xx:
+      description: Upstream returned a 4xx error (propagated).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/BasicError"
+          examples:
+            unauthorized:
+              value:
+                detail:
+                  upstream: 401
+                  body: { message: "Unauthorized" }
+    UpstreamBadGateway:
+      description: Upstream returned a 5xx error (mapped to 502).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/BasicError"
+          examples:
+            bad_gateway:
+              value:
+                detail:
+                  upstream: 503
+                  body: { message: "Service Unavailable" }

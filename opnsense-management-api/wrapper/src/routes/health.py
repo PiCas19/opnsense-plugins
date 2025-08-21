@@ -1,4 +1,10 @@
-# src/routes/health.py
+"""Health endpoints for the OPNsense Python wrapper.
+
+This module exposes simple health probes:
+- `/api/health`            : local liveness/readiness of this service
+- `/api/health/opnsense`   : upstream reachability check against OPNsense
+"""
+
 from fastapi import APIRouter, HTTPException
 from time import perf_counter
 from src.opnsense.client import client
@@ -9,6 +15,7 @@ router = APIRouter(prefix="/api/health", tags=["health"])
 
 @router.get("")
 def health_root():
+    """Return basic service metadata to indicate the API is alive."""
     return {
         "ok": True,
         "service": "opnsense-wrapper-python",
@@ -18,12 +25,23 @@ def health_root():
 
 @router.get("/opnsense")
 def health_opnsense():
-    """
-    Verifica la raggiungibilità di OPNsense eseguendo una search minimale sulle regole.
-    Misura la latenza ed espone qualche metadato utile al troubleshooting.
+    """Check OPNsense reachability by performing a minimal rules search.
+
+    - Executes a very small `/firewall/filter/searchRule` request (rowCount=1).
+    - Measures end-to-end latency in milliseconds and includes it in the response.
+    - Exposes a few configuration hints (verify_ssl, base_url) to aid troubleshooting.
+
+    Error handling:
+    - Upstream 4xx errors are propagated with the same status code.
+    - Upstream 5xx errors are mapped to HTTP 502 (Bad Gateway).
+    - Any unexpected local error returns HTTP 500 with a short message.
+
+    Returns:
+        dict: A JSON payload with `ok`, `latency_ms`, and `details`.
     """
     t0 = perf_counter()
     try:
+        # Minimal call just to assert reachability; avoid heavy payloads.
         res = client.search_rules(search_phrase="", row_count=1)
         latency = int((perf_counter() - t0) * 1000)
         return {
@@ -37,8 +55,9 @@ def health_opnsense():
             }
         }
     except HttpError as e:
+        # Convert upstream HTTP errors into API responses with useful context.
+        # Map 5xx from upstream to 502 (Bad Gateway) on our side.
         latency = int((perf_counter() - t0) * 1000)
-        # Mappa i 5xx upstream a 502 Bad Gateway
         status = 502 if e.status >= 500 else e.status
         raise HTTPException(
             status_code=status,
