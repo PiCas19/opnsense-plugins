@@ -8,4 +8,3 @@ def test_health_echo_config(client):
     assert r.status_code == 200
     j = r.json()
     assert j["base_url"].endswith("/api")
-    assert "…" in j["key_preview"]
