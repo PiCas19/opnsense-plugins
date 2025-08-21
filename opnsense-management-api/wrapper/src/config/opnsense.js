@@ -1,12 +1,16 @@
 const fs = require('fs');
 const path = require('path');
+const { getEnv, requireEnv } = require('../utils/env');
+
+// Verifica variabili richieste
+requireEnv(['OPNSENSE_HOST', 'OPNSENSE_API_KEY', 'OPNSENSE_API_SECRET']);
 
 const config = {
-  host: process.env.OPNSENSE_HOST,
-  apiKey: process.env.OPNSENSE_API_KEY,
-  apiSecret: process.env.OPNSENSE_API_SECRET,
-  verifySSL: process.env.OPNSENSE_VERIFY_SSL === 'true',
-  timeout: parseInt(process.env.OPNSENSE_TIMEOUT) || 30000,
+  host: getEnv('OPNSENSE_HOST'),
+  apiKey: getEnv('OPNSENSE_API_KEY'),
+  apiSecret: getEnv('OPNSENSE_API_SECRET'),
+  verifySSL: getEnv('OPNSENSE_VERIFY_SSL', 'false') === 'true',
+  timeout: parseInt(getEnv('OPNSENSE_TIMEOUT', '30000')),
   
   // Configurazione certificati SSL
   ssl: {
@@ -15,6 +19,8 @@ const config = {
     key: null
   }
 };
+
+console.log('OPNsense configuration loaded successfully');
 
 // Carica certificati se presenti
 const certsDir = path.join(__dirname, '../../certs');
@@ -56,25 +62,22 @@ try {
   }
 
   // Supporto per variabili ambiente alternative
-  if (!config.ssl.ca && process.env.OPNSENSE_CA_CERT_PATH) {
-    if (fs.existsSync(process.env.OPNSENSE_CA_CERT_PATH)) {
-      config.ssl.ca = fs.readFileSync(process.env.OPNSENSE_CA_CERT_PATH, 'utf8');
-      console.log(`CA certificate loaded from env: ${process.env.OPNSENSE_CA_CERT_PATH}`);
-    }
+  const caCertPath = getEnv('OPNSENSE_CA_CERT_PATH');
+  if (!config.ssl.ca && caCertPath && fs.existsSync(caCertPath)) {
+    config.ssl.ca = fs.readFileSync(caCertPath, 'utf8');
+    console.log(`CA certificate loaded from env: ${caCertPath}`);
   }
 
-  if (!config.ssl.cert && process.env.OPNSENSE_CLIENT_CERT_PATH) {
-    if (fs.existsSync(process.env.OPNSENSE_CLIENT_CERT_PATH)) {
-      config.ssl.cert = fs.readFileSync(process.env.OPNSENSE_CLIENT_CERT_PATH, 'utf8');
-      console.log(`Client certificate loaded from env: ${process.env.OPNSENSE_CLIENT_CERT_PATH}`);
-    }
+  const clientCertPath = getEnv('OPNSENSE_CLIENT_CERT_PATH');
+  if (!config.ssl.cert && clientCertPath && fs.existsSync(clientCertPath)) {
+    config.ssl.cert = fs.readFileSync(clientCertPath, 'utf8');
+    console.log(`Client certificate loaded from env: ${clientCertPath}`);
   }
 
-  if (!config.ssl.key && process.env.OPNSENSE_CLIENT_KEY_PATH) {
-    if (fs.existsSync(process.env.OPNSENSE_CLIENT_KEY_PATH)) {
-      config.ssl.key = fs.readFileSync(process.env.OPNSENSE_CLIENT_KEY_PATH, 'utf8');
-      console.log(`Client key loaded from env: ${process.env.OPNSENSE_CLIENT_KEY_PATH}`);
-    }
+  const clientKeyPath = getEnv('OPNSENSE_CLIENT_KEY_PATH');
+  if (!config.ssl.key && clientKeyPath && fs.existsSync(clientKeyPath)) {
+    config.ssl.key = fs.readFileSync(clientKeyPath, 'utf8');
+    console.log(`Client key loaded from env: ${clientKeyPath}`);
   }
 
 } catch (error) {
@@ -84,13 +87,6 @@ try {
 
 // Validazione configurazione
 const validateConfig = () => {
-  const required = ['host', 'apiKey', 'apiSecret'];
-  const missing = required.filter(key => !config[key]);
-  
-  if (missing.length > 0) {
-    throw new Error(`Configurazione OPNsense mancante: ${missing.join(', ')}`);
-  }
-
   // Verifica formato host
   if (!config.host.startsWith('http://') && !config.host.startsWith('https://')) {
     config.host = `https://${config.host}`;
