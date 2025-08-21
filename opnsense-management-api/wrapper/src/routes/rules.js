@@ -2,6 +2,7 @@ const express = require('express');
 const { authenticate } = require('../middleware/auth');
 const { validateRule, validateUUID, validateSearchQuery } = require('../middleware/validation');
 const Rule = require('../models/Rule');
+const User = require('../models/User'); 
 const OpnsenseService = require('../services/OpnsenseService');
 const asyncHandler = require('express-async-handler');
 const logger = require('../utils/logger');
