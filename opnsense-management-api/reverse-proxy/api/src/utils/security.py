@@ -1,57 +1,89 @@
-from datetime import datetime, timedelta, timezone
+# tests/unit/test_security.py
+from types import SimpleNamespace as NS
 import jwt
-from fastapi import HTTPException, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import pytest
+
+from src.utils.security import (
+    create_access_token,
+    create_refresh_token,
+    decode_refresh,
+    get_current_user,
+)
 from src.config import settings
 
-_security = HTTPBearer(auto_error=False)
 
-def _now():
-    return datetime.now(tz=timezone.utc)
+def _bearer(token: str):
+    # oggetto compatibile con HTTPAuthorizationCredentials
+    return NS(scheme="Bearer", credentials=token)
 
-def _encode(payload: dict, secret: str) -> str:
-    return jwt.encode(payload, secret, algorithm="HS256")
 
-def _decode(token: str, secret: str) -> dict:
-    try:
-        return jwt.decode(token, secret, algorithms=["HS256"])
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
+def test_access_ok_and_get_current_user_ok():
+    tok = create_access_token("alice")
+    user = get_current_user(_bearer(tok))
+    assert user == "alice"
 
-# -------- tokens --------
-def create_access_token(sub: str) -> str:
-    now = _now()
-    payload = {
-        "sub": sub,
-        "type": "access",
-        "iat": int(now.timestamp()),
-        "exp": int((now + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)).timestamp()),
-    }
-    return _encode(payload, settings.JWT_SECRET)
 
-def create_refresh_token(sub: str) -> str:
-    now = _now()
-    payload = {
-        "sub": sub,
-        "type": "refresh",
-        "iat": int(now.timestamp()),
-        "exp": int((now + timedelta(days=settings.JWT_REFRESH_EXPIRE_DAYS)).timestamp()),
-    }
-    secret = settings.JWT_REFRESH_SECRET or settings.JWT_SECRET
-    return _encode(payload, secret)
+def test_missing_header_and_wrong_scheme():
+    # niente credenziali -> 401
+    with pytest.raises(Exception) as e1:
+        get_current_user(None)
+    assert getattr(e1.value, "status_code", 0) == 401
 
-def decode_refresh(token: str) -> dict:
-    payload = _decode(token, settings.JWT_REFRESH_SECRET or settings.JWT_SECRET)
-    if payload.get("type") != "refresh":
-        raise HTTPException(status_code=401, detail="Invalid refresh token")
-    return payload
+    # schema non Bearer -> 401
+    with pytest.raises(Exception) as e2:
+        get_current_user(NS(scheme="Basic", credentials="whatever"))
+    assert getattr(e2.value, "status_code", 0) == 401
 
-def get_current_user(creds: HTTPAuthorizationCredentials = Depends(_security)) -> str:
-    if not creds or creds.scheme.lower() != "bearer":
-        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
-    payload = _decode(creds.credentials, settings.JWT_SECRET)
-    if payload.get("type") != "access":
-        raise HTTPException(status_code=401, detail="Invalid token")
-    return payload.get("sub")
+
+def test_access_token_expired_raises_token_expired():
+    # token scaduto (exp nel passato)
+    expired = jwt.encode(
+        {"sub": "bob", "type": "access", "iat": 0, "exp": 1},
+        settings.JWT_SECRET,
+        algorithm="HS256",
+    )
+    with pytest.raises(Exception) as e:
+        get_current_user(_bearer(expired))
+    assert getattr(e.value, "status_code", 0) == 401
+    # il dettaglio proviene da _decode
+    assert getattr(e.value, "detail", "") == "Token expired"
+
+
+def test_access_token_completely_invalid_string():
+    with pytest.raises(Exception) as e:
+        get_current_user(_bearer("not.a.jwt"))
+    assert getattr(e.value, "status_code", 0) == 401
+    assert getattr(e.value, "detail", "") == "Invalid token"
+
+
+def test_refresh_token_ok_and_decode_refresh_ok():
+    rt = create_refresh_token("carol")
+    payload = decode_refresh(rt)
+    assert payload["sub"] == "carol"
+    assert payload["type"] == "refresh"
+
+
+def test_decode_refresh_with_access_token_is_rejected():
+    at = create_access_token("dave")
+    with pytest.raises(Exception) as e:
+        decode_refresh(at)
+    assert getattr(e.value, "status_code", 0) == 401
+    assert getattr(e.value, "detail", "") == "Invalid refresh token"
+
+
+def test_get_current_user_with_refresh_token_is_rejected():
+    # se passo un refresh come Bearer deve fallire (tipo errato)
+    rt = create_refresh_token("erin")
+    with pytest.raises(Exception) as e:
+        get_current_user(_bearer(rt))
+    assert getattr(e.value, "status_code", 0) == 401
+    assert getattr(e.value, "detail", "") == "Invalid token"
+
+
+def test_refresh_fallback_to_access_secret(monkeypatch):
+    # forza l'uso del fallback: nessun JWT_REFRESH_SECRET -> usa JWT_SECRET
+    monkeypatch.setattr(settings, "JWT_REFRESH_SECRET", None)
+    rt = create_refresh_token("frank")
+    payload = decode_refresh(rt)  # deve decodificare correttamente
+    assert payload["sub"] == "frank"
+    assert payload["type"] == "refresh"
