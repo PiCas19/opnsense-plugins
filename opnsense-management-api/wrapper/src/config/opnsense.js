@@ -1,405 +1,118 @@
 const fs = require('fs');
 const path = require('path');
-const axios = require('axios');
 
-// axios-retry@4 in CJS espone la funzione in .default
-const axiosRetryImport = require('axios-retry');
-const axiosRetry = axiosRetryImport.default || axiosRetryImport;
-const { isNetworkOrIdempotentRequestError } = axiosRetryImport;
-
-const https = require('https');
-const logger = require('../utils/logger');
-
-/* ===========================
- * Configurazione SSL Sicura
- * =========================== */
-function createSecureHttpsAgent() {
-  const agentOptions = {
-    keepAlive: true,
-    keepAliveMsecs: 30000,
-    maxSockets: 10,
-  };
-
-  // 1. Priorità: Certificato personalizzato
-  const customCertPath = process.env.OPNSENSE_CA_CERT_PATH || process.env.NODE_EXTRA_CA_CERTS;
-  if (customCertPath && fs.existsSync(customCertPath)) {
-    try {
-      agentOptions.ca = fs.readFileSync(customCertPath);
-      agentOptions.rejectUnauthorized = true;
-      logger.info('Using custom CA certificate for OPNsense', { path: customCertPath });
-      return new https.Agent(agentOptions);
-    } catch (error) {
-      logger.warn('Failed to load custom CA certificate', { 
-        path: customCertPath, 
-        error: error.message 
-      });
-    }
-  }
-
-  // 2. Configurazione basata su OPNSENSE_SSL_VERIFY
-  const sslVerify = process.env.OPNSENSE_SSL_VERIFY;
-  if (sslVerify === 'false') {
-    agentOptions.rejectUnauthorized = false;
-    logger.warn('SSL certificate verification DISABLED per OPNSENSE_SSL_VERIFY=false');
-    return new https.Agent(agentOptions);
-  } else if (sslVerify === 'true') {
-    agentOptions.rejectUnauthorized = true;
-    logger.info('SSL certificate verification ENABLED per OPNSENSE_SSL_VERIFY=true');
-    return new https.Agent(agentOptions);
-  }
-
-  // 3. Default basato su NODE_ENV
-  if (process.env.NODE_ENV === 'production') {
-    agentOptions.rejectUnauthorized = true;
-    logger.info('Using system certificates (production mode)');
-  } else {
-    agentOptions.rejectUnauthorized = false;
-    logger.warn('Accepting self-signed certificates (development mode)');
-  }
-
-  return new https.Agent(agentOptions);
-}
-
-/* ===========================
- * OPNsense API & SSH config
- * =========================== */
-const opnsenseConfig = {
-  baseURL: process.env.OPNSENSE_BASE_URL || 'https://192.168.216.1',
+const config = {
+  host: process.env.OPNSENSE_HOST,
   apiKey: process.env.OPNSENSE_API_KEY,
   apiSecret: process.env.OPNSENSE_API_SECRET,
-  timeout: parseInt(process.env.OPNSENSE_TIMEOUT, 10) || 30000,
-  sslVerify: process.env.OPNSENSE_SSL_VERIFY === 'true',
-  retries: parseInt(process.env.OPNSENSE_RETRIES, 10) || 3,
-  retryDelay: parseInt(process.env.OPNSENSE_RETRY_DELAY, 10) || 1000,
-
-  // ---- SSH (usato dal Service per leggere /conf/config.xml) ----
-  ssh: {
-    host: process.env.OPNSENSE_SSH_HOST || '192.168.216.1',
-    port: parseInt(process.env.OPNSENSE_SSH_PORT || '22', 10),
-    username: process.env.OPNSENSE_SSH_USER || 'root',
-    password: process.env.OPNSENSE_SSH_PASSWORD || undefined,
-    // privateKey può arrivare inline (PEM o base64) o da file path
-    privateKey:
-      (() => {
-        try {
-          const inline = process.env.OPNSENSE_SSH_PRIVATE_KEY || '';
-          if (inline.trim()) {
-            const pem = inline.includes('BEGIN') ? inline : Buffer.from(inline, 'base64').toString('utf8');
-            return pem;
-          }
-          const p = process.env.OPNSENSE_SSH_PRIVATE_KEY_PATH;
-          if (p && fs.existsSync(p)) return fs.readFileSync(p, 'utf8');
-          return undefined;
-        } catch (e) {
-          logger.warn('SSH private key load failed', { error: e.message });
-          return undefined;
-        }
-      })(),
-    useSudo: process.env.OPNSENSE_SSH_USE_SUDO === 'true',
-    readyTimeout: parseInt(process.env.OPNSENSE_SSH_READY_TIMEOUT || '10000', 10),
-    hostFingerprint: (process.env.OPNSENSE_SSH_HOST_FINGERPRINT || '').toLowerCase(),
-  },
+  verifySSL: process.env.OPNSENSE_VERIFY_SSL === 'true',
+  timeout: parseInt(process.env.OPNSENSE_TIMEOUT) || 30000,
+  
+  // Configurazione certificati SSL
+  ssl: {
+    ca: null,
+    cert: null,
+    key: null
+  }
 };
 
-/* ==========================================
- * Validazione credenziali API (per CRUD/apply)
- * ========================================== */
-if (!opnsenseConfig.apiKey || !opnsenseConfig.apiSecret) {
-  logger.error('OPNsense API credentials not configured');
-  throw new Error('OPNSENSE_API_KEY and OPNSENSE_API_SECRET must be set');
+// Carica certificati se presenti
+const certsDir = path.join(__dirname, '../../certs');
+
+try {
+  // CA Certificate (Authority Certificate in PEM format)
+  const caPath = path.join(certsDir, 'ca.pem');
+  if (fs.existsSync(caPath)) {
+    config.ssl.ca = fs.readFileSync(caPath, 'utf8');
+    console.log('CA certificate loaded from ca.pem');
+  } else {
+    // Prova anche con estensione .crt
+    const caCrtPath = path.join(certsDir, 'ca.crt');
+    if (fs.existsSync(caCrtPath)) {
+      config.ssl.ca = fs.readFileSync(caCrtPath, 'utf8');
+      console.log('CA certificate loaded from ca.crt');
+    }
+  }
+
+  // Client Certificate (PEM format)
+  const certPath = path.join(certsDir, 'client.pem');
+  if (fs.existsSync(certPath)) {
+    config.ssl.cert = fs.readFileSync(certPath, 'utf8');
+    console.log('Client certificate loaded from client.pem');
+  } else {
+    // Prova anche con estensione .crt
+    const clientCrtPath = path.join(certsDir, 'client.crt');
+    if (fs.existsSync(clientCrtPath)) {
+      config.ssl.cert = fs.readFileSync(clientCrtPath, 'utf8');
+      console.log('Client certificate loaded from client.crt');
+    }
+  }
+
+  // Client Private Key (PEM format)
+  const keyPath = path.join(certsDir, 'client.key');
+  if (fs.existsSync(keyPath)) {
+    config.ssl.key = fs.readFileSync(keyPath, 'utf8');
+    console.log('Client private key loaded from client.key');
+  }
+
+  // Supporto per variabili ambiente alternative
+  if (!config.ssl.ca && process.env.OPNSENSE_CA_CERT_PATH) {
+    if (fs.existsSync(process.env.OPNSENSE_CA_CERT_PATH)) {
+      config.ssl.ca = fs.readFileSync(process.env.OPNSENSE_CA_CERT_PATH, 'utf8');
+      console.log(`CA certificate loaded from env: ${process.env.OPNSENSE_CA_CERT_PATH}`);
+    }
+  }
+
+  if (!config.ssl.cert && process.env.OPNSENSE_CLIENT_CERT_PATH) {
+    if (fs.existsSync(process.env.OPNSENSE_CLIENT_CERT_PATH)) {
+      config.ssl.cert = fs.readFileSync(process.env.OPNSENSE_CLIENT_CERT_PATH, 'utf8');
+      console.log(`Client certificate loaded from env: ${process.env.OPNSENSE_CLIENT_CERT_PATH}`);
+    }
+  }
+
+  if (!config.ssl.key && process.env.OPNSENSE_CLIENT_KEY_PATH) {
+    if (fs.existsSync(process.env.OPNSENSE_CLIENT_KEY_PATH)) {
+      config.ssl.key = fs.readFileSync(process.env.OPNSENSE_CLIENT_KEY_PATH, 'utf8');
+      console.log(`Client key loaded from env: ${process.env.OPNSENSE_CLIENT_KEY_PATH}`);
+    }
+  }
+
+} catch (error) {
+  console.warn('Attenzione: Errore nel caricamento dei certificati SSL:', error.message);
+  console.warn('   L\'API continuerà senza certificati client, usando solo verifica SSL di base');
 }
 
-/* ==============================
- * HTTPS agent sicuro
- * ============================== */
-const httpsAgent = createSecureHttpsAgent();
-
-/* ==============================
- * Axios instance + retry/logging
- * ============================== */
-const opnsenseApi = axios.create({
-  baseURL: opnsenseConfig.baseURL,
-  timeout: opnsenseConfig.timeout,
-  httpsAgent,
-  auth: { username: opnsenseConfig.apiKey, password: opnsenseConfig.apiSecret },
-  headers: {
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-    'User-Agent': 'OPNsense-Management-API/1.0.0',
-  },
-});
-
-axiosRetry(opnsenseApi, {
-  retries: opnsenseConfig.retries,
-  retryDelay: (retryCount) => retryCount * opnsenseConfig.retryDelay,
-  retryCondition: (error) =>
-    isNetworkOrIdempotentRequestError(error) ||
-    error.response?.status >= 500 ||
-    error.code === 'ECONNABORTED',
-  onRetry: (retryCount, error, requestConfig) => {
-    logger.warn(
-      `OPNsense API retry ${retryCount}/${opnsenseConfig.retries} for ${requestConfig?.url}`,
-      { error: error.message, status: error.response?.status }
-    );
-  },
-});
-
-opnsenseApi.interceptors.request.use(
-  (config) => {
-    config.metadata = { startTime: Date.now() };
-    logger.debug('OPNsense API Request', {
-      method: config.method?.toUpperCase(),
-      url: config.url,
-      baseURL: config.baseURL,
-    });
-    return config;
-  },
-  (error) => {
-    logger.error('OPNsense API Request Error', error);
-    return Promise.reject(error);
-  }
-);
-
-opnsenseApi.interceptors.response.use(
-  (response) => {
-    const duration = Date.now() - (response.config.metadata?.startTime || Date.now());
-    logger.debug('OPNsense API Response', {
-      method: response.config.method?.toUpperCase(),
-      url: response.config.url,
-      status: response.status,
-      duration: `${duration}ms`,
-    });
-    try {
-      const { metricsHelpers } = require('./monitoring');
-      metricsHelpers?.recordOpnsenseApiCall?.(
-        response.config.url,
-        response.config.method?.toUpperCase(),
-        'success',
-        duration
-      );
-    } catch (_) {}
-    return response;
-  },
-  (error) => {
-    const duration = error.config?.metadata ? Date.now() - error.config.metadata.startTime : 0;
-    
-    // Logging dettagliato per errori SSL
-    if (error.code && error.code.includes('CERT')) {
-      logger.error('SSL Certificate Error detected', {
-        code: error.code,
-        message: error.message,
-        method: error.config?.method?.toUpperCase(),
-        url: error.config?.url,
-        sslVerify: process.env.OPNSENSE_SSL_VERIFY,
-        customCert: !!(process.env.OPNSENSE_CA_CERT_PATH || process.env.NODE_EXTRA_CA_CERTS),
-        suggestion: 'Check certificate configuration or set OPNSENSE_SSL_VERIFY=false'
-      });
-    } else {
-      logger.error('OPNsense API Response Error', {
-        method: error.config?.method?.toUpperCase(),
-        url: error.config?.url,
-        status: error.response?.status,
-        message: error.message,
-        duration: `${duration}ms`,
-        code: error.code,
-      });
-    }
-    
-    try {
-      const { metricsHelpers } = require('./monitoring');
-      metricsHelpers?.recordOpnsenseApiCall?.(
-        error.config?.url || 'unknown',
-        error.config?.method?.toUpperCase() || 'unknown',
-        'error',
-        duration
-      );
-    } catch (_) {}
-    return Promise.reject(error);
-  }
-);
-
-/* ======================
- * Endpoints di comodo
- * ====================== */
-const endpoints = {
-  system: {
-    status: '/api/core/system/status',
-    reboot: '/api/core/system/reboot',
-    halt: '/api/core/system/halt',
-    info: '/api/core/system/getSystemInformation',
-  },
-  firewall: {
-    filter: {
-      get: '/api/firewall/filter/get',
-      set: '/api/firewall/filter/set',
-      searchRule: '/api/firewall/filter/searchRule',
-      getRule: '/api/firewall/filter/getRule',
-      addRule: '/api/firewall/filter/addRule',
-      delRule: '/api/firewall/filter/delRule',
-      setRule: '/api/firewall/filter/setRule',
-      toggleRule: '/api/firewall/filter/toggleRule',
-      apply: '/api/firewall/filter/apply',
-    },
-    alias: {
-      get: '/api/firewall/alias/get',
-      searchItem: '/api/firewall/alias/searchItem',
-      getItem: '/api/firewall/alias/getItem',
-      addItem: '/api/firewall/alias/addItem',
-      delItem: '/api/firewall/alias/delItem',
-      setItem: '/api/firewall/alias/setItem',
-      reconfigure: '/api/firewall/alias/reconfigure',
-    },
-  },
-  interfaces: {
-    get: '/api/interfaces/overview/get',
-    getInterface: '/api/interfaces/overview/getInterface',
-    status: '/api/interfaces/overview/getInterfaceStatus',
-  },
-  diagnostics: {
-    logs: '/api/diagnostics/log/get',
-    activity: '/api/diagnostics/activity/getActivity',
-    interface: '/api/diagnostics/interface/getInterfaceStatistics',
-  },
-  services: {
-    status: '/api/core/service/search',
-    start: '/api/core/service/start',
-    stop: '/api/core/service/stop',
-    restart: '/api/core/service/restart',
-  },
-  firmware: {
-    status: '/api/core/firmware/status',
-    check: '/api/core/firmware/check',
-    update: '/api/core/firmware/update',
-    upgrade: '/api/core/firmware/upgrade',
-  },
-};
-
-/* =========================
- * Rate limiting di comodo
- * ========================= */
-const rateLimits = {
-  default: { requests: 100, window: 60000 },
-  critical: { requests: 10, window: 60000 },
-  readonly: { requests: 200, window: 60000 },
-};
-
-const endpointCategories = {
-  critical: [
-    endpoints.firewall.filter.apply,
-    endpoints.system.reboot,
-    endpoints.system.halt,
-    endpoints.firmware.update,
-    endpoints.firmware.upgrade,
-  ],
-  readonly: [
-    endpoints.system.status,
-    endpoints.system.info,
-    endpoints.firewall.filter.get,
-    endpoints.firewall.filter.searchRule,
-    endpoints.interfaces.get,
-    endpoints.diagnostics.logs,
-  ],
-};
-
-const categorizeEndpoint = (endpoint) => {
-  if (endpointCategories.critical.includes(endpoint)) return 'critical';
-  if (endpointCategories.readonly.includes(endpoint)) return 'readonly';
-  return 'default';
-};
-
-/* ======================
- * Helpers API generici
- * ====================== */
-const handleApiError = (error, context = '') => {
-  const info = {
-    message: error.message,
-    status: error.response?.status,
-    statusText: error.response?.statusText,
-    url: error.config?.url,
-    method: error.config?.method,
-    context,
-    code: error.code,
-  };
-
-  // Gestione specifica errori SSL
-  if (error.code && error.code.includes('CERT')) {
-    logger.error('SSL Certificate Error in OPNsense API', {
-      ...info,
-      sslVerify: process.env.OPNSENSE_SSL_VERIFY,
-      suggestion: 'Check OPNSENSE_SSL_VERIFY setting or certificate configuration'
-    });
-    throw new Error('SSL certificate error - check OPNsense SSL configuration');
+// Validazione configurazione
+const validateConfig = () => {
+  const required = ['host', 'apiKey', 'apiSecret'];
+  const missing = required.filter(key => !config[key]);
+  
+  if (missing.length > 0) {
+    throw new Error(`Configurazione OPNsense mancante: ${missing.join(', ')}`);
   }
 
-  if (error.response?.status === 401) {
-    logger.error('OPNsense API authentication failed', info);
-    throw new Error('Invalid OPNsense API credentials');
-  }
-  if (error.response?.status === 403) {
-    logger.error('OPNsense API access forbidden', info);
-    throw new Error('Insufficient permissions for OPNsense API');
-  }
-  if (error.response?.status === 404) {
-    logger.error('OPNsense API endpoint not found', info);
-    throw new Error('OPNsense API endpoint not available');
-  }
-  if (error.code === 'ECONNREFUSED') {
-    logger.error('OPNsense API connection refused', info);
-    throw new Error('Unable to connect to OPNsense API');
-  }
-  if (error.code === 'ECONNABORTED') {
-    logger.error('OPNsense API request timeout', info);
-    throw new Error('OPNsense API request timeout');
+  // Verifica formato host
+  if (!config.host.startsWith('http://') && !config.host.startsWith('https://')) {
+    config.host = `https://${config.host}`;
   }
 
-  logger.error('OPNsense API error', info);
-  throw error;
-};
+  // Rimuovi trailing slash
+  config.host = config.host.replace(/\/$/, '');
+ 
+  // Log configurazione SSL
+  console.log('SSL Configuration:');
+  console.log(`   - SSL Verification: ${config.verifySSL ? 'ENABLED' : 'DISABLED'}`);
+  console.log(`   - CA Certificate: ${config.ssl.ca ? 'LOADED' : 'NOT FOUND'}`);
+  console.log(`   - Client Certificate: ${config.ssl.cert ? 'LOADED' : 'NOT FOUND'}`);
+  console.log(`   - Client Private Key: ${config.ssl.key ? 'LOADED' : 'NOT FOUND'}`);
 
-const testConnection = async () => {
-  try {
-    logger.info('Testing OPNsense API connection...', {
-      baseURL: opnsenseConfig.baseURL,
-      sslVerify: opnsenseConfig.sslVerify,
-      customCert: !!(process.env.OPNSENSE_CA_CERT_PATH || process.env.NODE_EXTRA_CA_CERTS)
-    });
-
-    const response = await opnsenseApi.get(endpoints.system.status);
-    logger.info('OPNsense API connection test successful', {
-      status: response.status,
-      version: response.data?.version || 'unknown',
-    });
-    return true;
-  } catch (error) {
-    logger.error('OPNsense API connection test failed', {
-      message: error.message,
-      status: error.response?.status,
-      url: error.config?.url,
-      code: error.code,
-    });
-    return false;
+  if (config.verifySSL && !config.ssl.ca) {
+    console.warn('SSL verification is enabled but no CA certificate found.');
+    console.warn('   Place your CA certificate as certs/ca.pem or certs/ca.crt');
+    console.warn('   Or set OPNSENSE_CA_CERT_PATH environment variable');
   }
 };
 
-const getSystemInfo = async () => {
-  try {
-    const response = await opnsenseApi.get(endpoints.system.info);
-    return { success: true, data: response.data };
-  } catch (error) {
-    logger.error('Failed to get system information', error);
-    return { success: false, error: error.message };
-  }
-};
+validateConfig();
 
-module.exports = {
-  opnsenseApi,
-  opnsenseConfig,
-  endpoints,
-  rateLimits,
-  testConnection,
-  getSystemInfo,
-  categorizeEndpoint,
-  handleApiError,
-  httpsAgent,
-  createSecureHttpsAgent, // Esporto per uso in altri servizi
-};
+module.exports = config;

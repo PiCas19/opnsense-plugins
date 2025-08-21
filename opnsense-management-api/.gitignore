@@ -1,62 +1,80 @@
-# Node.js
+# Dependencies
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Env files
+# Environment variables
 .env
 .env.local
-.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
 
 # Logs
-logs
+logs/
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
-# Debug files
-.vscode/
-.idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Docker
-docker-compose.override.yml
-**/Dockerfile.*.swp
-
-# Build output
-dist/
-build/
-tmp/
-temp/
-
-# Test coverage
-coverage/
-
-# Misc
+# Runtime data
+pids/
 *.pid
 *.seed
-*.tgz
-*.gz
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# Dependency directories
+node_modules/
+jspm_packages/
 
 # Optional npm cache directory
 .npm
 
-# JetBrains IDEs
-*.iml
-out/
+# Optional REPL history
+.node_repl_history
 
-# MacOS
-.AppleDouble
-.LSOverride
+# Output of 'npm pack'
+*.tgz
 
-# VSCode extensions
-.vscode-server/
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variable files
+.env*
+
+# Certificates (se contengono dati sensibili)
+certs/*.key
+certs/*.pem
+certs/*.p12
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Docker
+.dockerignore
+
+# Test results
+test-results/
+junit.xml
+
+# Build artifacts
+dist/
+build/

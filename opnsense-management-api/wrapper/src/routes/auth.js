@@ -1,267 +1,516 @@
-// src/routes/auth.js
 const express = require('express');
-const jwt = require('jsonwebtoken');
-const { asyncHandler } = require('../middleware/errorHandler');
-const { validators } = require('../middleware/validation');
-const {
-  authenticate,
-  signAccessToken,
-  signRefreshToken,
+const rateLimit = require('express-rate-limit');
+const { 
+  generateAccessToken, 
+  generateRefreshToken, 
   verifyRefreshToken,
-  setRefreshCookie,
-  clearRefreshCookie,
-  allowRefreshJti,
-  revokeRefreshJti,
-  isRefreshAllowed,
-  hashPassword,
-  comparePassword,
+  authenticate 
 } = require('../middleware/auth');
-const { auditSecurityEvent } = require('../middleware/audit');
+const { validateLogin } = require('../middleware/validation');
 const User = require('../models/User');
 const logger = require('../utils/logger');
 
 const router = express.Router();
 
+// Rate limiting più aggressivo per auth
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minuti
+  max: 5, // massimo 5 tentativi per IP
+  message: {
+    success: false,
+    message: 'Troppi tentativi di login, riprova più tardi'
+  }
+});
+
+// In memoria refresh tokens (in produzione usare Redis o DB)
+const refreshTokens = new Set();
+
 /**
  * @swagger
- * tags:
- *   - name: Authentication
- *     description: JWT access and refresh token management
+ * components:
+ *   schemas:
+ *     LoginRequest:
+ *       type: object
+ *       required:
+ *         - username
+ *         - password
+ *       properties:
+ *         username:
+ *           type: string
+ *           description: Nome utente
+ *           example: admin
+ *         password:
+ *           type: string
+ *           description: Password
+ *           example: Admin123!
+ * 
+ *     LoginResponse:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *           example: true
+ *         message:
+ *           type: string
+ *           example: Login effettuato con successo
+ *         data:
+ *           type: object
+ *           properties:
+ *             accessToken:
+ *               type: string
+ *               description: JWT access token
+ *             refreshToken:
+ *               type: string
+ *               description: JWT refresh token
+ *             user:
+ *               $ref: '#/components/schemas/User'
+ * 
+ *     RefreshRequest:
+ *       type: object
+ *       required:
+ *         - refreshToken
+ *       properties:
+ *         refreshToken:
+ *           type: string
+ *           description: JWT refresh token
+ * 
+ *     ChangePasswordRequest:
+ *       type: object
+ *       required:
+ *         - current_password
+ *         - new_password
+ *       properties:
+ *         current_password:
+ *           type: string
+ *           description: Password corrente
+ *         new_password:
+ *           type: string
+ *           description: Nuova password
+ *           pattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`])'
  */
 
 /**
  * @swagger
- * /api/v1/auth/login:
+ * /api/auth/login:
  *   post:
- *     summary: User login (JWT access + refresh)
+ *     summary: Login utente
+ *     description: Effettua il login con username e password
  *     tags: [Authentication]
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required: [username, password]
- *             properties:
- *               username: { type: string, example: "johndoe123" }
- *               password: { type: string, example: "MyStr0ng!Pass" }
- *               remember_me: { type: boolean, default: false }
- *               update_password: { type: boolean, default: false }
+ *             $ref: '#/components/schemas/LoginRequest'
  *     responses:
  *       200:
- *         description: Login successful
+ *         description: Login effettuato con successo
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/LoginResponse'
  *       401:
- *         description: Invalid credentials or account disabled
+ *         description: Credenziali non valide
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       423:
+ *         description: Account temporaneamente bloccato
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       429:
+ *         description: Troppi tentativi di login
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
-router.post(
-  '/login',
-  validators.login,
-  asyncHandler(async (req, res) => {
-    const { username, password, remember_me = false, update_password = false } = req.body;
+router.post('/login', authLimiter, validateLogin, async (req, res) => {
+  try {
+    const { username, password } = req.body;
 
-    logger.info('Auth: login attempt', { username, remember_me });
-
-    const user = await User.findOne({ where: { username } });
+    // Trova utente
+    const user = await User.findByUsername(username);
     if (!user) {
-      logger.warn('Auth: login failed (user not found)', { username });
-      return res.status(401).json({ success: false, error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' });
-    }
-
-    const ok = await comparePassword(password, user.password);
-    if (!ok) {
-      logger.warn('Auth: login failed (bad password)', { user_id: user.id, username });
-      return res.status(401).json({ success: false, error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' });
-    }
-
-    if (!user.is_active) {
-      logger.warn('Auth: login blocked (user disabled)', { user_id: user.id, username });
-      return res.status(401).json({ success: false, error: 'Account is disabled', code: 'USER_DISABLED' });
-    }
-
-    if (update_password) {
-      const hash = await hashPassword(password);
-      await user.update({ password: hash });
-      logger.info('Auth: password updated on login', { user_id: user.id, username });
-      await auditSecurityEvent(req, 'password_updated', 'low', { user_id: user.id });
-    }
-
-    const accessTtl = remember_me ? '7d' : (process.env.JWT_EXPIRES_IN || '12h');
-    const accessToken = signAccessToken({ id: user.id, username: user.username, role: user.role }, accessTtl);
-    const refreshToken = signRefreshToken({ id: user.id, username: user.username, role: user.role });
-
-    const { jti: rtJti, exp: rtExp, iat: rtIat } = jwt.decode(refreshToken);
-    await allowRefreshJti(rtJti, user.id, rtExp, rtIat);
-    setRefreshCookie(res, refreshToken, (rtExp - rtIat) * 1000);
-
-    await user.update({ last_login: new Date() });
-    logger.info('Auth: login success', { user_id: user.id, username: user.username, role: user.role, access_ttl: accessTtl });
-
-    await auditSecurityEvent(req, 'login_success', 'low', { user_id: user.id });
-
-    res.json({
-      success: true,
-      message: 'Login successful',
-      data: {
-        token: accessToken,
-        user: {
-          id: user.id, username: user.username, email: user.email,
-          role: user.role, last_login: user.last_login, is_active: user.is_active
-        }
-      }
-    });
-  })
-);
-
-/**
- * @swagger
- * /api/v1/auth/refresh:
- *   post:
- *     summary: Refresh access token
- *     description: Use the refresh token from the httpOnly `refresh_token` cookie or the `X-Refresh-Token: Bearer <token>` header.
- *     tags: [Authentication]
- *     responses:
- *       200:
- *         description: Token refreshed
- *       401:
- *         description: Invalid, expired, or missing refresh token
- */
-router.post(
-  '/refresh',
-  asyncHandler(async (req, res) => {
-    const cookieRt = req.cookies?.refresh_token || null;
-    const hdr = req.headers['x-refresh-token'];
-    const headerRt = hdr && hdr.startsWith('Bearer ') ? hdr.slice(7) : null;
-    const refreshToken = cookieRt || headerRt;
-
-    if (!refreshToken) {
-      logger.warn('Auth: refresh denied (missing token)');
-      return res.status(401).json({ success: false, error: 'Refresh token required', code: 'REFRESH_TOKEN_MISSING' });
-    }
-
-    let payload;
-    try {
-      payload = verifyRefreshToken(refreshToken);
-    } catch (e) {
-      logger.warn('Auth: refresh denied (invalid/expired)', { name: e.name, message: e.message });
+      logger.warn('Tentativo di login con username non valido', { 
+        username, 
+        ip: req.ip 
+      });
       return res.status(401).json({
         success: false,
-        error: e.name === 'TokenExpiredError' ? 'Refresh token expired' : 'Invalid refresh token',
-        code: e.name === 'TokenExpiredError' ? 'REFRESH_EXPIRED' : 'REFRESH_INVALID'
+        message: 'Credenziali non valide'
       });
     }
 
-    if (payload.type !== 'refresh_token') {
-      logger.warn('Auth: refresh denied (wrong token type)', { type: payload.type });
-      return res.status(401).json({ success: false, error: 'Refresh token required', code: 'TOKEN_WRONG_TYPE' });
+    // Controlla se account è bloccato
+    if (user.isAccountLocked()) {
+      logger.warn('Tentativo di accesso su account bloccato', { 
+        username: user.username, 
+        ip: req.ip 
+      });
+      return res.status(423).json({
+        success: false,
+        message: 'Account temporaneamente bloccato. Riprova più tardi.'
+      });
     }
 
-    const allowed = await isRefreshAllowed(payload.jti);
-    if (!allowed) {
-      logger.warn('Auth: refresh denied (revoked/reused jti)', { jti: payload.jti });
-      return res.status(401).json({ success: false, error: 'Refresh token revoked', code: 'REFRESH_REVOKED' });
+    // Verifica password
+    const isValidPassword = await user.verifyPassword(password);
+    if (!isValidPassword) {
+      logger.warn('Tentativo di login con password non valida', { 
+        username: user.username, 
+        ip: req.ip 
+      });
+      return res.status(401).json({
+        success: false,
+        message: 'Credenziali non valide'
+      });
     }
 
-    await revokeRefreshJti(payload.jti);
+    // Aggiorna informazioni login
+    await user.update({
+      login_ip: req.ip,
+      user_agent: req.get('User-Agent'),
+      last_activity: new Date()
+    });
 
-    const user = await User.findByPk(payload.id);
-    if (!user || !user.is_active) {
-      logger.warn('Auth: refresh denied (user invalid/disabled)', { user_id: payload.id });
-      return res.status(401).json({ success: false, error: 'User invalid', code: 'USER_INVALID' });
-    }
+    // Genera tokens
+    const payload = {
+      id: user.id,
+      username: user.username,
+      role: user.role
+    };
 
-    const newAccess = signAccessToken({ id: user.id, username: user.username, role: user.role });
-    const newRefresh = signRefreshToken({ id: user.id, username: user.username, role: user.role });
+    const accessToken = generateAccessToken(payload);
+    const refreshToken = generateRefreshToken(payload);
+    
+    // Salva refresh token
+    refreshTokens.add(refreshToken);
 
-    const { jti: newJti, exp: newExp, iat: newIat } = jwt.decode(newRefresh);
-    await allowRefreshJti(newJti, user.id, newExp, newIat);
-    setRefreshCookie(res, newRefresh, (newExp - newIat) * 1000);
+    logger.info('Login effettuato con successo', { 
+      user_id: user.id,
+      username: user.username, 
+      ip: req.ip 
+    });
 
-    logger.info('Auth: token refreshed', { user_id: user.id, username: user.username });
-
-    res.json({ success: true, message: 'Token refreshed', data: { token: newAccess, expires_in: process.env.JWT_EXPIRES_IN || '12h' } });
-  })
-);
-
-/**
- * @swagger
- * /api/v1/auth/validate:
- *   get:
- *     summary: Validate access token
- *     tags: [Authentication]
- *     security: [{ bearerAuth: [] }]
- *     responses:
- *       200:
- *         description: Token is valid
- *       401:
- *         description: Invalid or missing access token
- */
-router.get(
-  '/validate',
-  authenticate,
-  (req, res) => {
-    const t = req.tokenData || {};
-    logger.debug('Auth: validate ok', { user_id: req.user.id, jti: t.jti, exp: t.exp });
     res.json({
       success: true,
-      message: 'Token is valid',
+      message: 'Login effettuato con successo',
       data: {
-        user: {
-          id: req.user.id, username: req.user.username, email: req.user.email,
-          role: req.user.role, is_active: req.user.is_active
-        },
-        token_info: {
-          type: t.type,
-          expires_at: t.exp ? new Date(t.exp * 1000).toISOString() : null,
-          jti: t.jti
-        }
+        accessToken,
+        refreshToken,
+        user: user.toSafeJSON()
       }
     });
+  } catch (error) {
+    logger.error('Errore durante il login', error);
+    res.status(500).json({
+      success: false,
+      message: 'Errore interno del server'
+    });
   }
-);
+});
 
 /**
  * @swagger
- * /api/v1/auth/logout:
+ * /api/auth/refresh:
  *   post:
- *     summary: Logout user (revoke tokens)
+ *     summary: Rinnova access token
+ *     description: Rinnova l'access token utilizzando il refresh token
  *     tags: [Authentication]
- *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/RefreshRequest'
  *     responses:
  *       200:
- *         description: Logout successful
+ *         description: Token rinnovato con successo
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Token rinnovato con successo
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     accessToken:
+ *                       type: string
+ *                       description: Nuovo JWT access token
  *       401:
- *         description: Invalid or missing access token
+ *         description: Refresh token richiesto
+ *       403:
+ *         description: Refresh token non valido o scaduto
  */
-router.post(
-  '/logout',
-  authenticate,
-  asyncHandler(async (req, res) => {
-    try {
-      const { jti, exp, iat } = req.tokenData || {};
-      if (jti) {
-        await require('../middleware/auth').blacklistAccessJti(jti, exp, iat);
-        logger.info('Auth: access token blacklisted', { user_id: req.user.id, jti });
-      }
-    } catch (e) {
-      logger.error('Auth: blacklist access token failed', { error: e.message });
+router.post('/refresh', async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return res.status(401).json({
+        success: false,
+        message: 'Refresh token richiesto'
+      });
     }
 
-    const rt = req.cookies?.refresh_token;
-    if (rt) {
-      const decoded = jwt.decode(rt);
-      if (decoded?.jti) {
-        await revokeRefreshJti(decoded.jti);
-        logger.info('Auth: refresh token revoked', { user_id: req.user.id, jti: decoded.jti });
-      }
+    // Verifica se il refresh token è valido e presente
+    if (!refreshTokens.has(refreshToken)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Refresh token non valido'
+      });
     }
 
-    clearRefreshCookie(res);
-    await auditSecurityEvent(req, 'logout', 'low', { user_id: req.user.id });
+    const decoded = verifyRefreshToken(refreshToken);
+    
+    // Verifica che l'utente esista ancora ed è attivo
+    const user = await User.findByPk(decoded.id);
+    if (!user || !user.is_active) {
+      refreshTokens.delete(refreshToken);
+      return res.status(403).json({
+        success: false,
+        message: 'Utente non valido'
+      });
+    }
 
-    logger.info('Auth: logout success', { user_id: req.user.id, username: req.user.username });
+    // Genera nuovo access token
+    const newAccessToken = generateAccessToken({
+      id: user.id,
+      username: user.username,
+      role: user.role
+    });
 
-    res.json({ success: true, message: 'Logout successful' });
-  })
-);
+    // Aggiorna ultima attività
+    await user.updateLastActivity();
+
+    res.json({
+      success: true,
+      message: 'Token rinnovato con successo',
+      data: {
+        accessToken: newAccessToken
+      }
+    });
+  } catch (error) {
+    logger.warn('Tentativo di refresh con token non valido', { 
+      ip: req.ip,
+      error: error.message 
+    });
+    
+    res.status(403).json({
+      success: false,
+      message: 'Refresh token non valido o scaduto'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/auth/logout:
+ *   post:
+ *     summary: Logout utente
+ *     description: Effettua il logout invalidando il refresh token
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               refreshToken:
+ *                 type: string
+ *                 description: Refresh token da invalidare
+ *     responses:
+ *       200:
+ *         description: Logout effettuato con successo
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *       401:
+ *         description: Token di accesso richiesto
+ */
+router.post('/logout', authenticate, async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (refreshToken) {
+      refreshTokens.delete(refreshToken);
+    }
+
+    // Aggiorna ultima attività
+    const user = await User.findByPk(req.user.id);
+    if (user) {
+      await user.updateLastActivity();
+    }
+
+    logger.info('Logout effettuato', { 
+      user_id: req.user.id,
+      username: req.user.username, 
+      ip: req.ip 
+    });
+
+    res.json({
+      success: true,
+      message: 'Logout effettuato con successo'
+    });
+  } catch (error) {
+    logger.error('Errore durante il logout', error);
+    res.status(500).json({
+      success: false,
+      message: 'Errore interno del server'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/auth/verify:
+ *   get:
+ *     summary: Verifica validità token
+ *     description: Verifica se l'access token è valido e restituisce i dati utente
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Token valido
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Token valido
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       $ref: '#/components/schemas/User'
+ *       401:
+ *         description: Token non valido o scaduto
+ */
+router.get('/verify', authenticate, async (req, res) => {
+  try {
+    // Verifica che l'utente esista ancora nel database
+    const user = await User.findByPk(req.user.id);
+    if (!user || !user.is_active) {
+      return res.status(401).json({
+        success: false,
+        message: 'Utente non valido'
+      });
+    }
+
+    // Aggiorna ultima attività
+    await user.updateLastActivity();
+
+    res.json({
+      success: true,
+      message: 'Token valido',
+      data: {
+        user: user.toSafeJSON()
+      }
+    });
+  } catch (error) {
+    logger.error('Errore nella verifica token', error);
+    res.status(500).json({
+      success: false,
+      message: 'Errore interno del server'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/auth/change-password:
+ *   post:
+ *     summary: Cambia password
+ *     description: Cambia la password dell'utente corrente
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ChangePasswordRequest'
+ *     responses:
+ *       200:
+ *         description: Password cambiata con successo
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *       400:
+ *         description: Dati non validi o password corrente errata
+ *       401:
+ *         description: Token di accesso richiesto
+ */
+router.post('/change-password', authenticate, async (req, res) => {
+  try {
+    const { current_password, new_password } = req.body;
+
+    if (!current_password || !new_password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password corrente e nuova password sono richieste'
+      });
+    }
+
+    const user = await User.findByPk(req.user.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Utente non trovato'
+      });
+    }
+
+    // Verifica password corrente
+    const isCurrentValid = await user.verifyPassword(current_password);
+    if (!isCurrentValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password corrente non valida'
+      });
+    }
+
+    // Aggiorna password
+    await user.update({ password: new_password });
+
+    logger.info('Password cambiata', {
+      user_id: user.id,
+      username: user.username,
+      ip: req.ip
+    });
+
+    res.json({
+      success: true,
+      message: 'Password cambiata con successo'
+    });
+
+  } catch (error) {
+    logger.error('Errore nel cambio password', error);
+    res.status(500).json({
+      success: false,
+      message: 'Errore interno del server'
+    });
+  }
+});
 
 module.exports = router;
