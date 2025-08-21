@@ -1,110 +1,36 @@
+version: "3.9"
+
 services:
+  dmz-api:
+    build: ./api
+    env_file: .env
+    environment:
+      - DMZ_HOST=${DMZ_HOST}
+      - DMZ_PORT=${DMZ_PORT}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - DEMO_USERNAME=${DEMO_USERNAME}
+      - DEMO_PASSWORD=${DEMO_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRE_MINUTES=${JWT_EXPIRE_MINUTES}
+      - WRAPPER_BASE_URL=${WRAPPER_BASE_URL}
+      - WRAPPER_VERIFY_SSL=${WRAPPER_VERIFY_SSL}
+      - WRAPPER_TIMEOUT=${WRAPPER_TIMEOUT}
+    networks: [dmznet]
+    expose:
+      - "8000"
+
   nginx:
-    image: nginx:1.25-alpine
-    container_name: ${CONTAINER_NAME:-opnsense-reverse-proxy}
-    restart: unless-stopped
-    ports:
-      - "${HTTP_PORT:-80}:80"
-      - "${HTTPS_PORT:-443}:443"
-    dns:
-      - ${DOCKER_DNS:-172.16.216.1}
-    env_file:
-      - .env
-    environment:
-      NGINX_CLIENT_MAX_BODY_SIZE: ${NGINX_CLIENT_MAX_BODY_SIZE:-50m}
-      WRAPPER_SCHEME: ${WRAPPER_SCHEME:-http}
-      WRAPPER_HOST: ${WRAPPER_HOST:-192.168.216.50:3000}
-      RATE_LIMIT_API: ${RATE_LIMIT_API:-10r/s}
-      RATE_LIMIT_LOGIN: ${RATE_LIMIT_LOGIN:-1r/s}
-      SSL_PROTOCOLS: ${SSL_PROTOCOLS:-TLSv1.2 TLSv1.3}
-      HSTS_MAX_AGE: ${HSTS_MAX_AGE:-63072000}
+    image: nginx:1.27-alpine
+    env_file: .env
+    depends_on: [dmz-api]
     volumes:
-      # Nginx configuration
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/htpasswd:/etc/nginx/htpasswd:ro
-      - ./nginx/ssl:/etc/ssl/nginx:ro
-      
-      # Logs
-      - ./logs/nginx:/var/log/nginx
-      
-      # Demo firewall files
-      - ./firewall-demo:/var/www/firewall-demo:ro
-      
-      # Scripts per automazione
-      - ./scripts:/var/scripts:ro
-      
-      # Temp directory for dynamic configs
-      - ./temp:/tmp/nginx-temp
-    
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost/health >/dev/null 2>&1 || exit 1"]
-      interval: ${HEALTHCHECK_INTERVAL:-30s}
-      timeout: ${HEALTHCHECK_TIMEOUT:-10s}
-      retries: ${HEALTHCHECK_RETRIES:-3}
-      start_period: ${HEALTHCHECK_START_PERIOD:-15s}
-    
-    labels:
-      - "traefik.enable=false"
-      - "description=OPNsense Reverse Proxy with Firewall Demo"
-      - "maintainer=admin@example.com"
-    
-    networks:
-      dmz_macvlan:
-        ipv4_address: ${DMZ_PROXY_IP:-172.16.216.21}
-
-  # Servizio helper per monitoring e backup (opzionale)
-  maintenance:
-    image: alpine:3.20
-    container_name: ${CONTAINER_NAME:-opnsense-reverse-proxy}-maintenance
-    restart: "no"
-    profiles:
-      - maintenance
-    volumes:
-      - ./scripts:/scripts:ro
-      - ./logs:/logs
-      - ./backups:/backups
-      - .:/app
-    working_dir: /app
-    command: tail -f /dev/null
-    environment:
-      - CONTAINER_NAME=${CONTAINER_NAME:-opnsense-reverse-proxy}
-      - BACKUP_DIR=${BACKUP_DIR:-backups}
-      - BACKUP_RETENTION=${BACKUP_RETENTION:-7}
-    networks:
-      - dmz_macvlan
-
-  # Firewall demo controller (opzionale, per test API)
-  firewall-demo:
-    image: python:3.11-alpine
-    container_name: ${CONTAINER_NAME:-opnsense-reverse-proxy}-demo
-    restart: "no"
-    profiles:
-      - demo
-    volumes:
-      - ./firewall-demo:/app:ro
-      - ./logs:/logs
-    working_dir: /app
-    environment:
-      - OPNSENSE_HOST=${OPNSENSE_HOST:-192.168.216.1}
-      - OPNSENSE_PORT=${OPNSENSE_PORT:-443}
-      - OPNSENSE_API_KEY=${OPNSENSE_API_KEY:-}
-      - OPNSENSE_API_SECRET=${OPNSENSE_API_SECRET:-}
-    command: |
-      sh -c "
-        pip install -r requirements.txt >/dev/null 2>&1 &&
-        echo 'Demo controller ready' &&
-        tail -f /dev/null
-      "
-    networks:
-      - dmz_macvlan
+      - ./ui:/usr/share/nginx/html:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    ports:
+      - "443:443"
+      # - "80:80"  # opzionale per redirect
+    networks: [dmznet]
 
 networks:
-  dmz_macvlan:
-    driver: macvlan
-    driver_opts:
-      parent: ${DMZ_INTERFACE:-enp0s3}  # NIC dell'host collegata alla DMZ
-    ipam:
-      config:
-        - subnet: "172.16.216.0/24"
-          gateway: "172.16.216.1"
-          ip_range: "172.16.216.20/30"  # Range limitato per i container
+  dmznet: {}
