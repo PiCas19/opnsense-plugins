@@ -1,3 +1,7 @@
+// FORZA disabilitazione SSL PRIMA di tutto
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+require('dotenv').config();
+
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
@@ -8,6 +12,11 @@ const logger = require('./utils/logger');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 const { initializeDatabase, testConnection, closeDatabase } = require('./config/database');
 const { swaggerSpec, swaggerUi, swaggerUiOptions } = require('./config/swagger');
+
+// Log SSL configuration
+logger.info('🔓 SSL TLS verification DISABILITATA globalmente', {
+  NODE_TLS_REJECT_UNAUTHORIZED: process.env.NODE_TLS_REJECT_UNAUTHORIZED
+});
 
 // Routes
 const authRoutes = require('./routes/auth');
@@ -44,7 +53,27 @@ const limiter = rateLimit({
 app.use('/api', limiter);
 
 // Body parsing
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ 
+  limit: '10mb',
+  verify: (req, res, buf, encoding) => {
+    try {
+      JSON.parse(buf);
+    } catch (e) {
+      logger.error('JSON non valido nel body della richiesta', {
+        error: e.message,
+        body: buf.toString().substring(0, 200),
+        url: req.originalUrl,
+        method: req.method
+      });
+      res.status(400).json({
+        success: false,
+        message: 'JSON non valido nel body della richiesta',
+        error: 'Invalid JSON syntax'
+      });
+      throw new Error('Invalid JSON');
+    }
+  }
+}));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Request logging
@@ -85,6 +114,8 @@ app.get('/', (req, res) => {
     message: 'OPNsense Firewall API',
     version: process.env.npm_package_version || '1.0.0',
     status: 'running',
+    environment: process.env.NODE_ENV || 'development',
+    ssl_disabled: process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0',
     endpoints: {
       auth: '/api/auth',
       rules: '/api/rules',
@@ -131,18 +162,32 @@ async function startServer() {
     logger.info('Initializing database...');
     await initializeDatabase();
 
+    // Log OPNsense configuration
+    logger.info('OPNsense Configuration Status:', {
+      host: process.env.OPNSENSE_HOST || 'NOT SET',
+      hasApiKey: !!process.env.OPNSENSE_API_KEY,
+      hasApiSecret: !!process.env.OPNSENSE_API_SECRET,
+      verifySSL: process.env.OPNSENSE_VERIFY_SSL,
+      sslGloballyDisabled: process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0'
+    });
+
     // Start server
     const server = app.listen(PORT, () => {
       logger.info(`Server avviato sulla porta ${PORT}`, {
         environment: process.env.NODE_ENV || 'development',
         database: 'SQLite',
-        swagger_docs: `http://localhost:${PORT}/api-docs`
+        swagger_docs: `http://localhost:${PORT}/api-docs`,
+        ssl_verification: process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0' ? 'DISABLED' : 'ENABLED'
       });
       
-      console.log('\nAPI Documentation:');
-      console.log(`   Swagger UI: http://localhost:${PORT}/api-docs`);
-      console.log(`   JSON Schema: http://localhost:${PORT}/api-docs.json`);
-      console.log('');
+      console.log('\n🚀 OPNsense Firewall Management API');
+      console.log('=====================================');
+      console.log(`📊 Server: http://localhost:${PORT}`);
+      console.log(`📚 Swagger UI: http://localhost:${PORT}/api-docs`);
+      console.log(`📋 JSON Schema: http://localhost:${PORT}/api-docs.json`);
+      console.log(`🔓 SSL Verification: ${process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0' ? 'DISABLED (OK per certificati auto-firmati)' : 'ENABLED'}`);
+      console.log(`🏠 OPNsense Host: ${process.env.OPNSENSE_HOST || 'NOT CONFIGURED'}`);
+      console.log('=====================================\n');
     });
 
     // Graceful shutdown handlers
@@ -153,34 +198,53 @@ async function startServer() {
         logger.info('Server chiuso');
         
         // Close database connection
-        await closeDatabase();
+        try {
+          await closeDatabase();
+          logger.info('Database connection chiusa');
+        } catch (error) {
+          logger.error('Errore nella chiusura database:', error);
+        }
         
         process.exit(0);
       });
 
       // Force close after 10 seconds
       setTimeout(() => {
-        logger.error('Forzata chiusura server');
+        logger.error('Forzata chiusura server dopo timeout');
         process.exit(1);
       }, 10000);
     };
 
+    // Signal handlers
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
     // Handle uncaught exceptions
     process.on('uncaughtException', (error) => {
-      logger.error('Uncaught Exception:', error);
+      logger.error('Uncaught Exception:', {
+        message: error.message,
+        stack: error.stack
+      });
       process.exit(1);
     });
 
     process.on('unhandledRejection', (reason, promise) => {
-      logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+      logger.error('Unhandled Rejection:', {
+        reason: reason instanceof Error ? reason.message : reason,
+        stack: reason instanceof Error ? reason.stack : undefined,
+        promise: promise.toString()
+      });
       process.exit(1);
     });
 
+    // Log startup completion
+    logger.info('🎉 Server startup completato con successo');
+
   } catch (error) {
-    logger.error('Failed to start server:', error);
+    logger.error('❌ Failed to start server:', {
+      message: error.message,
+      stack: error.stack
+    });
     process.exit(1);
   }
 }
