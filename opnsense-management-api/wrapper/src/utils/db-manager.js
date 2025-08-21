@@ -1,4 +1,4 @@
-// scripts/db-manager.js
+// src/utils/db-manager.js
 const { sequelize, initializeDatabase, resetDatabase, closeDatabase } = require('../config/database');
 const User = require('../models/User');
 const Rule = require('../models/Rule');
@@ -294,59 +294,6 @@ async function seedData() {
   }
 }
 
-async function getDBStats() {
-  try {
-    // Statistiche tabelle
-    const userCount = await User.count();
-    const ruleCount = await Rule.count();
-    const activeUsers = await User.count({ where: { is_active: true } });
-    const activeRules = await Rule.count({ where: { enabled: true } });
-
-    // Statistiche per ruolo
-    const usersByRole = await User.findAll({
-      attributes: [
-        'role',
-        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
-      ],
-      group: ['role']
-    });
-
-    // Statistiche regole per categoria
-    const rulesByCategory = await Rule.findAll({
-      attributes: [
-        'category',
-        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
-      ],
-      group: ['category'],
-      where: {
-        category: { [sequelize.Op.ne]: null }
-      }
-    });
-
-    console.log('\nDatabase Statistics:');
-    console.log(`   Users: ${userCount} total, ${activeUsers} active`);
-    console.log(`   Rules: ${ruleCount} total, ${activeRules} enabled`);
-
-    if (usersByRole.length > 0) {
-      console.log('\nUsers by Role:');
-      usersByRole.forEach(stat => {
-        console.log(`   ${stat.role}: ${stat.get('count')}`);
-      });
-    }
-
-    if (rulesByCategory.length > 0) {
-      console.log('\nRules by Category:');
-      rulesByCategory.forEach(stat => {
-        console.log(`   ${stat.category || 'uncategorized'}: ${stat.get('count')}`);
-      });
-    }
-
-  } catch (error) {
-    console.error('Error getting stats:', error.message);
-    throw error;
-  }
-}
-
 async function clearData() {
   try {
     console.log('Clearing all data...');
@@ -426,21 +373,90 @@ async function main() {
 
       case 'status':
         console.log('Checking database status...');
-        const dbStatusPath = path.join(process.cwd(), '../data', 'database.sqlite');
-        if (fs.existsSync(dbStatusPath)) {
-          const stats = fs.statSync(dbStatusPath);
-          console.log(`Database exists (${stats.size} bytes)`);
-          console.log(`   Created: ${stats.birthtime}`);
-          console.log(`   Modified: ${stats.mtime}`);
-          await getDBStats();
-        } else {
-          console.log('Database file does not exist');
+        try {
+          // Prova a connettersi al database
+          await sequelize.authenticate();
+          console.log('Database connection successful');
+          
+          // Ottieni informazioni dal database
+          const userCount = await User.count();
+          const ruleCount = await Rule.count();
+          console.log(`\nRecords:`);
+          console.log(`   Users: ${userCount}`);
+          console.log(`   Rules: ${ruleCount}`);
+          
+          // Prova a ottenere info sul file se è SQLite
+          try {
+            const dbConfig = sequelize.config;
+            if (dbConfig.dialect === 'sqlite' && dbConfig.storage) {
+              const dbPath = dbConfig.storage;
+              console.log(`\nDatabase file: ${dbPath}`);
+              
+              if (fs.existsSync(dbPath)) {
+                const stats = fs.statSync(dbPath);
+                console.log(`   Size: ${stats.size} bytes`);
+                console.log(`   Created: ${stats.birthtime}`);
+                console.log(`   Modified: ${stats.mtime}`);
+              }
+            }
+          } catch (fileError) {
+            console.log('Could not get file info');
+          }
+          
+        } catch (error) {
+          console.error('Database connection failed:', error.message);
+          
+          // Prova percorsi comuni
+          const possiblePaths = [
+            path.join(process.cwd(), 'data', 'database.sqlite'),
+            path.join(process.cwd(), 'database.sqlite'),
+            path.join(process.cwd(), 'src', 'data', 'database.sqlite')
+          ];
+          
+          console.log('\nChecking possible database locations:');
+          for (const dbPath of possiblePaths) {
+            if (fs.existsSync(dbPath)) {
+              const stats = fs.statSync(dbPath);
+              console.log(`Found: ${dbPath} (${stats.size} bytes)`);
+            } else {
+              console.log(`Not found: ${dbPath}`);
+            }
+          }
         }
         break;
 
       case 'stats':
         console.log('Getting database statistics...');
-        await getDBStats();
+        try {
+          await sequelize.authenticate();
+          
+          // Statistiche di base
+          const userCount = await User.count();
+          const ruleCount = await Rule.count();
+          const activeUsers = await User.count({ where: { is_active: true } });
+          const activeRules = await Rule.count({ where: { enabled: true } });
+          
+          console.log('\nDatabase Statistics:');
+          console.log(`   Users: ${userCount} total, ${activeUsers} active`);
+          console.log(`   Rules: ${ruleCount} total, ${activeRules} enabled`);
+          
+          // Prova a ottenere statistiche per ruolo (senza grouping)
+          try {
+            const adminCount = await User.count({ where: { role: 'admin' } });
+            const operatorCount = await User.count({ where: { role: 'operator' } });
+            const viewerCount = await User.count({ where: { role: 'viewer' } });
+            
+            console.log('\nUsers by Role:');
+            if (adminCount > 0) console.log(`   admin: ${adminCount}`);
+            if (operatorCount > 0) console.log(`   operator: ${operatorCount}`);
+            if (viewerCount > 0) console.log(`   viewer: ${viewerCount}`);
+          } catch (roleError) {
+            console.log('Could not get role statistics');
+          }
+          
+        } catch (error) {
+          console.error('Cannot connect to database:', error.message);
+        }
         break;
 
       default:
