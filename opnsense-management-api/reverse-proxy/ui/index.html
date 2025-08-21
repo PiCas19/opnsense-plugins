@@ -1,45 +1,45 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <title>OPNsense Demo UI</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <link rel="stylesheet" href="/styles.css"/>
+    <meta charset="utf-8"/>
+    <title>OPNsense Demo UI</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
-  <header>
-    <h1>OPNsense Demo UI</h1>
-    <div id="user-info"></div>
-  </header>
+    <header>
+        <h1>OPNsense Demo UI</h1>
+        <div id="user-info"></div>
+    </header>
 
-  <section id="login-section">
-    <h2>Login</h2>
-    <form id="login-form">
-      <label>Username <input name="username" required></label>
-      <label>Password <input name="password" type="password" required></label>
-      <button type="submit">Sign in</button>
-      <p id="login-error" class="error"></p>
-    </form>
-  </section>
+    <section id="login-section">
+        <h2>Login</h2>
+        <form id="login-form">
+            <label>Username <input name="username" required></label>
+            <label>Password <input name="password" type="password" required></label>
+            <button type="submit">Sign in</button>
+            <p id="login-error" class="error"></p>
+        </form>
+    </section>
 
-  <section id="rules-section" class="hidden">
-    <h2>Firewall Rules</h2>
-    <div class="toolbar">
-      <input id="search" placeholder="Search description...">
-      <button id="refresh">Refresh</button>
-      <button id="logout">Logout</button>
-    </div>
-    <table id="rules-table">
-      <thead>
-        <tr>
-          <th>UUID</th><th>Description</th><th>Interface</th><th>Action</th><th>Enabled</th><th>Toggle</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-    <p id="rules-error" class="error"></p>
-  </section>
+    <section id="rules-section" class="hidden">
+        <h2>Firewall Rules</h2>
+        <div class="toolbar">
+            <input id="search" placeholder="Search description...">
+            <button id="refresh">Refresh</button>
+            <button id="logout">Logout</button>
+        </div>
+        <table id="rules-table">
+            <thead>
+                <tr>
+                    <th>ID</th><th>Description</th><th>Interface</th><th>Action</th><th>Enabled</th><th>Toggle</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        <p id="rules-error" class="error"></p>
+    </section>
 
-  <script src="/app.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>
