@@ -241,35 +241,38 @@ class OpnsenseService {
  * @param {boolean} enabled - true per abilitare, false per disabilitare
  * @returns {Promise<Object>} Risultato dell'operazione
  */
-async toggleRule(ruleUuid, enabled) {
+async toggleRule(ruleUuid, enabled = null) {
   try {
-    logger.info('Tentativo toggle regola OPNsense', { uuid: ruleUuid, enabled });
+    logger.info('OPNsense toggle_rule', { uuid: ruleUuid, enabled });
 
-    const existingRule = await this.getRule(ruleUuid);
-    if (!existingRule) throw new Error(`Regola con UUID ${ruleUuid} non trovata su OPNsense`);
+    // se enabled è null/undefined → toggle puro; altrimenti forza '1'/'0'
+    const enabledSeg =
+      enabled === null || enabled === undefined ? '' : `/${enabled ? '1' : '0'}`;
 
-    // Mantieni TUTTI i campi: update "like update"
-    const updateData = {
-      ...existingRule,
-      enabled: enabled ? '1' : '0'  // OPNsense vuole '1'/'0'
+    const url = `/api/firewall/filter/toggle_rule/${encodeURIComponent(ruleUuid)}${enabledSeg}`;
+
+    // POST senza payload, come da API OPNsense
+    const res = await this.apiCall('POST', url, {});
+
+    // alcune build rispondono {result:"ok"}, altre {status:"ok"} o {result:"saved"}
+    const ok = res?.result === 'ok' || res?.result === 'saved' || res?.status === 'ok';
+    if (!ok) {
+      throw new Error(`Risposta inattesa da OPNsense: ${JSON.stringify(res)}`);
+    }
+
+    return {
+      success: true,
+      uuid: ruleUuid,
+      // se hai forzato enabled lo rimando, altrimenti lascia null (toggle sconosciuto lato client)
+      enabled: enabled === null || enabled === undefined ? null : !!enabled,
+      opnsense_response: res
     };
-
-    const res = await this.apiCall(
-      'POST',
-      `/api/firewall/filter/setRule/${ruleUuid}`,
-      { rule: updateData }
-    );
-
-    const ok = res?.result === 'saved' || res?.status === 'ok';
-    if (!ok) throw new Error(`Risposta inattesa da OPNsense: ${JSON.stringify(res)}`);
-
-    logger.info('Regola toggleata con successo su OPNsense', { uuid: ruleUuid, enabled });
-    return { success: true, uuid: ruleUuid, enabled: !!enabled, opnsense_response: res };
   } catch (error) {
-    logger.error('Errore nel toggle regola OPNsense', { uuid: ruleUuid, enabled, error: error.message });
-    throw new Error(`Impossibile modificare stato regola: ${error.message}`);
+    logger.error('Errore toggle_rule OPNsense', { uuid: ruleUuid, enabled, error: error.message });
+    throw new Error(`Impossibile eseguire toggle_rule: ${error.message}`);
   }
 }
+
 
 /**
  * Recupera una singola regola da OPNsense
