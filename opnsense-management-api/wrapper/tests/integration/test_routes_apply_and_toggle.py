@@ -1,14 +1,20 @@
-from httpx import Response
+import responses
 
 BASE = "https://opn.local/api"
 
-def test_toggle_with_apply(client, respx_mock_global):
+def test_toggle_with_apply(client, responses_mock):
     uuid = "u1"
-    respx_mock_global.post(f"{BASE}/firewall/filter/toggleRule/{uuid}/1").mock(
-        return_value=Response(200, json={"result": "ok"})
+    responses_mock.add(
+        responses.POST,
+        f"{BASE}/firewall/filter/toggleRule/{uuid}/1",
+        json={"result": "ok"},
+        status=200,
     )
-    respx_mock_global.post(f"{BASE}/firewall/filter/apply").mock(
-        return_value=Response(200, json={"status": "ok"})
+    responses_mock.add(
+        responses.POST,
+        f"{BASE}/firewall/filter/apply",
+        json={"status": "ok"},
+        status=200,
     )
     r = client.post(f"/api/rules/{uuid}/toggle", json={"enabled": True, "apply": True})
     assert r.status_code == 200
@@ -16,7 +22,7 @@ def test_toggle_with_apply(client, respx_mock_global):
     assert j["success"] is True
     assert j["applied"] is True
 
-def test_create_rule(client, respx_mock_global):
+def test_create_rule(client, responses_mock):
     body = {
         "rule": {
             "enabled": "1", "interface": "wan", "direction": "in",
@@ -28,8 +34,11 @@ def test_create_rule(client, respx_mock_global):
         },
         "apply": False
     }
-    respx_mock_global.post(f"{BASE}/firewall/filter/addRule").mock(
-        return_value=Response(200, json={"uuid": "new-uuid"})
+    responses_mock.add(
+        responses.POST,
+        f"{BASE}/firewall/filter/addRule",
+        json={"uuid": "new-uuid"},
+        status=200,
     )
     r = client.post("/api/rules", json=body)
     assert r.status_code == 200
