@@ -575,8 +575,8 @@ router.put('/:id', validateRule, asyncHandler(async (req, res) => {
  * @swagger
  * /api/rules/{id}/toggle:
  *   patch:
- *     summary: Abilita/Disabilita regola su OPNsense
- *     description: Cambia lo stato enabled di una regola direttamente su OPNsense (senza modificare il database locale)
+ *     summary: Toggle/Forza stato regola su OPNsense
+ *     description: Usa l'endpoint nativo toggle_rule di OPNsense. Se "enabled" è omesso, lo stato viene invertito su OPNsense. Se "enabled" è presente, viene forzato (true/false).
  *     tags: [Firewall Rules]
  *     security:
  *       - bearerAuth: []
@@ -587,18 +587,21 @@ router.put('/:id', validateRule, asyncHandler(async (req, res) => {
  *         schema:
  *           type: string
  *         description: ID della regola
+ *       - in: query
+ *         name: apply
+ *         schema:
+ *           type: boolean
+ *         description: Se true applica subito la configurazione su OPNsense
  *     requestBody:
- *       required: true
+ *       required: false
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - enabled
  *             properties:
  *               enabled:
  *                 type: boolean
- *                 description: Nuovo stato della regola su OPNsense (true = abilitata, false = disabilitata)
+ *                 description: Se omesso, esegue il toggle puro su OPNsense
  *     responses:
  *       200:
  *         description: Stato regola cambiato con successo su OPNsense
@@ -620,24 +623,25 @@ router.patch('/:id/toggle', asyncHandler(async (req, res) => {
 
     const { id } = req.params;
 
-    // normalizza enabled: accetta boolean, "true"/"false", "1"/"0"
-    let { enabled } = req.body;
-    if (typeof enabled === 'string') {
+    // enabled può essere boolean/"1"/"0"/"true"/"false"/omesso
+    let { enabled } = req.body ?? {};
+    if (enabled === '' || enabled === undefined || enabled === null) {
+      enabled = null; // toggle puro
+    } else if (typeof enabled === 'string') {
       enabled = enabled === 'true' || enabled === '1';
-    }
-    if (typeof enabled !== 'boolean') {
-      return res.status(400).json({ success: false, message: 'Campo "enabled" booleano richiesto' });
+    } else if (typeof enabled !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'Campo "enabled" deve essere boolean, "1"/"0", "true"/"false" oppure omesso per toggle'
+      });
     }
 
     const applyNow = String(req.query.apply || '').toLowerCase() === 'true';
 
-    // trova regola locale (id numerico o uuid)
+    // trova regola locale
     let rule;
-    if (!isNaN(id)) {
-      rule = await Rule.findByPk(id);
-    } else if (Rule.rawAttributes?.uuid) {
-      rule = await Rule.findOne({ where: { uuid: id } });
-    }
+    if (!isNaN(id)) rule = await Rule.findByPk(id);
+    else if (Rule.rawAttributes?.uuid) rule = await Rule.findOne({ where: { uuid: id } });
 
     if (!rule) return res.status(404).json({ success: false, message: 'Regola non trovata' });
     if (!rule.opnsense_uuid) {
@@ -654,35 +658,27 @@ router.patch('/:id/toggle', asyncHandler(async (req, res) => {
       });
     }
 
-    // === TOGGLE lato OPNsense (uguale a update: get -> merge -> setRule) ===
+    // toggle semplice tramite endpoint nativo
     const result = await OpnsenseService.toggleRule(rule.opnsense_uuid, enabled);
 
-    // apply immediato opzionale
-    if (applyNow) {
-      await OpnsenseService.applyConfig();
+    // apply opzionale
+    if (applyNow) await OpnsenseService.applyConfig();
+
+    // aggiorna DB locale solo se stato forzato
+    if (enabled !== null) {
+      const payload = { enabled };
+      if (Rule.rawAttributes?.sync_status) payload.sync_status = applyNow ? 'synced' : 'synced_pending_apply';
+      if (Rule.rawAttributes?.last_synced_at) payload.last_synced_at = new Date();
+      await rule.update(payload);
     }
 
-    // === sincronizza DB locale ===
-    const payload = { enabled };
-    if (Rule.rawAttributes?.sync_status) {
-      payload.sync_status = applyNow ? 'synced' : 'synced_pending_apply';
-    }
-    if (Rule.rawAttributes?.last_synced_at) {
-      payload.last_synced_at = new Date();
-    }
-    await rule.update(payload);
-
-    logger.info('Stato regola cambiato su OPNsense e DB aggiornato', {
-      rule_id: rule.id,
-      opnsense_uuid: rule.opnsense_uuid,
-      enabled,
-      apply: applyNow,
-      user: req.user.username
+    logger.info('Toggle eseguito su OPNsense', {
+      rule_id: rule.id, opnsense_uuid: rule.opnsense_uuid, forcedEnabled: enabled, apply: applyNow, user: req.user.username
     });
 
     return res.json({
       success: true,
-      message: `Regola ${enabled ? 'abilitata' : 'disabilitata'} su OPNsense${applyNow ? ' e applicata' : ''}`,
+      message: `Toggle su OPNsense eseguito${applyNow ? ' e applicato' : ''}${enabled === null ? '' : ` (stato forzato a ${enabled ? 'abilitato' : 'disabilitato'})`}`,
       data: {
         id: rule.id,
         uuid: rule.uuid || String(rule.id),
@@ -690,19 +686,14 @@ router.patch('/:id/toggle', asyncHandler(async (req, res) => {
         interface: rule.interface,
         action: rule.action,
         opnsense_uuid: rule.opnsense_uuid,
-        opnsense_enabled: enabled,
+        forced_enabled: enabled, // null se toggle puro
         applied: applyNow,
         opnsense_response: result?.opnsense_response || null
       }
     });
 
   } catch (error) {
-    logger.error('Errore nel cambio stato regola su OPNsense', {
-      id: req.params.id,
-      error: error.message,
-      user: req.user?.username
-    });
-
+    logger.error('Errore nel toggle regola su OPNsense', { id: req.params.id, error: error.message, user: req.user?.username });
     return res.status(502).json({
       success: false,
       message: 'Errore nel cambio stato della regola su OPNsense',
@@ -710,6 +701,7 @@ router.patch('/:id/toggle', asyncHandler(async (req, res) => {
     });
   }
 }));
+
 
 
 /**
