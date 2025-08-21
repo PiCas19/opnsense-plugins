@@ -234,26 +234,23 @@ class OpnsenseService {
   }
 
   // Elenco regole da OPNsense
-  async getRules() {
+  encodeId(v) {
+  if (v === undefined || v === null) throw new Error('UUID mancante');
+  return encodeURIComponent(String(v).trim());
+}
+
+  // ✅ usa l’endpoint che sai funzionare sulla tua istanza
+  async getRule(ruleUuid) {
     try {
-      // i grid di OPNsense usano POST /searchXxx
-      const payload = {
-        current: 1,          // prima pagina
-        rowCount: 9999,      // prendi “tutto”
-        sort: { sequence: 'asc' },
-        searchPhrase: ''     // nessun filtro lato OPNsense
-      };
-
-      const res = await this.apiCall('POST', '/api/firewall/filter/searchRule', payload);
-
-      // struttura attesa: { rows: [...], total: n }
-      const rows = Array.isArray(res?.rows) ? res.rows : [];
-      return rows.map(r => this.normalizeOpnRule(r));
+      const uuid = this.encodeId(ruleUuid);
+      const res = await this.apiCall('GET', `/api/firewall/filter/get_rule/${uuid}`);
+      return res?.rule || null;
     } catch (error) {
-      logger.error('Errore recupero elenco regole OPNsense (searchRule)', { error: error.message });
+      logger.error('Errore get_rule OPNsense', { uuid: ruleUuid, error: error.message });
       throw error;
     }
   }
+
 
   // Aggiorna regola su OPNsense
   async updateRule(ruleUuid, ruleData) {
