@@ -1,7 +1,7 @@
 // scripts/db-manager.js
-const { sequelize, initializeDatabase, resetDatabase, closeDatabase } = require('../src/config/database');
-const User = require('../src/models/User');
-const Rule = require('../src/models/Rule');
+const { sequelize, initializeDatabase, resetDatabase, closeDatabase } = require('../config/database');
+const User = require('../models/User');
+const Rule = require('../models/Rule');
 const path = require('path');
 const fs = require('fs');
 
