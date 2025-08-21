@@ -143,7 +143,10 @@ const authenticate = async (req, res, next) => {
     
     // Verifica che l'utente esista ancora nel database
     const user = await User.findByPk(decoded.id, {
-      attributes: ['id', 'username', 'email', 'role', 'is_active', 'locked_until', 'failed_login_attempts']
+      attributes: [
+        'id', 'username', 'email', 'role', 'is_active', 
+        'failed_login_attempts', 'last_failed_login'
+      ]
     });
     
     if (!user) {
@@ -174,24 +177,28 @@ const authenticate = async (req, res, next) => {
       });
     }
 
-    // Controlla se account è bloccato
-    if (user.isAccountLocked && user.isAccountLocked()) {
-      const lockTimeRemaining = Math.ceil((new Date(user.locked_until) - new Date()) / 1000 / 60);
+    // Controlla se account è bloccato usando il metodo del tuo modello
+    if (user.isAccountLocked()) {
+      const maxAttempts = parseInt(process.env.MAX_LOGIN_ATTEMPTS, 10) || 5;
+      const lockoutDuration = parseInt(process.env.LOCKOUT_DURATION_MINUTES, 10) || 30;
       
       logger.warn('Tentativo di accesso da account bloccato', {
         user_id: user.id,
         username: user.username,
-        locked_until: user.locked_until,
+        failed_attempts: user.failed_login_attempts,
         ip: req.ip
       });
       
       return res.status(423).json({
         success: false,
-        message: `Account temporaneamente bloccato. Riprova tra ${lockTimeRemaining} minuti.`,
+        message: `Account temporaneamente bloccato per ${lockoutDuration} minuti dopo ${maxAttempts} tentativi falliti.`,
         code: 'ACCOUNT_LOCKED',
-        retry_after: lockTimeRemaining * 60
+        retry_after: lockoutDuration * 60
       });
     }
+    
+    // Aggiorna ultima attività
+    await user.updateLastActivity();
     
     // Aggiunge informazioni utente alla request
     req.user = {
@@ -223,7 +230,7 @@ const authenticate = async (req, res, next) => {
     
     // Determina il codice di errore specifico
     let errorCode = 'INVALID_TOKEN';
-    if (error.message.includes('scaduto')) {
+    if (error.message.includes('scaduto') || error.message.includes('expired')) {
       errorCode = 'TOKEN_EXPIRED';
     }
     
