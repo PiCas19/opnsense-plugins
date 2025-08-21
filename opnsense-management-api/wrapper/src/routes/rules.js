@@ -226,11 +226,7 @@ router.get('/opnsense', asyncHandler(async (req, res) => {
  */
 router.get('/:id', asyncHandler(async (req, res) => {
   try {
-    const user = await User.findByPk(req.user.id);
-    if (!user || !user.hasPermission('read_rules')) {
-      return res.status(403).json({ success: false, message: 'Permessi insufficienti' });
-    }
-
+ 
     const { id } = req.params;
 
     const conn = await OpnsenseService.testConnection();
