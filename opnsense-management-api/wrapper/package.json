@@ -14,6 +14,7 @@
     "db:clear": "node src/utils/db-manager.js clear",
     "db:status": "node src/utils/db-manager.js status",
     "db:stats": "node src/utils/db-manager.js stats",
+    "test:opnsense": "node src/utils/test-opnsense.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
