@@ -20,7 +20,7 @@ router.use(authenticate);
  * /api/rules:
  *   get:
  *     summary: Ottieni lista regole firewall
- *     description: Recupera tutte le regole firewall con opzioni di filtro e paginazione
+ *     description: Recupera tutte le regole firewall dal database locale e da OPNsense con opzioni di filtro e paginazione
  *     tags: [Firewall Rules]
  *     security:
  *       - bearerAuth: []
@@ -66,6 +66,7 @@ router.get('/', validateSearchQuery, asyncHandler(async (req, res) => {
       }
     }
 
+    // Recupera regole dal database locale
     const { count, rows } = await Rule.findAndCountAll({
       where,
       offset: parseInt(offset),
@@ -73,10 +74,39 @@ router.get('/', validateSearchQuery, asyncHandler(async (req, res) => {
       order
     });
 
+    // Tenta di recuperare anche regole da OPNsense per confronto
+    let opnsenseRules = [];
+    try {
+      const connectionTest = await OpnsenseService.testConnection();
+      if (connectionTest.success) {
+        opnsenseRules = await OpnsenseService.getRules();
+      }
+    } catch (opnsenseError) {
+      logger.warn('Impossibile recuperare regole da OPNsense', {
+        error: opnsenseError.message,
+        user: req.user.username
+      });
+    }
+
+    // Arricchisci le regole locali con info OPNsense
+    const enrichedRules = rows.map(rule => {
+      const opnsenseMatch = opnsenseRules.find(opRule => 
+        opRule.uuid === rule.opnsense_uuid || 
+        opRule.description === rule.description
+      );
+      
+      return {
+        ...rule.toJSON(),
+        opnsense_status: opnsenseMatch ? 'found' : 'not_found',
+        opnsense_enabled: opnsenseMatch?.enabled || null
+      };
+    });
+
     logger.info('Lista regole recuperata', {
       count,
       page,
       limit,
+      opnsense_rules_found: opnsenseRules.length,
       user: req.user.username,
       filters: { search, iface, action, enabled }
     });
@@ -84,12 +114,13 @@ router.get('/', validateSearchQuery, asyncHandler(async (req, res) => {
     res.json({
       success: true,
       message: 'Regole recuperate con successo',
-      data: rows,
+      data: enrichedRules,
       meta: {
         total: count,
         page: parseInt(page),
         limit: parseInt(limit),
-        pages: Math.ceil(count / limit)
+        pages: Math.ceil(count / limit),
+        opnsense_connection: opnsenseRules.length > 0
       }
     });
 
@@ -113,7 +144,7 @@ router.get('/', validateSearchQuery, asyncHandler(async (req, res) => {
  * /api/rules/{id}:
  *   get:
  *     summary: Ottieni regola specifica
- *     description: Recupera una singola regola firewall per ID
+ *     description: Recupera una singola regola firewall per ID dal database locale e verifica su OPNsense
  *     tags: [Firewall Rules]
  *     security:
  *       - bearerAuth: []
@@ -154,15 +185,42 @@ router.get('/:id', asyncHandler(async (req, res) => {
       });
     }
 
+    // Verifica stato su OPNsense se sincronizzata
+    let opnsenseStatus = null;
+    if (rule.opnsense_uuid) {
+      try {
+        const connectionTest = await OpnsenseService.testConnection();
+        if (connectionTest.success) {
+          const opnsenseRule = await OpnsenseService.getRule(rule.opnsense_uuid);
+          opnsenseStatus = {
+            found: !!opnsenseRule,
+            enabled: opnsenseRule?.enabled || null,
+            last_modified: opnsenseRule?.last_modified || null
+          };
+        }
+      } catch (opnsenseError) {
+        logger.warn('Errore verifica regola su OPNsense', {
+          rule_id: rule.id,
+          opnsense_uuid: rule.opnsense_uuid,
+          error: opnsenseError.message
+        });
+        opnsenseStatus = { error: opnsenseError.message };
+      }
+    }
+
     logger.info('Regola recuperata', { 
       rule_id: rule.id, 
+      opnsense_status: opnsenseStatus,
       user: req.user.username 
     });
 
     res.json({
       success: true,
       message: 'Regola recuperata con successo',
-      data: rule
+      data: {
+        ...rule.toJSON(),
+        opnsense_status: opnsenseStatus
+      }
     });
 
   } catch (error) {
@@ -185,7 +243,7 @@ router.get('/:id', asyncHandler(async (req, res) => {
  * /api/rules:
  *   post:
  *     summary: Crea nuova regola firewall
- *     description: Crea una nuova regola firewall nel database (senza sincronizzazione automatica)
+ *     description: Crea una nuova regola firewall e la sincronizza con OPNsense
  *     tags: [Firewall Rules]
  *     security:
  *       - bearerAuth: []
@@ -210,29 +268,6 @@ router.get('/:id', asyncHandler(async (req, res) => {
  *                 type: string
  *                 enum: [pass, block, reject]
  *                 description: Azione da intraprendere
- *               protocol:
- *                 type: string
- *                 description: Protocollo (TCP, UDP, ICMP, any)
- *                 default: any
- *               enabled:
- *                 type: boolean
- *                 description: Regola abilitata
- *                 default: true
- *               source_config:
- *                 type: object
- *                 description: Configurazione sorgente
- *               destination_config:
- *                 type: object
- *                 description: Configurazione destinazione
- *               log_enabled:
- *                 type: boolean
- *                 description: Logging abilitato
- *                 default: false
- *               direction:
- *                 type: string
- *                 enum: [in, out]
- *                 description: Direzione traffico
- *                 default: in
  *     responses:
  *       201:
  *         description: Regola creata con successo
@@ -258,26 +293,96 @@ router.post('/', validateRule, asyncHandler(async (req, res) => {
       created_by: req.user.id
     };
 
-    // Crea regola nel database (senza sincronizzazione)
+    // Crea regola nel database
     const rule = await Rule.create(ruleData);
+
+    // Tenta sincronizzazione con OPNsense (senza applicare config)
+    let syncResult = {
+      opnsense_uuid: null,
+      sync_status: 'pending',
+      sync_error: null
+    };
+
+    try {
+      // Test connessione OPNsense prima di procedere
+      const connectionTest = await OpnsenseService.testConnection();
+      
+      if (!connectionTest.success) {
+        throw new Error(`OPNsense non raggiungibile: ${JSON.stringify(connectionTest.tests)}`);
+      }
+
+      // Prepara dati per OPNsense
+      const ruleForOPNsense = {
+        description: rule.description,
+        interface: rule.interface,
+        action: rule.action,
+        protocol: rule.protocol || 'any',
+        enabled: rule.enabled !== false,
+        source_config: rule.source_config || { type: 'any' },
+        destination_config: rule.destination_config || { type: 'any' },
+        log_enabled: rule.log_enabled || false,
+        direction: rule.direction || 'in'
+      };
+
+      logger.info('Tentativo creazione regola OPNsense', {
+        rule_id: rule.id,
+        ruleForOPNsense
+      });
+
+      const opnsenseResult = await OpnsenseService.createRule(ruleForOPNsense);
+      
+      syncResult = {
+        opnsense_uuid: opnsenseResult.uuid,
+        sync_status: 'synced_pending_apply',
+        last_synced_at: new Date(),
+        sync_error: null
+      };
+
+      logger.info('Regola creata in OPNsense, configurazione non ancora applicata', {
+        rule_id: rule.id,
+        opnsense_uuid: opnsenseResult.uuid
+      });
+
+    } catch (opnsenseError) {
+      logger.error('Errore sincronizzazione regola con OPNsense', {
+        rule_id: rule.id,
+        error: opnsenseError.message,
+        stack: opnsenseError.stack
+      });
+      
+      syncResult = {
+        sync_status: 'failed',
+        sync_error: opnsenseError.message
+      };
+    }
+
+    // Aggiorna regola con risultato sincronizzazione
+    if (Rule.rawAttributes.sync_status) {
+      await rule.update(syncResult);
+    }
 
     logger.info('Regola creata nel database', {
       rule_id: rule.id,
       description: rule.description,
+      sync_status: syncResult.sync_status,
       user: req.user.username
     });
 
     res.status(201).json({
       success: true,
-      message: 'Regola creata con successo nel database',
+      message: syncResult.sync_status === 'synced_pending_apply' 
+        ? 'Regola creata con successo. Usa /api/rules/apply per applicare la configurazione.'
+        : 'Regola creata nel database. Sincronizzazione con OPNsense fallita.',
       data: {
         id: rule.id,
         uuid: rule.uuid || rule.id,
-        description: rule.description,
-        interface: rule.interface,
-        action: rule.action,
-        enabled: rule.enabled
-      }
+        opnsense_uuid: syncResult.opnsense_uuid,
+        sync_status: syncResult.sync_status,
+        sync_error: syncResult.sync_error
+      },
+      next_steps: syncResult.sync_status === 'synced_pending_apply' 
+        ? 'Chiamare POST /api/rules/apply per applicare le modifiche al firewall'
+        : 'Controllare i log e riprovare la sincronizzazione'
     });
 
   } catch (error) {
@@ -301,7 +406,7 @@ router.post('/', validateRule, asyncHandler(async (req, res) => {
  * /api/rules/{id}:
  *   put:
  *     summary: Aggiorna regola firewall
- *     description: Aggiorna una regola firewall esistente nel database
+ *     description: Aggiorna una regola firewall esistente nel database locale
  *     tags: [Firewall Rules]
  *     security:
  *       - bearerAuth: []
@@ -430,13 +535,12 @@ router.put('/:id', validateRule, asyncHandler(async (req, res) => {
       updated_by: req.user.id
     };
 
-    // Aggiorna regola nel database (senza sincronizzazione)
+    // Aggiorna regola nel database
     await rule.update(updateData);
 
     logger.info('Regola aggiornata', {
       rule_id: rule.id,
       changes: Object.keys(updateData),
-      enabled: rule.enabled,
       user: req.user.username
     });
 
@@ -471,8 +575,8 @@ router.put('/:id', validateRule, asyncHandler(async (req, res) => {
  * @swagger
  * /api/rules/{id}/toggle:
  *   patch:
- *     summary: Abilita/Disabilita regola
- *     description: Cambia lo stato enabled di una regola firewall
+ *     summary: Abilita/Disabilita regola su OPNsense
+ *     description: Cambia lo stato enabled di una regola direttamente su OPNsense (senza modificare il database locale)
  *     tags: [Firewall Rules]
  *     security:
  *       - bearerAuth: []
@@ -494,16 +598,18 @@ router.put('/:id', validateRule, asyncHandler(async (req, res) => {
  *             properties:
  *               enabled:
  *                 type: boolean
- *                 description: Nuovo stato della regola (true = abilitata, false = disabilitata)
+ *                 description: Nuovo stato della regola su OPNsense (true = abilitata, false = disabilitata)
  *     responses:
  *       200:
- *         description: Stato regola cambiato con successo
+ *         description: Stato regola cambiato con successo su OPNsense
  *       404:
  *         description: Regola non trovata
  *       401:
  *         description: Token di accesso richiesto
  *       403:
  *         description: Permessi insufficienti
+ *       502:
+ *         description: Errore comunicazione con OPNsense
  */
 router.patch('/:id/toggle', asyncHandler(async (req, res) => {
   try {
@@ -518,7 +624,7 @@ router.patch('/:id/toggle', asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { enabled } = req.body;
     
-    // Cerca regola
+    // Cerca regola locale
     let rule;
     if (!isNaN(id)) {
       rule = await Rule.findByPk(id);
@@ -533,39 +639,55 @@ router.patch('/:id/toggle', asyncHandler(async (req, res) => {
       });
     }
 
-    // Aggiorna solo il campo enabled
-    await rule.update({ 
-      enabled: enabled,
-      updated_by: req.user.id
-    });
+    if (!rule.opnsense_uuid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Regola non sincronizzata con OPNsense'
+      });
+    }
 
-    logger.info('Stato regola cambiato', {
+    // Test connessione OPNsense
+    const connectionTest = await OpnsenseService.testConnection();
+    if (!connectionTest.success) {
+      return res.status(502).json({
+        success: false,
+        message: 'OPNsense non raggiungibile',
+        details: connectionTest.tests
+      });
+    }
+
+    // Aggiorna stato su OPNsense
+    await OpnsenseService.toggleRule(rule.opnsense_uuid, enabled);
+
+    logger.info('Stato regola cambiato su OPNsense', {
       rule_id: rule.id,
+      opnsense_uuid: rule.opnsense_uuid,
       enabled: enabled,
       user: req.user.username
     });
 
     res.json({
       success: true,
-      message: `Regola ${enabled ? 'abilitata' : 'disabilitata'} con successo`,
+      message: `Regola ${enabled ? 'abilitata' : 'disabilitata'} su OPNsense con successo`,
       data: {
         id: rule.id,
         description: rule.description,
-        enabled: rule.enabled
+        opnsense_uuid: rule.opnsense_uuid,
+        opnsense_enabled: enabled
       }
     });
 
   } catch (error) {
-    logger.error('Errore nel cambio stato regola', {
+    logger.error('Errore nel cambio stato regola su OPNsense', {
       id: req.params.id,
       error: error.message,
       user: req.user?.username
     });
 
-    res.status(500).json({
+    res.status(502).json({
       success: false,
-      message: 'Errore nel cambio stato della regola',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Errore interno del server'
+      message: 'Errore nel cambio stato della regola su OPNsense',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Errore di comunicazione con OPNsense'
     });
   }
 }));
@@ -575,7 +697,7 @@ router.patch('/:id/toggle', asyncHandler(async (req, res) => {
  * /api/rules/{id}:
  *   delete:
  *     summary: Elimina regola firewall
- *     description: Elimina una regola firewall dal database
+ *     description: Elimina una regola firewall dal database locale e da OPNsense
  *     tags: [Firewall Rules]
  *     security:
  *       - bearerAuth: []
@@ -623,18 +745,56 @@ router.delete('/:id', asyncHandler(async (req, res) => {
       });
     }
 
-    // Elimina dal database (senza sincronizzazione)
+    let opnsenseResult = { success: false, error: null };
+
+    // Elimina da OPNsense se sincronizzata
+    if (rule.opnsense_uuid) {
+      try {
+        const connectionTest = await OpnsenseService.testConnection();
+        if (connectionTest.success) {
+          await OpnsenseService.deleteRule(rule.opnsense_uuid);
+          opnsenseResult.success = true;
+          logger.info('Regola eliminata da OPNsense', {
+            rule_id: rule.id,
+            opnsense_uuid: rule.opnsense_uuid
+          });
+        } else {
+          throw new Error('OPNsense non raggiungibile');
+        }
+      } catch (opnsenseError) {
+        opnsenseResult.error = opnsenseError.message;
+        logger.warn('Errore eliminazione regola da OPNsense', {
+          rule_id: rule.id,
+          opnsense_uuid: rule.opnsense_uuid,
+          error: opnsenseError.message
+        });
+      }
+    }
+
+    // Elimina dal database locale
     await rule.destroy();
 
-    logger.info('Regola eliminata dal database', {
+    logger.info('Regola eliminata dal database locale', {
       rule_id: rule.id,
       description: rule.description,
+      opnsense_deleted: opnsenseResult.success,
       user: req.user.username
     });
 
+    const message = rule.opnsense_uuid 
+      ? opnsenseResult.success 
+        ? 'Regola eliminata con successo da database locale e OPNsense'
+        : `Regola eliminata dal database locale. Errore OPNsense: ${opnsenseResult.error}`
+      : 'Regola eliminata con successo dal database locale';
+
     res.json({
       success: true,
-      message: 'Regola eliminata con successo'
+      message: message,
+      data: {
+        local_deleted: true,
+        opnsense_deleted: opnsenseResult.success,
+        opnsense_error: opnsenseResult.error
+      }
     });
 
   } catch (error) {
@@ -808,7 +968,8 @@ router.post('/apply', asyncHandler(async (req, res) => {
       return res.status(502).json({
         success: false,
         message: 'OPNsense non raggiungibile',
-        details: connectionTest.tests
+        details: connectionTest.tests,
+        suggestion: 'Verificare la connessione con OPNsense e riprovare'
       });
     }
 
@@ -852,107 +1013,6 @@ router.post('/apply', asyncHandler(async (req, res) => {
       message: 'Errore nell\'applicazione della configurazione',
       error: process.env.NODE_ENV === 'development' ? error.message : 'Errore di comunicazione con OPNsense',
       suggestion: 'Verificare la connessione con OPNsense e riprovare'
-    });
-  }
-}));
-
-/**
- * @swagger
- * /api/rules/test-connection:
- *   get:
- *     summary: Test connessione OPNsense
- *     description: Verifica la connettività e l'autenticazione con il server OPNsense
- *     tags: [Firewall Rules]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Test connessione completato
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: Connessione OPNsense OK
- *                 data:
- *                   type: object
- *                   properties:
- *                     success:
- *                       type: boolean
- *                       example: true
- *                     responseTime:
- *                       type: integer
- *                       example: 245
- *                       description: Tempo di risposta in millisecondi
- *                     status:
- *                       type: integer
- *                       example: 200
- *                     timestamp:
- *                       type: string
- *                       format: date-time
- *       401:
- *         description: Token di accesso richiesto
- *       403:
- *         description: Permessi insufficienti
- *       500:
- *         description: Errore nel test di connessione
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Problemi di connessione OPNsense
- *                 data:
- *                   type: object
- *                   properties:
- *                     success:
- *                       type: boolean
- *                       example: false
- *                     error:
- *                       type: string
- *                     code:
- *                       type: string
- *                     status:
- *                       type: integer
- */ 
-router.get('/test-connection', asyncHandler(async (req, res) => {
-  try {
-    const user = await User.findByPk(req.user.id);
-    if (!user || !user.hasPermission('view_health')) {
-      return res.status(403).json({
-        success: false,
-        message: 'Permessi insufficienti'
-      });
-    }
-
-    const testResult = await OpnsenseService.testConnection();
-
-    res.json({
-      success: testResult.success,
-      message: testResult.success ? 'Connessione OPNsense OK' : 'Problemi di connessione OPNsense',
-      data: testResult
-    });
-
-  } catch (error) {
-    logger.error('Errore nel test connessione', {
-      error: error.message,
-      user: req.user?.username
-    });
-
-    res.status(500).json({
-      success: false,
-      message: 'Errore nel test di connessione',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Errore interno'
     });
   }
 }));
