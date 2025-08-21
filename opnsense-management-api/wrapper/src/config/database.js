@@ -216,10 +216,75 @@ const resetDatabase = async () => {
   }
 };
 
+async function getDBStats() {
+  try {
+    // Statistiche tabelle
+    const userCount = await User.count();
+    const ruleCount = await Rule.count();
+    const activeUsers = await User.count({ where: { is_active: true } });
+    const activeRules = await Rule.count({ where: { enabled: true } });
+
+    // Statistiche per ruolo
+    const usersByRole = await User.findAll({
+      attributes: [
+        'role',
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+      ],
+      group: ['role'],
+      raw: true
+    });
+
+    // Statistiche regole per categoria
+    const rulesByCategory = await Rule.findAll({
+      attributes: [
+        'category',
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+      ],
+      group: ['category'],
+      where: {
+        category: { [Op.ne]: null }
+      },
+      raw: true
+    });
+
+    console.log('\nDatabase Statistics:');
+    console.log(`   Users: ${userCount} total, ${activeUsers} active`);
+    console.log(`   Rules: ${ruleCount} total, ${activeRules} enabled`);
+
+    if (usersByRole.length > 0) {
+      console.log('\nUsers by Role:');
+      usersByRole.forEach(stat => {
+        console.log(`   ${stat.role}: ${stat.count}`);
+      });
+    }
+
+    if (rulesByCategory.length > 0) {
+      console.log('\nRules by Category:');
+      rulesByCategory.forEach(stat => {
+        console.log(`   ${stat.category || 'uncategorized'}: ${stat.count}`);
+      });
+    }
+
+  } catch (error) {
+    console.error('Error getting stats:', error.message);
+    try {
+      console.log('\nBasic Statistics:');
+      const userCount = await User.count();
+      const ruleCount = await Rule.count();
+      console.log(`   Users: ${userCount}`);
+      console.log(`   Rules: ${ruleCount}`);
+    } catch (fallbackError) {
+      console.error('Error getting basic stats:', fallbackError.message);
+    }
+  }
+}
+
+
 module.exports = {
   sequelize,
   testConnection,
   initializeDatabase,
   closeDatabase,
-  resetDatabase
+  resetDatabase,
+  getDBStats
 };
