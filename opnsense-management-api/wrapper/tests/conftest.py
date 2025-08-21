@@ -6,9 +6,10 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+import responses as _responses
 
 # --- assicurati che 'src' sia importabile ---
-ROOT = Path(__file__).resolve().parents[1]  # -> <repo>/wrapper
+ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -27,11 +28,9 @@ for k, v in DEFAULT_ENV.items():
 
 @pytest.fixture(autouse=True)
 def _env(monkeypatch):
-    # riaffermiamo le env per ogni test e ricarichiamo moduli
     for k, v in DEFAULT_ENV.items():
         monkeypatch.setenv(k, v)
-
-    # ricarica config e client se già importati
+    # ricarica moduli che leggono ENV a import-time
     if "src.config" in sys.modules:
         importlib.reload(sys.modules["src.config"])
     if "src.opnsense.client" in sys.modules:
@@ -47,7 +46,8 @@ def app():
 def client(app):
     return TestClient(app)
 
-# respx fornisce la fixture 'respx_mock'; la “ri-esponiamo” col nome che usano i test
+# Mock per 'requests' usando 'responses'
 @pytest.fixture
-def respx_mock_global(respx_mock):
-    yield respx_mock
+def responses_mock():
+    with _responses.RequestsMock(assert_all_requests_are_fired=False) as rsps:
+        yield rsps
