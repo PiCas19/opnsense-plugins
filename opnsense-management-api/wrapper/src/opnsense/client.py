@@ -1,3 +1,4 @@
+# src/opnsense/client.py
 from __future__ import annotations
 
 from typing import Any, Optional
@@ -14,7 +15,7 @@ class OpnSenseClient:
     """Client minimale per gli endpoint firewall/filter di OPNsense."""
 
     def __init__(self):
-        # OPNSENSE_URL deve includere /api
+        # OPNSENSE_URL deve includere /api (es: https://fw/api)
         self.base = config.OPNSENSE_URL.rstrip("/")
         self.auth = (config.OPNSENSE_KEY, config.OPNSENSE_SECRET)
         self.verify = config.OPNSENSE_VERIFY_SSL
@@ -22,6 +23,7 @@ class OpnSenseClient:
 
     # ------------- HTTP core -------------
     def _req(self, method: str, path: str, json: Optional[dict] = None) -> Any:
+        # path deve iniziare con '/', ma NON deve contenere '/api' (self.base già include /api)
         url = f"{self.base}{path}"
         r = requests.request(
             method=method,
@@ -49,55 +51,55 @@ class OpnSenseClient:
 
     # ------------- firewall/filter -------------
     def search_rules(self, search_phrase: str = "", row_count: int = 2000) -> dict:
-        """POST /api/firewall/filter/searchRule"""
+        """POST /firewall/filter/searchRule"""
         payload = {
             "current": 1,
             "rowCount": row_count,
             "sort": {"sequence": "asc"},
             "searchPhrase": search_phrase or "",
         }
-        return self._req("POST", "/api/firewall/filter/searchRule", json=payload)
+        return self._req("POST", "/firewall/filter/searchRule", json=payload)
 
     def get_rule(self, uuid: str) -> Optional[dict]:
-        """GET /api/firewall/filter/getRule/{uuid} con fallback a get_rule."""
+        """GET /firewall/filter/getRule/{uuid} con fallback a get_rule."""
         uid = quote(str(uuid).strip(), safe="")
         # tenta camelCase, poi snake_case (compatibile con la tua istanza)
         try:
-            res = self._req("GET", f"/api/firewall/filter/getRule/{uid}")
+            res = self._req("GET", f"/firewall/filter/getRule/{uid}")
             return res.get("rule") or res
         except HttpError as e1:
             logger.debug("getRule non disponibile, fallback a get_rule: %s", e1)
-            res2 = self._req("GET", f"/api/firewall/filter/get_rule/{uid}")
+            res2 = self._req("GET", f"/firewall/filter/get_rule/{uid}")
             return res2.get("rule") or res2
 
     def add_rule(self, rule: dict) -> dict:
-        """POST /api/firewall/filter/addRule  body: {'rule': {...}}"""
-        return self._req("POST", "/api/firewall/filter/addRule", json={"rule": rule})
+        """POST /firewall/filter/addRule  body: {'rule': {...}}"""
+        return self._req("POST", "/firewall/filter/addRule", json={"rule": rule})
 
     def set_rule(self, uuid: str, rule: dict) -> dict:
-        """POST /api/firewall/filter/setRule/{uuid}  body: {'rule': {...}}"""
+        """POST /firewall/filter/setRule/{uuid}  body: {'rule': {...}}"""
         uid = quote(str(uuid).strip(), safe="")
-        return self._req("POST", f"/api/firewall/filter/setRule/{uid}", json={"rule": rule})
+        return self._req("POST", f"/firewall/filter/setRule/{uid}", json={"rule": rule})
 
     def del_rule(self, uuid: str) -> dict:
-        """POST /api/firewall/filter/delRule/{uuid}"""
+        """POST /firewall/filter/delRule/{uuid}"""
         uid = quote(str(uuid).strip(), safe="")
-        return self._req("POST", f"/api/firewall/filter/delRule/{uid}", json={})
+        return self._req("POST", f"/firewall/filter/delRule/{uid}", json={})
 
     def toggle_rule(self, uuid: str, enabled: Optional[bool] = None) -> dict:
-        """POST /api/firewall/filter/toggleRule/{uuid}/{0|1}  (suffix vuoto = toggle puro)"""
+        """POST /firewall/filter/toggleRule/{uuid}/{0|1}  (suffix vuoto = toggle puro)"""
         uid = quote(str(uuid).strip(), safe="")
         suffix = "" if enabled is None else ("/1" if enabled else "/0")
-        return self._req("POST", f"/api/firewall/filter/toggleRule/{uid}{suffix}")
+        return self._req("POST", f"/firewall/filter/toggleRule/{uid}{suffix}")
 
     def apply(self, revision: Optional[str] = None) -> dict:
-        """POST /api/firewall/filter/apply[/revision]"""
-        path = "/api/firewall/filter/apply" + (f"/{revision}" if revision else "")
+        """POST /firewall/filter/apply[/revision]"""
+        path = "/firewall/filter/apply" + (f"/{revision}" if revision else "")
         return self._req("POST", path)
 
     def savepoint(self) -> dict:
-        """POST /api/firewall/filter/savepoint"""
-        return self._req("POST", "/api/firewall/filter/savepoint")
+        """POST /firewall/filter/savepoint"""
+        return self._req("POST", "/firewall/filter/savepoint")
 
 
 # Singleton comodo da importare
