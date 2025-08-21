@@ -1,45 +1,224 @@
 <!doctype html>
 <html lang="en">
 <head>
-    <meta charset="utf-8"/>
-    <title>OPNsense Demo UI</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <link rel="stylesheet" href="styles.css"/>
+  <meta charset="utf-8"/>
+  <title>OPNsense Demo UI</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <!-- evita richiesta favicon.ico -->
+  <link rel="icon" href="data:,">
+  <style>
+    :root{--bg:#0b1220;--panel:#111a2b;--muted:#7c8aa0;--primary:#4da3ff;--ok:#22c55e;--bad:#ef4444}
+    *{box-sizing:border-box} html,body{height:100%}
+    body{margin:0;background:var(--bg);color:#e5efff;font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu}
+    header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;background:linear-gradient(90deg,#0f1a30,#0b1220)}
+    h1{margin:0;font-size:18px;font-weight:600}
+    main{max-width:1100px;margin:24px auto;padding:0 16px}
+    .card{background:var(--panel);border:1px solid #1d2a44;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    .pad{padding:18px}
+    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+    input,button{border-radius:10px;border:1px solid #1d2a44;background:#0c1526;color:#e5efff;padding:10px 12px}
+    input::placeholder{color:#6c7a90}
+    button{cursor:pointer;background:#153055;border-color:#2a4775}
+    button:hover{background:#1a3a66}
+    .btn-primary{background:var(--primary);border-color:#3a8de0;color:#051023}
+    .btn-primary:hover{filter:brightness(1.05)}
+    .btn-danger{background:#5a1e28;border-color:#7a2531}
+    .btn-danger:hover{background:#752330}
+    .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:12px}
+    .right{margin-left:auto}
+    .error{color:#ffb4b4;margin:8px 0 0}
+    .hidden{display:none}
+    table{width:100%;border-collapse:separate;border-spacing:0}
+    thead th{text-align:left;color:var(--muted);font-weight:600;padding:12px 14px;border-bottom:1px solid #22314f}
+    tbody td{padding:12px 14px;border-bottom:1px solid #152138}
+    tr:hover td{background:#0e182b}
+    .badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;font-size:12px}
+    .bg-ok{background:#0e2a1a;color:#78f0a6;border:1px solid #1c5a38}
+    .bg-bad{background:#2a1216;color:#ff98a1;border:1px solid #6b2430}
+    .muted{color:var(--muted)}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .spacer{height:10px}
+  </style>
 </head>
 <body>
-    <header>
-        <h1>OPNsense Demo UI</h1>
-        <div id="user-info"></div>
-    </header>
+  <header>
+    <h1>OPNsense Demo UI</h1>
+    <div id="user-info" class="muted"></div>
+  </header>
 
-    <section id="login-section">
-        <h2>Login</h2>
-        <form id="login-form">
-            <label>Username <input name="username" required></label>
-            <label>Password <input name="password" type="password" required></label>
-            <button type="submit">Sign in</button>
-            <p id="login-error" class="error"></p>
-        </form>
+  <main>
+    <!-- LOGIN -->
+    <section id="login-card" class="card pad">
+      <h2 class="muted" style="margin:0 0 12px">Login</h2>
+      <form id="login-form" class="row" autocomplete="off">
+        <input name="username" placeholder="Username" required>
+        <input name="password" type="password" placeholder="Password" required>
+        <button class="btn-primary" type="submit">Sign in</button>
+        <span class="muted">Demo: utenti definiti nel BFF</span>
+      </form>
+      <p id="login-error" class="error hidden"></p>
     </section>
 
-    <section id="rules-section" class="hidden">
-        <h2>Firewall Rules</h2>
-        <div class="toolbar">
-            <input id="search" placeholder="Search description...">
-            <button id="refresh">Refresh</button>
-            <button id="logout">Logout</button>
+    <div class="spacer"></div>
+
+    <!-- RULES -->
+    <section id="rules-card" class="card pad hidden">
+      <div class="toolbar">
+        <input id="search" placeholder="Search description…">
+        <button id="refresh">Refresh</button>
+        <div class="right row">
+          <button id="apply" class="btn-primary">Apply Pending</button>
+          <button id="logout" class="btn-danger">Logout</button>
         </div>
-        <table id="rules-table">
-            <thead>
-                <tr>
-                    <th>ID</th><th>Description</th><th>Interface</th><th>Action</th><th>Enabled</th><th>Toggle</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
+      </div>
+      <div class="muted" id="meta"></div>
+      <div style="overflow:auto;margin-top:10px">
+        <table id="rules-table" class="mono">
+          <thead>
+            <tr>
+              <th>#</th><th>Description</th><th>Interface</th><th>Action</th><th>Enabled</th><th>Toggle</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
         </table>
-        <p id="rules-error" class="error"></p>
+      </div>
+      <p id="rules-error" class="error hidden"></p>
     </section>
+  </main>
 
-    <script src="app.js"></script>
+  <script>
+    // ---------- config ----------
+    const API = '/api';              // BFF path (Nginx reverse proxy)
+    const LS_TOKEN = 'dmz_token';
+    const $ = (q) => document.querySelector(q);
+    const show = (el, v=true) => el.classList.toggle('hidden', !v);
+
+    // ---------- auth & fetch ----------
+    const getToken = () => localStorage.getItem(LS_TOKEN);
+    const setToken = (t) => localStorage.setItem(LS_TOKEN, t);
+    const clearToken = () => localStorage.removeItem(LS_TOKEN);
+
+    async function api(path, opts={}) {
+      const headers = Object.assign(
+        {'Content-Type':'application/json'},
+        opts.headers || {}
+      );
+      const tok = getToken();
+      if (tok) headers['Authorization'] = 'Bearer ' + tok;
+      const res = await fetch(API + path, Object.assign(opts, {headers}));
+      const ct = res.headers.get('content-type') || '';
+      const body = ct.includes('application/json') ? await res.json() : await res.text();
+      if (!res.ok) {
+        const msg = typeof body === 'string' ? body : (body?.message || JSON.stringify(body));
+        throw new Error(`HTTP ${res.status}: ${msg}`);
+      }
+      return body;
+    }
+
+    // ---------- UI helpers ----------
+    function setUserInfo() {
+      const tok = getToken();
+      $('#user-info').textContent = tok ? 'Logged in' : 'Not authenticated';
+    }
+    function showError(el, msg) {
+      el.textContent = msg; show(el, true);
+      setTimeout(()=>show(el,false), 5000);
+    }
+
+    // ---------- login ----------
+    $('#login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const payload = { username: fd.get('username'), password: fd.get('password') };
+      try {
+        const r = await api('/auth/login', { method:'POST', body: JSON.stringify(payload) });
+        if (!r?.token) throw new Error('Missing token in response');
+        setToken(r.token);
+        setUserInfo();
+        await loadRules();
+        show($('#login-card'), false);
+        show($('#rules-card'), true);
+      } catch (err) {
+        showError($('#login-error'), String(err.message || err));
+      }
+    });
+
+    $('#logout').addEventListener('click', () => {
+      clearToken();
+      setUserInfo();
+      show($('#rules-card'), false);
+      show($('#login-card'), true);
+    });
+
+    // ---------- rules ----------
+    $('#refresh').addEventListener('click', () => loadRules());
+    $('#apply').addEventListener('click', async () => {
+      try {
+        await api('/rules/apply', { method:'POST' });
+        await loadRules();
+      } catch (e) { showError($('#rules-error'), e.message); }
+    });
+    $('#search').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); loadRules(); } });
+
+    async function loadRules() {
+      const s = ($('#search').value || '').trim();
+      try {
+        const data = await api('/rules?search=' + encodeURIComponent(s));
+        renderRules(data?.rows || []);
+        $('#meta').textContent = `Total: ${data?.total ?? 0}`;
+      } catch (e) { renderRules([]); showError($('#rules-error'), e.message); }
+    }
+
+    function renderRules(rows) {
+      const tb = $('#tbody');
+      tb.innerHTML = '';
+      rows.forEach((r, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${i+1}</td>
+          <td>${escapeHtml(r.description || '')}</td>
+          <td>${escapeHtml(r.interface || '')}</td>
+          <td>${escapeHtml(r.action || '')}</td>
+          <td>${badge(r.enabled)}</td>
+          <td><button data-uuid="${r.uuid}" data-enabled="${r.enabled ? '1':'0'}">Toggle</button></td>`;
+        tb.appendChild(tr);
+      });
+    }
+
+    function badge(enabled){
+      return enabled
+        ? `<span class="badge bg-ok">enabled</span>`
+        : `<span class="badge bg-bad">disabled</span>`;
+    }
+    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+
+    // delegate click for Toggle buttons
+    document.addEventListener('click', async (e) => {
+      const btn = e.target.closest('button[data-uuid]');
+      if (!btn) return;
+      const uuid = btn.getAttribute('data-uuid');
+      const current = btn.getAttribute('data-enabled') === '1';
+      try {
+        await api(`/rules/${encodeURIComponent(uuid)}/toggle`, {
+          method:'POST',
+          body: JSON.stringify({ enabled: !current, apply: false })
+        });
+        await loadRules();
+      } catch (err) { showError($('#rules-error'), err.message); }
+    });
+
+    // ---------- boot ----------
+    (async function boot(){
+      setUserInfo();
+      // se sei già autenticato, vai diretto alle regole
+      if (getToken()) {
+        try {
+          await loadRules();
+          show($('#login-card'), false);
+          show($('#rules-card'), true);
+        } catch { /* token non valido: resta su login */ }
+      }
+    })();
+  </script>
 </body>
 </html>
