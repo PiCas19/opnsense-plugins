@@ -232,6 +232,45 @@ class OpnsenseService {
     }
   }
 
+
+  // Nel file OpnsenseService.js
+  async toggleRule(ruleUuid, enabled) {
+    try {
+      // Prima recupera la regola esistente
+      const existingRule = await this.getRule(ruleUuid);
+      if (!existingRule) {
+        throw new Error(`Regola con UUID ${ruleUuid} non trovata su OPNsense`);
+      }
+
+      // Aggiorna solo il campo enabled
+      const updateData = {
+        ...existingRule,
+        enabled: enabled
+      };
+
+      // Chiamata API per aggiornare la regola
+      const response = await this.apiCall('POST', `/api/firewall/filter/setRule/${ruleUuid}`, updateData);
+      
+      if (response.result !== 'saved') {
+        throw new Error('Errore nell\'aggiornamento della regola su OPNsense');
+      }
+
+      return {
+        success: true,
+        uuid: ruleUuid,
+        enabled: enabled
+      };
+
+    } catch (error) {
+      logger.error('Errore nel toggle regola OPNsense', {
+        uuid: ruleUuid,
+        enabled: enabled,
+        error: error.message
+      });
+      throw error;
+    }
+  }
+
   /**
    * Applica configurazione firewall
    */
