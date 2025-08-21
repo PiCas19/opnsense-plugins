@@ -46,6 +46,13 @@
     .col-3{grid-column:span 3}
     .col-6{grid-column:span 6}
     .chip{display:inline-flex;gap:8px;align-items:center}
+
+    /* Modal */
+    dialog{border:none;border-radius:12px;max-width:800px;width:90vw;background:#0d1627;color:#e5efff}
+    dialog::backdrop{background:rgba(0,0,0,.6)}
+    .modal-head{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #1d2a44}
+    .modal-body{padding:12px 16px}
+    pre{white-space:pre-wrap;word-break:break-word;background:#0b1220;padding:12px;border-radius:8px;border:1px solid #1d2a44}
   </style>
 </head>
 <body>
@@ -79,7 +86,7 @@
         </div>
       </div>
 
-      <!-- CREATE RULE -->
+      <!-- CREATE RULE (ridotto per demo) -->
       <details id="create-details">
         <summary class="row">
           <strong>Create rule</strong>
@@ -93,8 +100,7 @@
 
             <label class="col-1">Interface
               <select name="interface">
-                <option>wan</option>
-                <option>lan</option>
+                <option>wan</option><option>lan</option>
               </select>
             </label>
 
@@ -108,10 +114,7 @@
 
             <label class="col-1">Protocol
               <select name="protocol">
-                <option>any</option>
-                <option>tcp</option>
-                <option>udp</option>
-                <option>icmp</option>
+                <option>any</option><option>tcp</option><option>udp</option><option>icmp</option>
               </select>
             </label>
 
@@ -149,7 +152,7 @@
         <table id="rules-table" class="mono">
           <thead>
             <tr>
-              <th>#</th><th>Description</th><th>Interface</th><th>Action</th><th>Enabled</th><th>Toggle</th>
+              <th>#</th><th>Description</th><th>Interface</th><th>Action</th><th>Enabled</th><th>Toggle</th><th>Details</th>
             </tr>
           </thead>
           <tbody id="tbody"></tbody>
@@ -158,6 +161,18 @@
       <p id="rules-error" class="error hidden"></p>
     </section>
   </main>
+
+  <!-- DETAILS MODAL -->
+  <dialog id="detail-modal">
+    <div class="modal-head">
+      <strong>Rule details</strong>
+      <button id="detail-close">Close</button>
+    </div>
+    <div class="modal-body">
+      <div id="detail-meta" class="row" style="gap:16px;margin-bottom:10px"></div>
+      <pre id="detail-json"></pre>
+    </div>
+  </dialog>
 
   <script>
     // ---------- config ----------
@@ -172,10 +187,7 @@
     const clearToken = () => localStorage.removeItem(LS_TOKEN);
 
     async function api(path, opts={}) {
-      const headers = Object.assign(
-        {'Content-Type':'application/json'},
-        opts.headers || {}
-      );
+      const headers = Object.assign({'Content-Type':'application/json'}, opts.headers || {});
       const tok = getToken();
       if (tok) headers['Authorization'] = 'Bearer ' + tok;
       const res = await fetch(API + path, Object.assign(opts, {headers}));
@@ -189,17 +201,11 @@
     }
 
     // ---------- UI helpers ----------
-    function setUserInfo() {
-      $('#user-info').textContent = getToken() ? 'Logged in' : 'Not authenticated';
-    }
-    function showError(el, msg) {
-      el.textContent = msg; el.classList.remove('hidden'); el.classList.remove('ok'); el.classList.add('error');
-      setTimeout(()=>el.classList.add('hidden'), 5000);
-    }
-    function showOk(el, msg) {
-      el.textContent = msg; el.classList.remove('hidden'); el.classList.remove('error'); el.classList.add('ok');
-      setTimeout(()=>el.classList.add('hidden'), 3500);
-    }
+    function setUserInfo() { $('#user-info').textContent = getToken() ? 'Logged in' : 'Not authenticated'; }
+    function showError(el, msg) { el.textContent = msg; el.classList.remove('hidden','ok'); el.classList.add('error'); setTimeout(()=>el.classList.add('hidden'), 5000); }
+    function showOk(el, msg) { el.textContent = msg; el.classList.remove('hidden','error'); el.classList.add('ok'); setTimeout(()=>el.classList.add('hidden'), 3500); }
+    function badge(enabled){ return enabled ? `<span class="badge bg-ok">enabled</span>` : `<span class="badge bg-bad">disabled</span>`; }
+    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
 
     // ---------- login ----------
     $('#login-form').addEventListener('submit', async (e) => {
@@ -210,29 +216,21 @@
         const r = await api('/auth/login', { method:'POST', body: JSON.stringify(payload) });
         const tok = r.token || r.access_token;
         if (!tok) throw new Error('Missing token in response');
-        setToken(tok);
-        setUserInfo();
+        setToken(tok); setUserInfo();
         await loadRules();
-        show($('#login-card'), false);
-        show($('#rules-card'), true);
-      } catch (err) {
-        showError($('#login-error'), String(err.message || err));
-      }
+        show($('#login-card'), false); show($('#rules-card'), true);
+      } catch (err) { showError($('#login-error'), String(err.message || err)); }
     });
 
-    $('#logout').addEventListener('click', () => {
-      clearToken();
-      setUserInfo();
-      show($('#rules-card'), false);
-      show($('#login-card'), true);
-    });
+    $('#logout').addEventListener('click', () => { clearToken(); setUserInfo(); show($('#rules-card'), false); show($('#login-card'), true); });
 
     // ---------- rules ----------
     $('#refresh').addEventListener('click', () => loadRules());
     $('#apply').addEventListener('click', async () => {
       try {
         await api('/rules/apply', { method:'POST' });
-        await loadRules();
+        // richiesta: refresh completo della pagina
+        location.reload();
       } catch (e) { showError($('#rules-error'), e.message); }
     });
     $('#search').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); loadRules(); } });
@@ -247,14 +245,8 @@
     }
 
     function renderRules(rows) {
-      const tb = $('#tbody');
-      tb.innerHTML = '';
-      if (!rows.length) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td colspan="6" class="muted">No rules found</td>`;
-        tb.appendChild(tr);
-        return;
-      }
+      const tb = $('#tbody'); tb.innerHTML = '';
+      if (!rows.length) { tb.innerHTML = `<tr><td colspan="7" class="muted">No rules found</td></tr>`; return; }
       rows.forEach((r, i) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -262,43 +254,63 @@
           <td>${escapeHtml(r.description || '')}</td>
           <td>${escapeHtml(r.interface || '')}</td>
           <td>${escapeHtml(r.action || '')}</td>
-          <td>${badge(r.enabled)}</td>
-          <td><button data-uuid="${r.uuid}" data-enabled="${r.enabled ? '1':'0'}">Toggle</button></td>`;
+          <td class="enabled-cell">${badge(!!r.enabled)}</td>
+          <td><button class="btn-toggle" data-uuid="${r.uuid}" data-enabled="${r.enabled ? '1':'0'}">Toggle</button></td>
+          <td><button class="btn-detail" data-uuid="${r.uuid}">Details</button></td>`;
         tb.appendChild(tr);
       });
     }
 
-    function badge(enabled){
-      return enabled
-        ? `<span class="badge bg-ok">enabled</span>`
-        : `<span class="badge bg-bad">disabled</span>`;
-    }
-    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
-
-    // delegate click for Toggle buttons
+    // delegate click: Toggle & Details
     document.addEventListener('click', async (e) => {
-      const btn = e.target.closest('button[data-uuid]');
-      if (!btn) return;
-      const uuid = btn.getAttribute('data-uuid');
-      const current = btn.getAttribute('data-enabled') === '1';
-      try {
-        await api(`/rules/${encodeURIComponent(uuid)}/toggle`, {
-          method:'POST',
-          body: JSON.stringify({ enabled: !current, apply: false })
-        });
-        await loadRules();
-      } catch (err) { showError($('#rules-error'), err.message); }
+      // Toggle
+      const btn = e.target.closest('button.btn-toggle');
+      if (btn) {
+        const row = btn.closest('tr');
+        const cell = row.querySelector('.enabled-cell');
+        const uuid = btn.getAttribute('data-uuid');
+        const current = btn.getAttribute('data-enabled') === '1';
+        const next = !current;
+
+        // aggiornamento ottimistico immediato
+        btn.setAttribute('data-enabled', next ? '1' : '0');
+        cell.innerHTML = badge(next);
+
+        try {
+          await api(`/rules/${encodeURIComponent(uuid)}/toggle`, {
+            method:'POST',
+            body: JSON.stringify({ enabled: next, apply: false })
+          });
+          // opzionale: micro-sync silenzioso
+          // await loadRules();
+        } catch (err) {
+          // ripristina stato UI se fallisce
+          btn.setAttribute('data-enabled', current ? '1' : '0');
+          cell.innerHTML = badge(current);
+          showError($('#rules-error'), err.message);
+        }
+        return;
+      }
+
+      // Details
+      const dbtn = e.target.closest('button.btn-detail');
+      if (dbtn) {
+        const uuid = dbtn.getAttribute('data-uuid');
+        try {
+          const r = await api(`/rules/${encodeURIComponent(uuid)}`, { method:'GET' });
+          openDetailModal(r?.rule || r);
+        } catch (err) {
+          showError($('#rules-error'), err.message);
+        }
+      }
     });
 
     // ---------- create rule ----------
     $('#create-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
-
-      // sanitizza porte (stringhe o vuote)
       const srcPort = (fd.get('src_port') || '').trim();
       const dstPort = (fd.get('dst_port') || '').trim();
-
       const rule = {
         enabled: fd.get('enabled') ? '1' : '0',
         interface: fd.get('interface') || 'wan',
@@ -315,35 +327,41 @@
         quick: '1',
         floating: '0'
       };
-
       const applyNow = !!fd.get('apply');
 
       try {
-        const res = await api('/rules', {
-          method: 'POST',
-          body: JSON.stringify({ rule, apply: applyNow })
-        });
+        const res = await api('/rules', { method:'POST', body: JSON.stringify({ rule, apply: applyNow }) });
         showOk($('#create-msg'), `Created (uuid: ${res?.result?.uuid || res?.result?.opnsense_uuid || 'n/a'})${applyNow?' & applied':''}`);
-        // reset parziale (mantieni campi utili)
         e.target.reset();
         e.target.querySelector('select[name="interface"]').value = 'wan';
         e.target.querySelector('select[name="action"]').value = 'pass';
         e.target.querySelector('select[name="protocol"]').value = 'any';
-        loadRules();
-      } catch (err) {
-        showError($('#create-msg'), String(err.message || err));
-      }
+        await loadRules();
+      } catch (err) { showError($('#create-msg'), String(err.message || err)); }
     });
+
+    // ---------- details modal helpers ----------
+    const modal = $('#detail-modal');
+    $('#detail-close').addEventListener('click', ()=> modal.close());
+
+    function openDetailModal(rule) {
+      const meta = $('#detail-meta');
+      meta.innerHTML = `
+        <span class="badge ${rule?.enabled?'bg-ok':'bg-bad'}">${rule?.enabled?'enabled':'disabled'}</span>
+        <span class="muted">iface:</span> <strong>${escapeHtml(rule?.interface||'')}</strong>
+        <span class="muted">action:</span> <strong>${escapeHtml(rule?.action||'')}</strong>
+        <span class="muted">protocol:</span> <strong>${escapeHtml(rule?.protocol||'')}</strong>
+      `;
+      $('#detail-json').textContent = JSON.stringify(rule, null, 2);
+      if (typeof modal.showModal === 'function') modal.showModal(); else modal.show();
+    }
 
     // ---------- boot ----------
     (async function boot(){
       setUserInfo();
       if (getToken()) {
-        try {
-          await loadRules();
-          show($('#login-card'), false);
-          show($('#rules-card'), true);
-        } catch { /* token non valido: resta su login */ }
+        try { await loadRules(); show($('#login-card'), false); show($('#rules-card'), true); }
+        catch { /* token non valido: resta su login */ }
       }
     })();
   </script>
