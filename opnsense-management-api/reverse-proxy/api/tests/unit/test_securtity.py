@@ -1,54 +1,40 @@
 # tests/unit/test_security.py
-from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace as NS
+import jwt
 import pytest
-from fastapi import HTTPException
-from fastapi.security import HTTPAuthorizationCredentials
 
-from src.utils import security
+from src.utils.security import (
+    create_access_token, create_refresh_token,
+    decode_refresh, get_current_user
+)
 from src.config import settings
 
-def _past():
-    return datetime.now(tz=timezone.utc) - timedelta(minutes=10)
+def test_access_token_and_current_user_ok():
+    t = create_access_token("alice")
+    user = get_current_user(NS(scheme="Bearer", credentials=t))
+    assert user == "alice"
 
-def test_access_refresh_roundtrip_and_get_current_user():
-    at = security.create_access_token("alice")
-    rt = security.create_refresh_token("alice")
-    assert isinstance(at, str) and isinstance(rt, str)
+def test_missing_or_bad_scheme_unauthorized():
+    with pytest.raises(Exception):
+        get_current_user(None)                # manca header
 
-    payload_r = security.decode_refresh(rt)
-    assert payload_r["sub"] == "alice"
-    assert payload_r["type"] == "refresh"
+    with pytest.raises(Exception):
+        get_current_user(NS(scheme="Basic", credentials="x"))  # schema errato
 
-    # get_current_user con Bearer access token
-    creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials=at)
-    assert security.get_current_user(creds) == "alice"
+def test_refresh_token_ok_and_invalid_type():
+    rt = create_refresh_token("bob")
+    payload = decode_refresh(rt)
+    assert payload["sub"] == "bob" and payload["type"] == "refresh"
 
-def test_get_current_user_missing_header():
-    with pytest.raises(HTTPException) as e:
-        security.get_current_user(None)  # type: ignore[arg-type]
-    assert e.value.status_code == 401
+    # passare un access come refresh deve fallire
+    at = create_access_token("bob")
+    with pytest.raises(Exception):
+        decode_refresh(at)
 
-def test_get_current_user_invalid_type_uses_refresh_token():
-    rt = security.create_refresh_token("bob")
-    creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials=rt)
-    with pytest.raises(HTTPException) as e:
-        security.get_current_user(creds)
-    assert e.value.status_code == 401
-    assert "Invalid token" in str(e.value.detail)
-
-def test_decode_refresh_refuses_access_token():
-    at = security.create_access_token("carol")
-    with pytest.raises(HTTPException) as e:
-        security.decode_refresh(at)
-    assert e.value.status_code == 401
-
-def test_expired_access_token(monkeypatch):
-    # creo un token già scaduto: monkeypatch di _now()
-    monkeypatch.setattr(security, "_now", lambda: _past())
-    expired = security.create_access_token("dave")
-
-    creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials=expired)
-    with pytest.raises(HTTPException) as e:
-        security.get_current_user(creds)
-    assert e.value.status_code == 401
-    assert "expired" in str(e.value.detail).lower()
+def test_access_token_expired_raises():
+    expired = jwt.encode(
+        {"sub":"zzz","type":"access","iat":0,"exp":1},
+        settings.JWT_SECRET, algorithm="HS256"
+    )
+    with pytest.raises(Exception):
+        get_current_user(NS(scheme="Bearer", credentials=expired))

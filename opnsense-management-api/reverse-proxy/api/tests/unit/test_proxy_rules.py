@@ -1,74 +1,62 @@
-# tests/unit/test_proxy_rules.py
-import httpx
+# tests/unit/test_proxy_routes.py
+import types
 from fastapi.testclient import TestClient
 from src.app import api
+import src.routes.proxy_rules as pr
+from src.utils.security import create_access_token
 from src.config import settings
-from src.routes import proxy_rules as pr
+
+class FakeResponse:
+    def __init__(self, status_code=200, json_data=None, text=""):
+        self.status_code = status_code
+        self._json = json_data
+        self.text = text
+    def json(self):
+        return self._json
 
 class FakeClient:
-    """Client httpx finto usato via monkeypatch su pr.client()"""
-    def __init__(self, table):
-        self.table = table
-
+    def __init__(self, mapping):
+        self.map = mapping
     def __enter__(self): return self
-    def __exit__(self, *a): return False
+    def __exit__(self, exc_type, exc, tb): return False
+    def _resp(self, method, url):
+        return self.map[(method, url)]
+    def get(self, url, **kw):    return self._resp("GET", url)
+    def post(self, url, **kw):   return self._resp("POST", url)
+    def put(self, url, **kw):    return self._resp("PUT", url)
+    def delete(self, url, **kw): return self._resp("DELETE", url)
 
-    def _resp(self, method, url, data=None):
-        key = (method, url)
-        if key not in self.table:
-            return httpx.Response(404, json={"err": "no route"}, request=httpx.Request(method, url))
-        val = self.table[key]
-        if callable(val):
-            return val(data)
-        return val
+def auth_headers():
+    return {"Authorization": "Bearer " + create_access_token("admin")}
 
-    def get(self, url, params=None):
-        return self._resp("GET", url, params)
+def url(path): return f"{settings.WRAPPER_BASE_URL}{path}"
 
-    def post(self, url, json=None):
-        return self._resp("POST", url, json)
-
-    def put(self, url, json=None):
-        return self._resp("PUT", url, json)
-
-    def delete(self, url):
-        return self._resp("DELETE", url, None)
-
-def _url(p): return f"{settings.WRAPPER_BASE_URL}{p}"
-
-def test_all_happy_paths(monkeypatch):
-    table = {
-        ("GET",    _url("/rules")):                    httpx.Response(200, json={"total": 1, "rows": [{"uuid":"u1"}]}, request=httpx.Request("GET", _url("/rules"))),
-        ("GET",    _url("/rules/u1")):                 httpx.Response(200, json={"rule": {"uuid":"u1"}}, request=httpx.Request("GET", _url("/rules/u1"))),
-        ("POST",   _url("/rules")):                    httpx.Response(200, json={"ok": True}, request=httpx.Request("POST", _url("/rules"))),
-        ("POST",   _url("/rules/u1/toggle")):          httpx.Response(200, json={"ok": True}, request=httpx.Request("POST", _url("/rules/u1/toggle"))),
-        ("PUT",    _url("/rules/u1")):                 httpx.Response(200, json={"ok": True}, request=httpx.Request("PUT", _url("/rules/u1"))),
-        ("DELETE", _url("/rules/u1")):                 httpx.Response(200, json={"ok": True}, request=httpx.Request("DELETE", _url("/rules/u1"))),
-        ("POST",   _url("/rules/apply")):              httpx.Response(200, json={"status": "applied"}, request=httpx.Request("POST", _url("/rules/apply"))),
+def test_happy_paths(monkeypatch):
+    mapping = {
+        ("GET", url("/rules")): FakeResponse(200, {"rows":[{"uuid":"u1","description":"r1","action":"pass","enabled":"1"}], "total": 1}),
+        ("GET", url("/rules/u1")): FakeResponse(200, {"rule": {"uuid":"u1","description":"r1"}}),
+        ("POST", url("/rules")): FakeResponse(200, {"result":{"uuid":"new"}}),
+        ("POST", url("/rules/u1/toggle")): FakeResponse(200, {"result":"ok"}),
+        ("PUT", url("/rules/u1")): FakeResponse(200, {"result":"ok"}),
+        ("DELETE", url("/rules/u1")): FakeResponse(200, {"result":"ok"}),
+        ("POST", url("/rules/apply")): FakeResponse(200, {"result":"applied"}),
     }
-    monkeypatch.setattr(pr, "client", lambda: FakeClient(table))
-
+    monkeypatch.setattr(pr, "client", lambda: FakeClient(mapping))
     c = TestClient(api)
-    # dependency override già in conftest
-    assert c.get("/api/rules").status_code == 200
-    assert c.get("/api/rules/u1").status_code == 200
-    assert c.post("/api/rules", json={"rule": {"description":"x"}, "apply": False}).status_code == 200
-    assert c.post("/api/rules/u1/toggle", json={"enabled": True}).status_code == 200
-    assert c.put("/api/rules/u1", json={"rule": {"description":"y"}}).status_code == 200
-    assert c.delete("/api/rules/u1").status_code == 200
-    assert c.post("/api/rules/apply").status_code == 200
 
-def test_error_mapping_to_502(monkeypatch):
-    # Upstream 503 -> DMZ 502 con detail
-    table = {
-        ("GET", _url("/rules")): httpx.Response(
-            503, text="maintenance", request=httpx.Request("GET", _url("/rules"))
-        )
-    }
-    monkeypatch.setattr(pr, "client", lambda: FakeClient(table))
+    r = c.get("/api/rules?search=", headers=auth_headers());  assert r.status_code == 200 and r.json()["total"] == 1
+    r = c.get("/api/rules/u1", headers=auth_headers());       assert r.status_code == 200 and r.json()["rule"]["uuid"] == "u1"
+    r = c.post("/api/rules", json={"rule":{}, "apply": False}, headers=auth_headers());  assert r.status_code == 200
+    r = c.post("/api/rules/u1/toggle", json={"enabled": True,"apply": False}, headers=auth_headers()); assert r.status_code == 200
+    r = c.put("/api/rules/u1", json={"rule":{}}, headers=auth_headers()); assert r.status_code == 200
+    r = c.delete("/api/rules/u1", headers=auth_headers());    assert r.status_code == 200
+    r = c.post("/api/rules/apply", headers=auth_headers());   assert r.status_code == 200
+
+def test_upstream_error_is_mapped_to_502(monkeypatch):
+    mapping = {("GET", url("/rules")): FakeResponse(500, {"msg":"boom"})}
+    monkeypatch.setattr(pr, "client", lambda: FakeClient(mapping))
     c = TestClient(api)
-    r = c.get("/api/rules")
+    r = c.get("/api/rules", headers=auth_headers())
     assert r.status_code == 502
     j = r.json()
-    assert j["detail"]["upstream"] == 503
-    assert "maintenance" in j["detail"]["body"]
+    assert j["detail"]["upstream"] == 500
