@@ -44,7 +44,7 @@ router.use(authenticate);
  *         schema: { type: boolean }
  *       - in: query
  *         name: sortBy
- *         schema: { type: string, default: id }
+ *         schema: { type: string, default: uuid }
  *       - in: query
  *         name: sortOrder
  *         schema: { type: string, enum: [asc, desc], default: asc }
