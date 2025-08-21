@@ -1,70 +1,36 @@
-# Usa Node.js LTS con Alpine per dimensioni ridotte
 FROM node:20-alpine
 
-# Metadata
-LABEL maintainer="OPNsense Management API"
-LABEL version="1.0.0"
-LABEL description="REST API wrapper for OPNsense firewall management"
+# Install dumb-init for proper signal handling
+RUN apk add --no-cache dumb-init
 
-# Imposta working directory
+# Create app directory
 WORKDIR /app
 
-# Configura elenco di mirror alternativi per Alpine
-RUN echo "http://dl-4.alpinelinux.org/alpine/v3.22/main" > /etc/apk/repositories && \
-    echo "http://dl-4.alpinelinux.org/alpine/v3.22/community" >> /etc/apk/repositories && \
-    echo "http://mirror.leaseweb.com/alpine/v3.22/main" >> /etc/apk/repositories && \
-    echo "http://mirror.leaseweb.com/alpine/v3.22/community" >> /etc/apk/repositories
-
-# Installa dipendenze di sistema minime con retry
-RUN apk update && apk upgrade && \
-    apk add --no-cache \
-        curl \
-        ca-certificates \
-        tzdata \
-        dumb-init \
-    && rm -rf /var/cache/apk/* || \
-    (echo "Retry apk update..." && \
-     sleep 5 && \
-     apk update && apk upgrade && \
-     apk add --no-cache curl ca-certificates tzdata dumb-init && \
-     rm -rf /var/cache/apk/*)
-
-# Crea utente non-root per sicurezza
+# Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
-    adduser -S opnsense -u 1001 -G nodejs
+    adduser -S nextjs -u 1001
 
-# Copia package files per layer caching ottimale
+# Copy package files
 COPY package*.json ./
 
-# Installa solo dipendenze di produzione
-RUN npm ci --omit=dev && \
-    npm cache clean --force && \
-    rm -rf /tmp/* /var/tmp/*
+# Install dependencies
+RUN npm ci --only=production && npm cache clean --force
 
-# Copia codice sorgente
+# Copy source code
 COPY src/ ./src/
+COPY certs/ ./certs/
 
-# Crea directory per logs e temp files
-RUN mkdir -p /app/logs /app/temp && \
-    chown -R opnsense:nodejs /app && \
-    chmod -R 755 /app
+# Set permissions
+RUN chown -R nextjs:nodejs /app
+USER nextjs
 
-# Cambia all'utente non-root
-USER opnsense
-
-# Espone porta dell'applicazione
+# Expose port
 EXPOSE 3000
 
-# Imposta variabili ambiente di default
-ENV NODE_ENV=production
-ENV PORT=3000
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD node src/utils/healthcheck.js
 
-# Healthcheck integrato nel container
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:3000/api/v1/health || exit 1
-
-# Usa dumb-init per gestire segnali correttamente
+# Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
-
-# Comando di avvio
 CMD ["node", "src/app.js"]

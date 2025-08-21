@@ -1,668 +1,242 @@
-// src/middleware/validation.js
-const { z } = require('zod');
-const net = require('node:net');
-const { param, validationResult } = require('express-validator');
-const { ValidationError } = require('./errorHandler');
-const logger = require('../utils/logger');
+const Joi = require('joi');
 
-/* ----------------------- Helper functions & regex patterns ----------------------- */
+// Schema per validazione login
+const loginSchema = Joi.object({
+  username: Joi.string().alphanum().min(3).max(30).required(),
+  password: Joi.string().min(6).required()
+});
 
-// MAC address pattern (supports both : and - separators)
-const macRegex = /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/;
+// Schema per validazione regola firewall
+const ruleSchema = Joi.object({
+  // Campi obbligatori
+  action: Joi.string().valid('pass', 'block', 'reject').required(),
+  interface: Joi.string().required(),
+  description: Joi.string().min(3).max(255).required(),
+  
+  // Campi opzionali
+  protocol: Joi.string().valid('tcp', 'udp', 'icmp', 'any').default('any'),
+  enabled: Joi.boolean().default(true),
+  sequence: Joi.number().integer().min(1),
+  direction: Joi.string().valid('in', 'out').default('in'),
+  log_enabled: Joi.boolean().default(false),
+  
+  // Configurazioni indirizzi semplificati
+  source_config: Joi.object({
+    type: Joi.string().valid('any', 'single', 'network').required(),
+    address: Joi.when('type', { is: 'single', then: Joi.string().required() }),
+    network: Joi.when('type', { is: 'network', then: Joi.string().required() }),
+    port: Joi.number().integer().min(1).max(65535)
+  }).default({ type: 'any' }),
+  
+  destination_config: Joi.object({
+    type: Joi.string().valid('any', 'single', 'network').required(),
+    address: Joi.when('type', { is: 'single', then: Joi.string().required() }),
+    network: Joi.when('type', { is: 'network', then: Joi.string().required() }),
+    port: Joi.number().integer().min(1).max(65535)
+  }).default({ type: 'any' }),
+  
+  // Metadati opzionali
+  category: Joi.string().max(50),
+  tags: Joi.array().items(Joi.string()),
+  risk_level: Joi.string().valid('low', 'medium', 'high', 'critical').default('medium'),
+  business_justification: Joi.string().max(1000),
+  expires_at: Joi.date(),
+  auto_disable_on_expiry: Joi.boolean().default(false)
+});
 
-// CIDR notation pattern for IP networks
-const cidrRegex = /^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/;
-
-/**
- * Validates CIDR notation for IPv4 networks
- * @param {string} value - CIDR string to validate
- * @returns {boolean} - True if valid CIDR notation
- */
-const isCIDR = (value) => {
-  if (!cidrRegex.test(value)) return false;
-  
-  const [ip, prefix] = value.split('/');
-  const octets = ip.split('.').map(Number);
-  
-  // Validate IP octets (0-255)
-  if (octets.length !== 4 || octets.some((o) => o < 0 || o > 255)) return false;
-  
-  // Validate prefix length (0-32)
-  const p = Number(prefix);
-  return Number.isInteger(p) && p >= 0 && p <= 32;
-};
-
-/**
- * Strong password pattern requiring:
- * - At least one lowercase letter
- * - At least one uppercase letter  
- * - At least one digit
- * - At least one special character (@$!%*?&)
- * - Only allows characters from the specified groups
- */
-const strongPwd = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]+$/;
-
-/* ------------------------- Common validation schemas ------------------------- */
-
-const commonSchemas = {
-  // UUID v4 validation
-  uuid: z.string().uuid(),
-  
-  // Positive integer ID (auto-coerced from string)
-  id: z.coerce.number().int().positive(),
-  
-  // IPv4/IPv6 address validation using Node.js net module
-  ipAddress: z.string().refine((v) => net.isIP(v) !== 0, 'Invalid IP address'),
-  
-  // Network port validation (1-65535)
-  port: z.coerce.number().int().min(1).max(65535),
-  
-  // Network protocol enum
-  protocol: z.enum(['tcp', 'udp', 'icmp', 'any']),
-  
-  // MAC address validation with regex
-  macAddress: z.string().regex(macRegex, 'Invalid MAC address'),
-
-  // Pagination parameters with defaults
-  pagination: z
-    .object({
-      page: z.coerce.number().int().min(1).default(1),
-      limit: z.coerce.number().int().min(1).max(100).default(20),
-      sort: z.enum(['asc', 'desc']).default('desc'),
-      order_by: z.string().default('created_at'),
+// Schema per validazione utente
+const userSchema = Joi.object({
+  username: Joi.string().min(3).max(50).pattern(/^[a-zA-Z0-9_-]+$/).required(),
+  email: Joi.string().email().required(),
+  password: Joi.string().min(8).pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`])/).required(),
+  first_name: Joi.string().max(50),
+  last_name: Joi.string().max(50),
+  role: Joi.string().valid('admin', 'operator', 'viewer').default('viewer'),
+  is_active: Joi.boolean().default(true),
+  preferences: Joi.object({
+    theme: Joi.string().valid('light', 'dark').default('light'),
+    language: Joi.string().valid('it', 'en').default('it'),
+    timezone: Joi.string().default('Europe/Rome'),
+    notifications: Joi.object({
+      email: Joi.boolean().default(true),
+      browser: Joi.boolean().default(true),
+      critical_only: Joi.boolean().default(false)
     })
-    .strip(),
-
-  // Date range validation with custom logic
-  dateRange: z
-    .object({
-      start_date: z.string().datetime().optional(),
-      end_date: z.string().datetime().optional(),
-    })
-    .strip()
-    .superRefine((val, ctx) => {
-      // Ensure end_date is not before start_date
-      if (val.start_date && val.end_date) {
-        if (new Date(val.end_date) < new Date(val.start_date)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['end_date'],
-            message: 'end_date must be >= start_date',
-          });
-        }
-      }
-    }),
-};
-
-/* ------------------------- Authentication schemas ------------------------- */
-
-const authSchemas = {
-  // User login validation
-  login: z
-    .object({
-      username: z.string().min(3).max(30).regex(/^[A-Za-z0-9]+$/, 'Must be alphanumeric'),
-      password: z.string().min(8).max(128),
-      remember_me: z.boolean().default(false).optional(),
-    })
-    .strip(),
-
-  // User registration with password confirmation
-  register: z
-    .object({
-      username: z.string().min(3).max(30).regex(/^[A-Za-z0-9]+$/, 'Must be alphanumeric'),
-      email: z.string().email(),
-      password: z.string().min(8).max(128).regex(strongPwd, 'Weak password'),
-      confirm_password: z.string().min(8).max(128),
-      role: z.enum(['admin', 'operator', 'viewer']).default('viewer').optional(),
-    })
-    .strip()
-    .superRefine((val, ctx) => {
-      // Validate password confirmation matches
-      if (val.password !== val.confirm_password) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['confirm_password'],
-          message: 'Passwords do not match',
-        });
-      }
-    }),
-
-  // Password change with current password verification
-  changePassword: z
-    .object({
-      current_password: z.string().min(1),
-      new_password: z.string().min(8).max(128).regex(strongPwd, 'Weak password'),
-      confirm_password: z.string().min(8).max(128),
-    })
-    .strip()
-    .superRefine((val, ctx) => {
-      // Validate new password confirmation
-      if (val.new_password !== val.confirm_password) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['confirm_password'],
-          message: 'Passwords do not match',
-        });
-      }
-    }),
-
-  // JWT refresh token validation
-  refreshToken: z.object({ refresh_token: z.string().min(1) }).strip(),
-};
-
-/* ---------------------- Firewall rule schemas ---------------------- */
-
-// Address type: any (wildcard)
-const addressAny = z.object({ type: z.literal('any') }).strip();
-
-// Address type: single IP with optional port
-const addressSingle = z
-  .object({
-    type: z.literal('single'),
-    address: commonSchemas.ipAddress,
-    port: commonSchemas.port.optional(),
   })
-  .strip();
+});
 
-// Address type: network CIDR with optional port
-const addressNetwork = z
-  .object({
-    type: z.literal('network'),
-    network: z.string().regex(cidrRegex, 'Invalid CIDR').refine(isCIDR, 'Invalid CIDR'),
-    port: commonSchemas.port.optional(),
+// Schema per aggiornamento utente
+const userUpdateSchema = Joi.object({
+  username: Joi.string().min(3).max(50).pattern(/^[a-zA-Z0-9_-]+$/),
+  email: Joi.string().email(),
+  password: Joi.string().min(8).pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`])/),
+  first_name: Joi.string().max(50).allow(''),
+  last_name: Joi.string().max(50).allow(''),
+  role: Joi.string().valid('admin', 'operator', 'viewer'),
+  is_active: Joi.boolean(),
+  preferences: Joi.object({
+    theme: Joi.string().valid('light', 'dark'),
+    language: Joi.string().valid('it', 'en'),
+    timezone: Joi.string(),
+    notifications: Joi.object({
+      email: Joi.boolean(),
+      browser: Joi.boolean(),
+      critical_only: Joi.boolean()
+    })
   })
-  .strip();
+});
 
-// Address type: alias reference with optional port
-const addressAlias = z
-  .object({
-    type: z.literal('alias'),
-    address: z.string().min(1),
-    port: commonSchemas.port.optional(),
-  })
-  .strip();
+// Schema per validazione UUID
+const uuidSchema = Joi.string().guid({ version: 'uuidv4' });
 
-// Discriminated union for different address types
-const endpointSchema = z.discriminatedUnion('type', [
-  addressAny,
-  addressSingle,
-  addressNetwork,
-  addressAlias,
-]);
-
-// Base firewall rule schema
-const createRuleBase = z
-  .object({
-    description: z.string().max(255),
-    interface: z.enum(['wan', 'lan', 'dmz', 'opt1', 'opt2', 'opt3']),
-    direction: z.enum(['in', 'out']).default('in'),
-    action: z.enum(['pass', 'block', 'reject']),
-    protocol: z.enum(['tcp', 'udp', 'icmp', 'any']),
-    source: z.object({
-      type: z.string(),
-      network: z.string().optional(),
-      address: z.string().optional(),
-    }).optional().or(z.string()),
-    destination: z.object({
-      type: z.string(),
-      network: z.string().optional(), 
-      address: z.string().optional(),
-    }).optional().or(z.string()),
-    enabled: z.boolean().default(true),
-    log: z.boolean().default(false),
-    sequence: z.coerce.number().int().min(1).max(9999).optional(),
-    api_managed: z.boolean().default(false).optional(),
-    source_port: z.string().optional(),
-    destination_port: z.string().optional(),
-  })
-  .strip();
-
-const firewallSchemas = {
-  // Create new firewall rule
-  createRule: createRuleBase,
+// Middleware per validazione login
+const validateLogin = (req, res, next) => {
+  const { error } = loginSchema.validate(req.body);
   
-  // Update existing rule (all fields optional)
-  updateRule: createRuleBase.partial(),
-  
-  // Toggle rule enabled/disabled state
-  toggleRule: z
-    .object({
-      enabled: z.boolean(),
-      apply_immediately: z.boolean().default(false).optional(),
-    })
-    .strip(),
-    
-  // Bulk operations on multiple rules
-  bulkOperation: z
-    .object({
-      rule_ids: z.array(commonSchemas.id).min(1).max(50),
-      operation: z.enum(['enable', 'disable', 'delete']),
-      apply_immediately: z.boolean().default(false).optional(),
-    })
-    .strip(),
-};
-
-/* ------------------------ Policy and admin schemas ------------------------ */
-
-// Schedule configuration for time-based policies
-const scheduleSchema = z
-  .object({
-    enabled: z.boolean().default(false).optional(),
-    start_time: z.string().regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(),
-    end_time: z.string().regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(),
-    days: z
-      .array(
-        z.enum([
-          'monday',
-          'tuesday',
-          'wednesday',
-          'thursday',
-          'friday',
-          'saturday',
-          'sunday',
-        ])
-      )
-      .optional(),
-  })
-  .strip();
-
-// Conditional matching criteria for policies
-const conditionsSchema = z
-  .object({
-    source_ips: z.array(commonSchemas.ipAddress).optional(),
-    destination_ips: z.array(commonSchemas.ipAddress).optional(),
-    protocols: z.array(commonSchemas.protocol).optional(),
-    ports: z.array(commonSchemas.port).optional(),
-  })
-  .strip();
-
-// Base policy creation schema
-const policyCreateBase = z
-  .object({
-    name: z.string().min(3).max(100),
-    description: z.string().max(500).optional(),
-    type: z.enum(['security', 'access', 'qos', 'custom']),
-    rules: z.array(commonSchemas.id).min(1), // Must reference at least one rule
-    enabled: z.boolean().default(true).optional(),
-    priority: z.coerce.number().int().min(1).max(100).default(50).optional(),
-    schedule: scheduleSchema.optional(),
-    conditions: conditionsSchema.optional(),
-  })
-  .strip();
-
-const policySchemas = {
-  createPolicy: policyCreateBase,
-  updatePolicy: policyCreateBase.partial(),
-};
-
-// Admin user creation schema
-const adminCreateBase = z
-  .object({
-    username: z.string().min(3).max(30).regex(/^[A-Za-z0-9]+$/, 'Must be alphanumeric'),
-    email: z.string().email(),
-    password: z.string().min(8).max(128).regex(strongPwd, 'Weak password'),
-    role: z.enum(['admin', 'operator', 'viewer']),
-    is_active: z.boolean().default(true).optional(),
-    permissions: z.array(z.string()).optional(),
-  })
-  .strip();
-
-const adminSchemas = {
-  createUser: adminCreateBase,
-  // Update user schema excludes password (handled separately)
-  updateUser: adminCreateBase.partial().omit({ password: true }),
-  
-  // API key creation schema
-  createApiKey: z
-    .object({
-      name: z.string().min(3).max(100),
-      description: z.string().max(500).optional(),
-      expires_at: z.union([z.string().datetime(), z.coerce.date()]).optional(),
-      permissions: z.array(z.string()).min(1),
-      ip_restrictions: z.array(commonSchemas.ipAddress).optional(),
-    })
-    .strip(),
-};
-
-/* ------------------------ Query parameter schemas ------------------------ */
-
-const paginationSchema = commonSchemas.pagination;
-
-const querySchemas = {
-  // General search with pagination
-  search: z
-    .object({
-      q: z.string().min(1).max(100).optional(),
-    })
-    .strip()
-    .merge(paginationSchema),
-
-  // Firewall rules query filters
-  firewallRules: z
-  .object({
-    interface: z.enum(['wan', 'lan', 'dmz', 'opt1', 'opt2']).optional(),
-    action: z.enum(['pass', 'block', 'reject']).optional(),
-    enabled: z.union([
-      z.boolean(),
-      z.string().transform((val) => {
-        if (val === 'true') return true;
-        if (val === 'false') return false;
-        return undefined;
-      })
-    ]).optional(),
-    protocol: commonSchemas.protocol.optional(),
-    search: z.string().optional(),
-    source_type: z.enum(['filter', 'automation', 'config', 'all']).optional(),
-  })
-  .strip()
-  .merge(paginationSchema),
-
-  // Audit logs query with date range validation
-  auditLogs: z
-    .object({
-      user_id: commonSchemas.id.optional(),
-      action: z.string().optional(),
-      level: z.enum(['info', 'warning', 'critical', 'security']).optional(),
-      start_date: z.string().datetime().optional(),
-      end_date: z.string().datetime().optional(),
-    })
-    .strip()
-    .merge(paginationSchema)
-    .superRefine((val, ctx) => {
-      // Validate date range logic
-      if (val.start_date && val.end_date) {
-        if (new Date(val.end_date) < new Date(val.start_date)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['end_date'],
-            message: 'end_date must be >= start_date',
-          });
-        }
-      }
-    }),
-};
-
-/* --------------------------- Zod validator middleware --------------------------- */
-
-/**
- * Creates a Zod validation middleware for the specified data source
- * @param {z.ZodSchema} schema - Zod schema to validate against
- * @param {string} source - Data source ('body', 'params', 'query')
- * @returns {Function} Express middleware function
- */
-const validateZod = (schema, source = 'body') => {
-  return (req, res, next) => {
-    const data = source === 'body' ? req.body : source === 'params' ? req.params : source === 'query' ? req.query : req[source];
-
-    logger.debug('Dati in ingresso per la validazione:', { source, data });
-    let parsed;
-    try {
-      parsed = schema.safeParse(data);
-      logger.debug('Risultato di safeParse:', { success: parsed.success, error: parsed.error, errorType: typeof parsed.error });
-    } catch (error) {
-      logger.error('Eccezione durante safeParse:', { error: error.message, stack: error.stack });
-      return next(new ValidationError('Errore interno nella validazione', {
-        validation_errors: [{ field: 'general', message: 'Errore imprevisto durante la validazione' }],
-      }));
-    }
-
-    if (!parsed.success) {
-      let issues = [];
-      if (parsed.error) {
-        if (Array.isArray(parsed.error.issues)) {
-          issues = parsed.error.issues;
-        } else if (Array.isArray(parsed.error.errors)) {
-          issues = parsed.error.errors;
-        } else {
-          logger.error('Struttura dell\'errore non attesa da Zod:', { error: parsed.error, errorKeys: Object.keys(parsed.error || {}) });
-          issues = [{ path: [], message: 'Errore di validazione interno: struttura non riconosciuta' }];
-        }
-      } else {
-        logger.error('parsed.error è undefined:', { parsed });
-        issues = [{ path: [], message: 'Errore di validazione interno: nessun errore restituito da Zod' }];
-      }
-
-      if (!Array.isArray(issues)) {
-        logger.error('issues non è un array:', { issues });
-        return next(new ValidationError('Errore interno nella validazione', {
-          validation_errors: [{ field: 'general', message: 'Struttura dell\'errore non valida' }],
-        }));
-      }
-
-      const validationError = new ValidationError('Validazione fallita', {
-        validation_errors: issues.map((i) => ({
-          field: Array.isArray(i.path) ? i.path.join('.') : String(i.path || ''),
-          message: i.message || 'Errore di validazione',
-        })),
-      });
-
-      logger.warn('Errore di validazione:', {
-        source,
-        errors: validationError.details.validation_errors,
-        user_id: req.user?.id,
-        ip: req.ip,
-      });
-
-      return next(validationError);
-    }
-
-    if (source === 'body') req.body = parsed.data;
-    else if (source === 'params') req.params = parsed.data;
-    else if (source === 'query') req.query = parsed.data;
-    else req[source] = parsed.data;
-
-    return next();
-  };
-};
-
-/* --------------------- Express-validator error handler --------------------- */
-
-/**
- * Handles express-validator validation results
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object  
- * @param {Function} next - Express next function
- */
-const handleExpressValidation = (req, res, next) => {
-  const errors = validationResult(req);
-  
-  if (!errors.isEmpty()) {
-    // FIXED: Safe handling of errors array
-    const errorArray = errors.array() || [];
-    
-    // Convert express-validator errors to our standard format
-    const validationError = new ValidationError('Validation failed', {
-      validation_errors: errorArray.map((error) => ({
-        field: error.path || error.param || 'unknown',
-        message: error.msg || 'Validation error',
-        value: error.value,
-      })),
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      message: 'Dati di login non validi',
+      errors: error.details.map(detail => detail.message)
     });
-
-    logger.warn('Express validation error', {
-      errors: validationError.details.validation_errors,
-      user_id: req.user?.id,
-      ip: req.ip,
-    });
-
-    return next(validationError);
   }
   
   next();
 };
 
-/* --------------------------- Sanitization utilities --------------------------- */
-
-const sanitizers = {
-  /**
-   * Normalizes string by trimming whitespace and converting to lowercase
-   * @param {any} value - Value to normalize
-   * @returns {any} Normalized value or original if not string
-   */
-  normalizeString: (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value),
+// Middleware per validazione regola
+const validateRule = (req, res, next) => {
+  const { error, value } = ruleSchema.validate(req.body, { 
+    allowUnknown: true,
+    stripUnknown: false 
+  });
   
-  /**
-   * Removes non-alphanumeric characters (with optional allowed chars)
-   * @param {any} value - Value to sanitize
-   * @param {string} allowed - Additional allowed characters
-   * @returns {any} Sanitized value or original if not string
-   */
-  alphanumeric: (value, allowed = '') => {
-    if (typeof value !== 'string') return value;
-    const escapedAllowed = allowed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`[^a-zA-Z0-9${escapedAllowed}]`, 'g');
-    return value.replace(regex, '');
-  },
-  
-  /**
-   * Escapes HTML special characters to prevent XSS
-   * @param {any} value - Value to escape
-   * @returns {any} Escaped value or original if not string
-   */
-  escapeHtml: (value) => {
-    if (typeof value !== 'string') return value;
-    return value
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#x27;');
-  },
-};
-
-/* --------------------------- Custom validators --------------------------- */
-
-const customValidators = {
-  isCIDR,
-  
-  /**
-   * Validates port number or port range
-   * @param {any} value - Value to validate
-   * @returns {boolean} True if valid port or port range
-   */
-  isPortRange: (value) => {
-    if (typeof value === 'number') return value >= 1 && value <= 65535;
-    if (typeof value === 'string') {
-      // Single port
-      if (/^\d+$/.test(value)) {
-        const port = parseInt(value, 10);
-        return port >= 1 && port <= 65535;
-      }
-      // Port range (e.g., "8080-8090")
-      if (/^\d+-\d+$/.test(value)) {
-        const [start, end] = value.split('-').map(Number);
-        return start >= 1 && end <= 65535 && start <= end;
-      }
-    }
-    return false;
-  },
-  
-  /**
-   * Validates hostname or IP address
-   * @param {any} value - Value to validate
-   * @returns {boolean} True if valid hostname or IP
-   */
-  isHostnameOrIP: (value) => {
-    const ipv4 = /^(\d{1,3}\.){3}\d{1,3}$/;
-    const hostname =
-      /^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$/;
-    return ipv4.test(value) || hostname.test(value) || net.isIP(value) !== 0;
-  },
-};
-
-/* ---------------------------- Pre-configured validators ---------------------------- */
-
-const validators = {
-  // Authentication validators
-  login: validateZod(authSchemas.login),
-  register: validateZod(authSchemas.register),
-  changePassword: validateZod(authSchemas.changePassword),
-  refreshToken: validateZod(authSchemas.refreshToken),
-
-  // Firewall rule validators
-  createFirewallRule: validateZod(firewallSchemas.createRule),
-  updateFirewallRule: validateZod(firewallSchemas.updateRule),
-  toggleFirewallRule: validateZod(firewallSchemas.toggleRule),
-  bulkFirewallOperation: validateZod(firewallSchemas.bulkOperation),
-
-  // Policy validators
-  createPolicy: validateZod(policySchemas.createPolicy),
-  updatePolicy: validateZod(policySchemas.updatePolicy),
-
-  // Admin/user management validators
-  createUser: validateZod(adminSchemas.createUser),
-  updateUser: validateZod(adminSchemas.updateUser),
-  createApiKey: validateZod(adminSchemas.createApiKey),
-
-  // Query parameter validators
-  searchQuery: validateZod(querySchemas.search, 'query'),
-  firewallRulesQuery: validateZod(querySchemas.firewallRules, 'query'),
-  auditLogsQuery: validateZod(querySchemas.auditLogs, 'query'),
-
-  // URL parameter validators using express-validator
-  idParam: [
-    param('id').isInt({ min: 1 }).withMessage('ID must be a positive integer'),
-    handleExpressValidation,
-  ],
-  uuidParam: [
-    param('id').isUUID(4).withMessage('ID must be a valid UUID'),
-    handleExpressValidation,
-  ],
-};
-
-/* ------------------------ Dynamic route-based validation ------------------------ */
-
-/**
- * Automatically applies validation based on route path and HTTP method
- * Useful for applying validation without explicitly specifying in routes
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
-const dynamicValidation = (req, res, next) => {
-  const route = req.route?.path || req.path;
-  const method = req.method.toLowerCase();
-
-  let validator = null;
-  
-  // Map route patterns to validators
-  if (route.includes('/auth/login') && method === 'post') {
-    validator = validators.login;
-  } else if (route.includes('/auth/register') && method === 'post') {
-    validator = validators.register;
-  } else if (route.includes('/firewall/rules') && method === 'post') {
-    validator = validators.createFirewallRule;
-  } else if (route.includes('/firewall/rules') && method === 'put') {
-    validator = validators.updateFirewallRule;
-  } else if (route.includes('/policies') && method === 'post') {
-    validator = validators.createPolicy;
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      message: 'Dati regola non validi',
+      errors: error.details.map(detail => ({
+        field: detail.path.join('.'),
+        message: detail.message
+      }))
+    });
   }
-
-  // Apply validator if one was found, otherwise continue
-  if (validator) return validator(req, res, next);
+  
+  req.body = value;
   next();
 };
 
-/* -------------------------------- Module exports -------------------------------- */
+// Middleware per validazione utente
+const validateUser = (req, res, next) => {
+  const { error, value } = userSchema.validate(req.body);
+  
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      message: 'Dati utente non validi',
+      errors: error.details.map(detail => ({
+        field: detail.path.join('.'),
+        message: detail.message
+      }))
+    });
+  }
+  
+  req.body = value;
+  next();
+};
+
+// Middleware per validazione aggiornamento utente
+const validateUserUpdate = (req, res, next) => {
+  const { error, value } = userUpdateSchema.validate(req.body);
+  
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      message: 'Dati aggiornamento utente non validi',
+      errors: error.details.map(detail => ({
+        field: detail.path.join('.'),
+        message: detail.message
+      }))
+    });
+  }
+  
+  req.body = value;
+  next();
+};
+
+// Middleware per validazione UUID nei parametri
+const validateUUID = (req, res, next) => {
+  const { uuid } = req.params;
+  const { error } = uuidSchema.validate(uuid);
+  
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      message: 'UUID non valido'
+    });
+  }
+  
+  next();
+};
+
+// Validazione query parameters per ricerca
+const searchQuerySchema = Joi.object({
+  search: Joi.string().max(100).allow(''),
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(100).default(25),
+  sortBy: Joi.string().valid('sequence', 'description', 'action', 'interface', 'created_at').default('sequence'),
+  sortOrder: Joi.string().valid('asc', 'desc').default('asc'),
+  enabled: Joi.boolean(),
+  action: Joi.string().valid('pass', 'block', 'reject'),
+  interface: Joi.string(),
+  role: Joi.string().valid('admin', 'operator', 'viewer'),
+  active: Joi.boolean()
+});
+
+const validateSearchQuery = (req, res, next) => {
+  const { error, value } = searchQuerySchema.validate(req.query);
+  
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      message: 'Parametri di ricerca non validi',
+      errors: error.details.map(detail => detail.message)
+    });
+  }
+  
+  req.query = value;
+  next();
+};
+
+// Validazione per operazioni batch
+const batchOperationSchema = Joi.object({
+  ids: Joi.array().items(Joi.alternatives().try(
+    Joi.number().integer(),
+    uuidSchema
+  )).min(1).max(50).required(),
+  operation: Joi.string().valid('enable', 'disable', 'delete').required()
+});
+
+const validateBatchOperation = (req, res, next) => {
+  const { error } = batchOperationSchema.validate(req.body);
+  
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      message: 'Operazione batch non valida',
+      errors: error.details.map(detail => detail.message)
+    });
+  }
+  
+  next();
+};
 
 module.exports = {
-  // Core validation functions
-  validateZod,
-  handleExpressValidation,
-  dynamicValidation,
-  
-  // Pre-configured validators
-  validators,
-  
-  // Schema definitions
-  commonSchemas,
-  authSchemas,
-  firewallSchemas,
-  policySchemas,
-  adminSchemas,
-  querySchemas,
-  
-  // Utility functions
-  customValidators,
-  sanitizers,
+  validateLogin,
+  validateRule,
+  validateUser,
+  validateUserUpdate,
+  validateUUID,
+  validateSearchQuery,
+  validateBatchOperation
 };
