@@ -78,3 +78,5 @@ junit.xml
 # Build artifacts
 dist/
 build/
+
+.claude/
