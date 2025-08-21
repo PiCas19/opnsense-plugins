@@ -5,6 +5,8 @@ def test_config_happy_path(monkeypatch):
     monkeypatch.setenv("OPNSENSE_URL", "https://fw/api")
     monkeypatch.setenv("OPNSENSE_KEY", "K")
     monkeypatch.setenv("OPNSENSE_SECRET", "S")
+    if "src.config" in importlib.sys.modules:
+        del importlib.sys.modules["src.config"]
     cfg = importlib.import_module("src.config")
     assert cfg.OPNSENSE_URL.endswith("/api")
     assert cfg.OPNSENSE_KEY == "K"
@@ -14,7 +16,6 @@ def test_config_requires_api_suffix(monkeypatch):
     monkeypatch.setenv("OPNSENSE_URL", "https://fw")  # manca /api
     monkeypatch.setenv("OPNSENSE_KEY", "K")
     monkeypatch.setenv("OPNSENSE_SECRET", "S")
-    # forza reload per scatenare la validazione a import time
     if "src.config" in importlib.sys.modules:
         del importlib.sys.modules["src.config"]
     with pytest.raises(RuntimeError):

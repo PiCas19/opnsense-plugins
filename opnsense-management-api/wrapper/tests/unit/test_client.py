@@ -1,5 +1,4 @@
 from httpx import Response
-
 from src.opnsense.client import OpnSenseClient
 
 BASE = "https://opn.local/api"
@@ -16,11 +15,9 @@ def test_search_rules_path_no_double_api(respx_mock_global):
 def test_get_rule_fallback_to_snake(respx_mock_global):
     c = OpnSenseClient()
     uuid = "abc-123"
-    # prima chiamata camel -> 404
     respx_mock_global.get(f"{BASE}/firewall/filter/getRule/{uuid}").mock(
         return_value=Response(404, json={"message": "not found"})
     )
-    # fallback snake -> 200
     respx_mock_global.get(f"{BASE}/firewall/filter/get_rule/{uuid}").mock(
         return_value=Response(200, json={"rule": {"uuid": uuid, "description": "ok"}})
     )
