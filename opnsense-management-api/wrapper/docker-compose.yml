@@ -1,34 +1,8 @@
-version: '3.8'
-
 services:
-  opnsense-api:
+  opnsense-wrapper:
     build: .
-    container_name: opnsense-firewall-api
+    container_name: opnsense-wrapper
+    env_file: .env
     ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=production
-      - PORT=3000
-      - JWT_SECRET=${JWT_SECRET:-your_jwt_secret_here}
-      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-1h}
-      - JWT_REFRESH_EXPIRES_IN=${JWT_REFRESH_EXPIRES_IN:-7d}
-      - OPNSENSE_HOST=${OPNSENSE_HOST}
-      - OPNSENSE_API_KEY=${OPNSENSE_API_KEY}
-      - OPNSENSE_API_SECRET=${OPNSENSE_API_SECRET}
-      - OPNSENSE_VERIFY_SSL=${OPNSENSE_VERIFY_SSL:-true}
-    volumes:
-      - ./certs:/app/certs:ro
-      - ./logs:/app/logs
-    networks:
-      - opnsense-net
+      - "${PORT:-8080}:8080"
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "node", "src/utils/healthcheck.js"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-networks:
-  opnsense-net:
-    driver: bridge
