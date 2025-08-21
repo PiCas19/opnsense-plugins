@@ -123,7 +123,7 @@ async function testOPNsenseConnection() {
     }
 
     // Test 3: Firewall API (usa POST con JSON)
-    console.log('\n🔍 Test 3: Firewall API...');
+    console.log('\nTest 3: Firewall API...');
     try {
       const response = await client.post(
         '/api/firewall/filter/searchRule',
