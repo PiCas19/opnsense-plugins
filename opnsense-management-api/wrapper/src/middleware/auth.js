@@ -2,23 +2,35 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const logger = require('../utils/logger');
 
-const JWT_SECRET = process.env.JWT_SECRET;
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || `${JWT_SECRET}_refresh`;
+// Funzione per ottenere JWT_SECRET in modo lazy
+const getJWTSecret = () => {
+  if (!process.env.JWT_SECRET) {
+    // Carica dotenv se non già fatto
+    require('dotenv').config();
+  }
+  
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET è obbligatorio nelle variabili d\'ambiente');
+  }
+  
+  return process.env.JWT_SECRET;
+};
 
-if (!JWT_SECRET) {
-  throw new Error('JWT_SECRET è obbligatorio');
-}
+const getJWTRefreshSecret = () => {
+  const secret = getJWTSecret();
+  return process.env.JWT_REFRESH_SECRET || `${secret}_refresh`;
+};
 
 // Genera access token
 const generateAccessToken = (payload) => {
-  return jwt.sign(payload, JWT_SECRET, {
+  return jwt.sign(payload, getJWTSecret(), {
     expiresIn: process.env.JWT_EXPIRES_IN || '1h'
   });
 };
 
 // Genera refresh token
 const generateRefreshToken = (payload) => {
-  return jwt.sign(payload, JWT_REFRESH_SECRET, {
+  return jwt.sign(payload, getJWTRefreshSecret(), {
     expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d'
   });
 };
@@ -26,7 +38,7 @@ const generateRefreshToken = (payload) => {
 // Verifica access token
 const verifyAccessToken = (token) => {
   try {
-    return jwt.verify(token, JWT_SECRET);
+    return jwt.verify(token, getJWTSecret());
   } catch (error) {
     throw new Error('Token non valido');
   }
@@ -35,7 +47,7 @@ const verifyAccessToken = (token) => {
 // Verifica refresh token
 const verifyRefreshToken = (token) => {
   try {
-    return jwt.verify(token, JWT_REFRESH_SECRET);
+    return jwt.verify(token, getJWTRefreshSecret());
   } catch (error) {
     throw new Error('Refresh token non valido');
   }
