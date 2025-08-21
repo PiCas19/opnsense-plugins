@@ -235,6 +235,7 @@ router.get('/:id', asyncHandler(async (req, res) => {
     }
 
     const rule = await OpnsenseService.getRule(id);
+    console.log(rule);
     if (!rule) {
       return res.status(404).json({ success: false, message: 'Regola non trovata in OPNsense' });
     }
