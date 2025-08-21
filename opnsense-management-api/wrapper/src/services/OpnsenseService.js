@@ -200,38 +200,38 @@ class OpnsenseService {
   }
 
   // Recupera una regola da OPNsense
-  async getRule(ruleUuid) {
-    try {
-      if (!ruleUuid) throw new Error('UUID mancante');
-      const res = await this.apiCall(
-        'GET',
-        `/api/firewall/filter/get_rule/${encodeURIComponent(ruleUuid)}`
-      );
+async getRule(ruleUuid) {
+  try {
+    if (!ruleUuid) throw new Error('UUID mancante');
+    const res = await this.apiCall(
+      'GET',
+      `/api/firewall/filter/get_rule/${ruleUuid}`
+    );
 
-      // opzionale: normalizza come in getRules()
-      if (res?.rule) {
-        const r = res.rule;
-        return {
-          uuid: r.uuid,
-          description: r.description ?? '',
-          interface: r.interface ?? '',
-          action: r.action ?? '',
-          protocol: r.protocol ?? 'any',
-          direction: r.direction ?? 'in',
-          enabled: r.enable === '1' || r.enable === 1 || r.enable === true,
-          source: r.source ?? 'any',
-          source_port: r.src_port ?? '',
-          destination: r.destination ?? 'any',
-          destination_port: r.dst_port ?? '',
-          log: r.log === '1' || r.log === 1 || r.log === true,
-        };
-      }
-      return null;
-    } catch (error) {
-      logger.error('Errore recupero regola OPNsense', { uuid: ruleUuid, error: error.message });
-      throw error;
+    // opzionale: normalizza come in getRules()
+    if (res?.rule) {
+      const r = res.rule;
+      return {
+        uuid: r.uuid,
+        description: r.description ?? '',
+        interface: r.interface ?? '',
+        action: r.action ?? '',
+        protocol: r.protocol ?? 'any',
+        direction: r.direction ?? 'in',
+        enabled: r.enable === '1' || r.enable === 1 || r.enable === true,
+        source: r.source ?? 'any',
+        source_port: r.src_port ?? '',
+        destination: r.destination ?? 'any',
+        destination_port: r.dst_port ?? '',
+        log: r.log === '1' || r.log === 1 || r.log === true,
+      };
     }
+    return null;
+  } catch (error) {
+    logger.error('Errore recupero regola OPNsense', { uuid: ruleUuid, error: error.message });
+    throw error;
   }
+}
 
   normalizeOpnRule(opn) {
     return {
