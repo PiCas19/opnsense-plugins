@@ -765,7 +765,7 @@ router.patch('/:id/toggle', asyncHandler(async (req, res) => {
 *               new_password:
 *                 type: string
 *                 minLength: 8
-*                 pattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`])'
+*                 pattern: '^[a-zA-Z0-9_-]+$'
 *                 description: Nuova password
 *                 example: NewPassword123!
 *     responses:

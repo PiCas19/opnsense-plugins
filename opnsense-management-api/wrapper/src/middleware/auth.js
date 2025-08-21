@@ -1,37 +1,25 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const logger = require('../utils/logger');
+const { getEnv, requireEnv } = require('../utils/env');
 
-// Funzione per ottenere JWT_SECRET in modo lazy
-const getJWTSecret = () => {
-  if (!process.env.JWT_SECRET) {
-    // Carica dotenv se non già fatto
-    require('dotenv').config();
-  }
-  
-  if (!process.env.JWT_SECRET) {
-    throw new Error('JWT_SECRET è obbligatorio nelle variabili d\'ambiente');
-  }
-  
-  return process.env.JWT_SECRET;
-};
+// Verifica variabili richieste all'avvio
+requireEnv(['JWT_SECRET']);
 
-const getJWTRefreshSecret = () => {
-  const secret = getJWTSecret();
-  return process.env.JWT_REFRESH_SECRET || `${secret}_refresh`;
-};
+const getJWTSecret = () => getEnv('JWT_SECRET');
+const getJWTRefreshSecret = () => getEnv('JWT_REFRESH_SECRET', `${getJWTSecret()}_refresh`);
 
 // Genera access token
 const generateAccessToken = (payload) => {
   return jwt.sign(payload, getJWTSecret(), {
-    expiresIn: process.env.JWT_EXPIRES_IN || '1h'
+    expiresIn: getEnv('JWT_EXPIRES_IN', '1h')
   });
 };
 
 // Genera refresh token
 const generateRefreshToken = (payload) => {
   return jwt.sign(payload, getJWTRefreshSecret(), {
-    expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d'
+    expiresIn: getEnv('JWT_REFRESH_EXPIRES_IN', '7d')
   });
 };
 
