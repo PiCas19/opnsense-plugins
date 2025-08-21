@@ -1,74 +1,55 @@
-// routes/rules.js
 const express = require('express');
 const { authenticate } = require('../middleware/auth');
 const { validateRule, validateSearchQuery } = require('../middleware/validation');
 const { asyncHandler } = require('../middleware/errorHandler');
 const logger = require('../utils/logger');
 
+// Crea il router PRIMA di tutto
 const router = express.Router();
 
-const User = require('../models/User');
+// Import dei modelli DOPO aver creato il router
+const User = require('../models/User'); 
 const Rule = require('../models/Rule');
 const OpnsenseService = require('../services/OpnsenseService');
 
-// Autenticazione su tutte le rotte
+// Applica autenticazione a tutte le rotte
 router.use(authenticate);
 
 /**
  * @swagger
- * /api/rules/local:
+ * /api/rules:
  *   get:
- *     summary: Elenco regole dal database locale
- *     description: Restituisce esclusivamente le regole presenti nel database locale con filtri e paginazione
- *     tags: [Firewall Rules - Local]
+ *     summary: Ottieni lista regole firewall
+ *     description: Recupera tutte le regole firewall dal database locale e da OPNsense con opzioni di filtro e paginazione
+ *     tags: [Firewall Rules]
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: page
- *         schema: { type: integer, default: 1 }
- *       - in: query
- *         name: limit
- *         schema: { type: integer, default: 25 }
- *       - in: query
- *         name: search
- *         schema: { type: string }
- *       - in: query
- *         name: interface
- *         schema: { type: string }
- *       - in: query
- *         name: action
- *         schema: { type: string, enum: [pass, block, reject] }
- *       - in: query
- *         name: enabled
- *         schema: { type: boolean }
- *       - in: query
- *         name: sortBy
- *         schema: { type: string, default: id }
- *       - in: query
- *         name: sortOrder
- *         schema: { type: string, enum: [asc, desc], default: asc }
  *     responses:
  *       200:
- *         description: Elenco recuperato
+ *         description: Lista regole recuperata con successo
+ *       401:
+ *         description: Token di accesso richiesto
+ *       403:
+ *         description: Permessi insufficienti
  */
-router.get('/local', validateSearchQuery, asyncHandler(async (req, res) => {
+router.get('/', validateSearchQuery, asyncHandler(async (req, res) => {
   try {
-    const {
-      page = 1,
-      limit = 25,
-      search,
-      interface: iface,
-      action,
-      enabled,
-      sortBy = 'id',
-      sortOrder = 'asc'
+    const { 
+      page = 1, 
+      limit = 25, 
+      search, 
+      interface: iface, 
+      action, 
+      enabled, 
+      sortBy = 'id', 
+      sortOrder = 'asc' 
     } = req.query;
 
     const offset = (page - 1) * limit;
     const where = {};
-    const order = [[sortBy, String(sortOrder).toUpperCase()]];
+    const order = [[sortBy, sortOrder.toUpperCase()]];
 
+    // Costruisci filtri
     if (search) {
       where.description = { [Rule.sequelize.Op.iLike]: `%${search}%` };
     }
@@ -76,11 +57,16 @@ router.get('/local', validateSearchQuery, asyncHandler(async (req, res) => {
     if (action) where.action = action;
     if (enabled !== undefined) where.enabled = enabled;
 
+    // Solo regole approvate per utenti non admin
     const user = await User.findByPk(req.user.id);
-    if (user && user.role !== 'admin' && Rule.rawAttributes?.approval_status) {
-      where.approval_status = 'approved';
+    if (user && user.role !== 'admin') {
+      // Verifica se esiste il campo approval_status
+      if (Rule.rawAttributes && Rule.rawAttributes.approval_status) {
+        where.approval_status = 'approved';
+      }
     }
 
+    // Recupera regole dal database locale
     const { count, rows } = await Rule.findAndCountAll({
       where,
       offset: parseInt(offset),
@@ -88,165 +74,167 @@ router.get('/local', validateSearchQuery, asyncHandler(async (req, res) => {
       order
     });
 
-    logger.info('Regole locali recuperate', {
+    // Tenta di recuperare anche regole da OPNsense per confronto
+    let opnsenseRules = [];
+    try {
+      const connectionTest = await OpnsenseService.testConnection();
+      if (connectionTest.success) {
+        opnsenseRules = await OpnsenseService.getRules();
+      }
+    } catch (opnsenseError) {
+      logger.warn('Impossibile recuperare regole da OPNsense', {
+        error: opnsenseError.message,
+        user: req.user.username
+      });
+    }
+
+    // Arricchisci le regole locali con info OPNsense
+    const enrichedRules = rows.map(rule => {
+      const opnsenseMatch = opnsenseRules.find(opRule => 
+        opRule.uuid === rule.opnsense_uuid || 
+        opRule.description === rule.description
+      );
+      
+      return {
+        ...rule.toJSON(),
+        opnsense_status: opnsenseMatch ? 'found' : 'not_found',
+        opnsense_enabled: opnsenseMatch?.enabled || null
+      };
+    });
+
+    logger.info('Lista regole recuperata', {
       count,
       page,
       limit,
+      opnsense_rules_found: opnsenseRules.length,
       user: req.user.username,
       filters: { search, iface, action, enabled }
     });
 
     res.json({
       success: true,
-      message: 'Regole locali recuperate con successo',
-      data: rows,
+      message: 'Regole recuperate con successo',
+      data: enrichedRules,
       meta: {
         total: count,
         page: parseInt(page),
         limit: parseInt(limit),
-        pages: Math.ceil(count / limit)
+        pages: Math.ceil(count / limit),
+        opnsense_connection: opnsenseRules.length > 0
       }
     });
+
   } catch (error) {
-    logger.error('Errore recupero regole locali', { error: error.message, user: req.user?.username });
-    res.status(500).json({ success: false, message: 'Errore nel recupero delle regole locali' });
-  }
-}));
-
-/**
- * @swagger
- * /api/rules/opnsense:
- *   get:
- *     summary: Elenco regole da OPNsense
- *     description: Restituisce esclusivamente le regole dalla piattaforma OPNsense con filtri e paginazione
- *     tags: [Firewall Rules - OPNsense]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: page
- *         schema: { type: integer, default: 1 }
- *       - in: query
- *         name: limit
- *         schema: { type: integer, default: 50 }
- *       - in: query
- *         name: search
- *         schema: { type: string }
- *       - in: query
- *         name: interface
- *         schema: { type: string }
- *       - in: query
- *         name: action
- *         schema: { type: string, enum: [pass, block, reject] }
- *       - in: query
- *         name: enabled
- *         schema: { type: boolean }
- *     responses:
- *       200:
- *         description: Elenco recuperato
- */
-router.get('/opnsense', asyncHandler(async (req, res) => {
-  try {
-    // accesso a utenti autenticati; se vuoi reintrodurre i permessi rimetti il check
-    logger.info('Accesso a /api/rules/opnsense', { user: req.user?.username, userId: req.user?.id });
-
-    const { page = 1, limit = 50, search, interface: iface, action, enabled } = req.query;
-
-    // test connessione; se fallisce ritorna 502 con dettagli
-    const conn = await OpnsenseService.testConnection();
-    if (!conn.success) {
-      return res.status(502).json({
-        success: false,
-        message: 'OPNsense non raggiungibile',
-        details: { code: conn.code, status: conn.status, error: conn.error }
-      });
-    }
-
-    let all;
-    try {
-      all = await OpnsenseService.getRules();
-    } catch (e) {
-      // qualsiasi errore lato OPNsense deve tornare 502 (bad gateway) e non 500
-      return res.status(502).json({
-        success: false,
-        message: 'Errore nel recupero delle regole da OPNsense',
-        details: { error: e.message }
-      });
-    }
-
-    const filtered = all.filter(r => {
-      const bySearch = search ? String(r.description || '').toLowerCase().includes(String(search).toLowerCase()) : true;
-      const byIface = iface ? String(r.interface || '').toLowerCase() === String(iface).toLowerCase() : true;
-      const byAction = action ? String(r.action || '').toLowerCase() === String(action).toLowerCase() : true;
-      const byEnabled =
-        enabled !== undefined
-          ? (String(r.enabled) === ((enabled === 'false' || enabled === false) ? '0' : '1') ||
-             r.enabled === ((enabled === 'false' || enabled === false) ? false : true))
-          : true;
-      return bySearch && byIface && byAction && byEnabled;
+    logger.error('Errore nel recupero lista regole', {
+      error: error.message,
+      stack: error.stack,
+      user: req.user?.username
     });
 
-    const p = parseInt(page);
-    const l = parseInt(limit);
-    const start = (p - 1) * l;
-    const end = start + l;
-
-    return res.json({
-      success: true,
-      message: 'Regole OPNsense recuperate con successo',
-      data: filtered.slice(start, end),
-      meta: { total: filtered.length, page: p, limit: l, pages: Math.ceil(filtered.length / l) }
+    res.status(500).json({
+      success: false,
+      message: 'Errore nel recupero delle regole',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Errore interno del server'
     });
-  } catch (error) {
-    logger.error('Errore inatteso /api/rules/opnsense', { error: error.message, user: req.user?.username });
-    return res.status(500).json({ success: false, message: 'Errore inatteso' });
   }
 }));
-
 
 /**
  * @swagger
  * /api/rules/{id}:
  *   get:
- *     summary: Dettaglio regola da OPNsense
- *     description: Restituisce i dettagli di una regola identificata da UUID su OPNsense
- *     tags: [Firewall Rules - OPNsense]
+ *     summary: Ottieni regola specifica
+ *     description: Recupera una singola regola firewall per ID dal database locale e verifica su OPNsense
+ *     tags: [Firewall Rules]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
- *         schema: { type: string }
+ *         schema:
+ *           type: string
+ *         description: ID della regola
  *     responses:
  *       200:
- *         description: Regola recuperata
+ *         description: Regola recuperata con successo
  *       404:
  *         description: Regola non trovata
+ *       401:
+ *         description: Token di accesso richiesto
  */
 router.get('/:id', asyncHandler(async (req, res) => {
   try {
-    const user = await User.findByPk(req.user.id);
-    if (!user || !user.hasPermission('read_rules')) {
-      return res.status(403).json({ success: false, message: 'Permessi insufficienti' });
-    }
-
     const { id } = req.params;
-
-    const conn = await OpnsenseService.testConnection();
-    if (!conn.success) {
-      return res.status(502).json({ success: false, message: 'OPNsense non raggiungibile', details: conn });
+    
+    // Cerca per ID (numerico) o UUID se presente
+    let rule;
+    if (!isNaN(id)) {
+      rule = await Rule.findByPk(id);
+    } else {
+      // Se il modello ha il campo uuid
+      if (Rule.rawAttributes && Rule.rawAttributes.uuid) {
+        rule = await Rule.findOne({ where: { uuid: id } });
+      }
     }
 
-    const rule = await OpnsenseService.getRule(id);
     if (!rule) {
-      return res.status(404).json({ success: false, message: 'Regola non trovata in OPNsense' });
+      return res.status(404).json({
+        success: false,
+        message: 'Regola non trovata'
+      });
     }
 
-    res.json({ success: true, message: 'Regola recuperata con successo', data: rule });
+    // Verifica stato su OPNsense se sincronizzata
+    let opnsenseStatus = null;
+    if (rule.opnsense_uuid) {
+      try {
+        const connectionTest = await OpnsenseService.testConnection();
+        if (connectionTest.success) {
+          const opnsenseRule = await OpnsenseService.getRule(rule.opnsense_uuid);
+          opnsenseStatus = {
+            found: !!opnsenseRule,
+            enabled: opnsenseRule?.enabled || null,
+            last_modified: opnsenseRule?.last_modified || null
+          };
+        }
+      } catch (opnsenseError) {
+        logger.warn('Errore verifica regola su OPNsense', {
+          rule_id: rule.id,
+          opnsense_uuid: rule.opnsense_uuid,
+          error: opnsenseError.message
+        });
+        opnsenseStatus = { error: opnsenseError.message };
+      }
+    }
+
+    logger.info('Regola recuperata', { 
+      rule_id: rule.id, 
+      opnsense_status: opnsenseStatus,
+      user: req.user.username 
+    });
+
+    res.json({
+      success: true,
+      message: 'Regola recuperata con successo',
+      data: {
+        ...rule.toJSON(),
+        opnsense_status: opnsenseStatus
+      }
+    });
+
   } catch (error) {
-    logger.error('Errore dettaglio regola OPNsense', { error: error.message, id: req.params.id });
-    res.status(500).json({ success: false, message: 'Errore nel recupero della regola OPNsense' });
+    logger.error('Errore nel recupero regola', {
+      id: req.params.id,
+      error: error.message,
+      user: req.user?.username
+    });
+
+    res.status(500).json({
+      success: false,
+      message: 'Errore nel recupero della regola',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Errore interno del server'
+    });
   }
 }));
 
@@ -254,9 +242,9 @@ router.get('/:id', asyncHandler(async (req, res) => {
  * @swagger
  * /api/rules:
  *   post:
- *     summary: Crea nuova regola (DB locale + OPNsense)
- *     description: Crea una nuova regola nel database locale e prova a sincronizzarla su OPNsense senza applicare
- *     tags: [Firewall Rules - Mixed]
+ *     summary: Crea nuova regola firewall
+ *     description: Crea una nuova regola firewall e la sincronizza con OPNsense
+ *     tags: [Firewall Rules]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -265,27 +253,65 @@ router.get('/:id', asyncHandler(async (req, res) => {
  *         application/json:
  *           schema:
  *             type: object
- *             required: [description, interface, action]
+ *             required:
+ *               - description
+ *               - interface
+ *               - action
+ *             properties:
+ *               description:
+ *                 type: string
+ *                 description: Descrizione della regola
+ *               interface:
+ *                 type: string
+ *                 description: Interfaccia di rete
+ *               action:
+ *                 type: string
+ *                 enum: [pass, block, reject]
+ *                 description: Azione da intraprendere
  *     responses:
  *       201:
- *         description: Regola creata
+ *         description: Regola creata con successo
+ *       400:
+ *         description: Dati regola non validi
+ *       401:
+ *         description: Token di accesso richiesto
+ *       403:
+ *         description: Permessi insufficienti
  */
 router.post('/', validateRule, asyncHandler(async (req, res) => {
   try {
     const user = await User.findByPk(req.user.id);
     if (!user || !user.hasPermission('create_rules')) {
-      return res.status(403).json({ success: false, message: 'Permessi insufficienti per creare regole' });
+      return res.status(403).json({
+        success: false,
+        message: 'Permessi insufficienti per creare regole'
+      });
     }
 
-    const ruleData = { ...req.body, created_by: req.user.id };
+    const ruleData = {
+      ...req.body,
+      created_by: req.user.id
+    };
+
+    // Crea regola nel database
     const rule = await Rule.create(ruleData);
 
-    let syncResult = { opnsense_uuid: null, sync_status: 'pending', sync_error: null };
+    // Tenta sincronizzazione con OPNsense (senza applicare config)
+    let syncResult = {
+      opnsense_uuid: null,
+      sync_status: 'pending',
+      sync_error: null
+    };
 
     try {
+      // Test connessione OPNsense prima di procedere
       const connectionTest = await OpnsenseService.testConnection();
-      if (!connectionTest.success) throw new Error('OPNsense non raggiungibile');
+      
+      if (!connectionTest.success) {
+        throw new Error(`OPNsense non raggiungibile: ${JSON.stringify(connectionTest.tests)}`);
+      }
 
+      // Prepara dati per OPNsense
       const ruleForOPNsense = {
         description: rule.description,
         interface: rule.interface,
@@ -298,39 +324,80 @@ router.post('/', validateRule, asyncHandler(async (req, res) => {
         direction: rule.direction || 'in'
       };
 
-      const opnsenseResult = await OpnsenseService.createRule(ruleForOPNsense);
+      logger.info('Tentativo creazione regola OPNsense', {
+        rule_id: rule.id,
+        ruleForOPNsense
+      });
 
+      const opnsenseResult = await OpnsenseService.createRule(ruleForOPNsense);
+      
       syncResult = {
         opnsense_uuid: opnsenseResult.uuid,
         sync_status: 'synced_pending_apply',
         last_synced_at: new Date(),
         sync_error: null
       };
-    } catch (err) {
-      syncResult = { sync_status: 'failed', sync_error: err.message };
-      logger.warn('Sincronizzazione OPNsense fallita in creazione', { error: err.message });
+
+      logger.info('Regola creata in OPNsense, configurazione non ancora applicata', {
+        rule_id: rule.id,
+        opnsense_uuid: opnsenseResult.uuid
+      });
+
+    } catch (opnsenseError) {
+      logger.error('Errore sincronizzazione regola con OPNsense', {
+        rule_id: rule.id,
+        error: opnsenseError.message,
+        stack: opnsenseError.stack
+      });
+      
+      syncResult = {
+        sync_status: 'failed',
+        sync_error: opnsenseError.message
+      };
     }
 
-    if (Rule.rawAttributes?.sync_status) {
+    // Aggiorna regola con risultato sincronizzazione
+    if (Rule.rawAttributes.sync_status) {
       await rule.update(syncResult);
     }
 
+    logger.info('Regola creata nel database', {
+      rule_id: rule.id,
+      description: rule.description,
+      sync_status: syncResult.sync_status,
+      user: req.user.username
+    });
+
     res.status(201).json({
       success: true,
-      message: syncResult.sync_status === 'synced_pending_apply'
-        ? 'Regola creata. Eseguire /api/rules/apply per applicare.'
-        : 'Regola creata nel database. Sincronizzazione con OPNsense non riuscita.',
+      message: syncResult.sync_status === 'synced_pending_apply' 
+        ? 'Regola creata con successo. Usa /api/rules/apply per applicare la configurazione.'
+        : 'Regola creata nel database. Sincronizzazione con OPNsense fallita.',
       data: {
         id: rule.id,
         uuid: rule.uuid || rule.id,
         opnsense_uuid: syncResult.opnsense_uuid,
         sync_status: syncResult.sync_status,
         sync_error: syncResult.sync_error
-      }
+      },
+      next_steps: syncResult.sync_status === 'synced_pending_apply' 
+        ? 'Chiamare POST /api/rules/apply per applicare le modifiche al firewall'
+        : 'Controllare i log e riprovare la sincronizzazione'
     });
+
   } catch (error) {
-    logger.error('Errore creazione regola', { error: error.message, user: req.user?.username });
-    res.status(500).json({ success: false, message: 'Errore nella creazione della regola' });
+    logger.error('Errore nella creazione regola', {
+      error: error.message,
+      stack: error.stack,
+      ruleData: req.body,
+      user: req.user?.username
+    });
+
+    res.status(500).json({
+      success: false,
+      message: 'Errore nella creazione della regola',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Errore interno del server'
+    });
   }
 }));
 
@@ -338,16 +405,18 @@ router.post('/', validateRule, asyncHandler(async (req, res) => {
  * @swagger
  * /api/rules/{id}:
  *   put:
- *     summary: Aggiorna regola su OPNsense
- *     description: Aggiorna una regola esistente su OPNsense identificata da UUID
- *     tags: [Firewall Rules - OPNsense]
+ *     summary: Aggiorna regola firewall
+ *     description: Aggiorna una regola firewall esistente nel database locale
+ *     tags: [Firewall Rules]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
- *         schema: { type: string }
+ *         schema:
+ *           type: string
+ *         description: ID della regola
  *     requestBody:
  *       required: true
  *       content:
@@ -355,55 +424,150 @@ router.post('/', validateRule, asyncHandler(async (req, res) => {
  *           schema:
  *             type: object
  *             properties:
- *               description: { type: string }
- *               interface: { type: string }
- *               action: { type: string, enum: [pass, block, reject] }
- *               protocol: { type: string }
- *               enabled: { type: boolean }
- *               source_config: { type: object }
- *               destination_config: { type: object }
- *               log_enabled: { type: boolean }
- *               direction: { type: string, enum: [in, out] }
+ *               description:
+ *                 type: string
+ *                 description: Descrizione della regola
+ *               interface:
+ *                 type: string
+ *                 description: Interfaccia di rete
+ *               action:
+ *                 type: string
+ *                 enum: [pass, block, reject]
+ *                 description: Azione da intraprendere
+ *               protocol:
+ *                 type: string
+ *                 description: Protocollo (TCP, UDP, ICMP, any)
+ *               enabled:
+ *                 type: boolean
+ *                 description: Regola abilitata/disabilitata
+ *               source_config:
+ *                 type: object
+ *                 description: Configurazione sorgente
+ *                 properties:
+ *                   type:
+ *                     type: string
+ *                     enum: [any, network, host, alias]
+ *                   value:
+ *                     type: string
+ *                     description: Indirizzo IP, rete o alias
+ *                   port:
+ *                     type: string
+ *                     description: Porta o range di porte
+ *               destination_config:
+ *                 type: object
+ *                 description: Configurazione destinazione
+ *                 properties:
+ *                   type:
+ *                     type: string
+ *                     enum: [any, network, host, alias]
+ *                   value:
+ *                     type: string
+ *                     description: Indirizzo IP, rete o alias
+ *                   port:
+ *                     type: string
+ *                     description: Porta o range di porte
+ *               log_enabled:
+ *                 type: boolean
+ *                 description: Logging abilitato
+ *               direction:
+ *                 type: string
+ *                 enum: [in, out]
+ *                 description: Direzione traffico
  *     responses:
  *       200:
- *         description: Regola aggiornata su OPNsense
+ *         description: Regola aggiornata con successo
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Regola aggiornata con successo
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                     description:
+ *                       type: string
+ *                     enabled:
+ *                       type: boolean
+ *       404:
+ *         description: Regola non trovata
+ *       401:
+ *         description: Token di accesso richiesto
+ *       403:
+ *         description: Permessi insufficienti
  */
 router.put('/:id', validateRule, asyncHandler(async (req, res) => {
   try {
     const user = await User.findByPk(req.user.id);
     if (!user || !user.hasPermission('update_rules')) {
-      return res.status(403).json({ success: false, message: 'Permessi insufficienti per aggiornare regole' });
+      return res.status(403).json({
+        success: false,
+        message: 'Permessi insufficienti per aggiornare regole'
+      });
     }
 
     const { id } = req.params;
-
-    const connectionTest = await OpnsenseService.testConnection();
-    if (!connectionTest.success) {
-      return res.status(502).json({ success: false, message: 'OPNsense non raggiungibile', details: connectionTest });
+    
+    // Cerca regola
+    let rule;
+    if (!isNaN(id)) {
+      rule = await Rule.findByPk(id);
+    } else if (Rule.rawAttributes && Rule.rawAttributes.uuid) {
+      rule = await Rule.findOne({ where: { uuid: id } });
     }
 
-    const payload = {
-      description: req.body.description,
-      interface: req.body.interface,
-      action: req.body.action,
-      protocol: req.body.protocol,
-      enabled: req.body.enabled,
-      source_config: req.body.source_config,
-      destination_config: req.body.destination_config,
-      log_enabled: req.body.log_enabled,
-      direction: req.body.direction
+    if (!rule) {
+      return res.status(404).json({
+        success: false,
+        message: 'Regola non trovata'
+      });
+    }
+
+    const updateData = {
+      ...req.body,
+      updated_by: req.user.id
     };
 
-    const result = await OpnsenseService.updateRule(id, payload);
+    // Aggiorna regola nel database
+    await rule.update(updateData);
+
+    logger.info('Regola aggiornata', {
+      rule_id: rule.id,
+      changes: Object.keys(updateData),
+      user: req.user.username
+    });
 
     res.json({
       success: true,
-      message: 'Regola aggiornata su OPNsense',
-      data: { uuid: id, opnsense_response: result }
+      message: 'Regola aggiornata con successo',
+      data: {
+        id: rule.id,
+        description: rule.description,
+        enabled: rule.enabled,
+        action: rule.action,
+        interface: rule.interface
+      }
     });
+
   } catch (error) {
-    logger.error('Errore aggiornamento regola OPNsense', { error: error.message, id: req.params.id });
-    res.status(502).json({ success: false, message: 'Errore di comunicazione con OPNsense' });
+    logger.error('Errore nell\'aggiornamento regola', {
+      id: req.params.id,
+      error: error.message,
+      user: req.user?.username
+    });
+
+    res.status(500).json({
+      success: false,
+      message: 'Errore nell\'aggiornamento della regola',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Errore interno del server'
+    });
   }
 }));
 
@@ -411,125 +575,80 @@ router.put('/:id', validateRule, asyncHandler(async (req, res) => {
  * @swagger
  * /api/rules/{id}/toggle:
  *   patch:
- *     summary: Abilita o disabilita una regola su OPNsense
- *     tags: [Firewall Rules - OPNsense]
+ *     summary: Toggle/Forza stato regola su OPNsense
+ *     description: Usa l'endpoint nativo toggle_rule di OPNsense. Se "enabled" è omesso, lo stato viene invertito su OPNsense. Se "enabled" è presente, viene forzato (true/false).
+ *     tags: [Firewall Rules]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
- *         schema: { type: string }
+ *         schema:
+ *           type: string
+ *         description: ID della regola
  *       - in: query
  *         name: apply
- *         schema: { type: boolean }
- *         description: Se true applica immediatamente la configurazione
+ *         schema:
+ *           type: boolean
+ *         description: Se true applica subito la configurazione su OPNsense
  *     requestBody:
- *       required: true
+ *       required: false
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required: [enabled]
  *             properties:
- *               enabled: { type: boolean }
+ *               enabled:
+ *                 type: boolean
+ *                 description: Se omesso, esegue il toggle puro su OPNsense
  *     responses:
  *       200:
- *         description: Stato modificato
+ *         description: Stato regola cambiato con successo su OPNsense
+ *       404:
+ *         description: Regola non trovata
+ *       401:
+ *         description: Token di accesso richiesto
+ *       403:
+ *         description: Permessi insufficienti
+ *       502:
+ *         description: Errore comunicazione con OPNsense
  */
 router.patch('/:id/toggle', asyncHandler(async (req, res) => {
   try {
     const user = await User.findByPk(req.user.id);
     if (!user || !user.hasPermission('update_rules')) {
-      return res.status(403).json({ success: false, message: 'Permessi insufficienti' });
+      return res.status(403).json({ success: false, message: 'Permessi insufficienti per modificare regole' });
     }
 
     const { id } = req.params;
-    let { enabled } = req.body;
-    if (typeof enabled === 'string') enabled = enabled === 'true' || enabled === '1';
-    if (typeof enabled !== 'boolean') {
-      return res.status(400).json({ success: false, message: 'Campo "enabled" booleano richiesto' });
+
+    // enabled può essere boolean/"1"/"0"/"true"/"false"/omesso
+    let { enabled } = req.body ?? {};
+    if (enabled === '' || enabled === undefined || enabled === null) {
+      enabled = null; // toggle puro
+    } else if (typeof enabled === 'string') {
+      enabled = enabled === 'true' || enabled === '1';
+    } else if (typeof enabled !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'Campo "enabled" deve essere boolean, "1"/"0", "true"/"false" oppure omesso per toggle'
+      });
     }
+
     const applyNow = String(req.query.apply || '').toLowerCase() === 'true';
 
-    const conn = await OpnsenseService.testConnection();
-    if (!conn.success) return res.status(502).json({ success: false, message: 'OPNsense non raggiungibile', details: conn });
+    // trova regola locale
+    let rule;
+    if (!isNaN(id)) rule = await Rule.findByPk(id);
+    else if (Rule.rawAttributes?.uuid) rule = await Rule.findOne({ where: { uuid: id } });
 
-    const result = await OpnsenseService.toggleRule(id, enabled);
-    if (applyNow) await OpnsenseService.applyConfig();
-
-    res.json({
-      success: true,
-      message: `Regola ${enabled ? 'abilitata' : 'disabilitata'} su OPNsense${applyNow ? ' e applicata' : ''}`,
-      data: { uuid: id, opnsense_enabled: enabled, applied: applyNow, opnsense_response: result?.opnsense_response || null }
-    });
-  } catch (error) {
-    logger.error('Errore toggle regola OPNsense', { error: error.message, id: req.params.id });
-    res.status(502).json({ success: false, message: 'Errore nel cambio stato della regola su OPNsense' });
-  }
-}));
-
-/**
- * @swagger
- * /api/rules/{id}:
- *   delete:
- *     summary: Elimina una regola su OPNsense
- *     description: Elimina una regola identificata da UUID direttamente su OPNsense. Non tocca il database locale.
- *     tags: [Firewall Rules - OPNsense]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: string }
- *     responses:
- *       200:
- *         description: Regola eliminata su OPNsense
- */
-router.delete('/:id', asyncHandler(async (req, res) => {
-  try {
-    const user = await User.findByPk(req.user.id);
-    if (!user || !user.hasPermission('delete_rules')) {
-      return res.status(403).json({ success: false, message: 'Permessi insufficienti per eliminare regole' });
+    if (!rule) return res.status(404).json({ success: false, message: 'Regola non trovata' });
+    if (!rule.opnsense_uuid) {
+      return res.status(400).json({ success: false, message: 'Regola non sincronizzata con OPNsense' });
     }
 
-    const { id } = req.params;
-
-    const conn = await OpnsenseService.testConnection();
-    if (!conn.success) {
-      return res.status(502).json({ success: false, message: 'OPNsense non raggiungibile', details: conn });
-    }
-
-    await OpnsenseService.deleteRule(id);
-
-    res.json({ success: true, message: 'Regola eliminata su OPNsense', data: { uuid: id } });
-  } catch (error) {
-    logger.error('Errore eliminazione regola OPNsense', { error: error.message, id: req.params.id });
-    res.status(502).json({ success: false, message: 'Errore nell\'eliminazione della regola su OPNsense' });
-  }
-}));
-
-/**
- * @swagger
- * /api/rules/apply:
- *   post:
- *     summary: Applica configurazione su OPNsense
- *     description: Applica le modifiche pendenti su OPNsense
- *     tags: [Firewall Rules - OPNsense]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Configurazione applicata
- */
-router.post('/apply', asyncHandler(async (req, res) => {
-  try {
-    const user = await User.findByPk(req.user.id);
-    if (!user || !user.hasPermission('apply_config')) {
-      return res.status(403).json({ success: false, message: 'Permessi insufficienti per applicare configurazione' });
-    }
-
+    // test connessione
     const connectionTest = await OpnsenseService.testConnection();
     if (!connectionTest.success) {
       return res.status(502).json({
@@ -539,16 +658,374 @@ router.post('/apply', asyncHandler(async (req, res) => {
       });
     }
 
+    // toggle semplice tramite endpoint nativo
+    const result = await OpnsenseService.toggleRule(rule.opnsense_uuid, enabled);
+
+    // apply opzionale
+    if (applyNow) await OpnsenseService.applyConfig();
+
+    // aggiorna DB locale solo se stato forzato
+    if (enabled !== null) {
+      const payload = { enabled };
+      if (Rule.rawAttributes?.sync_status) payload.sync_status = applyNow ? 'synced' : 'synced_pending_apply';
+      if (Rule.rawAttributes?.last_synced_at) payload.last_synced_at = new Date();
+      await rule.update(payload);
+    }
+
+    logger.info('Toggle eseguito su OPNsense', {
+      rule_id: rule.id, opnsense_uuid: rule.opnsense_uuid, forcedEnabled: enabled, apply: applyNow, user: req.user.username
+    });
+
+    return res.json({
+      success: true,
+      message: `Toggle su OPNsense eseguito${applyNow ? ' e applicato' : ''}${enabled === null ? '' : ` (stato forzato a ${enabled ? 'abilitato' : 'disabilitato'})`}`,
+      data: {
+        id: rule.id,
+        uuid: rule.uuid || String(rule.id),
+        description: rule.description,
+        interface: rule.interface,
+        action: rule.action,
+        opnsense_uuid: rule.opnsense_uuid,
+        forced_enabled: enabled, // null se toggle puro
+        applied: applyNow,
+        opnsense_response: result?.opnsense_response || null
+      }
+    });
+
+  } catch (error) {
+    logger.error('Errore nel toggle regola su OPNsense', { id: req.params.id, error: error.message, user: req.user?.username });
+    return res.status(502).json({
+      success: false,
+      message: 'Errore nel cambio stato della regola su OPNsense',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Errore di comunicazione con OPNsense'
+    });
+  }
+}));
+
+
+
+/**
+ * @swagger
+ * /api/rules/{id}:
+ *   delete:
+ *     summary: Elimina regola firewall
+ *     description: Elimina una regola firewall dal database locale e da OPNsense
+ *     tags: [Firewall Rules]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID della regola
+ *     responses:
+ *       200:
+ *         description: Regola eliminata con successo
+ *       404:
+ *         description: Regola non trovata
+ *       401:
+ *         description: Token di accesso richiesto
+ *       403:
+ *         description: Permessi insufficienti
+ */
+router.delete('/:id', asyncHandler(async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.id);
+    if (!user || !user.hasPermission('delete_rules')) {
+      return res.status(403).json({
+        success: false,
+        message: 'Permessi insufficienti per eliminare regole'
+      });
+    }
+
+    const { id } = req.params;
+    
+    // Cerca regola
+    let rule;
+    if (!isNaN(id)) {
+      rule = await Rule.findByPk(id);
+    } else if (Rule.rawAttributes && Rule.rawAttributes.uuid) {
+      rule = await Rule.findOne({ where: { uuid: id } });
+    }
+
+    if (!rule) {
+      return res.status(404).json({
+        success: false,
+        message: 'Regola non trovata'
+      });
+    }
+
+    let opnsenseResult = { success: false, error: null };
+
+    // Elimina da OPNsense se sincronizzata
+    if (rule.opnsense_uuid) {
+      try {
+        const connectionTest = await OpnsenseService.testConnection();
+        if (connectionTest.success) {
+          await OpnsenseService.deleteRule(rule.opnsense_uuid);
+          opnsenseResult.success = true;
+          logger.info('Regola eliminata da OPNsense', {
+            rule_id: rule.id,
+            opnsense_uuid: rule.opnsense_uuid
+          });
+        } else {
+          throw new Error('OPNsense non raggiungibile');
+        }
+      } catch (opnsenseError) {
+        opnsenseResult.error = opnsenseError.message;
+        logger.warn('Errore eliminazione regola da OPNsense', {
+          rule_id: rule.id,
+          opnsense_uuid: rule.opnsense_uuid,
+          error: opnsenseError.message
+        });
+      }
+    }
+
+    // Elimina dal database locale
+    await rule.destroy();
+
+    logger.info('Regola eliminata dal database locale', {
+      rule_id: rule.id,
+      description: rule.description,
+      opnsense_deleted: opnsenseResult.success,
+      user: req.user.username
+    });
+
+    const message = rule.opnsense_uuid 
+      ? opnsenseResult.success 
+        ? 'Regola eliminata con successo da database locale e OPNsense'
+        : `Regola eliminata dal database locale. Errore OPNsense: ${opnsenseResult.error}`
+      : 'Regola eliminata con successo dal database locale';
+
+    res.json({
+      success: true,
+      message: message,
+      data: {
+        local_deleted: true,
+        opnsense_deleted: opnsenseResult.success,
+        opnsense_error: opnsenseResult.error
+      }
+    });
+
+  } catch (error) {
+    logger.error('Errore nell\'eliminazione regola', {
+      id: req.params.id,
+      error: error.message,
+      user: req.user?.username
+    });
+
+    res.status(500).json({
+      success: false,
+      message: 'Errore nell\'eliminazione della regola',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Errore interno del server'
+    });
+  }
+}));
+
+/**
+ * @swagger
+ * /api/rules/statistics:
+ *   get:
+ *     summary: Statistiche regole
+ *     description: Ottieni statistiche sulle regole firewall
+ *     tags: [Firewall Rules]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Statistiche recuperate con successo
+ *       401:
+ *         description: Token di accesso richiesto
+ */
+router.get('/statistics', asyncHandler(async (req, res) => {
+  try {
+    const totalRules = await Rule.count();
+    const activeRules = await Rule.count({ where: { enabled: true } });
+
+    const byInterface = await Rule.findAll({
+      attributes: [
+        'interface',
+        [Rule.sequelize.fn('COUNT', '*'), 'count']
+      ],
+      group: ['interface'],
+      raw: true
+    });
+
+    const byAction = await Rule.findAll({
+      attributes: [
+        'action',
+        [Rule.sequelize.fn('COUNT', '*'), 'count']
+      ],
+      group: ['action'],
+      raw: true
+    });
+
+    res.json({
+      success: true,
+      message: 'Statistiche recuperate con successo',
+      data: {
+        total_rules: totalRules,
+        active_rules: activeRules,
+        by_interface: byInterface,
+        by_action: byAction
+      }
+    });
+
+  } catch (error) {
+    logger.error('Errore nel recupero statistiche', {
+      error: error.message,
+      user: req.user?.username
+    });
+
+    res.status(500).json({
+      success: false,
+      message: 'Errore nel recupero delle statistiche',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Errore interno del server'
+    });
+  }
+}));
+
+/**
+ * @swagger
+ * /api/rules/apply:
+ *   post:
+ *     summary: Applica configurazione firewall
+ *     description: Applica tutte le modifiche pending alla configurazione OPNsense e attiva le regole nel firewall
+ *     tags: [Firewall Rules]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Configurazione applicata con successo
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Configurazione applicata con successo
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *                   example: 2024-01-15T10:30:00.000Z
+ *       401:
+ *         description: Token di accesso richiesto
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Token di accesso richiesto
+ *       403:
+ *         description: Permessi insufficienti
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Permessi insufficienti per applicare configurazione
+ *       502:
+ *         description: Errore comunicazione con OPNsense
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: OPNsense non raggiungibile
+ *                 details:
+ *                   type: object
+ *                   description: Dettagli del test di connessione
+ *                 suggestion:
+ *                   type: string
+ *                   example: Verificare la connessione con OPNsense e riprovare
+ */  
+router.post('/apply', asyncHandler(async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.id);
+    if (!user || !user.hasPermission('apply_config')) {
+      return res.status(403).json({
+        success: false,
+        message: 'Permessi insufficienti per applicare configurazione'
+      });
+    }
+
+    logger.info('Tentativo applicazione configurazione OPNsense', {
+      user: req.user.username
+    });
+
+    // Test connessione prima dell'applicazione
+    const connectionTest = await OpnsenseService.testConnection();
+    if (!connectionTest.success) {
+      return res.status(502).json({
+        success: false,
+        message: 'OPNsense non raggiungibile',
+        details: connectionTest.tests,
+        suggestion: 'Verificare la connessione con OPNsense e riprovare'
+      });
+    }
+
+    // Applica configurazione
     await OpnsenseService.applyConfig();
+
+    // Aggiorna stato delle regole in pending
+    if (Rule.rawAttributes.sync_status) {
+      await Rule.update(
+        { 
+          sync_status: 'synced',
+          last_applied_at: new Date()
+        },
+        { 
+          where: { 
+            sync_status: 'synced_pending_apply' 
+          }
+        }
+      );
+    }
+
+    logger.info('Configurazione OPNsense applicata con successo', {
+      user: req.user.username
+    });
 
     res.json({
       success: true,
       message: 'Configurazione applicata con successo',
       timestamp: new Date().toISOString()
     });
+
   } catch (error) {
-    logger.error('Errore applicazione configurazione OPNsense', { error: error.message, user: req.user?.username });
-    res.status(502).json({ success: false, message: 'Errore nell\'applicazione della configurazione' });
+    logger.error('Errore nell\'applicazione configurazione', {
+      error: error.message,
+      stack: error.stack,
+      user: req.user?.username
+    });
+
+    res.status(502).json({
+      success: false,
+      message: 'Errore nell\'applicazione della configurazione',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Errore di comunicazione con OPNsense',
+      suggestion: 'Verificare la connessione con OPNsense e riprovare'
+    });
   }
 }));
 
