@@ -1,37 +1,40 @@
-// services/OpnsenseService.js - Versione con debug migliorato
+// services/OpnsenseService.js - Versione semplificata senza gestione certificati SSL
 const axios = require('axios');
 const https = require('https');
-const fs = require('fs');
-const path = require('path');
+const config = require('../config/opnsense');
 const logger = require('../utils/logger');
 
 class OpnsenseService {
   constructor() {
-    // Configurazione base
-    this.baseUrl = process.env.OPNSENSE_HOST || 'https://opnsense.localdomain';
-    this.apiKey = process.env.OPNSENSE_API_KEY;
-    this.apiSecret = process.env.OPNSENSE_API_SECRET;
+    // Configurazione base dal file config
+    this.baseUrl = config.host;
+    this.apiKey = config.apiKey;
+    this.apiSecret = config.apiSecret;
+    this.verifySSL = config.verifySSL;
+    this.requestTimeout = config.timeout;
     this.maxRetries = 3;
-    this.requestTimeout = parseInt(process.env.OPNSENSE_TIMEOUT) || 15000;
     this.rateLimitMap = new Map();
 
-    // Configurazione SSL
-    this.verifySSL = process.env.OPNSENSE_VERIFY_SSL !== 'false';
-    
-    // Log configurazione
-    logger.info('OPNsense Service configurato', {
+    // FORZA disabilitazione SSL se configurato
+    if (!this.verifySSL) {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+    }
+
+    logger.info('OPNsense Service inizializzato', {
       baseUrl: this.baseUrl,
       hasCredentials: !!(this.apiKey && this.apiSecret),
       verifySSL: this.verifySSL,
-      timeout: this.requestTimeout
+      timeout: this.requestTimeout,
+      tlsRejectUnauthorized: process.env.NODE_TLS_REJECT_UNAUTHORIZED
     });
 
     // Verifica credenziali
     if (!this.apiKey || !this.apiSecret) {
-      logger.error('Credenziali OPNsense mancanti', {
+      logger.error('❌ Credenziali OPNsense mancanti!', {
         hasApiKey: !!this.apiKey,
         hasApiSecret: !!this.apiSecret
       });
+      throw new Error('Credenziali OPNsense mancanti');
     }
   }
 
@@ -39,7 +42,7 @@ class OpnsenseService {
    * Crea client HTTP configurato
    */
   getHttpClient() {
-    const config = {
+    const clientConfig = {
       baseURL: this.baseUrl,
       timeout: this.requestTimeout,
       maxRedirects: 0,
@@ -48,37 +51,37 @@ class OpnsenseService {
         'Accept': 'application/json',
         'User-Agent': 'OPNsense-Management-API/1.0'
       },
+      auth: {
+        username: this.apiKey,
+        password: this.apiSecret
+      },
       validateStatus: (status) => status < 600
     };
 
-    // Configurazione autenticazione
-    if (this.apiKey && this.apiSecret) {
-      config.auth = {
-        username: this.apiKey,
-        password: this.apiSecret
-      };
-    }
-
-    // Configurazione HTTPS
+    // Configurazione HTTPS semplificata
     if (this.baseUrl.startsWith('https:')) {
       if (!this.verifySSL) {
-        config.httpsAgent = new https.Agent({
-          rejectUnauthorized: false
+        // Disabilita COMPLETAMENTE SSL verification
+        clientConfig.httpsAgent = new https.Agent({
+          rejectUnauthorized: false,
+          checkServerIdentity: () => undefined
         });
-        logger.warn('SSL verification DISABILITATA per OPNsense');
+        logger.debug('HTTPS Agent configurato per ignorare certificati SSL');
+      } else {
+        // SSL verification abilitata
+        clientConfig.httpsAgent = new https.Agent({
+          rejectUnauthorized: true
+        });
+        logger.debug('HTTPS Agent configurato con SSL verification abilitata');
       }
     }
 
-    const client = axios.create(config);
+    const client = axios.create(clientConfig);
 
     // Request interceptor
     client.interceptors.request.use(
       (config) => {
-        logger.debug(`OPNsense Request: ${config.method?.toUpperCase()} ${config.url}`, {
-          baseURL: config.baseURL,
-          timeout: config.timeout,
-          hasAuth: !!config.auth
-        });
+        logger.debug(`OPNsense Request: ${config.method?.toUpperCase()} ${config.url}`);
         return config;
       },
       (error) => {
@@ -90,15 +93,11 @@ class OpnsenseService {
     // Response interceptor
     client.interceptors.response.use(
       (response) => {
-        logger.debug(`OPNsense Response: ${response.status}`, {
-          url: response.config.url,
-          method: response.config.method,
-          dataSize: JSON.stringify(response.data).length
-        });
+        logger.debug(`OPNsense Response: ${response.status} ${response.statusText}`);
         return response;
       },
       (error) => {
-        this._logDetailedError(error);
+        this._logError(error);
         return Promise.reject(error);
       }
     );
@@ -107,241 +106,97 @@ class OpnsenseService {
   }
 
   /**
-   * Log dettagliato degli errori
+   * Log semplificato degli errori
    */
-  _logDetailedError(error) {
-    const errorInfo = {
+  _logError(error) {
+    const errorDetails = {
       message: error.message,
       code: error.code,
-      url: error.config?.url,
-      method: error.config?.method,
       status: error.response?.status,
-      statusText: error.response?.statusText,
-      responseData: error.response?.data,
-      timeout: error.config?.timeout
+      url: error.config?.url
     };
 
     if (error.code === 'ECONNREFUSED') {
-      logger.error('OPNsense non raggiungibile - Connessione rifiutata', errorInfo);
+      logger.error('❌ OPNsense non raggiungibile (ECONNREFUSED)', errorDetails);
     } else if (error.code === 'ETIMEDOUT') {
-      logger.error('OPNsense timeout', errorInfo);
+      logger.error('❌ Timeout connessione OPNsense', errorDetails);
     } else if (error.response?.status === 401) {
-      logger.error('OPNsense autenticazione fallita - Controlla API key/secret', errorInfo);
+      logger.error('❌ Autenticazione OPNsense fallita - Credenziali errate', errorDetails);
     } else if (error.response?.status === 403) {
-      logger.error('OPNsense accesso negato - Permessi insufficienti', errorInfo);
-    } else if (error.response?.status >= 500) {
-      logger.error('OPNsense errore interno del server', errorInfo);
+      logger.error('❌ Accesso negato OPNsense - Permessi insufficienti', errorDetails);
+    } else if (error.code && error.code.includes('CERT')) {
+      logger.error('❌ Errore certificato SSL OPNsense', {
+        ...errorDetails,
+        suggestion: 'Imposta OPNSENSE_VERIFY_SSL=false nel .env per certificati auto-firmati'
+      });
     } else {
-      logger.error('OPNsense errore generico', errorInfo);
+      logger.error('❌ Errore generico OPNsense', errorDetails);
     }
   }
 
   /**
-   * Test connessione con diagnostica completa
+   * Test connessione semplificato
    */
   async testConnection() {
-    logger.info('Test connessione OPNsense completo', {
-      baseUrl: this.baseUrl,
-      verifySSL: this.verifySSL
-    });
+    logger.info('🔍 Test connessione OPNsense...');
 
-    const results = {
-      success: false,
-      tests: {},
-      timestamp: new Date().toISOString()
-    };
-
-    // Test 1: Connessione base
     try {
       const client = this.getHttpClient();
       const startTime = Date.now();
       
+      // Test base connectivity
       const response = await client.get('/api/core/firmware/status');
       const responseTime = Date.now() - startTime;
 
-      results.tests.connectivity = {
-        success: true,
-        responseTime,
-        status: response.status
-      };
-
-      logger.info('Test connettività OPNsense: OK', {
-        responseTime,
+      logger.info('✅ Connessione OPNsense riuscita', {
+        responseTime: `${responseTime}ms`,
         status: response.status
       });
 
+      return {
+        success: true,
+        responseTime,
+        status: response.status,
+        timestamp: new Date().toISOString()
+      };
+
     } catch (error) {
-      results.tests.connectivity = {
-        success: false,
+      logger.error('❌ Test connessione OPNsense fallito', {
         error: error.message,
         code: error.code,
         status: error.response?.status
-      };
-
-      logger.error('Test connettività OPNsense: FALLITO', {
-        error: error.message,
-        code: error.code
       });
-    }
 
-    // Test 2: Autenticazione
-    try {
-      const client = this.getHttpClient();
-      const response = await client.get('/api/diagnostics/interface/getInterfaceConfig');
-
-      results.tests.authentication = {
-        success: response.status === 200,
-        status: response.status
-      };
-
-      logger.info('Test autenticazione OPNsense: OK');
-
-    } catch (error) {
-      results.tests.authentication = {
+      return {
         success: false,
-        error: error.message,
-        status: error.response?.status
-      };
-
-      if (error.response?.status === 401) {
-        logger.error('Test autenticazione OPNsense: FALLITO - Credenziali non valide');
-      } else {
-        logger.error('Test autenticazione OPNsense: FALLITO', {
-          error: error.message,
-          status: error.response?.status
-        });
-      }
-    }
-
-    // Test 3: API Firewall
-    try {
-      const client = this.getHttpClient();
-      const response = await client.post('/api/firewall/filter/searchRule', {
-        current: 1,
-        rowCount: 1,
-        searchPhrase: ''
-      });
-
-      results.tests.firewall_api = {
-        success: response.status === 200,
-        status: response.status,
-        rulesFound: response.data?.rows?.length || 0
-      };
-
-      logger.info('Test API Firewall OPNsense: OK', {
-        rulesFound: response.data?.rows?.length || 0
-      });
-
-    } catch (error) {
-      results.tests.firewall_api = {
-        success: false,
-        error: error.message,
-        status: error.response?.status
-      };
-
-      logger.error('Test API Firewall OPNsense: FALLITO', {
-        error: error.message,
-        status: error.response?.status
-      });
-    }
-
-    // Determina successo complessivo
-    results.success = Object.values(results.tests).every(test => test.success);
-
-    logger.info('Test connessione OPNsense completato', {
-      success: results.success,
-      tests: Object.keys(results.tests).map(key => ({
-        test: key,
-        success: results.tests[key].success
-      }))
-    });
-
-    return results;
-  }
-
-  /**
-   * Applica configurazione con retry e diagnostica
-   */
-  async applyConfig() {
-    logger.info('Tentativo applicazione configurazione OPNsense');
-
-    try {
-      const client = this.getHttpClient();
-      
-      // Prima verifica lo stato del sistema
-      try {
-        const statusResponse = await client.get('/api/core/system/status');
-        logger.debug('Stato sistema OPNsense prima dell\'apply', {
-          status: statusResponse.status,
-          data: statusResponse.data
-        });
-      } catch (statusError) {
-        logger.warn('Impossibile verificare stato sistema prima dell\'apply', {
-          error: statusError.message
-        });
-      }
-
-      // Applica configurazione
-      const response = await client.post('/api/firewall/filter/apply', {});
-
-      logger.debug('Risposta apply configurazione', {
-        status: response.status,
-        data: response.data
-      });
-
-      if (response.status !== 200) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      if (response.data?.status !== 'ok' && response.data?.result !== 'ok') {
-        throw new Error(`OPNsense apply failed: ${JSON.stringify(response.data)}`);
-      }
-
-      // Attesa per stabilizzazione
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      logger.info('Configurazione OPNsense applicata con successo');
-      return true;
-
-    } catch (error) {
-      logger.error('Errore nell\'applicazione configurazione OPNsense', {
         error: error.message,
         code: error.code,
         status: error.response?.status,
-        responseData: error.response?.data
-      });
-
-      throw new Error(`Errore nell'applicazione configurazione: ${error.message}`);
+        timestamp: new Date().toISOString()
+      };
     }
   }
 
   /**
-   * Crea regola con validazione migliorata
+   * Crea regola firewall
    */
   async createRule(ruleData) {
-    logger.info('Creazione regola OPNsense', {
+    logger.info('📝 Creazione regola OPNsense', {
       description: ruleData.description,
       interface: ruleData.interface,
       action: ruleData.action
     });
 
     try {
-      // Valida i dati della regola
+      // Valida dati
       this.validateRuleData(ruleData);
       
       // Formatta per OPNsense
       const formattedRule = this.formatRuleForOPNsense(ruleData);
       
-      logger.debug('Regola formattata per OPNsense', formattedRule);
-
       const client = this.getHttpClient();
       const response = await client.post('/api/firewall/filter/addRule', {
         rule: formattedRule
-      });
-
-      logger.debug('Risposta creazione regola OPNsense', {
-        status: response.status,
-        data: response.data
       });
 
       if (response.status !== 200) {
@@ -349,13 +204,10 @@ class OpnsenseService {
       }
 
       if (!response.data?.uuid) {
-        throw new Error(`OPNsense non ha restituito UUID: ${JSON.stringify(response.data)}`);
+        throw new Error(`OPNsense non ha restituito UUID valido: ${JSON.stringify(response.data)}`);
       }
 
-      // NON applicare automaticamente la configurazione qui
-      // Lascia che sia l'applicazione a decidere quando applicare
-      
-      logger.info('Regola OPNsense creata con successo', {
+      logger.info('✅ Regola OPNsense creata', {
         uuid: response.data.uuid,
         description: ruleData.description
       });
@@ -363,18 +215,50 @@ class OpnsenseService {
       return {
         success: true,
         uuid: response.data.uuid,
-        message: 'Regola creata in OPNsense (configurazione non ancora applicata)'
+        message: 'Regola creata in OPNsense'
       };
 
     } catch (error) {
-      logger.error('Errore nella creazione regola OPNsense', {
+      logger.error('❌ Errore creazione regola OPNsense', {
         error: error.message,
-        ruleData,
-        status: error.response?.status,
-        responseData: error.response?.data
+        ruleData: {
+          description: ruleData.description,
+          interface: ruleData.interface,
+          action: ruleData.action
+        }
       });
 
       throw new Error(`Errore nella creazione regola: ${error.message}`);
+    }
+  }
+
+  /**
+   * Applica configurazione firewall
+   */
+  async applyConfig() {
+    logger.info('🔄 Applicazione configurazione OPNsense...');
+
+    try {
+      const client = this.getHttpClient();
+      const response = await client.post('/api/firewall/filter/apply', {});
+
+      if (response.status !== 200) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      // Attesa stabilizzazione
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      logger.info('✅ Configurazione OPNsense applicata con successo');
+      return true;
+
+    } catch (error) {
+      logger.error('❌ Errore applicazione configurazione OPNsense', {
+        error: error.message,
+        status: error.response?.status
+      });
+
+      throw new Error(`Errore nell'applicazione configurazione: ${error.message}`);
     }
   }
 
@@ -383,7 +267,7 @@ class OpnsenseService {
    */
   formatRuleForOPNsense(ruleData) {
     return {
-      enabled: ruleData.enabled ? '1' : '0',
+      enabled: ruleData.enabled !== false ? '1' : '0',
       interface: ruleData.interface || 'wan',
       direction: ruleData.direction || 'in',
       ipprotocol: 'inet',
@@ -422,10 +306,7 @@ class OpnsenseService {
    * Formatta porta
    */
   formatPort(addressConfig) {
-    if (!addressConfig?.port) {
-      return '';
-    }
-    return String(addressConfig.port);
+    return addressConfig?.port ? String(addressConfig.port) : '';
   }
 
   /**
@@ -453,7 +334,7 @@ class OpnsenseService {
   getServiceHealth() {
     return {
       service: 'opnsense',
-      status: 'healthy',
+      status: 'ready',
       configuration: {
         baseUrl: this.baseUrl,
         hasCredentials: !!(this.apiKey && this.apiSecret),
