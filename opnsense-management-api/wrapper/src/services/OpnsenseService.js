@@ -202,7 +202,7 @@ class OpnsenseService {
   // Recupera una regola da OPNsense
   async getRule(ruleUuid) {
     try {
-      const response = await this.apiCall('GET', `/api/firewall/filter/getRule/${encodeURIComponent(ruleUuid)}`);
+      const response = await this.apiCall('GET', `/api/firewall/filter/getRule?uuid=${encodeURIComponent(ruleUuid)}`);
       if (response && response.rule) return response.rule;
       return null;
     } catch (error) {
