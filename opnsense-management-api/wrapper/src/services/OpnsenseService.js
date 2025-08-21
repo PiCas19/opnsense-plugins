@@ -146,31 +146,15 @@ class OpnsenseService {
   }
 
   // Recupera tutte le regole
-  async getRule(ruleUuid) {
-  try {
-    const uuid = this.encodeId(ruleUuid);
-    logger.debug('Chiamata getRule con UUID:', { uuid });
-    const res = await this.apiCall('GET', `/api/firewall/filter/getRule/${uuid}`);
-    logger.debug('Risposta raw da getRule:', { response: res });
-
-    if (!res || typeof res !== 'object') {
-      logger.warn('Risposta inattesa da getRule, oggetto non valido', { response: res });
-      return null;
+  async getRules() {
+    try {
+      const res = await this.apiCall('GET', '/api/firewall/filter/searchRule?current=1&rowCount=-1');
+      return res.rows ? res.rows.map(r => this.normalizeOpnRule(r)) : [];
+    } catch (error) {
+      logger.error('Errore getRules OPNsense', { error: error.message });
+      throw new Error(`Impossibile recuperare le regole: ${error.message}`);
     }
-
-    if (!res.rule) {
-      logger.warn('Nessun campo "rule" nella risposta', { response: res });
-      return null;
-    }
-
-    const normalizedRule = this.normalizeOpnRule(res.rule);
-    logger.debug('Regola normalizzata:', { rule: normalizedRule });
-    return normalizedRule;
-  } catch (error) {
-    logger.error('Errore getRule OPNsense', { uuid: ruleUuid, error: error.message, status: error.response?.status });
-    throw error;
   }
-}
 
   // Recupera una regola da OPNsense
   async getRule(ruleUuid) {
@@ -317,46 +301,22 @@ class OpnsenseService {
     return encodeURIComponent(String(v).trim());
   }
 
-normalizeOpnRule(opn) {
-  // Estrai lo statetype selezionato
-  let statetype = 'keep state'; // Default
-  if (opn.statetype) {
-    for (const [key, value] of Object.entries(opn.statetype)) {
-      if (value.selected === 1) {
-        statetype = value.value || key; // Usa value.value se presente, altrimenti key
-        break;
-      }
-    }
+  normalizeOpnRule(opn) {
+    return {
+      uuid: opn.uuid,
+      description: opn.description ?? '',
+      interface: opn.interface ?? '',
+      action: opn.action ?? '',
+      protocol: opn.protocol ?? 'any',
+      direction: opn.direction ?? 'in',
+      enabled: opn.enabled === '1' || opn.enabled === 1 || opn.enabled === true,
+      source: opn.source ?? 'any',
+      source_port: opn.source_port ?? '',
+      destination: opn.destination ?? 'any',
+      destination_port: opn.destination_port ?? '',
+      log: opn.log === '1' || opn.log === 1 || opn.log === true,
+    };
   }
-
-  // Estrai lo state-policy selezionato
-  let statePolicy = 'default'; // Default
-  if (opn['state-policy']) {
-    for (const [key, value] of Object.entries(opn['state-policy'])) {
-      if (value.selected === 1) {
-        statePolicy = value.value || key; // Usa value.value se presente, altrimenti key
-        break;
-      }
-    }
-  }
-
-  return {
-    uuid: opn.uuid || null,
-    description: opn.description ?? '',
-    interface: opn.interface ?? '',
-    action: opn.action ?? '',
-    protocol: opn.protocol ?? 'any',
-    direction: opn.direction ?? 'in',
-    enabled: opn.enabled === '1' || opn.enabled === 1 || opn.enabled === true,
-    source: opn.source ?? 'any',
-    source_port: opn.source_port ?? '',
-    destination: opn.destination ?? 'any',
-    destination_port: opn.destination_port ?? '',
-    log: opn.log === '1' || opn.log === 1 || opn.log === true,
-    statetype: statetype,
-    state_policy: statePolicy,
-  };
-}
 
   // Conversione dati regola per OPNsense
   formatRuleForOPNsense(ruleData) {
