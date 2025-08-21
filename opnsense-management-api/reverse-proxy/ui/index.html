@@ -4,7 +4,6 @@
   <meta charset="utf-8"/>
   <title>OPNsense Demo UI</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <!-- evita richiesta favicon.ico -->
   <link rel="icon" href="data:,">
   <style>
     :root{--bg:#0b1220;--panel:#111a2b;--muted:#7c8aa0;--primary:#4da3ff;--ok:#22c55e;--bad:#ef4444}
@@ -16,7 +15,7 @@
     .card{background:var(--panel);border:1px solid #1d2a44;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
     .pad{padding:18px}
     .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
-    input,button{border-radius:10px;border:1px solid #1d2a44;background:#0c1526;color:#e5efff;padding:10px 12px}
+    input,select,button{border-radius:10px;border:1px solid #1d2a44;background:#0c1526;color:#e5efff;padding:10px 12px}
     input::placeholder{color:#6c7a90}
     button{cursor:pointer;background:#153055;border-color:#2a4775}
     button:hover{background:#1a3a66}
@@ -27,6 +26,7 @@
     .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:12px}
     .right{margin-left:auto}
     .error{color:#ffb4b4;margin:8px 0 0}
+    .ok{color:#9ff5b2;margin:8px 0 0}
     .hidden{display:none}
     table{width:100%;border-collapse:separate;border-spacing:0}
     thead th{text-align:left;color:var(--muted);font-weight:600;padding:12px 14px;border-bottom:1px solid #22314f}
@@ -38,6 +38,14 @@
     .muted{color:var(--muted)}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
     .spacer{height:10px}
+    details>summary{cursor:pointer;list-style:none}
+    details>summary::-webkit-details-marker{display:none}
+    details>summary{padding:12px;border:1px solid #1d2a44;border-radius:10px;background:#0c1526}
+    .grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+    .col-2{grid-column:span 2}
+    .col-3{grid-column:span 3}
+    .col-6{grid-column:span 6}
+    .chip{display:inline-flex;gap:8px;align-items:center}
   </style>
 </head>
 <body>
@@ -70,7 +78,73 @@
           <button id="logout" class="btn-danger">Logout</button>
         </div>
       </div>
-      <div class="muted" id="meta"></div>
+
+      <!-- CREATE RULE -->
+      <details id="create-details">
+        <summary class="row">
+          <strong>Create rule</strong>
+          <span class="muted">minimal fields for a demo</span>
+        </summary>
+        <form id="create-form" style="margin-top:12px">
+          <div class="grid">
+            <label class="col-3">Description
+              <input name="description" placeholder="e.g. Allow HTTPS to WAN" required>
+            </label>
+
+            <label class="col-1">Interface
+              <select name="interface">
+                <option>wan</option>
+                <option>lan</option>
+              </select>
+            </label>
+
+            <label class="col-1">Action
+              <select name="action">
+                <option value="pass" selected>pass</option>
+                <option value="block">block</option>
+                <option value="reject">reject</option>
+              </select>
+            </label>
+
+            <label class="col-1">Protocol
+              <select name="protocol">
+                <option>any</option>
+                <option>tcp</option>
+                <option>udp</option>
+                <option>icmp</option>
+              </select>
+            </label>
+
+            <label class="col-2">Source net
+              <input name="src_net" placeholder="any or 1.2.3.4/32" value="any">
+            </label>
+            <label class="col-1">Src port
+              <input name="src_port" placeholder="optional" inputmode="numeric">
+            </label>
+
+            <label class="col-2">Destination net
+              <input name="dst_net" placeholder="any or 5.6.7.0/24" value="any">
+            </label>
+            <label class="col-1">Dst port
+              <input name="dst_port" placeholder="443" inputmode="numeric">
+            </label>
+
+            <div class="col-3 chip" style="margin-top:6px">
+              <label class="chip"><input type="checkbox" name="enabled" checked> Enabled</label>
+              <label class="chip"><input type="checkbox" name="log"> Log</label>
+              <label class="chip"><input type="checkbox" name="apply"> Apply now</label>
+            </div>
+
+            <div class="col-6 row" style="margin-top:4px">
+              <button class="btn-primary" type="submit">Create</button>
+              <span id="create-msg" class="muted"></span>
+            </div>
+          </div>
+        </form>
+      </details>
+
+      <div class="muted" id="meta" style="margin-top:10px"></div>
+
       <div style="overflow:auto;margin-top:10px">
         <table id="rules-table" class="mono">
           <thead>
@@ -87,7 +161,7 @@
 
   <script>
     // ---------- config ----------
-    const API = '/api';              // BFF path (Nginx reverse proxy)
+    const API = '/api';
     const LS_TOKEN = 'dmz_token';
     const $ = (q) => document.querySelector(q);
     const show = (el, v=true) => el.classList.toggle('hidden', !v);
@@ -116,12 +190,15 @@
 
     // ---------- UI helpers ----------
     function setUserInfo() {
-      const tok = getToken();
-      $('#user-info').textContent = tok ? 'Logged in' : 'Not authenticated';
+      $('#user-info').textContent = getToken() ? 'Logged in' : 'Not authenticated';
     }
     function showError(el, msg) {
-      el.textContent = msg; show(el, true);
-      setTimeout(()=>show(el,false), 5000);
+      el.textContent = msg; el.classList.remove('hidden'); el.classList.remove('ok'); el.classList.add('error');
+      setTimeout(()=>el.classList.add('hidden'), 5000);
+    }
+    function showOk(el, msg) {
+      el.textContent = msg; el.classList.remove('hidden'); el.classList.remove('error'); el.classList.add('ok');
+      setTimeout(()=>el.classList.add('hidden'), 3500);
     }
 
     // ---------- login ----------
@@ -131,7 +208,7 @@
       const payload = { username: fd.get('username'), password: fd.get('password') };
       try {
         const r = await api('/auth/login', { method:'POST', body: JSON.stringify(payload) });
-        const tok = r.token || r.access_token;      // accetta entrambe le forme
+        const tok = r.token || r.access_token;
         if (!tok) throw new Error('Missing token in response');
         setToken(tok);
         setUserInfo();
@@ -172,6 +249,12 @@
     function renderRules(rows) {
       const tb = $('#tbody');
       tb.innerHTML = '';
+      if (!rows.length) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td colspan="6" class="muted">No rules found</td>`;
+        tb.appendChild(tr);
+        return;
+      }
       rows.forEach((r, i) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -207,10 +290,54 @@
       } catch (err) { showError($('#rules-error'), err.message); }
     });
 
+    // ---------- create rule ----------
+    $('#create-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+
+      // sanitizza porte (stringhe o vuote)
+      const srcPort = (fd.get('src_port') || '').trim();
+      const dstPort = (fd.get('dst_port') || '').trim();
+
+      const rule = {
+        enabled: fd.get('enabled') ? '1' : '0',
+        interface: fd.get('interface') || 'wan',
+        direction: 'in',
+        ipprotocol: 'inet',
+        protocol: fd.get('protocol') || 'any',
+        action: fd.get('action') || 'pass',
+        description: (fd.get('description') || '').trim(),
+        source_net: (fd.get('src_net') || 'any').trim() || 'any',
+        source_port: srcPort,
+        destination_net: (fd.get('dst_net') || 'any').trim() || 'any',
+        destination_port: dstPort,
+        log: fd.get('log') ? '1' : '0',
+        quick: '1',
+        floating: '0'
+      };
+
+      const applyNow = !!fd.get('apply');
+
+      try {
+        const res = await api('/rules', {
+          method: 'POST',
+          body: JSON.stringify({ rule, apply: applyNow })
+        });
+        showOk($('#create-msg'), `Created (uuid: ${res?.result?.uuid || res?.result?.opnsense_uuid || 'n/a'})${applyNow?' & applied':''}`);
+        // reset parziale (mantieni campi utili)
+        e.target.reset();
+        e.target.querySelector('select[name="interface"]').value = 'wan';
+        e.target.querySelector('select[name="action"]').value = 'pass';
+        e.target.querySelector('select[name="protocol"]').value = 'any';
+        loadRules();
+      } catch (err) {
+        showError($('#create-msg'), String(err.message || err));
+      }
+    });
+
     // ---------- boot ----------
     (async function boot(){
       setUserInfo();
-      // se sei già autenticato, vai diretto alle regole
       if (getToken()) {
         try {
           await loadRules();
