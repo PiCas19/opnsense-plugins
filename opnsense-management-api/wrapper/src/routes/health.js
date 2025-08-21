@@ -1,6 +1,5 @@
 const express = require('express');
 const OpnsenseService = require('../services/OpnsenseService');
-const { optionalAuth } = require('../middleware/auth');
 const asyncHandler = require('express-async-handler');
 
 const router = express.Router();
