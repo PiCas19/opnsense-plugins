@@ -233,43 +233,111 @@ class OpnsenseService {
   }
 
 
-  // Nel file OpnsenseService.js
-  async toggleRule(ruleUuid, enabled) {
-    try {
-      // Prima recupera la regola esistente
-      const existingRule = await this.getRule(ruleUuid);
-      if (!existingRule) {
-        throw new Error(`Regola con UUID ${ruleUuid} non trovata su OPNsense`);
-      }
+  // Aggiungi questo metodo al tuo OpnsenseService.js
 
-      // Aggiorna solo il campo enabled
-      const updateData = {
-        ...existingRule,
-        enabled: enabled
-      };
+/**
+ * Abilita/disabilita una regola su OPNsense
+ * @param {string} ruleUuid - UUID della regola su OPNsense
+ * @param {boolean} enabled - true per abilitare, false per disabilitare
+ * @returns {Promise<Object>} Risultato dell'operazione
+ */
+async toggleRule(ruleUuid, enabled) {
+  try {
+    logger.info('Tentativo toggle regola OPNsense', {
+      uuid: ruleUuid,
+      enabled: enabled
+    });
 
-      // Chiamata API per aggiornare la regola
-      const response = await this.apiCall('POST', `/api/firewall/filter/setRule/${ruleUuid}`, updateData);
-      
-      if (response.result !== 'saved') {
-        throw new Error('Errore nell\'aggiornamento della regola su OPNsense');
-      }
-
-      return {
-        success: true,
-        uuid: ruleUuid,
-        enabled: enabled
-      };
-
-    } catch (error) {
-      logger.error('Errore nel toggle regola OPNsense', {
-        uuid: ruleUuid,
-        enabled: enabled,
-        error: error.message
-      });
-      throw error;
+    // Prima recupera la regola esistente per avere tutti i dati
+    const existingRule = await this.getRule(ruleUuid);
+    if (!existingRule) {
+      throw new Error(`Regola con UUID ${ruleUuid} non trovata su OPNsense`);
     }
+
+    // Prepara i dati per l'aggiornamento - mantieni tutti i campi esistenti
+    const updateData = {
+      ...existingRule,
+      enabled: enabled ? '1' : '0'  // OPNsense usa stringhe '1'/'0' per boolean
+    };
+
+    // Chiama l'API di OPNsense per aggiornare la regola
+    const updateResponse = await this.apiCall('POST', `/api/firewall/filter/setRule/${ruleUuid}`, {
+      rule: updateData
+    });
+
+    if (updateResponse.result !== 'saved') {
+      throw new Error(`Errore nell'aggiornamento regola: ${JSON.stringify(updateResponse)}`);
+    }
+
+    logger.info('Regola toggleata con successo su OPNsense', {
+      uuid: ruleUuid,
+      enabled: enabled,
+      response: updateResponse
+    });
+
+    return {
+      success: true,
+      uuid: ruleUuid,
+      enabled: enabled,
+      opnsense_response: updateResponse
+    };
+
+  } catch (error) {
+    logger.error('Errore nel toggle regola OPNsense', {
+      uuid: ruleUuid,
+      enabled: enabled,
+      error: error.message,
+      stack: error.stack
+    });
+    throw new Error(`Impossibile modificare stato regola: ${error.message}`);
   }
+}
+
+/**
+ * Recupera una singola regola da OPNsense
+ * @param {string} ruleUuid - UUID della regola
+ * @returns {Promise<Object|null>} Dati della regola o null se non trovata
+ */
+async getRule(ruleUuid) {
+  try {
+    const response = await this.apiCall('GET', `/api/firewall/filter/getRule/${ruleUuid}`);
+    
+    if (response && response.rule) {
+      return response.rule;
+    }
+    
+    return null;
+  } catch (error) {
+    logger.error('Errore nel recupero regola OPNsense', {
+      uuid: ruleUuid,
+      error: error.message
+    });
+    throw error;
+  }
+}
+
+/**
+ * Recupera tutte le regole da OPNsense
+ * @returns {Promise<Array>} Array delle regole
+ */
+async getRules() {
+  try {
+    const response = await this.apiCall('GET', '/api/firewall/filter/get');
+    
+    if (response && response.filter && response.filter.rules) {
+      // Converte l'oggetto delle regole in array
+      return Object.values(response.filter.rules);
+    }
+    
+    return [];
+  } catch (error) {
+    logger.error('Errore nel recupero regole OPNsense', {
+      error: error.message
+    });
+    throw error;
+  }
+}
+  
 
   /**
    * Applica configurazione firewall
