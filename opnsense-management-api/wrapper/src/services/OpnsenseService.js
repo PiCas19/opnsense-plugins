@@ -211,16 +211,41 @@ class OpnsenseService {
     }
   }
 
+  normalizeOpnRule(opn) {
+    return {
+      uuid: opn.uuid,
+      description: opn.description ?? '',
+      interface: opn.interface ?? '',
+      action: opn.action ?? '',
+      protocol: opn.protocol ?? 'any',
+      direction: opn.direction ?? 'in',
+      enabled: opn.enable === '1' || opn.enable === 1 || opn.enable === true,
+      source: opn.source ?? 'any',
+      source_port: opn.src_port ?? '',
+      destination: opn.destination ?? 'any',
+      destination_port: opn.dst_port ?? '',
+      log: opn.log === '1' || opn.log === 1 || opn.log === true,
+    };
+  }
+
   // Elenco regole da OPNsense
   async getRules() {
     try {
-      const response = await this.apiCall('GET', '/api/firewall/filter/get');
-      if (response && response.filter && response.filter.rules) {
-        return Object.values(response.filter.rules);
-      }
-      return [];
+      // i grid di OPNsense usano POST /searchXxx
+      const payload = {
+        current: 1,          // prima pagina
+        rowCount: 9999,      // prendi “tutto”
+        sort: { sequence: 'asc' },
+        searchPhrase: ''     // nessun filtro lato OPNsense
+      };
+
+      const res = await this.apiCall('POST', '/api/firewall/filter/searchRule', payload);
+
+      // struttura attesa: { rows: [...], total: n }
+      const rows = Array.isArray(res?.rows) ? res.rows : [];
+      return rows.map(r => this.normalizeOpnRule(r));
     } catch (error) {
-      logger.error('Errore recupero elenco regole OPNsense', { error: error.message });
+      logger.error('Errore recupero elenco regole OPNsense (searchRule)', { error: error.message });
       throw error;
     }
   }
