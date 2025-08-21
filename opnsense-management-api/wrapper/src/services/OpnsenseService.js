@@ -369,9 +369,6 @@ async getRules() {
     }
   }
 
-  /**
-   * Formatta regola per OPNsense
-   */
   formatRuleForOPNsense(ruleData) {
     return {
       enabled: ruleData.enabled !== false ? '1' : '0',
@@ -379,7 +376,7 @@ async getRules() {
       direction: ruleData.direction || 'in',
       ipprotocol: 'inet',
       protocol: ruleData.protocol || 'any',
-      type: ruleData.action || 'pass',
+      action: ruleData.action || 'pass',    // <- QUI prima era "type"
       description: ruleData.description || 'API Created Rule',
       source_net: this.formatAddress(ruleData.source_config),
       source_port: this.formatPort(ruleData.source_config),
@@ -434,6 +431,28 @@ async getRules() {
 
     return true;
   }
+
+  async apiCall(method, url, data = undefined) {
+  try {
+    const client = this.getHttpClient();
+    const resp = await client.request({
+      method,
+      url,
+      data
+    });
+
+    // L'API OPNsense di solito torna 200 con payload {result: "..."} anche su errori logici
+    if (resp.status >= 400) {
+      throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+    }
+    return resp.data;
+  } catch (err) {
+    this._logError(err);
+    throw err;
+  }
+}
+
+
 
   /**
    * Stato del servizio
