@@ -38,17 +38,31 @@
     .muted{color:var(--muted)}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
     .spacer{height:10px}
+    details>summary{cursor:pointer;list-style:none}
+    details>summary::-webkit-details-marker{display:none}
+    details>summary{padding:12px;border:1px solid #1d2a44;border-radius:10px;background:#0c1526}
+    .grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+    .col-2{grid-column:span 2}.col-3{grid-column:span 3}.col-6{grid-column:span 6}
+    .chip{display:inline-flex;gap:8px;align-items:center}
 
     /* modal */
-    .modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:20px}
-    .modal.open{display:flex}
-    .modal .box{width:min(800px,95vw);background:#0e182b;border:1px solid #203659;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.5)}
-    .modal .hdr{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid #203659}
-    .modal .body{padding:16px}
-    .chips{display:flex;gap:10px;flex-wrap:wrap}
-    .chip{border-radius:999px;border:1px solid #24436d;background:#122242;padding:4px 10px;font-size:12px}
-    .kv{display:grid;grid-template-columns:160px 1fr;gap:6px 12px}
-    .kv div:nth-child(odd){color:var(--muted)}
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:20px;z-index:1000}
+    .modal.show{display:flex}
+    .modal-card{background:var(--panel);border:1px solid #1d2a44;border-radius:14px;max-width:800px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+    .modal-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #22314f}
+    .modal-body{padding:16px}
+    .kvs{display:grid;grid-template-columns:160px 1fr;gap:6px 14px}
+    .kv{color:#9fb0c8}.kv strong{color:#dbe8ff}
+    .close-x{background:#5a1e28;border-color:#7a2531}
+    .close-x:hover{background:#74212f}
+
+    /* button spinner */
+    .btn-busy{opacity:.8;pointer-events:none;position:relative}
+    .btn-busy::after{
+      content:"";width:14px;height:14px;border:2px solid #fff;border-right-color:transparent;
+      border-radius:50%;animation:spin .6s linear infinite;display:inline-block;margin-left:8px;vertical-align:-2px
+    }
+    @keyframes spin{to{transform:rotate(360deg)}}
   </style>
 </head>
 <body>
@@ -77,18 +91,63 @@
         <input id="search" placeholder="Search description…">
         <button id="refresh">Refresh</button>
         <div class="right row">
-          <button id="apply" class="btn-primary">Apply pending</button>
+          <button id="apply" class="btn-primary">Apply Pending</button>
           <button id="logout" class="btn-danger">Logout</button>
         </div>
       </div>
 
-      <div class="muted" id="meta" style="margin-top:6px"></div>
+      <!-- CREATE RULE -->
+      <details id="create-details">
+        <summary class="row">
+          <strong>Create rule</strong>
+          <span class="muted">minimal fields for a demo</span>
+        </summary>
+        <form id="create-form" style="margin-top:12px">
+          <div class="grid">
+            <label class="col-3">Description
+              <input name="description" placeholder="e.g. Allow HTTPS to WAN" required>
+            </label>
+            <label class="col-1">Interface
+              <select name="interface"><option>wan</option><option>lan</option></select>
+            </label>
+            <label class="col-1">Action
+              <select name="action"><option value="pass" selected>pass</option><option value="block">block</option><option value="reject">reject</option></select>
+            </label>
+            <label class="col-1">Protocol
+              <select name="protocol"><option>any</option><option>tcp</option><option>udp</option><option>icmp</option></select>
+            </label>
+            <label class="col-2">Source net
+              <input name="src_net" placeholder="any or 1.2.3.4/32" value="any">
+            </label>
+            <label class="col-1">Src port
+              <input name="src_port" placeholder="optional" inputmode="numeric">
+            </label>
+            <label class="col-2">Destination net
+              <input name="dst_net" placeholder="any or 5.6.7.0/24" value="any">
+            </label>
+            <label class="col-1">Dst port
+              <input name="dst_port" placeholder="443" inputmode="numeric">
+            </label>
+            <div class="col-3 chip" style="margin-top:6px">
+              <label class="chip"><input type="checkbox" name="enabled" checked> Enabled</label>
+              <label class="chip"><input type="checkbox" name="log"> Log</label>
+              <label class="chip"><input type="checkbox" name="apply"> Apply now</label>
+            </div>
+            <div class="col-6 row" style="margin-top:4px">
+              <button class="btn-primary" type="submit">Create</button>
+              <span id="create-msg" class="muted"></span>
+            </div>
+          </div>
+        </form>
+      </details>
+
+      <div class="muted" id="meta" style="margin-top:10px"></div>
 
       <div style="overflow:auto;margin-top:10px">
         <table id="rules-table" class="mono">
           <thead>
             <tr>
-              <th>#</th><th>Description</th><th>Interface</th><th>Action</th><th>Protocol</th><th>Enabled</th><th>Actions</th>
+              <th>#</th><th>Description</th><th>Action</th><th>Enabled</th><th>Toggle</th><th>Details</th>
             </tr>
           </thead>
           <tbody id="tbody"></tbody>
@@ -98,195 +157,304 @@
     </section>
   </main>
 
-  <!-- DETAILS MODAL -->
-  <div id="modal" class="modal" role="dialog" aria-modal="true">
-    <div class="box">
-      <div class="hdr">
-        <strong style="font-size:15px">Rule details</strong>
-        <div id="chips" class="chips"></div>
-        <button id="closeModal" class="btn-danger" style="margin-left:auto">Close</button>
+  <!-- Modal details -->
+  <div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="mdl-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <strong id="mdl-title">Rule details</strong>
+        <button id="mdl-close" class="close-x">Close</button>
       </div>
-      <div class="body">
-        <div class="kv" id="kv"></div>
+      <div class="modal-body">
+        <div id="mdl-topline" class="row" style="gap:16px;margin-bottom:10px"></div>
+        <div class="kvs">
+          <div class="kv">UUID</div><div id="kv-uuid"></div>
+          <div class="kv">Description</div><div id="kv-desc"></div>
+          <div class="kv">Direction</div><div id="kv-dir"></div>
+          <div class="kv">Interface</div><div id="kv-iface"></div>
+          <div class="kv">Action</div><div id="kv-action"></div>
+          <div class="kv">Protocol</div><div id="kv-proto"></div>
+          <div class="kv">Source</div><div id="kv-src"></div>
+          <div class="kv">Destination</div><div id="kv-dst"></div>
+          <div class="kv">Logging</div><div id="kv-log"></div>
+        </div>
       </div>
     </div>
   </div>
-
   <script>
-    // ---------- config ----------
-    const API = '/api';
-    const LS_TOKEN = 'dmz_token';
-    const $ = (q) => document.querySelector(q);
-    const show = (el, v=true) => el.classList.toggle('hidden', !v);
+  // ---------- config ----------
+  const API = '/api';
+  const LS_TOKEN = 'dmz_token';
+  const LS_REFRESH = 'dmz_refresh';
+  const $ = (q) => document.querySelector(q);
+  const show = (el, v=true) => el.classList.toggle('hidden', !v);
 
-    // ---------- auth & fetch ----------
-    const getToken = () => localStorage.getItem(LS_TOKEN);
-    const setToken = (t) => localStorage.setItem(LS_TOKEN, t);
-    const clearToken = () => localStorage.removeItem(LS_TOKEN);
+  // ---------- token storage ----------
+  const getAccess = () => localStorage.getItem(LS_TOKEN);
+  const setAccess = (t) => localStorage.setItem(LS_TOKEN, t);
+  const getRefresh = () => localStorage.getItem(LS_REFRESH);
+  const setRefresh = (t) => localStorage.setItem(LS_REFRESH, t);
+  const clearTokens = () => { localStorage.removeItem(LS_TOKEN); localStorage.removeItem(LS_REFRESH); };
 
-    async function api(path, opts={}) {
-      const headers = Object.assign({'Content-Type':'application/json'}, opts.headers || {});
-      const tok = getToken(); if (tok) headers['Authorization'] = 'Bearer ' + tok;
-      const res = await fetch(API + path, Object.assign(opts, {headers}));
-      const ct = res.headers.get('content-type') || '';
-      const body = ct.includes('application/json') ? await res.json() : await res.text();
-      if (!res.ok) {
-        const msg = typeof body === 'string' ? body : (body?.message || JSON.stringify(body));
-        throw new Error(`HTTP ${res.status}: ${msg}`);
-      }
-      return body;
+  // clone opzioni fetch per retry (body deve essere ricostruito)
+  function cloneOpts(opts={}) {
+    const o = {...opts, headers: {...(opts.headers||{})}};
+    if (opts.body && typeof opts.body === 'string') o.body = opts.body; // già string
+    return o;
+  }
+
+  // ---------- fetch con auto-refresh ----------
+  async function api(path, opts={}) {
+    const headers = Object.assign({'Content-Type':'application/json'}, opts.headers || {});
+    const tok = getAccess(); if (tok) headers['Authorization'] = 'Bearer ' + tok;
+
+    let res = await fetch(API + path, Object.assign(cloneOpts(opts), {headers}));
+    if (res.status !== 401) return parseRes(res);
+
+    // 401: tenta un refresh UNA volta
+    const refreshed = await tryRefresh();
+    if (!refreshed) return parseRes(res); // rilancia errore originale
+
+    // retry con nuovo access
+    const headers2 = Object.assign({'Content-Type':'application/json'}, opts.headers || {});
+    const tok2 = getAccess(); if (tok2) headers2['Authorization'] = 'Bearer ' + tok2;
+    res = await fetch(API + path, Object.assign(cloneOpts(opts), {headers: headers2}));
+    return parseRes(res);
+  }
+
+  async function parseRes(res){
+    const ct = res.headers.get('content-type') || '';
+    const body = ct.includes('application/json') ? await res.json() : await res.text();
+    if (!res.ok) {
+      const msg = typeof body === 'string' ? body : (body?.message || JSON.stringify(body));
+      throw new Error(`HTTP ${res.status}: ${msg}`);
     }
+    return body;
+  }
 
-    // ---------- utils: pick selected option ----------
-    function pickSelected(v){
-      // string/number -> toString
-      if (v == null) return '';
-      if (typeof v !== 'object') return String(v);
-      // object with many options: find one with selected truthy
-      for (const k of Object.keys(v)){
-        const opt = v[k];
-        if (opt && (opt.selected === 1 || opt.selected === '1' || opt.selected === true)) {
-          return opt.value ?? k;
+  async function tryRefresh(){
+    const r = getRefresh();
+    if (!r) return false;
+    try {
+      const resp = await fetch(API + '/auth/refresh', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ refresh_token: r }),
+      });
+      if (!resp.ok) { clearTokens(); return false; }
+      const data = await resp.json();
+      if (!data?.access_token || !data?.refresh_token) { clearTokens(); return false; }
+      setAccess(data.access_token);
+      setRefresh(data.refresh_token);
+      setUserInfo();
+      return true;
+    } catch {
+      clearTokens();
+      return false;
+    }
+  }
+
+  // ---------- UI helpers ----------
+  function setUserInfo(){ $('#user-info').textContent = getAccess() ? 'Logged in' : 'Not authenticated'; }
+  function showError(el, msg){ el.textContent = msg; el.classList.remove('hidden'); el.classList.remove('ok'); el.classList.add('error'); setTimeout(()=>el.classList.add('hidden'), 5000); }
+  function showOk(el, msg){ el.textContent = msg; el.classList.remove('hidden'); el.classList.remove('error'); el.classList.add('ok'); setTimeout(()=>el.classList.add('hidden'), 3000); }
+  function setBusy(btn, on, labelBusy="Working…"){
+    if(on){ btn.dataset.prev = btn.textContent; btn.textContent = labelBusy; btn.classList.add('btn-busy'); }
+    else{ btn.classList.remove('btn-busy'); if(btn.dataset.prev) btn.textContent = btn.dataset.prev; }
+  }
+  const boolish = (v) => v===1 || v==='1' || v===true || v==='true';
+  const esc = (s)=> String(s ?? '').replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+
+  function pickSelected(obj){
+    if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+      for (const [k,v] of Object.entries(obj)) {
+        if (v && typeof v === 'object' && (v.selected === 1 || v.selected === '1' || v.selected === true)) {
+          return v.value ?? k;
         }
       }
-      // single object {value,selected}? take value
-      if ('value' in v) return String(v.value);
-      // fallback: first value
-      const first = Object.values(v)[0];
-      return first && first.value ? String(first.value) : '';
+      for (const [k,v] of Object.entries(obj)) { if (v && v.value) return v.value; return k; }
     }
-    const yes = (x) => x === 1 || x === '1' || x === true || x === 'true';
+    return obj ?? '';
+  }
+  function badge(enabled){ return enabled ? `<span class="badge bg-ok">enabled</span>` : `<span class="badge bg-bad">disabled</span>`; }
 
-    function normalize(r){
-      return {
-        uuid: r.uuid || r.ruleid || '',
-        description: r.description || '',
-        iface: pickSelected(r.interface) || r.interface || '',
-        action: pickSelected(r.action) || r.action || '',
-        protocol: pickSelected(r.protocol) || r.protocol || 'any',
-        direction: pickSelected(r.direction) || r.direction || '',
-        enabled: yes(r.enabled) || yes(r.enable),
-        log: yes(r.log),
-        source_net: r.source_net || r.source || pickSelected(r.source) || 'any',
-        source_port: r.source_port || r.src_port || '',
-        destination_net: r.destination_net || r.destination || pickSelected(r.destination) || 'any',
-        destination_port: r.destination_port || r.dst_port || '',
-        quick: yes(r.quick),
-        floating: yes(r.floating)
-      };
-    }
-
-    // ---------- UI helpers ----------
-    function setUserInfo(){ $('#user-info').textContent = getToken() ? 'Logged in' : 'Not authenticated'; }
-    function showError(el,msg){ el.textContent=msg; el.classList.remove('ok'); el.classList.remove('hidden'); setTimeout(()=>el.classList.add('hidden'),5000); }
-    function badge(enabled){ return enabled ? `<span class="badge bg-ok">enabled</span>` : `<span class="badge bg-bad">disabled</span>`; }
-    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
-
-    // ---------- login ----------
-    $('#login-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      try {
-        const r = await api('/auth/login',{method:'POST',body:JSON.stringify({username:fd.get('username'),password:fd.get('password')})});
-        const tok = r.token || r.access_token; if(!tok) throw new Error('Missing token in response');
-        setToken(tok); setUserInfo(); await loadRules(); show($('#login-card'),false); show($('#rules-card'),true);
-      } catch(err){ showError($('#login-error'), String(err.message||err)); }
-    });
-    $('#logout').addEventListener('click', ()=>{ clearToken(); setUserInfo(); show($('#rules-card'),false); show($('#login-card'),true); });
-
-    // ---------- rules ----------
-    $('#refresh').addEventListener('click', ()=> loadRules());
-    $('#apply').addEventListener('click', async ()=>{
-      try{ await api('/rules/apply',{method:'POST'}); await loadRules(); }catch(e){ showError($('#rules-error'), e.message); }
-    });
-    $('#search').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); loadRules(); } });
-
-    async function loadRules(){
-      const s = ($('#search').value||'').trim();
-      try{
-        const data = await api('/rules?search='+encodeURIComponent(s));
-        renderRules(data?.rows||[]);
-        $('#meta').textContent = `Total: ${data?.total ?? 0}`;
-      }catch(e){ renderRules([]); showError($('#rules-error'), e.message); }
-    }
-
-    function renderRules(rows){
-      const tb = $('#tbody'); tb.innerHTML = '';
-      if (!rows.length){ tb.innerHTML = `<tr><td colspan="7" class="muted">No rules found</td></tr>`; return; }
-      rows.forEach((raw, i)=>{
-        const r = normalize(raw);
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${i+1}</td>
-          <td>${escapeHtml(r.description)}</td>
-          <td>${escapeHtml(r.iface)}</td>
-          <td>${escapeHtml(r.action)}</td>
-          <td>${escapeHtml(r.protocol)}</td>
-          <td>${badge(r.enabled)}</td>
-          <td class="row" style="gap:6px">
-            <button data-act="toggle" data-uuid="${r.uuid}" data-enabled="${r.enabled ? '1':'0'}">Toggle</button>
-            <button data-act="details" data-uuid="${r.uuid}">Details</button>
-          </td>`;
-        tb.appendChild(tr);
-      });
-    }
-
-    // delegate buttons
-    document.addEventListener('click', async (e)=>{
-      const btn = e.target.closest('button[data-act]');
-      if(!btn) return;
-      const act = btn.getAttribute('data-act');
-      const uuid = btn.getAttribute('data-uuid');
-
-      if (act === 'toggle'){
-        const current = btn.getAttribute('data-enabled') === '1';
-        try{
-          await api(`/rules/${encodeURIComponent(uuid)}/toggle`, {method:'POST', body: JSON.stringify({enabled: !current, apply: false})});
-          await loadRules(); // refresh to reflect enabled/disabled
-        }catch(err){ showError($('#rules-error'), err.message); }
-      }
-
-      if (act === 'details'){
-        try{
-          const res = await api(`/rules/${encodeURIComponent(uuid)}`, {method:'GET'});
-          const r = normalize(res?.rule || res);
-          openDetails(r);
-        }catch(err){ showError($('#rules-error'), err.message); }
-      }
-    });
-
-    // ---------- details modal ----------
-    function openDetails(r){
-      const chips = $('#chips');
-      chips.innerHTML = `
-        <span class="chip">${r.enabled ? 'enabled' : 'disabled'}</span>
-        <span class="chip">iface: ${escapeHtml(r.iface||'-')}</span>
-        <span class="chip">action: ${escapeHtml(r.action||'-')}</span>
-        <span class="chip">protocol: ${escapeHtml(r.protocol||'-')}</span>`;
-
-      const kv = $('#kv');
-      kv.innerHTML = `
-        <div>Description</div><div>${escapeHtml(r.description||'-')}</div>
-        <div>UUID</div><div class="mono">${escapeHtml(r.uuid||'-')}</div>
-        <div>Direction</div><div>${escapeHtml(r.direction||'-')}</div>
-        <div>Source</div><div>${escapeHtml(r.source_net||'any')}${r.source_port?':'+escapeHtml(r.source_port):''}</div>
-        <div>Destination</div><div>${escapeHtml(r.destination_net||'any')}${r.destination_port?':'+escapeHtml(r.destination_port):''}</div>
-        <div>Log</div><div>${r.log ? 'on' : 'off'}</div>
-        <div>Quick</div><div>${r.quick ? 'yes' : 'no'}</div>
-        <div>Floating</div><div>${r.floating ? 'yes' : 'no'}</div>
-      `;
-      $('#modal').classList.add('open');
-    }
-    $('#closeModal').addEventListener('click', ()=> $('#modal').classList.remove('open'));
-    $('#modal').addEventListener('click', (e)=>{ if(e.target.id==='modal') $('#modal').classList.remove('open'); });
-
-    // ---------- boot ----------
-    (async function(){
+  // ---------- login/logout ----------
+  $('#login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = { username: fd.get('username'), password: fd.get('password') };
+    try {
+      const r = await api('/auth/login', { method:'POST', body: JSON.stringify(payload) });
+      const at = r.access_token || r.token;
+      const rt = r.refresh_token;
+      if (!at || !rt) throw new Error('Missing token in response');
+      setAccess(at); setRefresh(rt);
       setUserInfo();
-      if (getToken()){
-        try{ await loadRules(); show($('#login-card'),false); show($('#rules-card'),true); }catch{/* token non valido */}
-      }
-    })();
-  </script>
+      await loadRules();
+      show($('#login-card'), false); show($('#rules-card'), true);
+    } catch (err) {
+      showError($('#login-error'), String(err.message || err));
+    }
+  });
+
+  $('#logout').addEventListener('click', () => {
+    clearTokens();
+    setUserInfo();
+    show($('#rules-card'), false);
+    show($('#login-card'), true);
+  });
+
+  // ---------- rules / actions (come prima) ----------
+  $('#refresh').addEventListener('click', () => loadRules());
+
+  const applyBtn = $('#apply');
+  applyBtn.addEventListener('click', async () => {
+    try {
+      setBusy(applyBtn, true, 'Applying…');
+      await api('/rules/apply', { method:'POST' });
+      showOk($('#rules-error'), 'Configuration applied');
+      await loadRules();
+    } catch (e) { showError($('#rules-error'), e.message); }
+    finally { setBusy(applyBtn, false); }
+  });
+
+  $('#search').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); loadRules(); } });
+
+  async function loadRules() {
+    const s = ($('#search').value || '').trim();
+    try {
+      const data = await api('/rules?search=' + encodeURIComponent(s));
+      renderRules(data?.rows || []);
+      $('#meta').textContent = `Total: ${data?.total ?? 0}`;
+    } catch (e) { renderRules([]); showError($('#rules-error'), e.message); }
+  }
+
+  function renderRules(rows) {
+    const tb = $('#tbody'); tb.innerHTML = '';
+    if (!rows.length) {
+      tb.innerHTML = `<tr><td colspan="6" class="muted">No rules found</td></tr>`;
+      return;
+    }
+    rows.forEach((r, i) => {
+      const isEnabled = boolish(r.enabled ?? r.enable);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${i+1}</td>
+        <td>${esc(r.description || '')}</td>
+        <td>${esc(r.action || '')}</td>
+        <td>${badge(isEnabled)}</td>
+        <td><button class="btn-toggle" data-uuid="${esc(r.uuid)}" data-enabled="${isEnabled ? '1':'0'}">Toggle</button></td>
+        <td><button class="btn-details" data-uuid="${esc(r.uuid)}">Details</button></td>`;
+      tb.appendChild(tr);
+    });
+  }
+
+  // Toggle
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button.btn-toggle');
+    if (!btn) return;
+    const uuid = btn.getAttribute('data-uuid');
+    const current = btn.getAttribute('data-enabled') === '1';
+    try {
+      setBusy(btn, true, current ? 'Disabling…' : 'Enabling…');
+      await api(`/rules/${encodeURIComponent(uuid)}/toggle`, {
+        method:'POST',
+        body: JSON.stringify({ enabled: !current, apply: false })
+      });
+      await loadRules();
+    } catch (err) { showError($('#rules-error'), err.message); }
+    finally { setBusy(btn, false); }
+  });
+
+  // Details
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button.btn-details');
+    if (!btn) return;
+    const uuid = btn.getAttribute('data-uuid');
+    try {
+      const data = await api(`/rules/${encodeURIComponent(uuid)}`, { method:'GET' });
+      const rule = data?.rule || data;
+      fillDetails(uuid, rule);
+      openModal();
+    } catch (err) { showError($('#rules-error'), err.message); }
+  });
+
+  // Create rule
+  $('#create-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const rule = {
+      enabled: fd.get('enabled') ? '1' : '0',
+      interface: fd.get('interface') || 'wan',
+      direction: 'in',
+      ipprotocol: 'inet',
+      protocol: fd.get('protocol') || 'any',
+      action: fd.get('action') || 'pass',
+      description: (fd.get('description') || '').trim(),
+      source_net: (fd.get('src_net') || 'any').trim() || 'any',
+      source_port: (fd.get('src_port') || '').trim(),
+      destination_net: (fd.get('dst_net') || 'any').trim() || 'any',
+      destination_port: (fd.get('dst_port') || '').trim(),
+      log: fd.get('log') ? '1' : '0',
+      quick: '1',
+      floating: '0'
+    };
+    const applyNow = !!fd.get('apply');
+    const btn = e.target.querySelector('button[type="submit"]');
+    try {
+      setBusy(btn, true, 'Creating…');
+      const res = await api('/rules', { method:'POST', body: JSON.stringify({ rule, apply: applyNow }) });
+      showOk($('#create-msg'), `Created (uuid: ${res?.result?.uuid || res?.result?.opnsense_uuid || 'n/a'})${applyNow?' & applied':''}`);
+      e.target.reset();
+      e.target.querySelector('select[name="interface"]').value = 'wan';
+      e.target.querySelector('select[name="action"]').value = 'pass';
+      e.target.querySelector('select[name="protocol"]').value = 'any';
+      loadRules();
+    } catch (err) { showError($('#create-msg'), String(err.message || err)); }
+    finally { setBusy(btn, false); }
+  });
+
+  // ---------- details modal (come prima) ----------
+  const modal = document.getElementById('modal');
+  document.getElementById('mdl-close').addEventListener('click', closeModal);
+  modal.addEventListener('click', (e)=>{ if(e.target === modal) closeModal(); });
+
+  function openModal(){ modal.classList.add('show'); }
+  function closeModal(){ modal.classList.remove('show'); }
+
+  function fillDetails(uuid, r){
+    const enabled = boolish(r.enabled ?? r.enable);
+    const iface = pickSelected(r.interface ?? r.if ?? r.iface);
+    const action = pickSelected(r.action);
+    const proto  = pickSelected(r.protocol);
+    const direction = r.direction ?? r.dir ?? '';
+    const sNet = r.source_net ?? r.source ?? 'any';
+    const sPort = r.source_port ?? r.src_port ?? '';
+    const dNet = r.destination_net ?? r.destination ?? 'any';
+    const dPort = r.destination_port ?? r.dst_port ?? '';
+    const log = boolish(r.log);
+
+    document.getElementById('mdl-title').textContent = 'Rule details';
+    document.getElementById('mdl-topline').innerHTML = `${badge(enabled)} <span class="muted">iface:</span> <strong>${esc(iface || '-')}</strong> <span class="muted">action:</span> <strong>${esc(action || '-')}</strong> <span class="muted">protocol:</span> <strong>${esc(proto || '-')}</strong>`;
+    document.getElementById('kv-uuid').textContent = uuid || (r.uuid ?? '');
+    document.getElementById('kv-desc').textContent = r.description || '';
+    document.getElementById('kv-dir').textContent = direction || '';
+    document.getElementById('kv-iface').textContent = iface || '';
+    document.getElementById('kv-action').textContent = action || '';
+    document.getElementById('kv-proto').textContent = proto || '';
+    document.getElementById('kv-src').textContent = `${sNet}${sPort ? ':'+sPort : ''}`;
+    document.getElementById('kv-dst').textContent = `${dNet}${dPort ? ':'+dPort : ''}`;
+    document.getElementById('kv-log').textContent = log ? 'enabled' : 'disabled';
+  }
+
+  // ---------- boot ----------
+  (async function boot(){
+    setUserInfo();
+    if (getAccess()) {
+      try { await loadRules(); document.getElementById('login-card').classList.add('hidden'); document.getElementById('rules-card').classList.remove('hidden'); }
+      catch { /* token non valido */ }
+    }
+  })();
+</script>
+
 </body>
 </html>
