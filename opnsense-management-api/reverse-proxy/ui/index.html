@@ -23,6 +23,7 @@
     .btn-primary:hover{filter:brightness(1.05)}
     .btn-danger{background:#5a1e28;border-color:#7a2531}
     .btn-danger:hover{background:#752330}
+    .btn-ghost{background:#0c1526;border-color:#1d2a44}
     .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:12px}
     .right{margin-left:auto}
     .error{color:#ffb4b4;margin:8px 0 0}
@@ -30,7 +31,7 @@
     .hidden{display:none}
     table{width:100%;border-collapse:separate;border-spacing:0}
     thead th{text-align:left;color:var(--muted);font-weight:600;padding:12px 14px;border-bottom:1px solid #22314f}
-    tbody td{padding:12px 14px;border-bottom:1px solid #152138}
+    tbody td{padding:12px 14px;border-bottom:1px solid #152138;vertical-align:middle}
     tr:hover td{background:#0e182b}
     .badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;font-size:12px}
     .bg-ok{background:#0e2a1a;color:#78f0a6;border:1px solid #1c5a38}
@@ -44,6 +45,10 @@
     .grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
     .col-2{grid-column:span 2}.col-3{grid-column:span 3}.col-6{grid-column:span 6}
     .chip{display:inline-flex;gap:8px;align-items:center}
+
+    /* action buttons group */
+    .btn-group{display:flex;gap:8px;flex-wrap:wrap}
+    .btn-xs{padding:6px 10px;font-size:12px;border-radius:8px}
 
     /* modal */
     .modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:20px;z-index:1000}
@@ -108,13 +113,26 @@
               <input name="description" placeholder="e.g. Allow HTTPS to WAN" required>
             </label>
             <label class="col-1">Interface
-              <select name="interface"><option>wan</option><option>lan</option></select>
+              <select name="interface">
+                <option>wan</option>
+                <option>lan</option>
+                <option>dmz</option>
+              </select>
             </label>
             <label class="col-1">Action
-              <select name="action"><option value="pass" selected>pass</option><option value="block">block</option><option value="reject">reject</option></select>
+              <select name="action">
+                <option value="pass" selected>pass</option>
+                <option value="block">block</option>
+                <option value="reject">reject</option>
+              </select>
             </label>
             <label class="col-1">Protocol
-              <select name="protocol"><option>any</option><option>tcp</option><option>udp</option><option>icmp</option></select>
+              <select name="protocol">
+                <option>any</option>
+                <option>tcp</option>
+                <option>udp</option>
+                <option>icmp</option>
+              </select>
             </label>
             <label class="col-2">Source net
               <input name="src_net" placeholder="any or 1.2.3.4/32" value="any">
@@ -147,7 +165,7 @@
         <table id="rules-table" class="mono">
           <thead>
             <tr>
-              <th>#</th><th>Description</th><th>Action</th><th>Enabled</th><th>Toggle</th><th>Details</th>
+              <th>#</th><th>Description</th><th>Action</th><th>Enabled</th><th>Actions</th>
             </tr>
           </thead>
           <tbody id="tbody"></tbody>
@@ -180,7 +198,8 @@
       </div>
     </div>
   </div>
-  <script>
+
+<script>
   // ---------- config ----------
   const API = '/api';
   const LS_TOKEN = 'dmz_token';
@@ -198,7 +217,7 @@
   // clone opzioni fetch per retry (body deve essere ricostruito)
   function cloneOpts(opts={}) {
     const o = {...opts, headers: {...(opts.headers||{})}};
-    if (opts.body && typeof opts.body === 'string') o.body = opts.body; // già string
+    if (opts.body && typeof opts.body === 'string') o.body = opts.body;
     return o;
   }
 
@@ -212,9 +231,8 @@
 
     // 401: tenta un refresh UNA volta
     const refreshed = await tryRefresh();
-    if (!refreshed) return parseRes(res); // rilancia errore originale
+    if (!refreshed) return parseRes(res);
 
-    // retry con nuovo access
     const headers2 = Object.assign({'Content-Type':'application/json'}, opts.headers || {});
     const tok2 = getAccess(); if (tok2) headers2['Authorization'] = 'Bearer ' + tok2;
     res = await fetch(API + path, Object.assign(cloneOpts(opts), {headers: headers2}));
@@ -303,7 +321,7 @@
     show($('#login-card'), true);
   });
 
-  // ---------- rules / actions (come prima) ----------
+  // ---------- rules / actions ----------
   $('#refresh').addEventListener('click', () => loadRules());
 
   const applyBtn = $('#apply');
@@ -312,7 +330,7 @@
       setBusy(applyBtn, true, 'Applying…');
       await api('/rules/apply', { method:'POST' });
       showOk($('#rules-error'), 'Configuration applied');
-      await loadRules();
+      await loadRules();   // AJAX refresh
     } catch (e) { showError($('#rules-error'), e.message); }
     finally { setBusy(applyBtn, false); }
   });
@@ -331,7 +349,7 @@
   function renderRules(rows) {
     const tb = $('#tbody'); tb.innerHTML = '';
     if (!rows.length) {
-      tb.innerHTML = `<tr><td colspan="6" class="muted">No rules found</td></tr>`;
+      tb.innerHTML = `<tr><td colspan="5" class="muted">No rules found</td></tr>`;
       return;
     }
     rows.forEach((r, i) => {
@@ -342,13 +360,18 @@
         <td>${esc(r.description || '')}</td>
         <td>${esc(r.action || '')}</td>
         <td>${badge(isEnabled)}</td>
-        <td><button class="btn-toggle" data-uuid="${esc(r.uuid)}" data-enabled="${isEnabled ? '1':'0'}">Toggle</button></td>
-        <td><button class="btn-details" data-uuid="${esc(r.uuid)}">Details</button></td>`;
+        <td>
+          <div class="btn-group">
+            <button class="btn-xs btn-ghost btn-toggle"  data-uuid="${esc(r.uuid)}" data-enabled="${isEnabled ? '1':'0'}">Toggle</button>
+            <button class="btn-xs btn-ghost btn-details" data-uuid="${esc(r.uuid)}">Details</button>
+            <button class="btn-xs btn-danger btn-delete"  data-uuid="${esc(r.uuid)}">Delete</button>
+          </div>
+        </td>`;
       tb.appendChild(tr);
     });
   }
 
-  // Toggle
+  // Toggle click (delegation)
   document.addEventListener('click', async (e) => {
     const btn = e.target.closest('button.btn-toggle');
     if (!btn) return;
@@ -365,7 +388,7 @@
     finally { setBusy(btn, false); }
   });
 
-  // Details
+  // Details click
   document.addEventListener('click', async (e) => {
     const btn = e.target.closest('button.btn-details');
     if (!btn) return;
@@ -376,6 +399,21 @@
       fillDetails(uuid, rule);
       openModal();
     } catch (err) { showError($('#rules-error'), err.message); }
+  });
+
+  // Delete click
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button.btn-delete');
+    if (!btn) return;
+    const uuid = btn.getAttribute('data-uuid');
+    if (!confirm(`Delete rule ${uuid}?`)) return;
+    try {
+      setBusy(btn, true, 'Deleting…');
+      await api(`/rules/${encodeURIComponent(uuid)}`, { method:'DELETE' });
+      await loadRules();
+      showOk($('#rules-error'), 'Rule deleted');
+    } catch (err) { showError($('#rules-error'), err.message); }
+    finally { setBusy(btn, false); }
   });
 
   // Create rule
@@ -413,7 +451,7 @@
     finally { setBusy(btn, false); }
   });
 
-  // ---------- details modal (come prima) ----------
+  // ---------- details modal ----------
   const modal = document.getElementById('modal');
   document.getElementById('mdl-close').addEventListener('click', closeModal);
   modal.addEventListener('click', (e)=>{ if(e.target === modal) closeModal(); });
@@ -434,7 +472,10 @@
     const log = boolish(r.log);
 
     document.getElementById('mdl-title').textContent = 'Rule details';
-    document.getElementById('mdl-topline').innerHTML = `${badge(enabled)} <span class="muted">iface:</span> <strong>${esc(iface || '-')}</strong> <span class="muted">action:</span> <strong>${esc(action || '-')}</strong> <span class="muted">protocol:</span> <strong>${esc(proto || '-')}</strong>`;
+    document.getElementById('mdl-topline').innerHTML =
+      `${badge(enabled)} <span class="muted">iface:</span> <strong>${esc(iface || '-')}</strong> ` +
+      `<span class="muted">action:</span> <strong>${esc(action || '-')}</strong> ` +
+      `<span class="muted">protocol:</span> <strong>${esc(proto || '-')}</strong>`;
     document.getElementById('kv-uuid').textContent = uuid || (r.uuid ?? '');
     document.getElementById('kv-desc').textContent = r.description || '';
     document.getElementById('kv-dir').textContent = direction || '';
@@ -455,6 +496,5 @@
     }
   })();
 </script>
-
 </body>
 </html>
