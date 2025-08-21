@@ -1,5 +1,5 @@
 // scripts/test-opnsense.js
-const { getEnv } = require('../src/utils/env');
+const { getEnv } = require('./env');
 const axios = require('axios');
 const https = require('https');
 
