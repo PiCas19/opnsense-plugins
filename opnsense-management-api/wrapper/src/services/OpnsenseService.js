@@ -1,4 +1,3 @@
-// services/OpnsenseService.js
 const axios = require('axios');
 const https = require('https');
 const config = require('../config/opnsense');
@@ -9,76 +8,121 @@ class OpnsenseService {
     this.baseUrl = config.host;
     this.apiKey = config.apiKey;
     this.apiSecret = config.apiSecret;
-    this.verifySSL = config.verifySSL;
-    this.requestTimeout = config.timeout;
     this.maxRetries = 3;
+    this.requestTimeout = config.timeout;
     this.rateLimitMap = new Map();
 
-    if (!this.verifySSL) {
-      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-    }
-
-    logger.info('OPNsense Service inizializzato', {
-      baseUrl: this.baseUrl,
-      hasCredentials: !!(this.apiKey && this.apiSecret),
-      verifySSL: this.verifySSL,
-      timeout: this.requestTimeout
+    // Configura HTTPS agent
+    this.httpsAgent = new https.Agent({
+      ca: config.ssl.ca,
+      cert: config.ssl.cert,
+      key: config.ssl.key,
+      rejectUnauthorized: config.verifySSL,
+      keepAlive: true,
+      keepAliveMsecs: 30000,
+      maxSockets: 10
     });
 
-    if (!this.apiKey || !this.apiSecret) {
-      logger.error('Credenziali OPNsense mancanti');
-      throw new Error('Credenziali OPNsense mancanti');
-    }
+    logger.info('OPNsense Service initialized', {
+      baseUrl: this.baseUrl,
+      hasApiKey: !!this.apiKey,
+      hasApiSecret: !!this.apiSecret,
+      sslVerify: config.verifySSL,
+      timeout: this.requestTimeout
+    });
   }
 
-  // Crea client HTTP configurato
+  /**
+   * Rate limiting check
+   */
+  checkRateLimit(operation, maxRequests = 60) {
+    const now = Date.now();
+    const windowMs = 60000; // 1 minuto
+    
+    if (!this.rateLimitMap.has(operation)) {
+      this.rateLimitMap.set(operation, []);
+    }
+    
+    const requests = this.rateLimitMap.get(operation);
+    const validRequests = requests.filter(timestamp => now - timestamp < windowMs);
+    
+    if (validRequests.length >= maxRequests) {
+      logger.warn('Rate limit exceeded', { operation, requests_count: validRequests.length });
+      return false;
+    }
+    
+    validRequests.push(now);
+    this.rateLimitMap.set(operation, validRequests);
+    return true;
+  }
+
+  /**
+   * Crea client HTTP per API OPNsense
+   */
   getHttpClient() {
-    const clientConfig = {
+    const client = axios.create({
       baseURL: this.baseUrl,
+      httpsAgent: this.httpsAgent,
+      auth: {
+        username: this.apiKey,
+        password: this.apiSecret,
+      },
       timeout: this.requestTimeout,
       maxRedirects: 0,
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'User-Agent': 'OPNsense-Firewall-API/1.0'
       },
-      auth: {
-        username: this.apiKey,
-        password: this.apiSecret
-      },
-      validateStatus: (status) => status < 600
-    };
-
-    if (this.baseUrl.startsWith('https:')) {
-      if (!this.verifySSL) {
-        clientConfig.httpsAgent = new https.Agent({
-          rejectUnauthorized: false,
-          checkServerIdentity: () => undefined
-        });
-      } else {
-        clientConfig.httpsAgent = new https.Agent({ rejectUnauthorized: true });
+      validateStatus: function (status) {
+        return status < 600; // Accetta tutti gli status code sotto 600
       }
-    }
+    });
 
-    const client = axios.create(clientConfig);
-
+    // Request interceptor
     client.interceptors.request.use(
-      (cfg) => {
-        logger.debug(`OPNsense Request: ${cfg.method?.toUpperCase()} ${cfg.url}`);
-        return cfg;
+      (config) => {
+        logger.debug(`API Request: ${config.method?.toUpperCase()} ${config.url}`, {
+          target: `${config.baseURL}${config.url}`,
+          sslVerify: this.httpsAgent.options.rejectUnauthorized
+        });
+        return config;
       },
       (error) => {
-        logger.error('Errore interceptor richiesta', { error: error.message });
+        logger.error('Request interceptor error:', error.message);
         return Promise.reject(error);
       }
     );
 
+    // Response interceptor
     client.interceptors.response.use(
       (response) => {
-        logger.debug(`OPNsense Response: ${response.status} ${response.statusText}`);
+        logger.debug(`API Response: ${response.status} ${response.statusText}`);
         return response;
       },
       (error) => {
-        this._logError(error);
+        // Gestione errori SSL
+        if (error.code && (
+          error.code.includes('CERT') ||
+          error.code === 'SELF_SIGNED_CERT_IN_CHAIN' ||
+          error.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE'
+        )) {
+          logger.error('SSL Certificate Error:', {
+            code: error.code,
+            message: error.message,
+            url: error.config?.url,
+            suggestion: 'Verificare configurazione certificati SSL'
+          });
+        } else {
+          logger.error('API Response error:', {
+            message: error.message,
+            code: error.code,
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            url: error.config?.url
+          });
+        }
+
         return Promise.reject(error);
       }
     );
@@ -86,311 +130,482 @@ class OpnsenseService {
     return client;
   }
 
-  // Log errori in modo uniforme
-  _logError(error) {
-    const info = {
-      message: error.message,
-      code: error.code,
-      status: error.response?.status,
-      url: error.config?.url
-    };
-
-    if (error.code === 'ECONNREFUSED') {
-      logger.error('OPNsense non raggiungibile (ECONNREFUSED)', info);
-    } else if (error.code === 'ETIMEDOUT') {
-      logger.error('Timeout connessione OPNsense', info);
-    } else if (error.response?.status === 401) {
-      logger.error('Autenticazione OPNsense fallita', info);
-    } else if (error.response?.status === 403) {
-      logger.error('Accesso negato OPNsense', info);
-    } else if (error.code && String(error.code).includes('CERT')) {
-      logger.error('Errore certificato SSL OPNsense', {
-        ...info,
-        suggerimento: 'Impostare OPNSENSE_VERIFY_SSL=false nel file di configurazione per certificati auto-firmati'
-      });
-    } else {
-      logger.error('Errore generico OPNsense', info);
+  /**
+   * Effettua richiesta API con retry logic
+   */
+  async makeApiRequest(method, endpoint, data = {}, operation = 'default') {
+    // Check rate limit
+    if (!this.checkRateLimit(operation)) {
+      throw new Error(`Rate limit exceeded for operation: ${operation}`);
     }
+
+    let lastError;
+    for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
+      try {
+        const client = this.getHttpClient();
+        let response;
+
+        logger.debug(`API Request attempt ${attempt}/${this.maxRetries}:`, {
+          method,
+          endpoint,
+          operation,
+          dataKeys: Object.keys(data)
+        });
+
+        switch (method.toLowerCase()) {
+          case 'get':
+            response = await client.get(endpoint, { params: data });
+            break;
+          case 'post':
+            response = await client.post(endpoint, data);
+            break;
+          case 'put':
+            response = await client.put(endpoint, data);
+            break;
+          case 'delete':
+            response = await client.delete(endpoint);
+            break;
+          default:
+            throw new Error(`Unsupported HTTP method: ${method}`);
+        }
+
+        logger.debug('API Request successful:', {
+          method,
+          endpoint,
+          status: response.status,
+          operation
+        });
+
+        return response.data;
+
+      } catch (error) {
+        lastError = error;
+        
+        logger.warn('API request failed:', {
+          method,
+          endpoint,
+          attempt,
+          error: error.message,
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          operation,
+          code: error.code
+        });
+
+        // Non fare retry su errori SSL
+        if (error.code && (
+          error.code.includes('CERT') ||
+          error.code === 'SELF_SIGNED_CERT_IN_CHAIN' ||
+          error.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE'
+        )) {
+          logger.error('SSL Certificate Error - stopping retries');
+          break;
+        }
+
+        // Non fare retry su errori client (4xx) eccetto 429
+        if (error.response?.status >= 400 && error.response?.status < 500 && error.response?.status !== 429) {
+          break;
+        }
+
+        if (attempt < this.maxRetries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+          logger.debug(`Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    const enhancedError = new Error(
+      `API request failed after ${this.maxRetries} attempts: ${lastError.message}`
+    );
+    enhancedError.originalError = lastError;
+    enhancedError.endpoint = endpoint;
+    enhancedError.method = method;
+    enhancedError.operation = operation;
+    enhancedError.statusCode = lastError.response?.status;
+    
+    throw enhancedError;
   }
 
-  // Test connessione
+  /**
+   * Test connessione a OPNsense
+   */
   async testConnection() {
-    logger.info('Test connessione OPNsense');
+    logger.info('Testing OPNsense connection', {
+      baseUrl: this.baseUrl,
+      sslVerify: config.verifySSL,
+      timeout: this.requestTimeout
+    });
+
     try {
-      const client = this.getHttpClient();
-      const start = Date.now();
-      const response = await client.get('/api/core/firmware/status');
-      const responseTime = Date.now() - start;
+      const startTime = Date.now();
+      
+      // Prova endpoint multipli per migliore compatibilità
+      const testEndpoints = [
+        '/api/core/firmware/status',
+        '/api/core/system/status',
+        '/api/diagnostics/interface/getInterfaceConfig'
+      ];
 
-      logger.info('Connessione OPNsense riuscita', { responseTime: `${responseTime}ms`, status: response.status });
+      let lastError;
+      for (const endpoint of testEndpoints) {
+        try {
+          const data = await this.makeApiRequest('GET', endpoint, {}, 'test_connection');
+          const responseTime = Date.now() - startTime;
+          
+          return {
+            success: true,
+            response_time_ms: responseTime,
+            api_version: data?.api_version || 'unknown',
+            system_version: data?.version || data?.product_version || 'unknown',
+            endpoint_used: endpoint,
+            timestamp: new Date().toISOString()
+          };
+        } catch (error) {
+          lastError = error;
+          logger.debug(`Test endpoint ${endpoint} failed:`, error.message);
+          continue;
+        }
+      }
 
-      return {
-        success: true,
-        responseTime,
-        status: response.status,
-        timestamp: new Date().toISOString()
-      };
+      throw lastError;
+
     } catch (error) {
-      logger.error('Test connessione OPNsense fallito', {
+      logger.error('OPNsense connection test failed', {
         error: error.message,
         code: error.code,
         status: error.response?.status
       });
+
       return {
         success: false,
         error: error.message,
-        code: error.code,
-        status: error.response?.status,
+        status_code: error.response?.status,
         timestamp: new Date().toISOString()
       };
     }
   }
 
-  // Creazione regola
-  async createRule(ruleData) {
-    logger.info('Creazione regola su OPNsense', {
-      description: ruleData.description,
-      interface: ruleData.interface,
-      action: ruleData.action
-    });
-
+  /**
+   * Ottieni tutte le regole firewall
+   */
+  async getRules() {
     try {
+      logger.info('Fetching firewall rules from OPNsense...');
+
+      // Usa l'endpoint searchRule standard
+      const filterData = await this.makeApiRequest('GET', '/api/firewall/filter/searchRule', {
+        current: 1,
+        rowCount: 1000
+      }, 'get_filter_rules');
+      
+      logger.debug('Filter searchRule API response:', {
+        hasData: !!filterData,
+        hasRows: !!(filterData && filterData.rows),
+        rowCount: filterData?.rows?.length || 0
+      });
+      
+      if (!filterData || !filterData.rows) {
+        logger.warn('No rules found in OPNsense response');
+        return {
+          success: true,
+          data: [],
+          total: 0
+        };
+      }
+
+      const rules = filterData.rows.map(rule => this.normalizeRule(rule));
+      
+      logger.info('Successfully retrieved firewall rules from OPNsense', {
+        total_rules: rules.length
+      });
+
+      return {
+        success: true,
+        data: rules,
+        total: filterData.rowCount || rules.length
+      };
+
+    } catch (error) {
+      logger.error('Failed to get firewall rules', { 
+        error: error.message
+      });
+      throw new Error(`Errore nel recupero regole: ${error.message}`);
+    }
+  }
+
+  /**
+   * Ottieni regola specifica per UUID
+   */
+  async getRule(uuid) {
+    try {
+      const response = await this.makeApiRequest('GET', `/api/firewall/filter/getRule/${uuid}`, {}, 'get_rule');
+      
+      if (!response || !response.rule) {
+        throw new Error('Regola non trovata');
+      }
+
+      return {
+        success: true,
+        data: this.normalizeRule(response.rule)
+      };
+    } catch (error) {
+      logger.error('Errore nel recupero regola', { uuid, error: error.message });
+      throw new Error(`Errore nel recupero regola: ${error.message}`);
+    }
+  }
+
+  /**
+   * Crea nuova regola
+   */
+  async createRule(ruleData) {
+    try {
+      // Valida dati regola
       this.validateRuleData(ruleData);
+
+      // Formatta regola per OPNsense
       const formattedRule = this.formatRuleForOPNsense(ruleData);
 
-      const client = this.getHttpClient();
-      const response = await client.post('/api/firewall/filter/addRule', { rule: formattedRule });
+      logger.info('Creating filter rule with formatted data:', formattedRule);
 
-      if (response.status !== 200) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      const response = await this.makeApiRequest('POST', '/api/firewall/filter/addRule', {
+        rule: formattedRule
+      }, 'create_rule');
+      
+      if (!response || !response.uuid) {
+        throw new Error('OPNsense API non ha restituito un UUID valido');
       }
-      if (!response.data?.uuid) {
-        throw new Error('Risposta OPNsense priva di UUID');
-      }
 
-      logger.info('Regola OPNsense creata', { uuid: response.data.uuid, description: ruleData.description });
+      // Applica modifiche
+      await this.applyConfig();
 
-      return { success: true, uuid: response.data.uuid, message: 'Regola creata in OPNsense' };
+      return {
+        success: true,
+        uuid: response.uuid,
+        message: 'Regola creata con successo'
+      };
     } catch (error) {
-      logger.error('Errore creazione regola OPNsense', {
-        error: error.message,
-        ruleData: { description: ruleData.description, interface: ruleData.interface, action: ruleData.action }
-      });
+      logger.error('Errore nella creazione regola', { ruleData, error: error.message });
       throw new Error(`Errore nella creazione regola: ${error.message}`);
     }
   }
 
-  // Abilita/disabilita regola
-  async toggleRule(ruleUuid, enabled = null) {
+  /**
+   * Aggiorna regola esistente
+   */
+  async updateRule(uuid, ruleData) {
     try {
-      const uuid = this.encodeId(ruleUuid);
-      // se enabled è null -> solo toggle senza forzare stato
-      const suffix = (enabled === null || enabled === undefined) ? '' : `/${enabled ? '1' : '0'}`;
-      const url = `/api/firewall/filter/toggleRule/${uuid}${suffix}`; // <-- camelCase
-      const res = await this.apiCall('POST', url, {});
-      const ok = res?.result === 'ok' || res?.result === 'saved' || res?.status === 'ok';
-      if (!ok) throw new Error(`Risposta inattesa: ${JSON.stringify(res)}`);
-      return { success: true, uuid: ruleUuid, enabled: enabled ?? null, opnsense_response: res };
+      this.validateRuleData(ruleData);
+
+      // Ottieni regola esistente
+      const existingResponse = await this.makeApiRequest('GET', `/api/firewall/filter/getRule/${uuid}`, {}, 'get_rule');
+      
+      if (!existingResponse || !existingResponse.rule) {
+        throw new Error('Regola non trovata');
+      }
+
+      // Unisci con nuovi dati
+      const updatedRule = {
+        ...existingResponse.rule,
+        ...this.formatRuleForOPNsense(ruleData)
+      };
+
+      const response = await this.makeApiRequest('POST', `/api/firewall/filter/setRule/${uuid}`, {
+        rule: updatedRule
+      }, 'update_rule');
+      
+      if (!response || response.result !== 'saved') {
+        throw new Error('Errore nell\'aggiornamento della regola');
+      }
+
+      await this.applyConfig();
+
+      return {
+        success: true,
+        message: 'Regola aggiornata con successo'
+      };
     } catch (error) {
-      logger.error('Errore toggleRule OPNsense', { uuid: ruleUuid, enabled, error: error.message });
-      throw new Error(`Impossibile eseguire toggleRule: ${error.message}`);
+      logger.error('Errore nell\'aggiornamento regola', { uuid, ruleData, error: error.message });
+      throw new Error(`Errore nell'aggiornamento regola: ${error.message}`);
     }
   }
 
-  encodeId(v) {
-    if (v === undefined || v === null) throw new Error('UUID mancante');
-    return encodeURIComponent(String(v).trim());
-  }
-
-  // Recupera una regola da OPNsense
-  async getRule(ruleUuid) {
+  /**
+   * Elimina regola
+   */
+  async deleteRule(uuid) {
     try {
-      const uuid = this.encodeId(ruleUuid);
-      const res = await this.apiCall('GET', `/api/firewall/filter/getRule/${uuid}`);
-      return res?.rule || null;
+      const response = await this.makeApiRequest('POST', `/api/firewall/filter/delRule/${uuid}`, {}, 'delete_rule');
+      
+      if (!response || response.result !== 'deleted') {
+        throw new Error('Errore nell\'eliminazione della regola');
+      }
+
+      await this.applyConfig();
+
+      return {
+        success: true,
+        message: 'Regola eliminata con successo'
+      };
     } catch (error) {
-      logger.error('Errore getRule OPNsense', { uuid: ruleUuid, error: error.message });
-      throw error;
+      logger.error('Errore nell\'eliminazione regola', { uuid, error: error.message });
+      throw new Error(`Errore nell'eliminazione regola: ${error.message}`);
     }
   }
 
-
-
-  normalizeOpnRule(opn) {
-    return {
-      uuid: opn.uuid,
-      description: opn.description ?? '',
-      interface: opn.interface ?? '',
-      action: opn.action ?? '',
-      protocol: opn.protocol ?? 'any',
-      direction: opn.direction ?? 'in',
-      enabled: opn.enable === '1' || opn.enable === 1 || opn.enable === true,
-      source: opn.source ?? 'any',
-      source_port: opn.src_port ?? '',
-      destination: opn.destination ?? 'any',
-      destination_port: opn.dst_port ?? '',
-      log: opn.log === '1' || opn.log === 1 || opn.log === true,
-    };
-  }
-
-  // Elenco regole da OPNsense
-  encodeId(v) {
-  if (v === undefined || v === null) throw new Error('UUID mancante');
-  return encodeURIComponent(String(v).trim());
-}
-
-  // ✅ usa l’endpoint che sai funzionare sulla tua istanza
-  async getRule(ruleUuid) {
+  /**
+   * Abilita/disabilita regola
+   */
+  async toggleRule(uuid, enabled = true) {
     try {
-      const uuid = this.encodeId(ruleUuid);
-      const res = await this.apiCall('GET', `/api/firewall/filter/get_rule/${uuid}`);
-      return res?.rule || null;
+      // Ottieni regola esistente
+      const existingResponse = await this.makeApiRequest('GET', `/api/firewall/filter/getRule/${uuid}`, {}, 'get_rule');
+      
+      if (!existingResponse || !existingResponse.rule) {
+        throw new Error('Regola non trovata');
+      }
+
+      // Aggiorna stato enabled
+      const updatedRule = {
+        ...existingResponse.rule,
+        enabled: enabled ? '1' : '0'
+      };
+
+      const response = await this.makeApiRequest('POST', `/api/firewall/filter/setRule/${uuid}`, {
+        rule: updatedRule
+      }, 'toggle_rule');
+      
+      if (!response || response.result !== 'saved') {
+        throw new Error('Errore nel cambio stato regola');
+      }
+
+      await this.applyConfig();
+
+      return {
+        success: true,
+        message: `Regola ${enabled ? 'abilitata' : 'disabilitata'} con successo`
+      };
     } catch (error) {
-      logger.error('Errore get_rule OPNsense', { uuid: ruleUuid, error: error.message });
-      throw error;
+      logger.error('Errore nel toggle regola', { uuid, enabled, error: error.message });
+      throw new Error(`Errore nel cambio stato regola: ${error.message}`);
     }
   }
 
-
-  // Aggiorna regola su OPNsense
-  async updateRule(ruleUuid, ruleData) {
-    try {
-      logger.info('Aggiornamento regola OPNsense', { uuid: ruleUuid });
-      this.validateRuleData({
-        ...ruleData,
-        description: ruleData.description || 'Rule',
-        interface: ruleData.interface || 'wan',
-        action: ruleData.action || 'pass'
-      });
-
-      const uuid = this.encodeId(ruleUuid);
-      const formattedRule = this.formatRuleForOPNsense(ruleData);
-
-      const res = await this.apiCall('POST', `/api/firewall/filter/setRule/${uuid}`, { rule: formattedRule }); // <-- camelCase
-      const ok = res?.result === 'ok' || res?.result === 'saved' || res?.status === 'ok';
-      if (!ok) throw new Error(`Risposta inattesa: ${JSON.stringify(res)}`);
-      return res;
-    } catch (error) {
-      logger.error('Errore setRule OPNsense', { uuid: ruleUuid, error: error.message });
-      throw new Error(`Errore aggiornamento regola: ${error.message}`);
-    }
-  }
-
-
-  // Elimina regola su OPNsense
-   async deleteRule(ruleUuid) {
-    try {
-      const uuid = this.encodeId(ruleUuid);
-      const res = await this.apiCall('POST', `/api/firewall/filter/delRule/${uuid}`, {}); // <-- camelCase
-      const ok = res?.result === 'ok' || res?.result === 'deleted' || res?.status === 'ok';
-      if (!ok) throw new Error(`Risposta inattesa: ${JSON.stringify(res)}`);
-      return true;
-    } catch (error) {
-      logger.error('Errore delRule OPNsense', { uuid: ruleUuid, error: error.message });
-      throw new Error(`Errore eliminazione regola: ${error.message}`);
-    }
-  }
-
-
-  // Applica configurazione su OPNsense
+  /**
+   * Applica configurazione firewall
+   */
   async applyConfig() {
-    logger.info('Applicazione configurazione OPNsense');
     try {
-      const client = this.getHttpClient();
-      const response = await client.post('/api/firewall/filter/apply', {});
-      if (response.status !== 200) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      const response = await this.makeApiRequest('POST', '/api/firewall/filter/apply', {}, 'apply_config');
+      
+      if (!response || response.status !== 'ok') {
+        throw new Error('Errore nell\'applicazione configurazione');
+      }
+
+      // Aspetta che le modifiche si propaghino
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      logger.info('Configurazione firewall applicata con successo');
       return true;
+
     } catch (error) {
-      logger.error('Errore applicazione configurazione OPNsense', { error: error.message, status: error.response?.status });
+      logger.error('Errore nell\'applicazione configurazione', { error: error.message });
       throw new Error(`Errore nell'applicazione configurazione: ${error.message}`);
     }
   }
 
-  // Conversione dati regola per OPNsense
+  /**
+   * Normalizza regola da OPNsense
+   */
+  normalizeRule(rule) {
+    return {
+      uuid: rule.uuid || rule.id,
+      description: rule.description || rule.descr || 'Unnamed Rule',
+      interface: rule.interface || 'wan',
+      action: rule.action || rule.type || 'pass',
+      enabled: rule.enabled === '1' || rule.enabled === true,
+      source: rule.source || rule.source_net || 'any',
+      destination: rule.destination || rule.destination_net || 'any',
+      protocol: rule.protocol || rule.ipprotocol || 'any',
+      source_port: rule.source_port || rule.src_port || null,
+      destination_port: rule.destination_port || rule.dst_port || null,
+      log: rule.log === '1' || rule.log === true,
+      created: rule.created || new Date().toISOString()
+    };
+  }
+
+  /**
+   * Formatta regola per OPNsense API
+   */
   formatRuleForOPNsense(ruleData) {
     return {
-      enabled: ruleData.enabled !== false ? '1' : '0',
+      enabled: ruleData.enabled ? '1' : '0',
       interface: ruleData.interface || 'wan',
-      direction: ruleData.direction || 'in',
+      direction: 'in',
       ipprotocol: 'inet',
       protocol: ruleData.protocol || 'any',
-      action: ruleData.action || 'pass',
+      type: ruleData.action || 'pass',
       description: ruleData.description || 'API Created Rule',
-      source_net: this.formatAddress(ruleData.source_config),
-      source_port: this.formatPort(ruleData.source_config),
-      destination_net: this.formatAddress(ruleData.destination_config),
-      destination_port: this.formatPort(ruleData.destination_config),
-      log: ruleData.log_enabled ? '1' : '0',
+      source_net: this.formatAddress(ruleData.source),
+      source_port: ruleData.source_port || '',
+      destination_net: this.formatAddress(ruleData.destination),
+      destination_port: ruleData.destination_port || '',
+      log: ruleData.log ? '1' : '0',
       quick: '1',
       floating: '0'
     };
   }
 
-  // Formattazione indirizzo
-  formatAddress(addressConfig) {
-    if (!addressConfig || addressConfig.type === 'any') return 'any';
-    switch (addressConfig.type) {
-      case 'single':
-        return addressConfig.address || 'any';
-      case 'network':
-        return addressConfig.network || 'any';
-      default:
-        return 'any';
+  /**
+   * Formatta indirizzo per OPNsense
+   */
+  formatAddress(addressInput) {
+    if (!addressInput || addressInput === 'any') {
+      return 'any';
     }
+
+    if (typeof addressInput === 'string') {
+      return addressInput;
+    }
+
+    if (typeof addressInput === 'object') {
+      switch (addressInput.type) {
+        case 'any':
+          return 'any';
+        case 'network':
+          return addressInput.network;
+        case 'single':
+          return addressInput.address;
+        default:
+          return 'any';
+      }
+    }
+
+    return 'any';
   }
 
-  // Formattazione porta
-  formatPort(addressConfig) {
-    return addressConfig?.port ? String(addressConfig.port) : '';
-  }
-
-  // Validazione minima dati regola
+  /**
+   * Valida dati regola
+   */
   validateRuleData(ruleData) {
     const required = ['action', 'interface', 'description'];
-    const missing = required.filter(f => !ruleData[f]);
-    if (missing.length > 0) throw new Error(`Campi obbligatori mancanti: ${missing.join(', ')}`);
-
-    const validActions = ['pass', 'block', 'reject'];
-    if (!validActions.includes(ruleData.action)) {
-      throw new Error(`Azione non valida. Valori ammessi: ${validActions.join(', ')}`);
+    const missing = required.filter(field => !ruleData[field]);
+    
+    if (missing.length > 0) {
+      throw new Error(`Campi obbligatori mancanti: ${missing.join(', ')}`);
     }
+
+    // Valida azione
+    if (!['pass', 'block', 'reject'].includes(ruleData.action)) {
+      throw new Error('Azione non valida. Utilizzare: pass, block, reject');
+    }
+
+    // Valida interfaccia
+    if (!['wan', 'lan', 'opt1', 'opt2', 'dmz'].includes(ruleData.interface)) {
+      throw new Error('Interfaccia non valida');
+    }
+
     return true;
-  }
-
-  // Chiamata generica API OPNsense
-  async apiCall(method, url, data = undefined) {
-  try {
-    const client = this.getHttpClient();
-    const resp = await client.request({ method, url, data });
-    logger.debug('OPNsense response', { url, status: resp.status, data: resp.data });
-
-    // mappa errori per non trasformare tutto in 500 generico
-    if (resp.status === 401) throw new Error(`HTTP 401 Unauthorized - ${JSON.stringify(resp.data)}`);
-    if (resp.status === 403) throw new Error(`HTTP 403 Forbidden - ${JSON.stringify(resp.data)}`);
-    if (resp.status === 404) throw new Error(`HTTP 404 Not Found - ${JSON.stringify(resp.data)}`);
-    if (resp.status >= 500) throw new Error(`HTTP ${resp.status} Server Error - ${JSON.stringify(resp.data)}`);
-    if (resp.status >= 400) throw new Error(`HTTP ${resp.status} - ${JSON.stringify(resp.data)}`);
-
-    return resp.data;
-  } catch (err) {
-    this._logError(err);
-    throw err;
-  }
-}
-
-  // Stato del servizio
-  getServiceHealth() {
-    return {
-      service: 'opnsense',
-      status: 'ready',
-      configuration: {
-        baseUrl: this.baseUrl,
-        hasCredentials: !!(this.apiKey && this.apiSecret),
-        verifySSL: this.verifySSL,
-        timeout: this.requestTimeout
-      },
-      timestamp: new Date().toISOString()
-    };
   }
 }
 

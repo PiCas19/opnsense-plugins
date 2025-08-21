@@ -44,7 +44,7 @@ router.use(authenticate);
  *         schema: { type: boolean }
  *       - in: query
  *         name: sortBy
- *         schema: { type: string, default: uuid }
+ *         schema: { type: string, default: id }
  *       - in: query
  *         name: sortOrder
  *         schema: { type: string, enum: [asc, desc], default: asc }
@@ -147,42 +147,25 @@ router.get('/local', validateSearchQuery, asyncHandler(async (req, res) => {
  */
 router.get('/opnsense', asyncHandler(async (req, res) => {
   try {
-    // accesso a utenti autenticati; se vuoi reintrodurre i permessi rimetti il check
-    logger.info('Accesso a /api/rules/opnsense', { user: req.user?.username, userId: req.user?.id });
+    const user = await User.findByPk(req.user.id);
+    if (!user || !user.hasPermission('read_rules')) {
+      return res.status(403).json({ success: false, message: 'Permessi insufficienti' });
+    }
 
     const { page = 1, limit = 50, search, interface: iface, action, enabled } = req.query;
 
-    // test connessione; se fallisce ritorna 502 con dettagli
     const conn = await OpnsenseService.testConnection();
     if (!conn.success) {
-      return res.status(502).json({
-        success: false,
-        message: 'OPNsense non raggiungibile',
-        details: { code: conn.code, status: conn.status, error: conn.error }
-      });
+      return res.status(502).json({ success: false, message: 'OPNsense non raggiungibile', details: conn });
     }
 
-    let all;
-    try {
-      all = await OpnsenseService.getRules();
-    } catch (e) {
-      // qualsiasi errore lato OPNsense deve tornare 502 (bad gateway) e non 500
-      return res.status(502).json({
-        success: false,
-        message: 'Errore nel recupero delle regole da OPNsense',
-        details: { error: e.message }
-      });
-    }
+    const all = await OpnsenseService.getRules();
 
     const filtered = all.filter(r => {
       const bySearch = search ? String(r.description || '').toLowerCase().includes(String(search).toLowerCase()) : true;
       const byIface = iface ? String(r.interface || '').toLowerCase() === String(iface).toLowerCase() : true;
       const byAction = action ? String(r.action || '').toLowerCase() === String(action).toLowerCase() : true;
-      const byEnabled =
-        enabled !== undefined
-          ? (String(r.enabled) === ((enabled === 'false' || enabled === false) ? '0' : '1') ||
-             r.enabled === ((enabled === 'false' || enabled === false) ? false : true))
-          : true;
+      const byEnabled = enabled !== undefined ? String(r.enabled) === (enabled === 'false' || enabled === false ? '0' : '1') || r.enabled === (enabled === 'false' || enabled === false ? false : true) : true;
       return bySearch && byIface && byAction && byEnabled;
     });
 
@@ -190,19 +173,24 @@ router.get('/opnsense', asyncHandler(async (req, res) => {
     const l = parseInt(limit);
     const start = (p - 1) * l;
     const end = start + l;
+    const slice = filtered.slice(start, end);
 
-    return res.json({
+    res.json({
       success: true,
       message: 'Regole OPNsense recuperate con successo',
-      data: filtered.slice(start, end),
-      meta: { total: filtered.length, page: p, limit: l, pages: Math.ceil(filtered.length / l) }
+      data: slice,
+      meta: {
+        total: filtered.length,
+        page: p,
+        limit: l,
+        pages: Math.ceil(filtered.length / l)
+      }
     });
   } catch (error) {
-    logger.error('Errore inatteso /api/rules/opnsense', { error: error.message, user: req.user?.username });
-    return res.status(500).json({ success: false, message: 'Errore inatteso' });
+    logger.error('Errore recupero regole da OPNsense', { error: error.message, user: req.user?.username });
+    res.status(500).json({ success: false, message: 'Errore nel recupero delle regole OPNsense' });
   }
 }));
-
 
 /**
  * @swagger
@@ -226,10 +214,12 @@ router.get('/opnsense', asyncHandler(async (req, res) => {
  */
 router.get('/:id', asyncHandler(async (req, res) => {
   try {
- 
-    const { id } = req.params;
+    const user = await User.findByPk(req.user.id);
+    if (!user || !user.hasPermission('read_rules')) {
+      return res.status(403).json({ success: false, message: 'Permessi insufficienti' });
+    }
 
-    console.log(id);
+    const { id } = req.params;
 
     const conn = await OpnsenseService.testConnection();
     if (!conn.success) {
