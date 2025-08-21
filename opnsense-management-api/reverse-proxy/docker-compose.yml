@@ -15,7 +15,7 @@ services:
       - WRAPPER_TIMEOUT=${WRAPPER_TIMEOUT}
     networks: [dmznet]
     expose:
-      - "8000"
+     - "443:443"
 
   nginx:
     image: nginx:1.27-alpine
