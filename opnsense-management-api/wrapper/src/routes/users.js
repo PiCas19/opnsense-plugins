@@ -99,7 +99,7 @@ router.use(authenticate);
  *         password:
  *           type: string
  *           minLength: 8
- *           pattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`])'
+ *           pattern: '^[a-zA-Z0-9_-]+$'
  *         first_name:
  *           type: string
  *           maxLength: 50
