@@ -206,14 +206,14 @@ class OpnsenseService {
   async getRule(ruleUuid) {
     try {
       const uuid = this.encodeId(ruleUuid);
-      const res = await this.apiCall('GET', `/api/firewall/filter/get_rule/${uuid}`);
-      if (!res?.rule) return null;
-      return res.rule; // restituisci grezzo; mappa se ti serve
+      const res = await this.apiCall('GET', `/api/firewall/filter/getRule/${uuid}`);
+      return res?.rule || null;
     } catch (error) {
-      logger.error('Errore get_rule OPNsense', { uuid: ruleUuid, error: error.message });
+      logger.error('Errore getRule OPNsense', { uuid: ruleUuid, error: error.message });
       throw error;
     }
   }
+
 
 
   normalizeOpnRule(opn) {
