@@ -145,12 +145,11 @@ router.get('/local', validateSearchQuery, asyncHandler(async (req, res) => {
  *       200:
  *         description: Elenco recuperato
  */
-router.get('/opnsense', asyncHandler(async (req, res) => {
+ router.get('/opnsense', asyncHandler(async (req, res) => {
   try {
-    const user = await User.findByPk(req.user.id);
-    if (!user || !user.hasPermission('read_rules')) {
-      return res.status(403).json({ success: false, message: 'Permessi insufficienti' });
-    }
+    // accesso consentito a qualunque utente autenticato
+    // se vuoi tenere un log del chiamante:
+    logger.info('Accesso a /api/rules/opnsense', { user: req.user?.username, userId: req.user?.id });
 
     const { page = 1, limit = 50, search, interface: iface, action, enabled } = req.query;
 
@@ -165,7 +164,9 @@ router.get('/opnsense', asyncHandler(async (req, res) => {
       const bySearch = search ? String(r.description || '').toLowerCase().includes(String(search).toLowerCase()) : true;
       const byIface = iface ? String(r.interface || '').toLowerCase() === String(iface).toLowerCase() : true;
       const byAction = action ? String(r.action || '').toLowerCase() === String(action).toLowerCase() : true;
-      const byEnabled = enabled !== undefined ? String(r.enabled) === (enabled === 'false' || enabled === false ? '0' : '1') || r.enabled === (enabled === 'false' || enabled === false ? false : true) : true;
+      const byEnabled = enabled !== undefined
+        ? (String(r.enabled) === ((enabled === 'false' || enabled === false) ? '0' : '1') || r.enabled === ((enabled === 'false' || enabled === false) ? false : true))
+        : true;
       return bySearch && byIface && byAction && byEnabled;
     });
 
@@ -173,18 +174,12 @@ router.get('/opnsense', asyncHandler(async (req, res) => {
     const l = parseInt(limit);
     const start = (p - 1) * l;
     const end = start + l;
-    const slice = filtered.slice(start, end);
 
     res.json({
       success: true,
       message: 'Regole OPNsense recuperate con successo',
-      data: slice,
-      meta: {
-        total: filtered.length,
-        page: p,
-        limit: l,
-        pages: Math.ceil(filtered.length / l)
-      }
+      data: filtered.slice(start, end),
+      meta: { total: filtered.length, page: p, limit: l, pages: Math.ceil(filtered.length / l) }
     });
   } catch (error) {
     logger.error('Errore recupero regole da OPNsense', { error: error.message, user: req.user?.username });
