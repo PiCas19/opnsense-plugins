@@ -183,55 +183,38 @@ class OpnsenseService {
   // Abilita/disabilita regola
   async toggleRule(ruleUuid, enabled = null) {
     try {
-      logger.info('Toggle regola OPNsense', { uuid: ruleUuid, enabled });
-
-      const enabledSeg = enabled === null || enabled === undefined ? '' : `/${enabled ? '1' : '0'}`;
-      const url = `/api/firewall/filter/toggle_rule/${encodeURIComponent(ruleUuid)}${enabledSeg}`;
-
+      const uuid = this.encodeId(ruleUuid);
+      // se enabled è null -> solo toggle senza forzare stato
+      const suffix = (enabled === null || enabled === undefined) ? '' : `/${enabled ? '1' : '0'}`;
+      const url = `/api/firewall/filter/toggleRule/${uuid}${suffix}`; // <-- camelCase
       const res = await this.apiCall('POST', url, {});
       const ok = res?.result === 'ok' || res?.result === 'saved' || res?.status === 'ok';
-      if (!ok) throw new Error(`Risposta inattesa da OPNsense: ${JSON.stringify(res)}`);
-
+      if (!ok) throw new Error(`Risposta inattesa: ${JSON.stringify(res)}`);
       return { success: true, uuid: ruleUuid, enabled: enabled ?? null, opnsense_response: res };
     } catch (error) {
-      logger.error('Errore toggle_rule OPNsense', { uuid: ruleUuid, enabled, error: error.message });
-      throw new Error(`Impossibile eseguire toggle_rule: ${error.message}`);
+      logger.error('Errore toggleRule OPNsense', { uuid: ruleUuid, enabled, error: error.message });
+      throw new Error(`Impossibile eseguire toggleRule: ${error.message}`);
     }
+  }
+
+  encodeId(v) {
+    if (v === undefined || v === null) throw new Error('UUID mancante');
+    return encodeURIComponent(String(v).trim());
   }
 
   // Recupera una regola da OPNsense
-async getRule(ruleUuid) {
-  try {
-    if (!ruleUuid) throw new Error('UUID mancante');
-    const res = await this.apiCall(
-      'GET',
-      `/api/firewall/filter/get_rule/${ruleUuid}`
-    );
-
-    // opzionale: normalizza come in getRules()
-    if (res?.rule) {
-      const r = res.rule;
-      return {
-        uuid: r.uuid,
-        description: r.description ?? '',
-        interface: r.interface ?? '',
-        action: r.action ?? '',
-        protocol: r.protocol ?? 'any',
-        direction: r.direction ?? 'in',
-        enabled: r.enable === '1' || r.enable === 1 || r.enable === true,
-        source: r.source ?? 'any',
-        source_port: r.src_port ?? '',
-        destination: r.destination ?? 'any',
-        destination_port: r.dst_port ?? '',
-        log: r.log === '1' || r.log === 1 || r.log === true,
-      };
+  async getRule(ruleUuid) {
+    try {
+      const uuid = this.encodeId(ruleUuid);
+      const res = await this.apiCall('GET', `/api/firewall/filter/get_rule/${uuid}`);
+      if (!res?.rule) return null;
+      return res.rule; // restituisci grezzo; mappa se ti serve
+    } catch (error) {
+      logger.error('Errore get_rule OPNsense', { uuid: ruleUuid, error: error.message });
+      throw error;
     }
-    return null;
-  } catch (error) {
-    logger.error('Errore recupero regola OPNsense', { uuid: ruleUuid, error: error.message });
-    throw error;
   }
-}
+
 
   normalizeOpnRule(opn) {
     return {
@@ -276,35 +259,41 @@ async getRule(ruleUuid) {
   async updateRule(ruleUuid, ruleData) {
     try {
       logger.info('Aggiornamento regola OPNsense', { uuid: ruleUuid });
+      this.validateRuleData({
+        ...ruleData,
+        description: ruleData.description || 'Rule',
+        interface: ruleData.interface || 'wan',
+        action: ruleData.action || 'pass'
+      });
 
-      this.validateRuleData({ ...ruleData, description: ruleData.description || 'Rule', interface: ruleData.interface || 'wan', action: ruleData.action || 'pass' });
+      const uuid = this.encodeId(ruleUuid);
       const formattedRule = this.formatRuleForOPNsense(ruleData);
 
-      const res = await this.apiCall('POST', `/api/firewall/filter/setRule/${encodeURIComponent(ruleUuid)}`, { rule: formattedRule });
-
+      const res = await this.apiCall('POST', `/api/firewall/filter/setRule/${uuid}`, { rule: formattedRule }); // <-- camelCase
       const ok = res?.result === 'ok' || res?.result === 'saved' || res?.status === 'ok';
-      if (!ok) throw new Error(`Risposta inattesa da OPNsense: ${JSON.stringify(res)}`);
-
+      if (!ok) throw new Error(`Risposta inattesa: ${JSON.stringify(res)}`);
       return res;
     } catch (error) {
-      logger.error('Errore aggiornamento regola OPNsense', { uuid: ruleUuid, error: error.message });
+      logger.error('Errore setRule OPNsense', { uuid: ruleUuid, error: error.message });
       throw new Error(`Errore aggiornamento regola: ${error.message}`);
     }
   }
 
+
   // Elimina regola su OPNsense
-  async deleteRule(ruleUuid) {
+   async deleteRule(ruleUuid) {
     try {
-      logger.info('Eliminazione regola OPNsense', { uuid: ruleUuid });
-      const res = await this.apiCall('POST', `/api/firewall/filter/delRule/${encodeURIComponent(ruleUuid)}`, {});
+      const uuid = this.encodeId(ruleUuid);
+      const res = await this.apiCall('POST', `/api/firewall/filter/delRule/${uuid}`, {}); // <-- camelCase
       const ok = res?.result === 'ok' || res?.result === 'deleted' || res?.status === 'ok';
-      if (!ok) throw new Error(`Risposta inattesa da OPNsense: ${JSON.stringify(res)}`);
+      if (!ok) throw new Error(`Risposta inattesa: ${JSON.stringify(res)}`);
       return true;
     } catch (error) {
-      logger.error('Errore eliminazione regola OPNsense', { uuid: ruleUuid, error: error.message });
+      logger.error('Errore delRule OPNsense', { uuid: ruleUuid, error: error.message });
       throw new Error(`Errore eliminazione regola: ${error.message}`);
     }
   }
+
 
   // Applica configurazione su OPNsense
   async applyConfig() {
