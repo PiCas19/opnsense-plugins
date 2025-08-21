@@ -426,7 +426,7 @@ async function main() {
 
       case 'status':
         console.log('Checking database status...');
-        const dbStatusPath = path.join(process.cwd(), 'data', 'database.sqlite');
+        const dbStatusPath = path.join(process.cwd(), '../data', 'database.sqlite');
         if (fs.existsSync(dbStatusPath)) {
           const stats = fs.statSync(dbStatusPath);
           console.log(`Database exists (${stats.size} bytes)`);
