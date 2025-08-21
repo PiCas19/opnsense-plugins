@@ -1,6 +1,9 @@
 // FORZA disabilitazione SSL PRIMA di tutto
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-require('dotenv').config();
+
+// Usa env.js invece di dotenv
+const { loadEnv, getEnv } = require('./utils/env');
+loadEnv(); // Carica le variabili d'ambiente
 
 const express = require('express');
 const helmet = require('helmet');
@@ -25,7 +28,7 @@ const usersRoutes = require('./routes/users');
 const healthRoutes = require('./routes/health');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = getEnv('PORT', '3000');
 
 // Trust proxy per rate limiting
 app.set('trust proxy', 1);
@@ -36,7 +39,7 @@ app.use(helmet({
 }));
 
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
+  origin: getEnv('ALLOWED_ORIGINS')?.split(',') || '*',
   credentials: true
 }));
 
@@ -112,9 +115,9 @@ app.use((req, res, next) => {
 app.get('/', (req, res) => {
   res.json({
     message: 'OPNsense Firewall API',
-    version: process.env.npm_package_version || '1.0.0',
+    version: getEnv('npm_package_version', '1.0.0'),
     status: 'running',
-    environment: process.env.NODE_ENV || 'development',
+    environment: getEnv('NODE_ENV', 'development'),
     ssl_disabled: process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0',
     endpoints: {
       auth: '/api/auth',
@@ -164,17 +167,17 @@ async function startServer() {
 
     // Log OPNsense configuration
     logger.info('OPNsense Configuration Status:', {
-      host: process.env.OPNSENSE_HOST || 'NOT SET',
-      hasApiKey: !!process.env.OPNSENSE_API_KEY,
-      hasApiSecret: !!process.env.OPNSENSE_API_SECRET,
-      verifySSL: process.env.OPNSENSE_VERIFY_SSL,
+      host: getEnv('OPNSENSE_HOST', 'NOT SET'),
+      hasApiKey: !!getEnv('OPNSENSE_API_KEY'),
+      hasApiSecret: !!getEnv('OPNSENSE_API_SECRET'),
+      verifySSL: getEnv('OPNSENSE_VERIFY_SSL'),
       sslGloballyDisabled: process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0'
     });
 
     // Start server
     const server = app.listen(PORT, () => {
       logger.info(`Server avviato sulla porta ${PORT}`, {
-        environment: process.env.NODE_ENV || 'development',
+        environment: getEnv('NODE_ENV', 'development'),
         database: 'SQLite',
         swagger_docs: `http://localhost:${PORT}/api-docs`,
         ssl_verification: process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0' ? 'DISABLED' : 'ENABLED'
@@ -186,7 +189,7 @@ async function startServer() {
       console.log(`📚 Swagger UI: http://localhost:${PORT}/api-docs`);
       console.log(`📋 JSON Schema: http://localhost:${PORT}/api-docs.json`);
       console.log(`🔓 SSL Verification: ${process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0' ? 'DISABLED (OK per certificati auto-firmati)' : 'ENABLED'}`);
-      console.log(`🏠 OPNsense Host: ${process.env.OPNSENSE_HOST || 'NOT CONFIGURED'}`);
+      console.log(`🏠 OPNsense Host: ${getEnv('OPNSENSE_HOST', 'NOT CONFIGURED')}`);
       console.log('=====================================\n');
     });
 
@@ -250,7 +253,7 @@ async function startServer() {
 }
 
 // Start server only if not in test environment
-if (process.env.NODE_ENV !== 'test') {
+if (getEnv('NODE_ENV') !== 'test') {
   startServer();
 }
 
