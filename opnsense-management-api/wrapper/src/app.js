@@ -139,7 +139,7 @@ async function startServer() {
         swagger_docs: `http://localhost:${PORT}/api-docs`
       });
       
-      console.log('\n📚 API Documentation:');
+      console.log('\nAPI Documentation:');
       console.log(`   Swagger UI: http://localhost:${PORT}/api-docs`);
       console.log(`   JSON Schema: http://localhost:${PORT}/api-docs.json`);
       console.log('');
