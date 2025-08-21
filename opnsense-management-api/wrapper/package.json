@@ -6,8 +6,6 @@
   "scripts": {
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
-    "migrate": "node src/utils/migrate.js",
-    "seed": "node src/utils/seed.js",
     "db:init": "node src/utils/db-manager.js init",
     "db:reset": "node src/utils/db-manager.js reset",
     "db:drop": "node src/utils/db-manager.js drop",

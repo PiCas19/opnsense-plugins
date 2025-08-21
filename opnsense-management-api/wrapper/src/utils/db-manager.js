@@ -1,229 +1,366 @@
 // scripts/db-manager.js
+const { sequelize, initializeDatabase, resetDatabase, closeDatabase } = require('../src/config/database');
+const User = require('../src/models/User');
+const Rule = require('../src/models/Rule');
 const path = require('path');
 const fs = require('fs');
-const sqlite3 = require('sqlite3').verbose();
 
 const command = process.argv[2];
-const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
 
-// Funzione per eseguire query SQL
-function runQuery(db, sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function(err) {
-      if (err) reject(err);
-      else resolve(this);
-    });
-  });
-}
+// Dati seed utenti
+const seedUsers = [
+  {
+    username: 'admin',
+    email: 'admin@example.com',
+    password: 'Admin123!',
+    first_name: 'System',
+    last_name: 'Administrator',
+    role: 'admin',
+    is_active: true,
+    email_verified: true,
+    preferences: {
+      theme: 'dark',
+      language: 'it',
+      timezone: 'Europe/Rome',
+      notifications: {
+        email: true,
+        browser: true,
+        critical_only: false
+      }
+    }
+  },
+  {
+    username: 'operator',
+    email: 'operator@example.com', 
+    password: 'Operator123!',
+    first_name: 'Network',
+    last_name: 'Operator',
+    role: 'operator',
+    is_active: true,
+    email_verified: true,
+    preferences: {
+      theme: 'light',
+      language: 'it',
+      timezone: 'Europe/Rome',
+      notifications: {
+        email: true,
+        browser: false,
+        critical_only: true
+      }
+    }
+  },
+  {
+    username: 'viewer',
+    email: 'viewer@example.com',
+    password: 'Viewer123!',
+    first_name: 'Read',
+    last_name: 'Only',
+    role: 'viewer',
+    is_active: true,
+    email_verified: true,
+    preferences: {
+      theme: 'light',
+      language: 'it',
+      timezone: 'Europe/Rome',
+      notifications: {
+        email: false,
+        browser: false,
+        critical_only: true
+      }
+    }
+  },
+  {
+    username: 'testuser',
+    email: 'test@example.com',
+    password: 'Test123!',
+    first_name: 'Test',
+    last_name: 'User',
+    role: 'operator',
+    is_active: false,
+    email_verified: false,
+    preferences: {
+      theme: 'light',
+      language: 'en',
+      timezone: 'UTC',
+      notifications: {
+        email: true,
+        browser: true,
+        critical_only: false
+      }
+    }
+  }
+];
 
-// Funzione per ottenere risultati
-function getQuery(db, sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
-    });
-  });
-}
+// Dati seed regole
+const seedRules = [
+  {
+    description: 'Block Malicious IPs',
+    interface: 'wan',
+    direction: 'in',
+    action: 'block',
+    protocol: 'any',
+    source_config: {
+      type: 'network',
+      network: '192.168.100.0/24'
+    },
+    destination_config: {
+      type: 'any'
+    },
+    enabled: true,
+    sequence: 100,
+    log_enabled: true,
+    category: 'security',
+    tags: ['malicious', 'block', 'security'],
+    risk_level: 'high',
+    business_justification: 'Block known malicious IP range from threat intelligence',
+    approval_status: 'approved'
+  },
+  {
+    description: 'Allow SSH Management',
+    interface: 'lan',
+    direction: 'in',
+    action: 'pass',
+    protocol: 'tcp',
+    source_config: {
+      type: 'network',
+      network: '192.168.1.0/24'
+    },
+    destination_config: {
+      type: 'single',
+      address: '192.168.216.1',
+      port: 22
+    },
+    enabled: true,
+    sequence: 200,
+    log_enabled: false,
+    category: 'management',
+    tags: ['ssh', 'management', 'internal'],
+    risk_level: 'medium',
+    business_justification: 'SSH access for network management from trusted LAN',
+    approval_status: 'approved'
+  },
+  {
+    description: 'Block Suspicious Port Scans',
+    interface: 'wan',
+    direction: 'in',
+    action: 'reject',
+    protocol: 'tcp',
+    source_config: {
+      type: 'any'
+    },
+    destination_config: {
+      type: 'network',
+      network: '192.168.216.0/24'
+    },
+    enabled: false,
+    sequence: 300,
+    log_enabled: true,
+    category: 'security',
+    tags: ['port-scan', 'intrusion', 'security'],
+    risk_level: 'high',
+    business_justification: 'Prevent port scanning attempts on internal network',
+    approval_status: 'pending_review'
+  },
+  {
+    description: 'Allow Web Traffic',
+    interface: 'wan',
+    direction: 'in',
+    action: 'pass',
+    protocol: 'tcp',
+    source_config: {
+      type: 'any'
+    },
+    destination_config: {
+      type: 'single',
+      address: '192.168.216.100',
+      port: 80
+    },
+    enabled: true,
+    sequence: 400,
+    log_enabled: false,
+    category: 'web',
+    tags: ['http', 'web', 'public'],
+    risk_level: 'low',
+    business_justification: 'Public web server access for company website',
+    approval_status: 'approved'
+  },
+  {
+    description: 'Allow HTTPS Traffic',
+    interface: 'wan',
+    direction: 'in',
+    action: 'pass',
+    protocol: 'tcp',
+    source_config: {
+      type: 'any'
+    },
+    destination_config: {
+      type: 'single',
+      address: '192.168.216.100',
+      port: 443
+    },
+    enabled: true,
+    sequence: 500,
+    log_enabled: false,
+    category: 'web',
+    tags: ['https', 'ssl', 'web', 'public'],
+    risk_level: 'low',
+    business_justification: 'Secure web server access for company website',
+    approval_status: 'approved'
+  },
+  {
+    description: 'Allow DNS Queries',
+    interface: 'lan',
+    direction: 'out',
+    action: 'pass',
+    protocol: 'udp',
+    source_config: {
+      type: 'network',
+      network: '192.168.1.0/24'
+    },
+    destination_config: {
+      type: 'any',
+      port: 53
+    },
+    enabled: true,
+    sequence: 600,
+    log_enabled: false,
+    category: 'infrastructure',
+    tags: ['dns', 'infrastructure', 'outbound'],
+    risk_level: 'low',
+    business_justification: 'Allow DNS resolution for internal clients',
+    approval_status: 'approved'
+  }
+];
 
-// Schema del database
-const createTablesSQL = {
-  users: `
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username VARCHAR(50) NOT NULL UNIQUE,
-      email VARCHAR(255) NOT NULL UNIQUE,
-      password VARCHAR(255) NOT NULL,
-      first_name VARCHAR(50),
-      last_name VARCHAR(50),
-      role VARCHAR(20) DEFAULT 'viewer',
-      is_active BOOLEAN DEFAULT 1,
-      login_attempts INTEGER DEFAULT 0,
-      locked_until DATETIME,
-      last_login DATETIME,
-      login_ip VARCHAR(45),
-      user_agent TEXT,
-      last_activity DATETIME,
-      preferences TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      deleted_at DATETIME
-    )
-  `,
-  rules: `
-    CREATE TABLE IF NOT EXISTS rules (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      uuid VARCHAR(36) NOT NULL UNIQUE,
-      description TEXT NOT NULL,
-      interface VARCHAR(20) NOT NULL,
-      action VARCHAR(10) NOT NULL,
-      enabled BOOLEAN DEFAULT 1,
-      source_config TEXT,
-      destination_config TEXT,
-      protocol VARCHAR(10) DEFAULT 'any',
-      log_enabled BOOLEAN DEFAULT 0,
-      sequence INTEGER DEFAULT 1000,
-      created_by INTEGER,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      deleted_at DATETIME,
-      FOREIGN KEY (created_by) REFERENCES users(id)
-    )
-  `
-};
+async function seedData() {
+  try {
+    console.log('Seeding database with initial data...');
 
-// Dati di default
-const defaultData = {
-  users: `
-    INSERT OR IGNORE INTO users (
-      username, email, password, first_name, last_name, role, is_active
-    ) VALUES (
-      'admin', 
-      'admin@localhost', 
-      '$2b$10$rQH.Qf8Qf8Qf8Qf8Qf8Qf8Qf8Qf8Qf8Qf8Qf8Qf8Qf8Qf8Qf8Q', 
-      'Administrator', 
-      'System', 
-      'admin', 
-      1
-    )
-  `
-};
-
-async function initializeDatabase() {
-  return new Promise((resolve, reject) => {
-    // Assicurati che la directory data esista
-    const dataDir = path.dirname(dbPath);
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
-      console.log('Created data directory');
+    // Controlla se esistono già utenti
+    const userCount = await User.count();
+    if (userCount > 0) {
+      console.log(`Database already contains ${userCount} users, skipping user seed`);
+    } else {
+      // Crea utenti
+      console.log('Creating seed users...');
+      for (const userData of seedUsers) {
+        const user = await User.create(userData);
+        console.log(`Created user: ${user.username} (${user.role}) - ${user.is_active ? 'Active' : 'Inactive'}`);
+      }
     }
 
-    const db = new sqlite3.Database(dbPath, async (err) => {
-      if (err) {
-        console.error('Error opening database:', err.message);
-        reject(err);
-        return;
-      }
-
-      try {
-        console.log('Creating tables...');
-        
-        // Disabilita foreign keys temporaneamente
-        await runQuery(db, 'PRAGMA foreign_keys = OFF');
-        
-        // Crea tabelle
-        for (const [tableName, sql] of Object.entries(createTablesSQL)) {
-          console.log(`Creating table: ${tableName}`);
-          await runQuery(db, sql);
+    // Controlla regole esistenti
+    const ruleCount = await Rule.count();
+    if (ruleCount > 0) {
+      console.log(`Database already contains ${ruleCount} rules, skipping rule seed`);
+    } else {
+      // Crea regole (assegna al primo admin)
+      const adminUser = await User.findOne({ where: { role: 'admin' } });
+      if (adminUser) {
+        console.log('Creating seed rules...');
+        for (const ruleData of seedRules) {
+          const rule = await Rule.create({
+            ...ruleData,
+            created_by: adminUser.id
+          });
+          console.log(`Created rule: ${rule.description} (${rule.action}) - ${rule.enabled ? 'Enabled' : 'Disabled'}`);
         }
-
-        // Inserisci dati di default
-        console.log('Inserting default data...');
-        for (const [tableName, sql] of Object.entries(defaultData)) {
-          await runQuery(db, sql);
-        }
-
-        // Riabilita foreign keys
-        await runQuery(db, 'PRAGMA foreign_keys = ON');
-
-        console.log('Database initialized successfully');
-        
-        db.close((err) => {
-          if (err) reject(err);
-          else resolve();
-        });
-        
-      } catch (error) {
-        console.error('Error initializing database:', error.message);
-        db.close();
-        reject(error);
+      } else {
+        console.log('No admin user found, skipping rule creation');
       }
-    });
-  });
+    }
+
+    // Statistiche finali
+    const finalUserCount = await User.count();
+    const finalRuleCount = await Rule.count();
+    const activeUsers = await User.count({ where: { is_active: true } });
+    const activeRules = await Rule.count({ where: { enabled: true } });
+
+    console.log('\nDatabase Statistics:');
+    console.log(`   Users: ${finalUserCount} total, ${activeUsers} active`);
+    console.log(`   Rules: ${finalRuleCount} total, ${activeRules} enabled`);
+    
+    console.log('\nDefault credentials:');
+    console.log('   - admin / Admin123! (Administrator)');
+    console.log('   - operator / Operator123! (Operator)');
+    console.log('   - viewer / Viewer123! (Viewer)');
+    console.log('   - testuser / Test123! (Operator - Inactive)');
+    
+    console.log('\nIMPORTANT: Change default passwords in production!');
+
+  } catch (error) {
+    console.error('Seeding failed:', error.message);
+    throw error;
+  }
 }
 
-async function resetDatabase() {
-  return new Promise((resolve, reject) => {
-    const db = new sqlite3.Database(dbPath, async (err) => {
-      if (err) {
-        console.error('Error opening database:', err.message);
-        reject(err);
-        return;
-      }
+async function getDBStats() {
+  try {
+    // Statistiche tabelle
+    const userCount = await User.count();
+    const ruleCount = await Rule.count();
+    const activeUsers = await User.count({ where: { is_active: true } });
+    const activeRules = await Rule.count({ where: { enabled: true } });
 
-      try {
-        console.log('Dropping tables...');
-        
-        await runQuery(db, 'PRAGMA foreign_keys = OFF');
-        await runQuery(db, 'DROP TABLE IF EXISTS rules');
-        await runQuery(db, 'DROP TABLE IF EXISTS users');
-        
-        console.log('🔧 Recreating tables...');
-        
-        // Ricrea tabelle
-        for (const [tableName, sql] of Object.entries(createTablesSQL)) {
-          console.log(`Creating table: ${tableName}`);
-          await runQuery(db, sql);
-        }
+    // Statistiche per ruolo
+    const usersByRole = await User.findAll({
+      attributes: [
+        'role',
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+      ],
+      group: ['role']
+    });
 
-        // Inserisci dati di default
-        console.log('Inserting default data...');
-        for (const [tableName, sql] of Object.entries(defaultData)) {
-          await runQuery(db, sql);
-        }
-
-        await runQuery(db, 'PRAGMA foreign_keys = ON');
-
-        console.log('Database reset successfully');
-        
-        db.close((err) => {
-          if (err) reject(err);
-          else resolve();
-        });
-        
-      } catch (error) {
-        console.error('Error resetting database:', error.message);
-        db.close();
-        reject(error);
+    // Statistiche regole per categoria
+    const rulesByCategory = await Rule.findAll({
+      attributes: [
+        'category',
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+      ],
+      group: ['category'],
+      where: {
+        category: { [sequelize.Op.ne]: null }
       }
     });
-  });
+
+    console.log('\nDatabase Statistics:');
+    console.log(`   Users: ${userCount} total, ${activeUsers} active`);
+    console.log(`   Rules: ${ruleCount} total, ${activeRules} enabled`);
+
+    if (usersByRole.length > 0) {
+      console.log('\nUsers by Role:');
+      usersByRole.forEach(stat => {
+        console.log(`   ${stat.role}: ${stat.get('count')}`);
+      });
+    }
+
+    if (rulesByCategory.length > 0) {
+      console.log('\nRules by Category:');
+      rulesByCategory.forEach(stat => {
+        console.log(`   ${stat.category || 'uncategorized'}: ${stat.get('count')}`);
+      });
+    }
+
+  } catch (error) {
+    console.error('Error getting stats:', error.message);
+    throw error;
+  }
 }
 
-async function checkTables() {
-  return new Promise((resolve, reject) => {
-    const db = new sqlite3.Database(dbPath, async (err) => {
-      if (err) {
-        console.error('Error opening database:', err.message);
-        reject(err);
-        return;
-      }
+async function clearData() {
+  try {
+    console.log('Clearing all data...');
+    
+    // Elimina tutti i dati (rispettando foreign keys)
+    await Rule.destroy({ where: {}, force: true });
+    await User.destroy({ where: {}, force: true });
 
-      try {
-        const tables = await getQuery(db, `
-          SELECT name FROM sqlite_master 
-          WHERE type='table' AND name NOT LIKE 'sqlite_%'
-          ORDER BY name
-        `);
+    console.log('All data cleared');
 
-        console.log('Database tables:');
-        for (const table of tables) {
-          const count = await getQuery(db, `SELECT COUNT(*) as count FROM ${table.name}`);
-          console.log(`   ${table.name}: ${count[0].count} records`);
-        }
-
-        db.close((err) => {
-          if (err) reject(err);
-          else resolve();
-        });
-        
-      } catch (error) {
-        console.error('Error checking tables:', error.message);
-        db.close();
-        reject(error);
-      }
-    });
-  });
+  } catch (error) {
+    console.error('Error clearing data:', error.message);
+    throw error;
+  }
 }
 
 async function main() {
@@ -237,17 +374,27 @@ async function main() {
         await initializeDatabase();
         break;
 
+      case 'seed':
+        console.log('Seeding database...');
+        await initializeDatabase();
+        await seedData();
+        break;
+
       case 'reset':
         console.log('Resetting database...');
-        if (!fs.existsSync(dbPath)) {
-          console.log('Database file does not exist');
-          break;
+        if (typeof resetDatabase === 'function') {
+          await resetDatabase();
+        } else {
+          // Fallback: clear data and reinitialize
+          await initializeDatabase();
+          await clearData();
+          await seedData();
         }
-        await resetDatabase();
         break;
 
       case 'drop':
         console.log('Dropping database...');
+        const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
         if (fs.existsSync(dbPath)) {
           fs.unlinkSync(dbPath);
           console.log('Database file deleted');
@@ -260,54 +407,64 @@ async function main() {
         console.log('Recreating database from scratch...');
         
         // Drop file
-        if (fs.existsSync(dbPath)) {
-          fs.unlinkSync(dbPath);
+        const dbFile = path.join(process.cwd(), 'data', 'database.sqlite');
+        if (fs.existsSync(dbFile)) {
+          fs.unlinkSync(dbFile);
           console.log('Old database deleted');
         }
         
-        // Recreate
+        // Recreate and seed
         await initializeDatabase();
+        await seedData();
         console.log('Database recreated successfully');
+        break;
+
+      case 'clear':
+        console.log('Clearing all data...');
+        await clearData();
         break;
 
       case 'status':
         console.log('Checking database status...');
-        if (fs.existsSync(dbPath)) {
-          const stats = fs.statSync(dbPath);
+        const dbStatusPath = path.join(process.cwd(), 'data', 'database.sqlite');
+        if (fs.existsSync(dbStatusPath)) {
+          const stats = fs.statSync(dbStatusPath);
           console.log(`Database exists (${stats.size} bytes)`);
           console.log(`   Created: ${stats.birthtime}`);
           console.log(`   Modified: ${stats.mtime}`);
-          await checkTables();
+          await getDBStats();
         } else {
           console.log('Database file does not exist');
         }
         break;
 
-      case 'tables':
-        console.log('Checking database tables...');
-        if (fs.existsSync(dbPath)) {
-          await checkTables();
-        } else {
-          console.log('Database file does not exist');
-        }
+      case 'stats':
+        console.log('Getting database statistics...');
+        await getDBStats();
         break;
 
       default:
         console.log('Available commands:');
-        console.log('  init     - Initialize database');
-        console.log('  reset    - Reset database (development only)');
+        console.log('  init     - Initialize database tables');
+        console.log('  seed     - Initialize and seed with sample data');
+        console.log('  reset    - Reset database and re-seed');
         console.log('  drop     - Drop database file');
-        console.log('  recreate - Drop and recreate database');
-        console.log('  status   - Check database status');
-        console.log('  tables   - List tables and record counts');
+        console.log('  recreate - Drop, recreate and seed database');
+        console.log('  clear    - Clear all data (keep tables)');
+        console.log('  status   - Check database status and stats');
+        console.log('  stats    - Show detailed database statistics');
         console.log('');
         console.log('Usage: node scripts/db-manager.js <command>');
+        console.log('   or: npm run db:<command>');
         break;
     }
 
   } catch (error) {
     console.error('Error:', error.message);
     process.exit(1);
+  } finally {
+    await closeDatabase();
+    process.exit(0);
   }
 }
 
