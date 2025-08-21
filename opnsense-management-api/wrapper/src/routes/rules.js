@@ -1,6 +1,6 @@
 const express = require('express');
 const { authenticate } = require('../middleware/auth');
-const { validateRule, validateUUID, validateSearchQuery } = require('../middleware/validation-simple');
+const { validateRule, validateSearchQuery } = require('../middleware/validation');
 const { asyncHandler } = require('../middleware/errorHandler');
 const logger = require('../utils/logger');
 
@@ -238,7 +238,7 @@ router.post('/', validateRule, asyncHandler(async (req, res) => {
     // Crea regola nel database
     const rule = await Rule.create(ruleData);
 
-    // Tenta sincronizzazione con OPNsense
+    // Tenta sincronizzazione con OPNsense (senza applicare config)
     let syncResult = {
       opnsense_uuid: null,
       sync_status: 'pending',
@@ -246,6 +246,13 @@ router.post('/', validateRule, asyncHandler(async (req, res) => {
     };
 
     try {
+      // Test connessione OPNsense prima di procedere
+      const connectionTest = await OpnsenseService.testConnection();
+      
+      if (!connectionTest.success) {
+        throw new Error(`OPNsense non raggiungibile: ${JSON.stringify(connectionTest.tests)}`);
+      }
+
       // Prepara dati per OPNsense
       const ruleForOPNsense = {
         description: rule.description,
@@ -254,22 +261,37 @@ router.post('/', validateRule, asyncHandler(async (req, res) => {
         protocol: rule.protocol || 'any',
         enabled: rule.enabled !== false,
         source_config: rule.source_config || { type: 'any' },
-        destination_config: rule.destination_config || { type: 'any' }
+        destination_config: rule.destination_config || { type: 'any' },
+        log_enabled: rule.log_enabled || false,
+        direction: rule.direction || 'in'
       };
+
+      logger.info('Tentativo creazione regola OPNsense', {
+        rule_id: rule.id,
+        ruleForOPNsense
+      });
 
       const opnsenseResult = await OpnsenseService.createRule(ruleForOPNsense);
       
       syncResult = {
         opnsense_uuid: opnsenseResult.uuid,
-        sync_status: 'synced',
+        sync_status: 'synced_pending_apply',
         last_synced_at: new Date(),
         sync_error: null
       };
+
+      logger.info('Regola creata in OPNsense, configurazione non ancora applicata', {
+        rule_id: rule.id,
+        opnsense_uuid: opnsenseResult.uuid
+      });
+
     } catch (opnsenseError) {
       logger.error('Errore sincronizzazione regola con OPNsense', {
         rule_id: rule.id,
-        error: opnsenseError.message
+        error: opnsenseError.message,
+        stack: opnsenseError.stack
       });
+      
       syncResult = {
         sync_status: 'failed',
         sync_error: opnsenseError.message
@@ -281,7 +303,7 @@ router.post('/', validateRule, asyncHandler(async (req, res) => {
       await rule.update(syncResult);
     }
 
-    logger.info('Regola creata', {
+    logger.info('Regola creata nel database', {
       rule_id: rule.id,
       description: rule.description,
       sync_status: syncResult.sync_status,
@@ -290,14 +312,19 @@ router.post('/', validateRule, asyncHandler(async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Regola creata con successo',
+      message: syncResult.sync_status === 'synced_pending_apply' 
+        ? 'Regola creata con successo. Usa /api/rules/apply per applicare la configurazione.'
+        : 'Regola creata nel database. Sincronizzazione con OPNsense fallita.',
       data: {
         id: rule.id,
         uuid: rule.uuid || rule.id,
         opnsense_uuid: syncResult.opnsense_uuid,
         sync_status: syncResult.sync_status,
         sync_error: syncResult.sync_error
-      }
+      },
+      next_steps: syncResult.sync_status === 'synced_pending_apply' 
+        ? 'Chiamare POST /api/rules/apply per applicare le modifiche al firewall'
+        : 'Controllare i log e riprovare la sincronizzazione'
     });
 
   } catch (error) {
@@ -554,6 +581,248 @@ router.get('/statistics', asyncHandler(async (req, res) => {
       success: false,
       message: 'Errore nel recupero delle statistiche',
       error: process.env.NODE_ENV === 'development' ? error.message : 'Errore interno del server'
+    });
+  }
+}));
+
+/**
+ * @swagger
+ * /api/rules/apply:
+ *   post:
+ *     summary: Applica configurazione firewall
+ *     description: Applica tutte le modifiche pending alla configurazione OPNsense e attiva le regole nel firewall
+ *     tags: [Firewall Rules]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Configurazione applicata con successo
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Configurazione applicata con successo
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *                   example: 2024-01-15T10:30:00.000Z
+ *       401:
+ *         description: Token di accesso richiesto
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Token di accesso richiesto
+ *       403:
+ *         description: Permessi insufficienti
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Permessi insufficienti per applicare configurazione
+ *       502:
+ *         description: Errore comunicazione con OPNsense
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: OPNsense non raggiungibile
+ *                 details:
+ *                   type: object
+ *                   description: Dettagli del test di connessione
+ *                 suggestion:
+ *                   type: string
+ *                   example: Verificare la connessione con OPNsense e riprovare
+ */  
+router.post('/apply', asyncHandler(async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.id);
+    if (!user || !user.hasPermission('apply_config')) {
+      return res.status(403).json({
+        success: false,
+        message: 'Permessi insufficienti per applicare configurazione'
+      });
+    }
+
+    logger.info('Tentativo applicazione configurazione OPNsense', {
+      user: req.user.username
+    });
+
+    // Test connessione prima dell'applicazione
+    const connectionTest = await OpnsenseService.testConnection();
+    if (!connectionTest.success) {
+      return res.status(502).json({
+        success: false,
+        message: 'OPNsense non raggiungibile',
+        details: connectionTest.tests
+      });
+    }
+
+    // Applica configurazione
+    await OpnsenseService.applyConfig();
+
+    // Aggiorna stato delle regole in pending
+    if (Rule.rawAttributes.sync_status) {
+      await Rule.update(
+        { 
+          sync_status: 'synced',
+          last_applied_at: new Date()
+        },
+        { 
+          where: { 
+            sync_status: 'synced_pending_apply' 
+          }
+        }
+      );
+    }
+
+    logger.info('Configurazione OPNsense applicata con successo', {
+      user: req.user.username
+    });
+
+    res.json({
+      success: true,
+      message: 'Configurazione applicata con successo',
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    logger.error('Errore nell\'applicazione configurazione', {
+      error: error.message,
+      stack: error.stack,
+      user: req.user?.username
+    });
+
+    res.status(502).json({
+      success: false,
+      message: 'Errore nell\'applicazione della configurazione',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Errore di comunicazione con OPNsense',
+      suggestion: 'Verificare la connessione con OPNsense e riprovare'
+    });
+  }
+}));
+
+/**
+ * @swagger
+ * /api/rules/test-connection:
+ *   get:
+ *     summary: Test connessione OPNsense
+ *     description: Verifica la connettività e l'autenticazione con il server OPNsense
+ *     tags: [Firewall Rules]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Test connessione completato
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Connessione OPNsense OK
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     success:
+ *                       type: boolean
+ *                       example: true
+ *                     responseTime:
+ *                       type: integer
+ *                       example: 245
+ *                       description: Tempo di risposta in millisecondi
+ *                     status:
+ *                       type: integer
+ *                       example: 200
+ *                     timestamp:
+ *                       type: string
+ *                       format: date-time
+ *       401:
+ *         description: Token di accesso richiesto
+ *       403:
+ *         description: Permessi insufficienti
+ *       500:
+ *         description: Errore nel test di connessione
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Problemi di connessione OPNsense
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     success:
+ *                       type: boolean
+ *                       example: false
+ *                     error:
+ *                       type: string
+ *                     code:
+ *                       type: string
+ *                     status:
+ *                       type: integer
+ */ 
+router.get('/test-connection', asyncHandler(async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.id);
+    if (!user || !user.hasPermission('view_health')) {
+      return res.status(403).json({
+        success: false,
+        message: 'Permessi insufficienti'
+      });
+    }
+
+    const testResult = await OpnsenseService.testConnection();
+
+    res.json({
+      success: testResult.success,
+      message: testResult.success ? 'Connessione OPNsense OK' : 'Problemi di connessione OPNsense',
+      data: testResult
+    });
+
+  } catch (error) {
+    logger.error('Errore nel test connessione', {
+      error: error.message,
+      user: req.user?.username
+    });
+
+    res.status(500).json({
+      success: false,
+      message: 'Errore nel test di connessione',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Errore interno'
     });
   }
 }));
