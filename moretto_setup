@@ -1,0 +1,105 @@
+#!/bin/sh
+#
+# PROVIDE: moretto_setup
+# REQUIRE: LOGIN
+# KEYWORD: firstboot
+
+. /etc/rc.subr
+
+name="moretto_setup"
+start_cmd="moretto_start"
+stop_cmd=":"
+
+moretto_start()
+{
+  echo "[Moretto Setup] Primo avvio... installazione e configurazione dei plugin."
+
+  # 1. Installa pacchetti richiesti
+  echo "[Step] Installazione pacchetti base..."
+  pkg install -y bash nano curl jq git sudo \
+    py311-pcapy-ng py311-scapy ca_root_nss
+
+  python3.11 -m ensurepip
+  python3.11 -m pip install --upgrade pip
+  python3.11 -m pip install dpkt pcapy-ng
+
+  # 2. Plugin da configurare
+  plugins="advinspector deepinspector netzones webguard"
+
+  for plugin in $plugins; do
+    PLUGIN_NAME=$(echo "$plugin" | tr '[:lower:]' '[:upper:]')
+
+    echo "[Plugin: $plugin] Configurazione e permessi..."
+
+    # Permessi script e conf
+    chmod +x /usr/local/opnsense/service/conf/actions.d/actions_${plugin}.conf 2>/dev/null
+    chmod +x /usr/local/opnsense/scripts/OPNsense/${PLUGIN_NAME}/*.sh 2>/dev/null
+    chmod +x /usr/local/opnsense/scripts/OPNsense/${PLUGIN_NAME}/*.py 2>/dev/null
+    chmod +x /usr/local/etc/rc.d/$plugin 2>/dev/null
+
+    # Abilita il servizio al boot
+    echo "${plugin}_enable=\"YES\"" >> /etc/rc.conf.local
+
+    # Esegui setup.sh se presente
+    if [ -f "/usr/plugins/security/os-${plugin}/setup.sh" ]; then
+      echo "[Plugin: $plugin] Eseguo setup.sh"
+      chmod +x /usr/plugins/security/os-${plugin}/setup.sh
+      sh /usr/plugins/security/os-${plugin}/setup.sh
+    fi
+
+    # Esegui initialize_geoip.sh (solo per webguard)
+    if [ "$plugin" = "webguard" ]; then
+      if [ -f "/usr/plugins/security/os-webguard/initialize_geoip.sh" ]; then
+        echo "[webguard] Eseguo initialize_geoip.sh"
+        sh /usr/plugins/security/os-webguard/initialize_geoip.sh
+      fi
+    fi
+
+    # Esegui configctl specifici
+    case "$plugin" in
+      advinspector)
+        configctl advinspector setup
+        configctl advinspector export_rules
+        ;;
+      deepinspector)
+        configctl deepinspector export_config
+        configctl deepinspector update_signatures
+        ;;
+      netzones)
+        configctl netzones setup
+        ;;
+    esac
+
+    # Avvia il servizio
+    echo "[Plugin: $plugin] Avvio servizio..."
+    service $plugin start
+  done
+
+  # 3. Installazione Leaflet.js e .css
+  echo "[Step] Installazione Leaflet.js..."
+  mkdir -p /usr/local/opnsense/www/js
+  mkdir -p /usr/local/opnsense/www/css
+
+  fetch https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js -o /usr/local/opnsense/www/js/leaflet.js
+  fetch https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css -o /usr/local/opnsense/www/css/leaflet.css
+
+  # 4. Installazione database GeoLite2 (MaxMind)
+  echo "[Step] Scaricamento GeoLite2..."
+
+  mkdir -p /usr/local/share/GeoIP
+  cd /usr/local/share/GeoIP
+
+  # ❗ Inserisci la tua vera license key qui sotto
+  LICENSE_KEY="INSERISCI_LA_TUA_LICENSE_KEY"
+
+  fetch "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-Country&license_key=${LICENSE_KEY}&suffix=tar.gz" -o GeoLite2-Country.tar.gz
+  tar -xvf GeoLite2-Country.tar.gz
+  mv GeoLite2*/GeoLite2-Country.mmdb GeoLite2-Country.mmdb
+  rm -rf GeoLite2-Country.tar.gz GeoLite2*
+
+  echo "[Setup] Completato. Rimuovo script..."
+  rm -f /usr/local/etc/rc.d/moretto_setup
+}
+
+load_rc_config $name
+run_rc_command "$1"
