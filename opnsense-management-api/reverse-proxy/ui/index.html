@@ -68,6 +68,11 @@
       border-radius:50%;animation:spin .6s linear infinite;display:inline-block;margin-left:8px;vertical-align:-2px
     }
     @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* filters toolbar style */
+    .filters-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;padding:12px;background:#0a1421;border:1px solid #1d2a44;border-radius:10px}
+    .filters-row label{font-size:12px;color:var(--muted);margin:0}
+    .filters-row input, .filters-row select{padding:6px 8px;font-size:12px;min-width:120px}
   </style>
 </head>
 <body>
@@ -92,10 +97,23 @@
 
     <!-- RULES -->
     <section id="rules-card" class="card pad hidden">
-      <div class="toolbar">
-        <input id="search" placeholder="Search description…">
-        <button id="refresh">Refresh</button>
-        <div class="right row">
+      <!-- Filters Row -->
+      <div class="filters-row">
+        <label>Interface:
+          <select id="interface-filter" title="Select interface">
+            <option value="lan" selected>LAN</option>
+            <option value="dmz">DMZ</option>
+            <option value="wan">WAN</option>
+          </select>
+        </label>
+        <label>Search:
+          <input id="search" placeholder="Description…" title="Filter by rule description">
+        </label>
+        <label>
+          <input type="checkbox" id="automation-only"> Automation only
+        </label>
+        <button id="refresh" class="btn-ghost">Refresh</button>
+        <div style="margin-left:auto;display:flex;gap:8px">
           <button id="apply" class="btn-primary">Apply Pending</button>
           <button id="logout" class="btn-danger">Logout</button>
         </div>
@@ -165,7 +183,7 @@
         <table id="rules-table" class="mono">
           <thead>
             <tr>
-              <th>#</th><th>Description</th><th>Action</th><th>Enabled</th><th>Actions</th>
+              <th>#</th><th>Interface</th><th>Description</th><th>Action</th><th>Enabled</th><th>Actions</th>
             </tr>
           </thead>
           <tbody id="tbody"></tbody>
@@ -324,6 +342,11 @@
   // ---------- rules / actions ----------
   $('#refresh').addEventListener('click', () => loadRules());
 
+  // Event listeners for filters
+  $('#search').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); loadRules(); } });
+  $('#interface-filter').addEventListener('change', () => loadRules());
+  $('#automation-only').addEventListener('change', () => loadRules());
+
   const applyBtn = $('#apply');
   applyBtn.addEventListener('click', async () => {
     try {
@@ -335,28 +358,53 @@
     finally { setBusy(applyBtn, false); }
   });
 
-  $('#search').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); loadRules(); } });
-
   async function loadRules() {
-    const s = ($('#search').value || '').trim();
+    const search = ($('#search').value || '').trim();
+    const interfaceFilter = ($('#interface-filter').value || '').trim();
+    const automationOnly = $('#automation-only').checked;
+    
+    // Build query parameters - interface is now MANDATORY
+    if (!interfaceFilter) {
+      showError($('#rules-error'), 'Interface selection is required');
+      return;
+    }
+    
+    const params = new URLSearchParams();
+    params.append('interface', interfaceFilter);  // Always required
+    if (search) params.append('search', search);
+    if (automationOnly) params.append('automation_only', 'true');
+    
+    const queryString = params.toString();
+    const url = `/rules?${queryString}`;
+    
     try {
-      const data = await api('/rules?search=' + encodeURIComponent(s));
+      const data = await api(url);
       renderRules(data?.rows || []);
-      $('#meta').textContent = `Total: ${data?.total ?? 0}`;
-    } catch (e) { renderRules([]); showError($('#rules-error'), e.message); }
+      
+      // Update meta info
+      let metaText = `Total: ${data?.total ?? 0} (interface: ${interfaceFilter})`;
+      if (automationOnly) metaText += ` (automation only)`;
+      if (search) metaText += ` (search: "${search}")`;
+      $('#meta').textContent = metaText;
+    } catch (e) { 
+      renderRules([]);
+      showError($('#rules-error'), e.message);
+    }
   }
 
   function renderRules(rows) {
     const tb = $('#tbody'); tb.innerHTML = '';
     if (!rows.length) {
-      tb.innerHTML = `<tr><td colspan="5" class="muted">No rules found</td></tr>`;
+      tb.innerHTML = `<tr><td colspan="6" class="muted">No rules found</td></tr>`;
       return;
     }
     rows.forEach((r, i) => {
       const isEnabled = boolish(r.enabled ?? r.enable);
+      const iface = pickSelected(r.interface ?? r.if ?? r.iface) || '';
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${i+1}</td>
+        <td><span class="badge bg-ok" style="background:#1a3455;color:#80b3ff;border-color:#2a4775">${esc(iface)}</span></td>
         <td>${esc(r.description || '')}</td>
         <td>${esc(r.action || '')}</td>
         <td>${badge(isEnabled)}</td>

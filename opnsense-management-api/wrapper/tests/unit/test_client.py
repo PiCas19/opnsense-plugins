@@ -11,13 +11,14 @@ BASE = "https://opn.local/api"
 # ---------- _req: success JSON ----------
 def test_search_rules_json_ok(responses_mock):
     c = OpnSenseClient()
+    # Il client ora usa search_rules_direct che fa una GET con show_all=1
     responses_mock.add(
-        responses.POST,
-        f"{BASE}/firewall/filter/searchRule",
+        responses.GET,
+        f"{BASE}/firewall/filter/searchRule?show_all=1",
         json={"rows": [], "total": 0},
         status=200,
     )
-    out = c.search_rules()
+    out = c.search_rules_direct()
     assert out["total"] == 0 and out["rows"] == []
 
 
@@ -197,3 +198,79 @@ def test_apply_no_revision_json_ok(responses_mock):
     )
     out = c.apply()
     assert out["status"] == "ok"
+
+
+# ---------- test search_rules_clean con interface ----------
+def test_search_rules_clean_with_interface(responses_mock):
+    c = OpnSenseClient()
+    responses_mock.add(
+        responses.GET,
+        f"{BASE}/firewall/filter/searchRule?show_all=1&interface=lan",
+        json={
+            "rows": [
+                {"uuid": "u1", "description": "Test rule", "interface": "lan", "category": "automation"},
+                {"uuid": "u2", "description": "Default deny rule", "interface": "lan"},  # Sarà filtrata
+                {"uuid": "u3", "description": "Another test", "interface": "lan"}
+            ],
+            "total": 3
+        },
+        status=200,
+    )
+    
+    rules = c.search_rules_clean(interface="lan", automation_only=False)
+    # Solo 2 regole dovrebbero passare il filtro (esclusa "Default deny rule")
+    assert len(rules) == 2
+    assert all("default deny" not in r.get("description", "").lower() for r in rules)
+
+
+# ---------- test search_rules_clean automation_only ----------
+def test_search_rules_clean_automation_only(responses_mock):
+    c = OpnSenseClient()
+    responses_mock.add(
+        responses.GET,
+        f"{BASE}/firewall/filter/searchRule?show_all=1",
+        json={
+            "rows": [
+                {"uuid": "u1", "description": "Test rule", "category": "automation"},
+                {"uuid": "u2", "description": "Manual rule", "category": "manual"},
+                {"uuid": "u3", "description": "automation rule in description"}
+            ],
+            "total": 3
+        },
+        status=200,
+    )
+    
+    rules = c.search_rules_clean(automation_only=True)
+    # Solo 2 regole dovrebbero passare (category=automation o "automation" nel description)
+    assert len(rules) == 2
+    
+    
+# ---------- test search_rules con fallback ----------
+def test_search_rules_fallback_methods(responses_mock):
+    c = OpnSenseClient()
+    
+    # Prima prova: searchRule POST form fallisce
+    responses_mock.add(
+        responses.POST,
+        f"{BASE}/firewall/filter/searchRule",
+        status=404,
+    )
+    
+    # Seconda prova: search_rule POST form fallisce
+    responses_mock.add(
+        responses.POST,
+        f"{BASE}/firewall/filter/search_rule",
+        status=404,
+    )
+    
+    # Terza prova: GET show_all=1 funziona
+    responses_mock.add(
+        responses.GET,
+        f"{BASE}/firewall/filter/searchRule?show_all=1",
+        json={"rows": [{"uuid": "u1"}], "total": 1},
+        status=200,
+    )
+    
+    result = c.search_rules()
+    assert result["total"] == 1
+    assert len(result["rows"]) == 1

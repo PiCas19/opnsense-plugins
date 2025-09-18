@@ -11,8 +11,6 @@ Key features include:
 - Detection of covert channels (DNS, HTTP, ICMP tunneling)
 - Zero Trust model with learning and protection modes
 - Geographic IP blocking with GeoIP database integration
-- Honeypot redirection, progressive blocking, and tarpits
-- Real-time threat feed, SIEM integration, and webhook notifications
 - Forensics and audit trail capabilities
 - Multi-mode deployment: Learning, Detection, Protection, Zero Trust
 - Real-time dashboard with interactive threat visualization

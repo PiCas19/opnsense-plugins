@@ -1,9 +1,0 @@
-<menu>
-    <Services>
-        <SiemLogger cssClass="fa fa-shield" order="260">
-            <Dashboard url="/ui/siemlogger/dashboard" order="10"/>
-            <Settings url="/ui/siemlogger/index" order="20"/>
-            <Logs url="/ui/siemlogger/logging" order="30"/>
-        </SiemLogger>
-    </Services>
-</menu>

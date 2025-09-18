@@ -10,7 +10,7 @@ from src.routes import rules as rules_module
 def _swap_client(monkeypatch, **impls):
     """
     Sostituisce rules_module.client con un fake che espone i metodi passati.
-    Es: _swap_client(monkeypatch, search_rules=lambda **k: {...})
+    Es: _swap_client(monkeypatch, search_rules_clean=lambda **k: [{"uuid":"u1"}])
     """
     fake = types.SimpleNamespace(**impls)
     monkeypatch.setattr(rules_module, "client", fake)
@@ -20,7 +20,8 @@ def _swap_client(monkeypatch, **impls):
 # -------------------- list_rules --------------------
 
 def test_list_rules_ok(monkeypatch):
-    _swap_client(monkeypatch, search_rules=lambda **k: {"rows": [{"uuid":"u1"}], "total": 1})
+    # Il router list_rules() chiama client.search_rules_clean(), non search_rules()
+    _swap_client(monkeypatch, search_rules_clean=lambda **k: [{"uuid":"u1"}])
     c = TestClient(api)
     r = c.get("/api/rules?search=")
     assert r.status_code == 200
@@ -30,7 +31,7 @@ def test_list_rules_ok(monkeypatch):
 
 def test_list_rules_upstream_404(monkeypatch):
     def boom(**k): raise HttpError(404, {"msg":"nope"}, "u")
-    _swap_client(monkeypatch, search_rules=boom)
+    _swap_client(monkeypatch, search_rules_clean=boom)
     c = TestClient(api)
     r = c.get("/api/rules?search=x")
     assert r.status_code == 404
@@ -39,10 +40,61 @@ def test_list_rules_upstream_404(monkeypatch):
 
 def test_list_rules_upstream_503_maps_to_502(monkeypatch):
     def boom(**k): raise HttpError(503, {"msg":"down"}, "u")
-    _swap_client(monkeypatch, search_rules=boom)
+    _swap_client(monkeypatch, search_rules_clean=boom)
     c = TestClient(api)
     r = c.get("/api/rules?search=x")
     assert r.status_code == 502
+
+
+# -------------------- list_rules con filtri --------------------
+
+def test_list_rules_with_interface_filter(monkeypatch):
+    captured_params = {}
+    def capture_and_return(**kwargs):
+        captured_params.update(kwargs)
+        return [{"uuid": "u1", "interface": "lan"}]
+    
+    _swap_client(monkeypatch, search_rules_clean=capture_and_return)
+    c = TestClient(api)
+    r = c.get("/api/rules?interface=lan&automation_only=true")
+    
+    assert r.status_code == 200
+    assert captured_params["interface"] == "lan"
+    assert captured_params["automation_only"] is True
+
+
+def test_list_rules_with_search_filter(monkeypatch):
+    # Test che il filtro search venga applicato client-side
+    rules = [
+        {"uuid": "u1", "description": "HTTPS rule"},
+        {"uuid": "u2", "descr": "SSH rule"},
+        {"uuid": "u3", "description": "FTP rule"}
+    ]
+    _swap_client(monkeypatch, search_rules_clean=lambda **k: rules)
+    
+    c = TestClient(api)
+    r = c.get("/api/rules?search=ssh")
+    
+    assert r.status_code == 200
+    j = r.json()
+    assert j["total"] == 1
+    assert j["rows"][0]["uuid"] == "u2"
+
+
+def test_list_rules_search_case_insensitive(monkeypatch):
+    rules = [
+        {"uuid": "u1", "description": "HTTPS Rule"},
+        {"uuid": "u2", "description": "ssh connection"}
+    ]
+    _swap_client(monkeypatch, search_rules_clean=lambda **k: rules)
+    
+    c = TestClient(api)
+    r = c.get("/api/rules?search=HTTPS")  # Maiuscolo
+    
+    assert r.status_code == 200
+    j = r.json()
+    assert j["total"] == 1
+    assert j["rows"][0]["uuid"] == "u1"
 
 
 # -------------------- get_rule --------------------
@@ -180,3 +232,39 @@ def test_apply_config_upstream_500(monkeypatch):
     c = TestClient(api)
     r = c.post("/api/rules/apply")
     assert r.status_code == 502
+
+
+# -------------------- test edge cases --------------------
+
+def test_list_rules_empty_search_description_and_descr(monkeypatch):
+    """Test che gestisca regole con description o descr vuoti/None"""
+    rules = [
+        {"uuid": "u1", "description": None},
+        {"uuid": "u2", "descr": ""},
+        {"uuid": "u3", "description": "valid rule"}
+    ]
+    _swap_client(monkeypatch, search_rules_clean=lambda **k: rules)
+    
+    c = TestClient(api)
+    r = c.get("/api/rules?search=valid")
+    
+    assert r.status_code == 200
+    j = r.json()
+    assert j["total"] == 1
+    assert j["rows"][0]["uuid"] == "u3"
+
+
+def test_list_rules_row_count_parameter(monkeypatch):
+    """Test che row_count venga passato correttamente"""
+    captured_params = {}
+    def capture_params(**kwargs):
+        captured_params.update(kwargs)
+        return []
+    
+    _swap_client(monkeypatch, search_rules_clean=capture_params)
+    
+    c = TestClient(api)
+    r = c.get("/api/rules?row_count=500")
+    
+    assert r.status_code == 200
+    assert captured_params["row_count"] == 500
