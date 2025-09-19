@@ -433,38 +433,27 @@ function loadLogs() {
       $console.show();
 
       if (data.status === 'ok' && Array.isArray(data.logs) && data.logs.length > 0) {
-        const validLogs = data.logs.filter(log => 
-          log.timestamp && log.protocol && log.src && log.dst && log.reason
-        );
+        const lines = data.logs.map(log => {
+          return `[${log.timestamp || '-'}] ${log.protocol?.toUpperCase() || ''} ${log.src || '-'} → ${log.dst || '-'} : ${log.reason || ''}`;
+        });
+        $console.text(lines.join('\n'));
         
-        if (validLogs.length > 0) {
-          const lines = validLogs.map(log => {
-            return `[${log.timestamp}] ${log.protocol.toUpperCase()} ${log.src} → ${log.dst} : ${log.reason}`;
-          });
-          $console.text(lines.join('\n'));
-          
-          // Auto-scroll to bottom
-          $console.scrollTop($console[0].scrollHeight);
-        } else {
-          $console.text("{{ lang._('No valid logs found.') }}");
-        }
+        // Auto-scroll to bottom
+        $console.scrollTop($console[0].scrollHeight);
       } else {
-        $console.text("{{ lang._('No logs available.') }}");
+        $console.text("{{ lang._('No available logs.') }}");
       }
 
     } else if (mode === 'table') {
       $table.show();
-      const validLogs = Array.isArray(data.logs) ? 
-        data.logs.filter(log => 
-          log.timestamp && log.src && log.dst && log.protocol && log.reason
-        ) : [];
+      const logs = Array.isArray(data.logs) ? data.logs : [];
 
       $table.bootgrid('destroy').bootgrid({
         caseSensitive: false,
         rowCount: [10, 25, 50, -1],
         formatters: {
           raw: function(column, row) {
-            if (!row.timestamp || !row.raw) return '';
+            if (!row.timestamp || !row.raw) return '-';
             const ts = encodeURIComponent(row.timestamp);
             const logType = $('#logTypeSelect').val();
             const basePath = logType === 'alerts'
@@ -478,7 +467,7 @@ function loadLogs() {
                     </a>`;
           }
         }
-      }).bootgrid('append', validLogs);
+      }).bootgrid('append', logs);
     }
   }).fail(function() {
     // Remove loading state on error
