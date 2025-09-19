@@ -2,9 +2,9 @@
 
 PYTHON_SCRIPT="/usr/local/opnsense/scripts/OPNsense/AdvInspector/export_rules.py"
 
-echo "[INFO] Avvio esportazione regole con Python..."
+echo "[INFO] Starting export of rules with Python..."
 if [ ! -x "$PYTHON_SCRIPT" ]; then
-    echo "[✗] Script Python non trovato o non eseguibile: $PYTHON_SCRIPT"
+    echo "[✗] Python script not found or not executable: $PYTHON_SCRIPT"
     exit 1
 fi
 
