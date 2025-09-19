@@ -322,76 +322,459 @@
    {{ lang._('The NetZones configuration has been changed') }} <br /> {{ lang._('You must apply the changes in order for them to take effect.')}}
 </div>
 
-<ul class="nav nav-tabs" role="tablist" id="maintabs">
-   <li class="active"><a data-toggle="tab" href="#zones">{{ lang._('Zones') }}</a></li>
-   <li><a data-toggle="tab" href="#policies">{{ lang._('Inter-Zone Policies') }}</a></li>
+<style>
+/* NetZones Modern Configuration Page - OPNsense Professional Style */
+:root {
+  --opnsense-orange: #d94f00;
+  --opnsense-orange-light: #ff6600;
+  --opnsense-orange-dark: #b8440a;
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-tertiary: #f1f5f9;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --border-color: #e2e8f0;
+  --success-color: #10b981;
+  --danger-color: #ef4444;
+  --warning-color: #f59e0b;
+  --info-color: #3b82f6;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+}
+
+/* Modern Tabs */
+.modern-nav-tabs {
+  border: none;
+  background: var(--bg-primary);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: var(--shadow-md);
+  margin-bottom: 0;
+  overflow: hidden;
+}
+
+.modern-nav-tabs .nav-item {
+  margin-bottom: 0;
+}
+
+.modern-nav-tabs .nav-link {
+  border: none;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  padding: 1rem 2rem;
+  font-weight: 600;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all 0.3s ease;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.modern-nav-tabs .nav-link:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+
+.modern-nav-tabs .nav-link.active {
+  background: linear-gradient(135deg, var(--opnsense-orange) 0%, var(--opnsense-orange-light) 100%);
+  color: white;
+  box-shadow: var(--shadow-md);
+}
+
+.modern-nav-tabs .nav-link.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--opnsense-orange-dark);
+}
+
+/* Modern Content Box */
+.modern-tab-content {
+  background: var(--bg-primary);
+  border: 2px solid var(--border-color);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.modern-tab-pane {
+  padding: 2rem;
+}
+
+/* Action Bar */
+.action-bar {
+  background: var(--bg-tertiary);
+  padding: 1.25rem 2rem;
+  border-bottom: 2px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.action-bar-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.action-bar-title i {
+  color: var(--opnsense-orange);
+  font-size: 20px;
+}
+
+.action-bar-buttons {
+  display: flex;
+  gap: 0.75rem;
+}
+
+/* Modern Buttons */
+.modern-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.modern-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.modern-btn-primary {
+  background: linear-gradient(135deg, var(--opnsense-orange) 0%, var(--opnsense-orange-light) 100%);
+  color: white;
+  border-color: var(--opnsense-orange);
+}
+
+.modern-btn-primary:hover {
+  background: linear-gradient(135deg, var(--opnsense-orange-light) 0%, #ff7722 100%);
+  color: white;
+}
+
+.modern-btn-success {
+  background: linear-gradient(135deg, var(--success-color) 0%, #059669 100%);
+  color: white;
+  border-color: var(--success-color);
+}
+
+.modern-btn-success:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  color: white;
+}
+
+.modern-btn-secondary {
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  border-color: var(--border-color);
+}
+
+.modern-btn-secondary:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-color: var(--opnsense-orange);
+}
+
+/* Modern Tables */
+.modern-table-container {
+  background: var(--bg-primary);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.modern-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0;
+}
+
+.modern-table th {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 1rem 1.5rem;
+  border-bottom: 2px solid var(--border-color);
+  text-align: left;
+}
+
+.modern-table td {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: middle;
+}
+
+.modern-table tbody tr {
+  transition: all 0.2s ease;
+}
+
+.modern-table tbody tr:hover {
+  background: var(--bg-secondary);
+}
+
+.modern-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Status Badges */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-badge.enabled {
+  background: linear-gradient(135deg, var(--success-color) 0%, #059669 100%);
+  color: white;
+}
+
+.status-badge.disabled {
+  background: var(--text-secondary);
+  color: white;
+}
+
+.priority-badge {
+  background: var(--info-color);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.action-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.action-badge.pass {
+  background: var(--success-color);
+  color: white;
+}
+
+.action-badge.block {
+  background: var(--danger-color);
+  color: white;
+}
+
+.action-badge.reject {
+  background: var(--warning-color);
+  color: white;
+}
+
+/* Action Buttons */
+.table-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.action-btn {
+  padding: 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.action-btn:hover {
+  border-color: var(--opnsense-orange);
+  color: var(--opnsense-orange);
+  background: var(--bg-secondary);
+}
+
+.action-btn.edit:hover {
+  border-color: var(--info-color);
+  color: var(--info-color);
+}
+
+.action-btn.delete:hover {
+  border-color: var(--danger-color);
+  color: var(--danger-color);
+}
+
+/* Table Footer */
+.table-footer {
+  background: var(--bg-tertiary);
+  padding: 1rem 1.5rem;
+  border-top: 2px solid var(--border-color);
+  display: flex;
+  gap: 0.75rem;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .modern-nav-tabs .nav-link {
+    padding: 0.75rem 1rem;
+    font-size: 12px;
+  }
+  
+  .modern-tab-pane {
+    padding: 1rem;
+  }
+  
+  .action-bar {
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+  }
+  
+  .action-bar-buttons {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .modern-table th,
+  .modern-table td {
+    padding: 0.75rem;
+    font-size: 12px;
+  }
+}
+</style>
+
+<ul class="nav nav-tabs modern-nav-tabs" role="tablist" id="maintabs">
+   <li class="nav-item">
+      <a class="nav-link active" data-toggle="tab" href="#zones">
+         <i class="fa fa-layer-group"></i>
+         {{ lang._('Network Zones') }}
+      </a>
+   </li>
+   <li class="nav-item">
+      <a class="nav-link" data-toggle="tab" href="#policies">
+         <i class="fa fa-exchange-alt"></i>
+         {{ lang._('Inter-Zone Policies') }}
+      </a>
+   </li>
 </ul>
 
-<div class="tab-content content-box">
+<div class="tab-content modern-tab-content">
    <div id="zones" class="tab-pane fade in active">
-      <div class="row">
-         <div class="col-md-12">
-            <div class="pull-right" style="margin-bottom: 10px;">
-               <button id="btnCreateFromTemplate" type="button" class="btn btn-success">
-                  <i class="fa fa-magic"></i> {{ lang._('Create from Template') }}
-               </button>
-            </div>
-            <div class="clearfix"></div>
+      <div class="action-bar">
+         <h3 class="action-bar-title">
+            <i class="fa fa-layer-group"></i>
+            {{ lang._('Network Zone Configuration') }}
+         </h3>
+         <div class="action-bar-buttons">
+            <button id="btnCreateFromTemplate" type="button" class="modern-btn modern-btn-success">
+               <i class="fa fa-magic"></i>
+               {{ lang._('Create from Template') }}
+            </button>
          </div>
       </div>
-      <table id="grid-zones" class="table table-condensed table-hover table-striped table-responsive" data-editDialog="DialogEditZone">
-         <thead>
-            <tr>
-                <th data-column-id="enabled" data-width="6em" data-type="string" data-formatter="rowtoggle">{{ lang._('Enabled') }}</th>
-                <th data-column-id="name" data-type="string">{{ lang._('Name') }}</th>
-                <th data-column-id="description" data-type="string">{{ lang._('Description') }}</th>
-                <th data-column-id="default_action" data-width="8em" data-type="string">{{ lang._('Default Action') }}</th>
-                <th data-column-id="priority" data-width="6em" data-type="string">{{ lang._('Priority') }}</th>
-                <th data-column-id="uuid" data-type="string" data-identifier="true" data-visible="false">{{ lang._('ID') }}</th>
-                <th data-column-id="commands" data-width="7em" data-formatter="commands" data-sortable="false">{{ lang._('Edit') }} | {{ lang._('Delete') }}</th>
-            </tr>
-         </thead>
-         <tbody>
-         </tbody>
-         <tfoot>
-            <tr>
-               <td></td>
-               <td>
-                  <button data-action="add" type="button" class="btn btn-xs btn-primary"><span class="fa fa-plus fa-fw"></span></button>
-                  <button data-action="deleteSelected" type="button" class="btn btn-xs btn-default"><span class="fa fa-trash-o fa-fw"></span></button>
-               </td>
-            </tr>
-         </tfoot>
-      </table>
+      
+      <div class="modern-tab-pane">
+         <div class="modern-table-container">
+            <table id="grid-zones" class="modern-table table table-condensed table-hover table-striped table-responsive" data-editDialog="DialogEditZone">
+               <thead>
+                  <tr>
+                      <th data-column-id="enabled" data-width="8em" data-type="string" data-formatter="rowtoggle">{{ lang._('Status') }}</th>
+                      <th data-column-id="name" data-type="string">{{ lang._('Zone Name') }}</th>
+                      <th data-column-id="description" data-type="string">{{ lang._('Description') }}</th>
+                      <th data-column-id="default_action" data-width="10em" data-type="string">{{ lang._('Default Action') }}</th>
+                      <th data-column-id="priority" data-width="8em" data-type="string">{{ lang._('Priority') }}</th>
+                      <th data-column-id="uuid" data-type="string" data-identifier="true" data-visible="false">{{ lang._('ID') }}</th>
+                      <th data-column-id="commands" data-width="10em" data-formatter="commands" data-sortable="false">{{ lang._('Actions') }}</th>
+                  </tr>
+               </thead>
+               <tbody>
+               </tbody>
+            </table>
+            <div class="table-footer">
+               <button data-action="add" type="button" class="modern-btn modern-btn-primary">
+                  <i class="fa fa-plus"></i>
+                  {{ lang._('Add Zone') }}
+               </button>
+               <button data-action="deleteSelected" type="button" class="modern-btn modern-btn-secondary">
+                  <i class="fa fa-trash-o"></i>
+                  {{ lang._('Delete Selected') }}
+               </button>
+            </div>
+         </div>
+      </div>
    </div>
 
    <div id="policies" class="tab-pane fade in">
-      <table id="grid-policies" class="table table-condensed table-hover table-striped table-responsive" data-editDialog="DialogEditPolicy">
-         <thead>
-            <tr>
-                <th data-column-id="enabled" data-width="6em" data-type="string" data-formatter="rowtoggle">{{ lang._('Enabled') }}</th>
-                <th data-column-id="name" data-type="string">{{ lang._('Name') }}</th>
-                <th data-column-id="description" data-type="string">{{ lang._('Description') }}</th>
-                <th data-column-id="source_zone" data-width="8em" data-type="string">{{ lang._('Source Zone') }}</th>
-                <th data-column-id="destination_zone" data-width="8em" data-type="string">{{ lang._('Destination Zone') }}</th>
-                <th data-column-id="action" data-width="6em" data-type="string">{{ lang._('Action') }}</th>
-                <th data-column-id="priority" data-width="6em" data-type="string">{{ lang._('Priority') }}</th>
-                <th data-column-id="uuid" data-type="string" data-identifier="true" data-visible="false">{{ lang._('ID') }}</th>
-                <th data-column-id="commands" data-width="7em" data-formatter="commands" data-sortable="false">{{ lang._('Edit') }} | {{ lang._('Delete') }}</th>
-            </tr>
-         </thead>
-         <tbody>
-         </tbody>
-         <tfoot>
-            <tr>
-               <td></td>
-               <td>
-                  <button data-action="add" type="button" class="btn btn-xs btn-primary"><span class="fa fa-plus fa-fw"></span></button>
-                  <button data-action="deleteSelected" type="button" class="btn btn-xs btn-default"><span class="fa fa-trash-o fa-fw"></span></button>
-               </td>
-            </tr>
-         </tfoot>
-      </table>
+      <div class="action-bar">
+         <h3 class="action-bar-title">
+            <i class="fa fa-exchange-alt"></i>
+            {{ lang._('Inter-Zone Policy Management') }}
+         </h3>
+         <div class="action-bar-buttons">
+            <button type="button" class="modern-btn modern-btn-success" onclick="showPolicyWizard()">
+               <i class="fa fa-magic"></i>
+               {{ lang._('Policy Wizard') }}
+            </button>
+         </div>
+      </div>
+      
+      <div class="modern-tab-pane">
+         <div class="modern-table-container">
+            <table id="grid-policies" class="modern-table table table-condensed table-hover table-striped table-responsive" data-editDialog="DialogEditPolicy">
+               <thead>
+                  <tr>
+                      <th data-column-id="enabled" data-width="8em" data-type="string" data-formatter="rowtoggle">{{ lang._('Status') }}</th>
+                      <th data-column-id="name" data-type="string">{{ lang._('Policy Name') }}</th>
+                      <th data-column-id="description" data-type="string">{{ lang._('Description') }}</th>
+                      <th data-column-id="source_zone" data-width="10em" data-type="string">{{ lang._('Source Zone') }}</th>
+                      <th data-column-id="destination_zone" data-width="10em" data-type="string">{{ lang._('Destination Zone') }}</th>
+                      <th data-column-id="action" data-width="8em" data-type="string">{{ lang._('Action') }}</th>
+                      <th data-column-id="priority" data-width="8em" data-type="string">{{ lang._('Priority') }}</th>
+                      <th data-column-id="uuid" data-type="string" data-identifier="true" data-visible="false">{{ lang._('ID') }}</th>
+                      <th data-column-id="commands" data-width="10em" data-formatter="commands" data-sortable="false">{{ lang._('Actions') }}</th>
+                  </tr>
+               </thead>
+               <tbody>
+               </tbody>
+            </table>
+            <div class="table-footer">
+               <button data-action="add" type="button" class="modern-btn modern-btn-primary">
+                  <i class="fa fa-plus"></i>
+                  {{ lang._('Add Policy') }}
+               </button>
+               <button data-action="deleteSelected" type="button" class="modern-btn modern-btn-secondary">
+                  <i class="fa fa-trash-o"></i>
+                  {{ lang._('Delete Selected') }}
+               </button>
+            </div>
+         </div>
+      </div>
    </div>
 </div>
 

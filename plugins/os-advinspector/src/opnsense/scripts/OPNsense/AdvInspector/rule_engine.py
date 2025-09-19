@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 rule_engine.py - OPNsense Advanced Inspector Rule Engine
 
@@ -14,7 +15,7 @@ import json
 import ipaddress
 import os
 import logging
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Union
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -47,8 +48,8 @@ class RuleEngine:
         """
         self.rules_file = Path(rules_file)
         self.logger = self._setup_logger()
-        self._rules_cache: Optional[List[Dict]] = None
-        self._last_load_time: float = 0
+        self._rules_cache: Optional[List[Dict[str, Any]]] = None
+        self._last_load_time: float = 0.0
         
     def _setup_logger(self) -> logging.Logger:
         """
@@ -68,7 +69,7 @@ class RuleEngine:
             logger.setLevel(logging.WARNING)  # Default to WARNING to reduce noise
         return logger
     
-    def load_rules(self, force_reload: bool = False) -> List[Dict]:
+    def load_rules(self, force_reload: bool = False) -> List[Dict[str, Any]]:
         """
         Load inspection rules from JSON file with caching.
         
@@ -100,14 +101,14 @@ class RuleEngine:
             enabled_rules = []
             for rule in rules:
                 if self._validate_rule(rule):
-                    if rule.get("enabled", "1") == "1":
+                    if str(rule.get("enabled", "1")) == "1":
                         enabled_rules.append(rule)
                 else:
                     self.logger.warning(f"Invalid rule skipped: {rule.get('uuid', 'unknown')}")
             
             # Update cache
             self._rules_cache = enabled_rules
-            self._last_load_time = self.rules_file.stat().st_mtime if self.rules_file.exists() else 0
+            self._last_load_time = self.rules_file.stat().st_mtime if self.rules_file.exists() else 0.0
             
             self.logger.info(f"Loaded {len(enabled_rules)} enabled rules from {len(rules)} total")
             return enabled_rules
@@ -119,7 +120,7 @@ class RuleEngine:
             self.logger.error(f"Error loading rules: {e}")
             return []
     
-    def _validate_rule(self, rule: Dict) -> bool:
+    def _validate_rule(self, rule: Dict[str, Any]) -> bool:
         """
         Validate rule structure and content.
         
@@ -129,6 +130,9 @@ class RuleEngine:
         Returns:
             True if rule is valid, False otherwise
         """
+        if not isinstance(rule, dict):
+            return False
+            
         required_fields = ['source', 'destination', 'protocol', 'action']
         
         # Check required fields
@@ -163,14 +167,18 @@ class RuleEngine:
             True if IP matches, False otherwise
         """
         try:
+            # Handle empty or wildcard IPs
+            if not rule_ip or rule_ip in ['any', '*', '0.0.0.0/0']:
+                return True
+                
             packet_addr = ipaddress.ip_address(packet_ip)
             rule_network = ipaddress.ip_network(rule_ip, strict=False)
             return packet_addr in rule_network
         except (ValueError, ipaddress.AddressValueError) as e:
-            self.logger.debug(f"IP match error: {e}")
+            self.logger.debug(f"IP match error for {rule_ip} vs {packet_ip}: {e}")
             return False
     
-    def port_match(self, rule_ports: str, packet_port: int) -> bool:
+    def port_match(self, rule_ports: str, packet_port: Union[int, str]) -> bool:
         """
         Check if packet port matches rule port specification.
         
@@ -181,20 +189,21 @@ class RuleEngine:
         Returns:
             True if port matches, False otherwise
         """
-        if not rule_ports:  # Empty rule_ports matches any port
+        # Handle empty rule_ports or wildcards
+        if not rule_ports or rule_ports in ['any', '*']:
             return True
             
         try:
-            packet_port = int(packet_port)
+            packet_port_int = int(packet_port)
             
-            for port_spec in rule_ports.split(','):
+            for port_spec in str(rule_ports).split(','):
                 port_spec = port_spec.strip()
                 
                 if '-' in port_spec:
                     # Port range
                     try:
                         start, end = map(int, port_spec.split('-', 1))
-                        if start <= packet_port <= end:
+                        if start <= packet_port_int <= end:
                             return True
                     except ValueError:
                         self.logger.debug(f"Invalid port range: {port_spec}")
@@ -202,14 +211,14 @@ class RuleEngine:
                 else:
                     # Single port
                     try:
-                        if int(port_spec) == packet_port:
+                        if int(port_spec) == packet_port_int:
                             return True
                     except ValueError:
                         self.logger.debug(f"Invalid port number: {port_spec}")
                         continue
                         
         except (ValueError, TypeError) as e:
-            self.logger.debug(f"Port match error: {e}")
+            self.logger.debug(f"Port match error for {rule_ports} vs {packet_port}: {e}")
             
         return False
     
@@ -229,19 +238,19 @@ class RuleEngine:
         if not rules:
             return RuleMatch(matched=False, action="allow")
         
-        # Extract packet information
+        # Extract packet information with defaults
         packet_src = packet.get("src", "")
         packet_dst = packet.get("dst", "")
         packet_port = packet.get("port", 0)
-        packet_protocol = packet.get("protocol", "").lower()
+        packet_protocol = str(packet.get("protocol", "")).lower()
         
         # Evaluate each rule
         for rule in rules:
             try:
-                rule_src = rule.get("source", "")
-                rule_dst = rule.get("destination", "")
-                rule_port = rule.get("port", "")
-                rule_protocol = rule.get("protocol", "").lower()
+                rule_src = str(rule.get("source", ""))
+                rule_dst = str(rule.get("destination", ""))
+                rule_port = str(rule.get("port", ""))
+                rule_protocol = str(rule.get("protocol", "")).lower()
                 
                 # Check all matching criteria
                 if (self.ip_match(rule_src, packet_src) and
@@ -254,7 +263,8 @@ class RuleEngine:
                     description = rule.get("description", "")
                     
                     self.logger.debug(
-                        f"Rule {rule_id} matched: {packet_src}:{packet_port} -> {packet_dst} ({packet_protocol}) = {action}"
+                        f"Rule {rule_id} matched: {packet_src}:{packet_port} -> "
+                        f"{packet_dst} ({packet_protocol}) = {action}"
                     )
                     
                     return RuleMatch(
@@ -280,7 +290,7 @@ class RuleEngine:
         """
         rules = self.load_rules()
         
-        stats = {
+        stats: Dict[str, Any] = {
             "total_rules": len(rules),
             "rules_by_action": {},
             "rules_by_protocol": {},
@@ -299,27 +309,34 @@ class RuleEngine:
         return stats
 
 
-# Legacy function for backward compatibility
-def load_rules():
+# Legacy functions for backward compatibility
+def load_rules() -> List[Dict[str, Any]]:
     """Legacy function - use RuleEngine.load_rules() instead."""
     engine = RuleEngine()
     return engine.load_rules()
 
 
-def ip_match(rule_ip, pkt_ip):
+def ip_match(rule_ip: str, pkt_ip: str) -> bool:
     """Legacy function - use RuleEngine.ip_match() instead."""
     engine = RuleEngine()
     return engine.ip_match(rule_ip, pkt_ip)
 
 
-def port_match(rule_ports, pkt_port):
+def port_match(rule_ports: str, pkt_port: Union[int, str]) -> bool:
     """Legacy function - use RuleEngine.port_match() instead."""
     engine = RuleEngine()
     return engine.port_match(rule_ports, pkt_port)
 
 
-def evaluate_packet(packet):
+def evaluate_packet(packet: Dict[str, Any]) -> str:
     """Legacy function - use RuleEngine.evaluate_packet() instead."""
     engine = RuleEngine()
     result = engine.evaluate_packet(packet)
     return result.action  # Return only action for backward compatibility
+
+
+if __name__ == "__main__":
+    # Basic test functionality
+    engine = RuleEngine()
+    stats = engine.get_statistics()
+    print(f"Rule engine initialized with {stats['total_rules']} rules")
