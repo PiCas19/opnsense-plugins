@@ -1,0 +1,10 @@
+# libraries/os-validation-core/pkg-plist
+
+# OPNsense Validation Core Library Files
+usr/local/opnsense/mvc/app/library/OPNsense/ValidationCore/ValidationEngine.php
+usr/local/opnsense/mvc/app/library/OPNsense/ValidationCore/Validators/AbstractValidator.php
+usr/local/opnsense/mvc/app/library/OPNsense/ValidationCore/Validators/NetworkValidator.php
+usr/local/opnsense/mvc/app/library/OPNsense/ValidationCore/Validators/RuleValidator.php
+usr/local/opnsense/mvc/app/library/OPNsense/ValidationCore/Validators/ProtocolValidator.php
+usr/local/opnsense/mvc/app/library/OPNsense/ValidationCore/Utils/NetworkUtils.php
+usr/local/opnsense/mvc/app/library/OPNsense/ValidationCore/Utils/ValidationHelper.php
