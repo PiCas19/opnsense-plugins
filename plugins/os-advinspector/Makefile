@@ -5,6 +5,6 @@ PLUGIN_MAINTAINER= pierpaolo.casati@student.supsi.ch
 PLUGIN_TIER= 3
 PLUGIN_WWW= https://git.consoli.ch/students/20250400_lavsem/moretto/
 PLUGIN_DIR= service
-PLUGIN_DEPENDS=	os-validation-core
+PLUGIN_DEPENDS=	validation-core
 
 .include "../../Mk/plugins.mk"
