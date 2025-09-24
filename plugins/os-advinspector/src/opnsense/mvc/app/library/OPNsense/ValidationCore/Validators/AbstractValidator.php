@@ -3,12 +3,114 @@
 /*
  * Copyright (C) 2024 OPNsense Validation Core Library
  * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
+ * OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
  */
 
 namespace OPNsense\ValidationCore\Validators;
 
-use OPNsense\Base\Messages\Message;
-use OPNsense\Base\Messages\MessageCollection;
+/**
+ * Simple validation message class to avoid OPNsense dependencies
+ */
+class ValidationMessage 
+{
+    private $message;
+    private $field;
+    
+    public function __construct($message, $field) 
+    {
+        $this->message = $message;
+        $this->field = $field;
+    }
+    
+    public function getMessage() 
+    {
+        return $this->message;
+    }
+    
+    public function getField() 
+    {
+        return $this->field;
+    }
+    
+    public function __toString() 
+    {
+        return $this->message;
+    }
+}
+
+/**
+ * Simple message collection class to avoid OPNsense dependencies
+ */
+class ValidationMessageCollection implements \Iterator, \Countable
+{
+    private $messages = [];
+    private $position = 0;
+    
+    public function appendMessage($message) 
+    {
+        $this->messages[] = $message;
+    }
+    
+    public function hasErrors() 
+    {
+        return !empty($this->messages);
+    }
+    
+    public function getMessages() 
+    {
+        return $this->messages;
+    }
+    
+    public function count(): int
+    {
+        return count($this->messages);
+    }
+    
+    public function rewind(): void
+    {
+        $this->position = 0;
+    }
+    
+    public function current()
+    {
+        return $this->messages[$this->position];
+    }
+    
+    public function key()
+    {
+        return $this->position;
+    }
+    
+    public function next(): void
+    {
+        ++$this->position;
+    }
+    
+    public function valid(): bool
+    {
+        return isset($this->messages[$this->position]);
+    }
+}
 
 /**
  * Abstract Validator Base Class
@@ -39,7 +141,7 @@ abstract class AbstractValidator
     /**
      * Collection of validation messages generated during execution
      *
-     * @var MessageCollection Validation error and warning messages
+     * @var ValidationMessageCollection Validation error and warning messages
      */
     protected $messages;
 
@@ -69,7 +171,7 @@ abstract class AbstractValidator
      */
     public function __construct()
     {
-        $this->messages = new MessageCollection();
+        $this->messages = new ValidationMessageCollection();
         $this->validationContext = [];
     }
 
@@ -83,17 +185,27 @@ abstract class AbstractValidator
      *
      * @param array $data Configuration data to validate
      * @param bool $validateFullModel Whether to perform full model validation
-     * @return MessageCollection Collection of validation messages
+     * @return ValidationMessageCollection Collection of validation messages
      *
      * @throws \InvalidArgumentException When data format is invalid
      * @throws \RuntimeException When validation execution fails
+     *
+     * @example
+     * // Validate configuration data with full model check
+     * $validator = new ConcreteValidator();
+     * $messages = $validator->validate($configData, true);
+     * if ($messages->hasErrors()) {
+     *     foreach ($messages as $message) {
+     *         echo $message->getMessage() . " (Field: " . $message->getField() . ")\n";
+     *     }
+     * }
      */
-    public function validate(array $data, bool $validateFullModel = false): MessageCollection
+    public function validate(array $data, bool $validateFullModel = false): ValidationMessageCollection
     {
         // Initialize validation state
         $this->data = $data;
         $this->validateFullModel = $validateFullModel;
-        $this->messages = new MessageCollection();
+        $this->messages = new ValidationMessageCollection();
         $this->validationContext = [
             'start_time' => microtime(true),
             'validator_name' => get_class($this),
@@ -139,10 +251,13 @@ abstract class AbstractValidator
      *
      * @param string $message Human-readable error message
      * @param string $fieldPath Dot-notation path to the problematic field
+     *
+     * @example
+     * $this->addError("Invalid IP address format", "general.server_ip");
      */
     protected function addError(string $message, string $fieldPath): void
     {
-        $this->messages->appendMessage(new Message($message, $fieldPath));
+        $this->messages->appendMessage(new ValidationMessage($message, $fieldPath));
     }
 
     /**
@@ -153,12 +268,13 @@ abstract class AbstractValidator
      *
      * @param string $message Human-readable warning message
      * @param string $fieldPath Dot-notation path to the field
+     *
+     * @example
+     * $this->addWarning("Using default port may cause conflicts", "general.port");
      */
     protected function addWarning(string $message, string $fieldPath): void
     {
-        // OPNsense framework doesn't distinguish warnings from errors in Message class
-        // This could be extended with custom message types if needed
-        $this->messages->appendMessage(new Message("Warning: " . $message, $fieldPath));
+        $this->messages->appendMessage(new ValidationMessage("Warning: " . $message, $fieldPath));
     }
 
     /**
@@ -199,6 +315,10 @@ abstract class AbstractValidator
      * @param string $path Dot-notation path to field (e.g., "general.enabled")
      * @param mixed $default Default value if field not found
      * @return mixed Field value or default
+     *
+     * @example
+     * $enabled = $this->getFieldValue('general.enabled', false);
+     * $serverList = $this->getFieldValue('network.servers', []);
      */
     protected function getFieldValue(string $path, $default = '')
     {
@@ -270,6 +390,11 @@ abstract class AbstractValidator
      * @param string $path Dot-notation path to field
      * @param bool $default Default value
      * @return bool Field value as boolean
+     *
+     * @example
+     * $isEnabled = $this->getBoolValue('general.enabled', false);
+     * // Handles: "1", "true", "yes", "on", "enabled" as true
+     * // Handles: "0", "false", "no", "off", "disabled" as false
      */
     protected function getBoolValue(string $path, bool $default = false): bool
     {
@@ -287,6 +412,10 @@ abstract class AbstractValidator
      * @param string $path Dot-notation path to field
      * @param array $default Default array value
      * @return array Array of trimmed values
+     *
+     * @example
+     * $interfaces = $this->getArrayValue('general.interfaces', []);
+     * // Input: "eth0, eth1, wlan0" -> Output: ["eth0", "eth1", "wlan0"]
      */
     protected function getArrayValue(string $path, array $default = []): array
     {
