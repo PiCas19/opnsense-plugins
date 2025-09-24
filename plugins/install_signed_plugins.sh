@@ -8,7 +8,7 @@
 
 set -e
 
-PLUGIN_DIRS="os-advinspector os-validation-core"
+PLUGIN_DIRS="os-advinspector"
 REPO_NAME="localrepo"
 REPO_BASE="/usr/local/localrepo"
 REPO_DIR="${REPO_BASE}/packages"
