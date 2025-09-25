@@ -19,9 +19,8 @@ Features:
 - Comprehensive logging and alerting
 - Integration with existing collector modules
 
-Author: Enhanced OOP Architecture
-Version: 2.0
-License: BSD 3-Clause
+Author: Pierpaolo Casati
+Version: 1.0
 """
 
 import sys
@@ -39,11 +38,10 @@ import subprocess
 import xml.etree.ElementTree as ET
 import ipaddress
 import math
-import glob
 import psutil
 from abc import ABC, abstractmethod
-from collections import defaultdict, deque, Counter
-from datetime import datetime, timedelta
+from collections import Counter
+from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple, Union
 from dataclasses import dataclass, field
 from enum import Enum
@@ -60,28 +58,12 @@ except ImportError as e:
     sys.exit(1)
 
 # Import existing collector modules for integration
-try:
-    from update_signatures import SignatureUpdater  # CORRETTO: Import della classe
-    from export_config import ConfigExporter
-    from get_industrial_stats import IndustrialStatsCollector
-    from get_latency_metrics import LatencyMetricsCollector
-    from get_metrics import PerformanceMetricsCollector
-    from get_stats import DPIStatsCollector
-except ImportError as e:
-    print(f"Warning: Could not import support functions: {e}")
-    # Create mock classes for testing
-    class SignatureUpdater:
-        def update(self): return True
-    class ConfigExporter:
-        def export(self): return True
-    class IndustrialStatsCollector:
-        def collect(self): return {}
-    class LatencyMetricsCollector:
-        def collect(self): return {}
-    class PerformanceMetricsCollector:
-        def collect(self): return {}
-    class DPIStatsCollector:
-        def collect(self): return {}
+from update_signatures import SignatureUpdater
+from export_config import ConfigExporter
+from get_industrial_stats import IndustrialStatsCollector
+from get_latency_metrics import LatencyMetricsCollector
+from get_metrics import PerformanceMetricsCollector
+from get_stats import DPIStatsCollector
 
 
 # ============================= Configuration Classes =============================
@@ -301,25 +283,24 @@ class ConfigurationManager:
         self.config = EngineConfig()
         
     def load_configuration(self) -> bool:
-        """Load configuration from files."""
         try:
-            # First try to export from OPNsense using existing module
             self._export_opnsense_config()
             
-            # Load JSON configuration
             if os.path.exists(self.CONFIG_FILE):
                 with open(self.CONFIG_FILE, 'r') as f:
                     config_data = json.load(f)
                     self._apply_config_data(config_data)
-            
+            else:
+                self.logger.error(f"Configuration file not found: {self.CONFIG_FILE}")
+                return False
+                
             self.logger.info("Configuration loaded successfully")
             return True
             
         except Exception as e:
             self.logger.error(f"Failed to load configuration: {e}")
-            self._load_default_config()
             return False
-    
+        
     def _export_opnsense_config(self) -> None:
         """Export configuration from OPNsense config.xml using ConfigExporter."""
         try:
@@ -412,10 +393,6 @@ class ConfigurationManager:
             return [net.strip() for net in networks.split(',') if net.strip()]
         return networks if isinstance(networks, list) else []
     
-    def _load_default_config(self) -> None:
-        """Load default configuration."""
-        self.config = EngineConfig()
-        self.logger.info("Loaded default configuration")
     
     def get_config(self) -> EngineConfig:
         """Get the current configuration."""
@@ -443,23 +420,17 @@ class StatisticsManager:
         self.last_update = datetime.now()
         
     def collect_all_stats(self) -> Dict[str, Any]:
-        """Collect comprehensive statistics using existing modules."""
-        try:
-            stats = {
-                'timestamp': datetime.now().isoformat(),
-                'engine_metrics': self._get_engine_metrics(),
-                'industrial_stats': self.industrial_collector.collect(),
-                'latency_metrics': self.latency_collector.collect(),
-                'performance_metrics': self.performance_collector.collect(),
-                'dpi_stats': self.dpi_collector.collect()
-            }
-            
-            self.last_update = datetime.now()
-            return stats
-            
-        except Exception as e:
-            self.logger.error(f"Error collecting statistics: {e}")
-            return {'error': str(e), 'timestamp': datetime.now().isoformat()}
+        stats = {
+            'timestamp': datetime.now().isoformat(),
+            'engine_metrics': self._get_engine_metrics(),
+            'industrial_stats': self.industrial_collector.collect(),
+            'latency_metrics': self.latency_collector.collect(),
+            'performance_metrics': self.performance_collector.collect(),
+            'dpi_stats': self.dpi_collector.collect()
+        }
+        
+        self.last_update = datetime.now()
+        return stats
     
     def _get_engine_metrics(self) -> Dict[str, Any]:
         """Get internal engine metrics."""
@@ -510,7 +481,7 @@ class MalwareDetector(ThreatDetector):
     def __init__(self, config: EngineConfig):
         """Initialize malware detector."""
         super().__init__("MalwareDetector", config)
-        self.signatures = self._load_signatures()
+        self.signatures = {}
         
     def detect(self, packet_info: PacketInfo) -> List[ThreatInfo]:
         """Detect malware in packet payload."""
@@ -561,7 +532,6 @@ class MalwareDetector(ThreatDetector):
     def update_signatures(self) -> bool:
         """Update malware signatures."""
         try:
-            # CORRETTO: Usare SignatureUpdater invece di download_signatures
             updater = SignatureUpdater()
             success = updater.update()
             if success:
@@ -578,7 +548,7 @@ class InjectionDetector(ThreatDetector):
     def __init__(self, config: EngineConfig):
         """Initialize injection detector."""
         super().__init__("InjectionDetector", config)
-        self.patterns = self._load_patterns()
+        self.signatures = {}
         
     def detect(self, packet_info: PacketInfo) -> List[ThreatInfo]:
         """Detect injection attacks in packet payload."""
@@ -686,7 +656,7 @@ class CryptoMinerDetector(ThreatDetector):
     def __init__(self, config: EngineConfig):
         """Initialize crypto miner detector."""
         super().__init__("CryptoMinerDetector", config)
-        self.patterns = self._load_patterns()
+        self.signatures = {}
         
     def detect(self, packet_info: PacketInfo) -> List[ThreatInfo]:
         """Detect crypto mining in packet payload."""
@@ -735,7 +705,7 @@ class DataExfiltrationDetector(ThreatDetector):
     def __init__(self, config: EngineConfig):
         """Initialize data exfiltration detector."""
         super().__init__("DataExfiltrationDetector", config)
-        self.patterns = self._load_patterns()
+        self.signatures = {}
         
     def detect(self, packet_info: PacketInfo) -> List[ThreatInfo]:
         """Detect data exfiltration in packet payload."""
@@ -1137,13 +1107,10 @@ class NetworkInterfaceManager:
         self._build_interface_mapping()
     
     def _build_interface_mapping(self) -> None:
-        """Build mapping of logical to physical interfaces."""
         try:
-            # Parse OPNsense config.xml
             tree = ET.parse("/conf/config.xml")
             root = tree.getroot()
             
-            # Get interface mappings
             interfaces = root.find('interfaces')
             if interfaces is not None:
                 for interface in interfaces:
@@ -1156,23 +1123,7 @@ class NetworkInterfaceManager:
                         
         except Exception as e:
             self.logger.error(f"Error parsing OPNsense config: {e}")
-            self._build_fallback_mapping()
-    
-    def _build_fallback_mapping(self) -> None:
-        """Build fallback interface mapping."""
-        try:
-            result = subprocess.run(['ifconfig', '-l'], capture_output=True, text=True)
-            if result.returncode == 0:
-                system_interfaces = result.stdout.strip().split()
-                common_mappings = {
-                    'lan': 'em0', 'wan': 'em1', 'opt1': 'em2', 'opt2': 'em3'
-                }
-                for logical, physical in common_mappings.items():
-                    if physical in system_interfaces:
-                        self.interface_map[logical] = physical
-                        self.logger.info(f"Fallback mapped {logical} -> {physical}")
-        except Exception as e:
-            self.logger.error(f"Error getting system interfaces: {e}")
+            raise 
     
     def resolve_interfaces(self, logical_interfaces: List[str]) -> List[str]:
         """Resolve logical interface names to physical names."""
