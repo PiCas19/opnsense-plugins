@@ -1,80 +1,157 @@
-import os
+#!/usr/local/bin/python3
+"""
+DeepInspector Performance Metrics Collector
+-------------------------------------------
+Collects system, DPI engine, and network interface metrics for
+monitoring performance inside an OPNsense environment.
+
+Features
+--------
+- System metrics: CPU, memory, disk usage, load averages
+- DPI engine process metrics: CPU, memory, thread count, status
+- Per–network interface statistics (packets, errors, drops)
+
+Author: Pierpaolo Casati
+Version: 1.0
+"""
+
 import json
+import os
 import subprocess
-import psutil
 from datetime import datetime
+from typing import Dict, Any, Optional
 
-def get_metrics():
-    """Get DPI engine performance metrics"""
-    try:
-        metrics = {
-            'timestamp': datetime.now().isoformat(),
-            'system': {},
-            'engine': {},
-            'network': {}
+import psutil
+
+
+class PerformanceMetricsCollector:
+    """
+    Collects performance metrics for the system and the DeepInspector engine.
+    """
+
+    def __init__(self, engine_name: str = "deepinspector_engine") -> None:
+        """
+        Initialize the collector.
+
+        Args:
+            engine_name: Name or unique pattern of the DeepInspector engine process.
+        """
+        self.engine_name = engine_name
+
+    # --------------------------- System Metrics --------------------------- #
+    def _system_metrics(self) -> Dict[str, Any]:
+        """
+        Gather system-wide resource usage metrics.
+
+        Returns:
+            Dictionary of CPU, memory, disk and load averages.
+        """
+        return {
+            "cpu_usage": psutil.cpu_percent(interval=1),
+            "memory_usage": psutil.virtual_memory().percent,
+            "disk_usage": psutil.disk_usage("/").percent,
+            "load_average": list(os.getloadavg())
         }
 
-        # System metrics
-        metrics['system'] = {
-            'cpu_usage': psutil.cpu_percent(interval=1),
-            'memory_usage': psutil.virtual_memory().percent,
-            'disk_usage': psutil.disk_usage('/').percent,
-            'load_average': list(os.getloadavg())
-        }
+    # --------------------------- Engine Metrics --------------------------- #
+    def _find_engine_pid(self) -> Optional[int]:
+        """
+        Locate the DeepInspector engine process ID using pgrep.
 
-        # Engine-specific metrics
-        engine_pid = get_engine_pid()
-        if engine_pid:
-            try:
-                process = psutil.Process(engine_pid)
-                metrics['engine'] = {
-                    'pid': engine_pid,
-                    'cpu_percent': process.cpu_percent(),
-                    'memory_percent': process.memory_percent(),
-                    'memory_rss': process.memory_info().rss,
-                    'num_threads': process.num_threads(),
-                    'status': process.status(),
-                    'create_time': process.create_time()
-                }
-            except psutil.NoSuchProcess:
-                metrics['engine'] = {'status': 'not_running'}
-        else:
-            metrics['engine'] = {'status': 'not_found'}
+        Returns:
+            PID of the engine process, or None if not found.
+        """
+        try:
+            result = subprocess.run(
+                ["pgrep", "-f", self.engine_name],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            if result.returncode == 0:
+                return int(result.stdout.strip().split("\n")[0])
+        except Exception:
+            pass
+        return None
 
-        # Network interface statistics
-        net_stats = psutil.net_io_counters(pernic=True)
-        metrics['network'] = {}
-        for interface, stats in net_stats.items():
-            metrics['network'][interface] = {
-                'bytes_sent': stats.bytes_sent,
-                'bytes_recv': stats.bytes_recv,
-                'packets_sent': stats.packets_sent,
-                'packets_recv': stats.packets_recv,
-                'errin': stats.errin,
-                'errout': stats.errout,
-                'dropin': stats.dropin,
-                'dropout': stats.dropout
+    def _engine_metrics(self) -> Dict[str, Any]:
+        """
+        Collect resource metrics specific to the DeepInspector engine.
+
+        Returns:
+            Dictionary of engine process metrics or status.
+        """
+        pid = self._find_engine_pid()
+        if pid is None:
+            return {"status": "not_found"}
+
+        try:
+            proc = psutil.Process(pid)
+            return {
+                "pid": pid,
+                "cpu_percent": proc.cpu_percent(),
+                "memory_percent": proc.memory_percent(),
+                "memory_rss": proc.memory_info().rss,
+                "num_threads": proc.num_threads(),
+                "status": proc.status(),
+                "create_time": proc.create_time()
             }
+        except psutil.NoSuchProcess:
+            return {"status": "not_running"}
 
+    # --------------------------- Network Metrics -------------------------- #
+    def _network_metrics(self) -> Dict[str, Any]:
+        """
+        Gather per-interface network I/O counters.
+
+        Returns:
+            Dictionary of metrics for each network interface.
+        """
+        metrics: Dict[str, Any] = {}
+        for iface, stats in psutil.net_io_counters(pernic=True).items():
+            metrics[iface] = {
+                "bytes_sent": stats.bytes_sent,
+                "bytes_recv": stats.bytes_recv,
+                "packets_sent": stats.packets_sent,
+                "packets_recv": stats.packets_recv,
+                "errin": stats.errin,
+                "errout": stats.errout,
+                "dropin": stats.dropin,
+                "dropout": stats.dropout,
+            }
         return metrics
 
-    except Exception as e:
-        return {
-            'error': str(e),
-            'timestamp': datetime.now().isoformat()
-        }
+    # ------------------------------ Public API ---------------------------- #
+    def collect(self) -> Dict[str, Any]:
+        """
+        Collect all available metrics.
 
-def get_engine_pid():
-    """Get DPI engine process ID"""
-    try:
-        result = subprocess.run(['pgrep', '-f', 'deepinspector_engine'],
-                              capture_output=True, text=True)
-        if result.returncode == 0:
-            return int(result.stdout.strip().split('\n')[0])
-    except:
-        pass
-    return None
+        Returns:
+            Structured dictionary with timestamp, system, engine, and network metrics.
+        """
+        try:
+            return {
+                "timestamp": datetime.now().isoformat(),
+                "system": self._system_metrics(),
+                "engine": self._engine_metrics(),
+                "network": self._network_metrics()
+            }
+        except Exception as exc:
+            return {
+                "error": str(exc),
+                "timestamp": datetime.now().isoformat()
+            }
+
+
+def main() -> None:
+    """
+    Command-line entry point.
+    Prints collected performance metrics as formatted JSON.
+    """
+    collector = PerformanceMetricsCollector()
+    metrics = collector.collect()
+    print(json.dumps(metrics, indent=2))
+
 
 if __name__ == "__main__":
-    metrics = get_metrics()
-    print(json.dumps(metrics, indent=2))
+    main()
