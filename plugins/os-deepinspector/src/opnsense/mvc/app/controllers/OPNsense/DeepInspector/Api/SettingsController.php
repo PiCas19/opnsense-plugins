@@ -40,7 +40,7 @@ class SettingsController extends ApiMutableModelControllerBase
      * @throws \ReflectionException when not bound to model
      */
     public function getProtocolsAction()
-    {
+    {nano co
         return ['deepinspector' => $this->getModel()->protocols->getNodes(), 'result' => 'ok'];
     }
 
