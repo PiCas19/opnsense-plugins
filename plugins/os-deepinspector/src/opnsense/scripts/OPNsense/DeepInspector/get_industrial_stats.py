@@ -1,158 +1,71 @@
 #!/usr/local/bin/python3
-"""
-DeepInspector Industrial Statistics Collector
----------------------------------------------
-Reads DeepInspector runtime logs and computes statistics related
-to industrial/SCADA protocols. Designed for integration with
-OPNsense dashboards or scheduled tasks.
+# get_industrial_stats.py - Get industrial protocol statistics
 
-Features
---------
-- Collects packet counts and alert metrics for Modbus, DNP3, OPC UA
-- Counts SCADA-related alerts within a 24-hour window
-- Aggregates protocol distribution for recent alerts
-- Outputs JSON for easy integration with UI or API calls
-
-Author: Pierpaolo Casati
-Version: 1.0
-"""
-
+import os
 import json
 from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Dict, Any
 
+STATS_FILE = "/var/log/deepinspector/stats.json"
+ALERT_LOG = "/var/log/deepinspector/alerts.log"
 
-class IndustrialStatsCollector:
-    """
-    Handles collection and aggregation of industrial protocol statistics.
-    """
-
-    def __init__(self,
-                 stats_file: str = "/var/log/deepinspector/stats.json",
-                 alert_log: str = "/var/log/deepinspector/alerts.log"):
-        """
-        Initialize the collector.
-
-        Args:
-            stats_file: Path to JSON file storing cumulative statistics.
-            alert_log: Path to log file containing alert entries (one JSON per line).
-        """
-        self.stats_path = Path(stats_file)
-        self.alert_log_path = Path(alert_log)
-
-    def _base_stats(self) -> Dict[str, Any]:
-        """
-        Base statistics template.
-
-        Returns:
-            Dictionary with default zeroed metrics.
-        """
-        return {
-            "timestamp": datetime.now().isoformat(),
-            "modbus_packets": 0,
-            "dnp3_packets": 0,
-            "opcua_packets": 0,
-            "scada_alerts": 0,
-            "plc_communications": 0,
-            "industrial_threats": 0,
-            "avg_latency": 0,
-            "protocol_distribution": {}
+def get_industrial_stats():
+    """Get industrial protocol statistics"""
+    try:
+        stats = {
+            'timestamp': datetime.now().isoformat(),
+            'modbus_packets': 0,
+            'dnp3_packets': 0,
+            'opcua_packets': 0,
+            'scada_alerts': 0,
+            'plc_communications': 0,
+            'industrial_threats': 0,
+            'avg_latency': 0,
+            'protocol_distribution': {}
         }
 
-    def _load_existing_stats(self) -> Dict[str, Any]:
-        """
-        Load existing statistics from the persistent stats file.
+        # Load current stats
+        if os.path.exists(STATS_FILE):
+            with open(STATS_FILE, 'r') as f:
+                current_stats = json.load(f)
+                industrial_stats = current_stats.get('industrial_stats', {})
+                stats.update(industrial_stats)
 
-        Returns:
-            Dictionary of previously saved industrial statistics.
-        """
-        if self.stats_path.exists():
-            try:
-                with self.stats_path.open("r", encoding="utf-8") as f:
-                    current = json.load(f)
-                return current.get("industrial_stats", {})
-            except (json.JSONDecodeError, OSError):
-                # If corrupted or unreadable, return empty stats
-                return {}
-        return {}
-
-    def _analyze_recent_alerts(self, stats: Dict[str, Any]) -> None:
-        """
-        Analyze alerts from the past 24 hours to update statistics.
-
-        Args:
-            stats: Dictionary to be updated with alert-derived metrics.
-        """
-        if not self.alert_log_path.exists():
-            return
-
-        cutoff_time = datetime.now() - timedelta(hours=24)
-
-        try:
-            with self.alert_log_path.open("r", encoding="utf-8") as f:
+        # Analyze recent industrial alerts
+        if os.path.exists(ALERT_LOG):
+            cutoff_time = datetime.now() - timedelta(hours=24)
+            
+            with open(ALERT_LOG, 'r') as f:
                 for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
                     try:
-                        alert = json.loads(line)
-                        # Validate timestamp
-                        ts = alert.get("timestamp")
-                        if not ts:
-                            continue
-                        alert_time = datetime.fromisoformat(ts)
-                        if alert_time <= cutoff_time:
-                            continue
-
-                        # Industrial threat counting
-                        if alert.get("industrial_context", False):
-                            stats["industrial_threats"] += 1
-
-                        # SCADA alerts
-                        threat_type = alert.get("threat_type", "").lower()
-                        if "scada" in threat_type:
-                            stats["scada_alerts"] += 1
-
-                        # Protocol distribution
-                        protocol = alert.get("industrial_protocol", "")
-                        if protocol:
-                            stats["protocol_distribution"][protocol] = \
-                                stats["protocol_distribution"].get(protocol, 0) + 1
-                    except (json.JSONDecodeError, ValueError):
-                        # Skip invalid lines
+                        alert = json.loads(line.strip())
+                        alert_time = datetime.fromisoformat(alert.get('timestamp', ''))
+                        
+                        if alert_time > cutoff_time:
+                            # Count industrial threats
+                            if alert.get('industrial_context', False):
+                                stats['industrial_threats'] += 1
+                                
+                            # Count SCADA alerts
+                            if 'scada' in alert.get('threat_type', '').lower():
+                                stats['scada_alerts'] += 1
+                                
+                            # Count by protocol
+                            protocol = alert.get('industrial_protocol', '')
+                            if protocol:
+                                stats['protocol_distribution'][protocol] = \
+                                    stats['protocol_distribution'].get(protocol, 0) + 1
+                    except:
                         continue
-        except OSError as exc:
-            stats["error"] = f"Alert log read error: {exc}"
-
-    def collect(self) -> Dict[str, Any]:
-        """
-        Collect and merge current industrial statistics.
-
-        Returns:
-            Dictionary with updated industrial metrics.
-        """
-        stats = self._base_stats()
-
-        # Merge with existing stats if available
-        existing = self._load_existing_stats()
-        stats.update(existing)
-
-        # Analyze alerts from the last 24 hours
-        self._analyze_recent_alerts(stats)
 
         return stats
 
-
-def main() -> None:
-    """
-    Command-line entry point.
-    Prints the collected industrial statistics in JSON format.
-    """
-    collector = IndustrialStatsCollector()
-    stats = collector.collect()
-    print(json.dumps(stats, indent=2))
-
+    except Exception as e:
+        return {
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }
 
 if __name__ == "__main__":
-    main()
+    stats = get_industrial_stats()
+    print(json.dumps(stats, indent=2))
+

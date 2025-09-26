@@ -5,8 +5,7 @@
             <Settings order="20" url="/ui/deepinspector/index"/>
             <Threats order="30" url="/ui/deepinspector/threats"/>
             <Analysis order="40" url="/ui/deepinspector/analysis"/>
-            <Statistics  order="50" url="/ui/deepinspector/statistics/"/>
-            <Logs order="60" url="/ui/deepinspector/logs"/>
+            <Logs order="50" url="/ui/deepinspector/logs"/>
         </DeepInspector>
     </Services>
 </menu>
