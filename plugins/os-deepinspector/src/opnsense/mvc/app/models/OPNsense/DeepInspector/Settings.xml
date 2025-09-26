@@ -24,6 +24,7 @@
             
            <interfaces type="InterfaceField">
                 <Required>Y</Required>
+                <Default>lan</Default>
                 <Multiple>Y</Multiple>
                 <style>selectpicker</style>    
                 <asList>N</asList>
