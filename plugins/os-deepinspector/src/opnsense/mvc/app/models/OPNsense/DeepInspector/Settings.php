@@ -5,7 +5,7 @@ namespace OPNsense\DeepInspector;
 use OPNsense\Base\BaseModel;
 use OPNsense\Base\Messages\Message;
 
-class DeepInspector extends BaseModel
+class Settings extends BaseModel
 {
     /**
      * Perform validation with comprehensive checks

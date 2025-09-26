@@ -10,9 +10,8 @@ use OPNsense\Core\Backend;
  */
 class SettingsController extends ApiMutableModelControllerBase
 {
-    protected static $internalModelName = 'deepinspector';
-    protected static $internalModelClass = 'OPNsense\DeepInspector\DeepInspector';
-
+    protected static $internalModelName = 'settings';
+    protected static $internalModelClass = 'OPNsense\DeepInspector\Settings';
     /**
      * check if changes to the deepinspector settings were made
      * @return array result
