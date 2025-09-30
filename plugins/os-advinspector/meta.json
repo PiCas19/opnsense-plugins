@@ -9,5 +9,8 @@
   "product_website": "https://git.consoli.ch/students/20250400_lavsem/moretto/",
   "product_comment": "Advanced Packet Inspector with Zero Trust and OT low-latency support",
   "product_category": "security",
-  "product_license": "BSD"
+  "product_license": "BSD",
+  "product_dependencies": {
+    "os-validationcore": "*"
+  }
 }

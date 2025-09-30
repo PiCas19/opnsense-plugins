@@ -1,32 +1,133 @@
 <?php
+/*
+ * Copyright (C) 2025 DeepInspector
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
+ * OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
+
 namespace OPNsense\DeepInspector\Api;
+
 use OPNsense\Base\ApiMutableModelControllerBase;
 use OPNsense\Core\Config;
 use OPNsense\Core\Backend;
 
 /**
  * Class SettingsController
- * @package OPNsense\DeepInspector
+ *
+ * Manages configuration settings and statistics retrieval for the DeepInspector DPI engine
+ * within the OPNsense framework. Provides API endpoints for reading and updating configuration
+ * sections (general, protocols, detection, advanced) and retrieving real-time engine statistics.
+ *
+ * This controller ensures that configuration changes are validated and applied correctly,
+ * and that statistics reflect only real network traffic data, avoiding any fallback or default data.
+ *
+ * Key Features:
+ * - Configuration retrieval for general, protocol, detection, and advanced settings
+ * - Validation and persistence of configuration changes with automatic reconfiguration
+ * - Real-time statistics retrieval from engine logs without fallback data
+ * - Integration with OPNsense backend for system status and process information
+ *
+ * @package OPNsense\DeepInspector\Api
+ * @author Pierpaolo Casati
  */
 class SettingsController extends ApiMutableModelControllerBase
 {
-    protected static $internalModelName = 'settings';
-    protected static $internalModelClass = 'OPNsense\DeepInspector\Settings';
     /**
-     * check if changes to the deepinspector settings were made
-     * @return array result
+     * Internal model name for OPNsense framework integration
+     *
+     * Defines the model identifier used by the parent class to locate and instantiate
+     * the DeepInspector configuration model.
+     *
+     * @var string Model identifier used by OPNsense framework
+     */
+    protected static $internalModelName = 'settings';
+
+    /**
+     * Full class path to the configuration model
+     *
+     * Specifies the complete namespace and class name of the Settings model
+     * that contains the configuration structure and validation rules for DeepInspector.
+     *
+     * @var string Complete class path to Settings model
+     */
+    protected static $internalModelClass = '\OPNsense\DeepInspector\Settings';
+
+    /**
+     * Check if changes to the DeepInspector settings have been made
+     *
+     * Verifies if the configuration model has uncommitted changes (dirty state).
+     * Returns the status of the configuration to indicate whether a save operation is needed.
+     *
+     * @api GET /api/deepinspector/settings/dirty
+     *
+     * @return array{status: string, deepinspector: array{dirty: bool}} Result indicating dirty state
+     *
+     * Response Format:
+     * - status: "ok" for successful execution
+     * - deepinspector.dirty: Boolean indicating if configuration has changed
+     *
+     * @example
+     * GET /api/deepinspector/settings/dirty
+     * Response: {
+     *   "status": "ok",
+     *   "deepinspector": {
+     *     "dirty": true
+     *   }
+     * }
      */
     public function dirtyAction()
     {
-        $result = array('status' => 'ok');
+        $result = ['status' => 'ok'];
         $result['deepinspector']['dirty'] = $this->getModel()->configChanged();
         return $result;
     }
 
     /**
-     * Retrieve general settings
-     * @return array deepinspector general settings content
-     * @throws \ReflectionException when not bound to model
+     * Retrieve general settings for DeepInspector
+     *
+     * Returns the configuration nodes for the general section, including settings
+     * such as service enablement, operating mode, and network interfaces.
+     *
+     * @api GET /api/deepinspector/settings/getGeneral
+     *
+     * @return array{deepinspector: object, result: string} General configuration nodes
+     *
+     * Response Format:
+     * - deepinspector: Object containing general configuration settings
+     * - result: "ok" for successful execution
+     *
+     * @throws \ReflectionException When model instantiation or node retrieval fails
+     *
+     * @example
+     * GET /api/deepinspector/settings/getGeneral
+     * Response: {
+     *   "result": "ok",
+     *   "deepinspector": {
+     *     "enabled": "1",
+     *     "mode": "active",
+     *     "interfaces": "lan,wan"
+     *   }
+     * }
      */
     public function getGeneralAction()
     {
@@ -34,9 +135,30 @@ class SettingsController extends ApiMutableModelControllerBase
     }
 
     /**
-     * Retrieve protocol settings
-     * @return array deepinspector protocol settings content
-     * @throws \ReflectionException when not bound to model
+     * Retrieve protocol settings for DeepInspector
+     *
+     * Returns the configuration nodes for the protocols section, specifying
+     * which protocols (e.g., HTTP, HTTPS, Modbus) are enabled for inspection.
+     *
+     * @api GET /api/deepinspector/settings/getProtocols
+     *
+     * @return array{deepinspector: object, result: string} Protocol configuration nodes
+     *
+     * Response Format:
+     * - deepinspector: Object containing protocol configuration settings
+     * - result: "ok" for successful execution
+     *
+     * @throws \ReflectionException When model instantiation or node retrieval fails
+     *
+     * @example
+     * GET /api/deepinspector/settings/getProtocols
+     * Response: {
+     *   "result": "ok",
+     *   "deepinspector": {
+     *     "http_inspection": "1",
+     *     "industrial_protocols": "1"
+     *   }
+     * }
      */
     public function getProtocolsAction()
     {
@@ -44,9 +166,30 @@ class SettingsController extends ApiMutableModelControllerBase
     }
 
     /**
-     * Retrieve detection settings
-     * @return array deepinspector detection settings content
-     * @throws \ReflectionException when not bound to model
+     * Retrieve detection settings for DeepInspector
+     *
+     * Returns the configuration nodes for the detection section, specifying
+     * which detection mechanisms (e.g., malware, SQL injection) are enabled.
+     *
+     * @api GET /api/deepinspector/settings/getDetection
+     *
+     * @return array{deepinspector: object, result: string} Detection configuration nodes
+     *
+     * Response Format:
+     * - deepinspector: Object containing detection configuration settings
+     * - result: "ok" for successful execution
+     *
+     * @throws \ReflectionException When model instantiation or node retrieval fails
+     *
+     * @example
+     * GET /api/deepinspector/settings/getDetection
+     * Response: {
+     *   "result": "ok",
+     *   "deepinspector": {
+     *     "virus_signatures": "1",
+     *     "sql_injection": "1"
+     *   }
+     * }
      */
     public function getDetectionAction()
     {
@@ -54,9 +197,30 @@ class SettingsController extends ApiMutableModelControllerBase
     }
 
     /**
-     * Retrieve advanced settings
-     * @return array deepinspector advanced settings content
-     * @throws \ReflectionException when not bound to model
+     * Retrieve advanced settings for DeepInspector
+     *
+     * Returns the configuration nodes for the advanced section, including
+     * performance-related settings such as memory limits and thread counts.
+     *
+     * @api GET /api/deepinspector/settings/getAdvanced
+     *
+     * @return array{deepinspector: object, result: string} Advanced configuration nodes
+     *
+     * Response Format:
+     * - deepinspector: Object containing advanced configuration settings
+     * - result: "ok" for successful execution
+     *
+     * @throws \ReflectionException When model instantiation or node retrieval fails
+     *
+     * @example
+     * GET /api/deepinspector/settings/getAdvanced
+     * Response: {
+     *   "result": "ok",
+     *   "deepinspector": {
+     *     "memory_limit": "1024",
+     *     "thread_count": "4"
+     *   }
+     * }
      */
     public function getAdvancedAction()
     {
@@ -64,18 +228,66 @@ class SettingsController extends ApiMutableModelControllerBase
     }
 
     /**
-     * Set settings and automatically apply changes
-     * @return array save result + validation output
+     * Update DeepInspector configuration settings
+     *
+     * Accepts configuration updates via POST requests, validates them against
+     * the model constraints, and applies them to the system configuration.
+     * Triggers automatic reconfiguration of the DeepInspector service upon success.
+     *
+     * @api POST /api/deepinspector/settings/set
+     *
+     * Request Body Format:
+     * {
+     *   "deepinspector": {
+     *     "general": {
+     *       "enabled": "1",
+     *       "mode": "active",
+     *       "interfaces": "lan,wan"
+     *     },
+     *     "protocols": {
+     *       "http_inspection": "1"
+     *     }
+     *   }
+     * }
+     *
+     * @return array{result: string, validations?: array<string, string>} Operation result
+     *
+     * Success Response:
+     * - result: "saved" when configuration is successfully updated
+     *
+     * Validation Failure Response:
+     * - result: "failed" when validation errors occur
+     * - validations: Object mapping field paths to error messages
+     *
+     * Error Response:
+     * - result: "failed" for other failure scenarios
+     *
+     * @throws \Exception When model operations or configuration saving fails
+     *
+     * @example
+     * POST /api/deepinspector/settings/set
+     * Content-Type: application/json
+     * Body: {"deepinspector": {"general": {"enabled": "1"}}}
+     * Response: {"result": "saved"}
+     *
+     * @example
+     * POST /api/deepinspector/settings/set
+     * Body: {"deepinspector": {"general": {"enabled": "invalid"}}}
+     * Response: {
+     *   "result": "failed",
+     *   "validations": {
+     *     "deepinspector.general.enabled": "Value must be 0 or 1"
+     *   }
+     * }
      */
     public function setAction()
     {
         $result = ["result" => "failed"];
         if ($this->request->isPost()) {
             $mdl = $this->getModel();
-            // Set all posted data
             $mdl->setNodes($this->request->getPost("deepinspector"));
             $valMsgs = $mdl->performValidation();
-            
+
             if ($valMsgs->count() > 0) {
                 $result["validations"] = [];
                 foreach ($valMsgs as $msg) {
@@ -85,111 +297,107 @@ class SettingsController extends ApiMutableModelControllerBase
             } else {
                 $mdl->serializeToConfig();
                 Config::getInstance()->save();
-                
-                // Automatically reconfigure after save
                 $backend = new Backend();
                 $backend->configdRun('deepinspector reconfigure');
-                
-                // Clear the dirty flag
                 $mdl->configClean();
-                
                 $result["result"] = "saved";
             }
         }
         return $result;
     }
 
-     /**
-     * Get DPI engine statistics for dashboard
-     * @return array statistics data
+    /**
+     * Retrieve DeepInspector engine statistics for dashboard
+     *
+     * Fetches real-time statistics from the DeepInspector engine, including packet analysis,
+     * threat detection, and performance metrics. Returns only data from actual log files,
+     * failing with an error if the required files are unavailable or invalid.
+     *
+     * @api GET /api/deepinspector/settings/stats
+     *
+     * @return array{status: string, data?: array, error?: string} Statistics data or error message
+     *
+     * Response Format:
+     * - status: "ok" for successful execution, "failed" if data is unavailable
+     * - data: Statistics and recent threats if available
+     * - error: Error message if statistics or alerts cannot be retrieved
+     *
+     * @example
+     * GET /api/deepinspector/settings/stats
+     * Response: {
+     *   "status": "ok",
+     *   "data": {
+     *     "packets_analyzed": 1000,
+     *     "threats_detected": 5,
+     *     "recent_threats": [
+     *       {"id": "abc123", "threat_type": "malware", "severity": "critical"}
+     *     ],
+     *     "system_info": {
+     *       "engine_status": "Active",
+     *       "pid": "12345"
+     *     }
+     *   }
+     * }
+     *
+     * @example
+     * GET /api/deepinspector/settings/stats
+     * Response: {
+     *   "status": "failed",
+     *   "error": "Statistics file /var/log/deepinspector/stats.json not found"
+     * }
      */
     public function statsAction()
     {
         $result = ["status" => "ok"];
-        
         $statsFile = '/var/log/deepinspector/stats.json';
         $alertsFile = '/var/log/deepinspector/alerts.log';
-        
+
         // Load statistics from file
-        if (file_exists($statsFile)) {
-            $statsData = @file_get_contents($statsFile);
-            if ($statsData !== false) {
-                $decodedStats = @json_decode($statsData, true);
-                if ($decodedStats !== null) {
-                    $result['data'] = $decodedStats;
-                } else {
-                    $result['data'] = $this->getDefaultStats();
-                }
-            } else {
-                $result['data'] = $this->getDefaultStats();
-            }
-        } else {
-            $result['data'] = $this->getDefaultStats();
+        if (!file_exists($statsFile)) {
+            $result["status"] = "failed";
+            $result["error"] = "Statistics file $statsFile not found";
+            return $result;
         }
-        
-        // Load recent threats from alerts log
+
+        $statsData = @file_get_contents($statsFile);
+        if ($statsData === false) {
+            $result["status"] = "failed";
+            $result["error"] = "Failed to read statistics file $statsFile";
+            return $result;
+        }
+
+        $decodedStats = @json_decode($statsData, true);
+        if ($decodedStats === null) {
+            $result["status"] = "failed";
+            $result["error"] = "Invalid JSON in statistics file $statsFile";
+            return $result;
+        }
+
+        $result['data'] = $decodedStats;
         $result['data']['recent_threats'] = $this->getRecentThreats($alertsFile);
-        
-        // Add system information
         $result['data']['system_info'] = $this->getSystemInfo();
-        
+
         return $result;
     }
-    
+
     /**
-     * Get default statistics structure
-     * @return array default stats
-     */
-    private function getDefaultStats()
-    {
-        return [
-            'packets_analyzed' => 0,
-            'threats_detected' => 0,
-            'false_positives' => 0,
-            'critical_alerts' => 0,
-            'protocols_analyzed' => [
-                'TCP' => 0,
-                'UDP' => 0,
-                'ICMP' => 0
-            ],
-            'threat_types' => [
-                'malware' => 0,
-                'command_injection' => 0,
-                'sql_injection' => 0,
-                'script_injection' => 0,
-                'crypto_mining' => 0,
-                'industrial_threat' => 0
-            ],
-            'performance' => [
-                'cpu_usage' => 0,
-                'memory_usage' => 0,
-                'throughput_mbps' => 0,
-                'latency_avg' => 0
-            ],
-            'industrial_stats' => [
-                'modbus_packets' => 0,
-                'dnp3_packets' => 0,
-                'opcua_packets' => 0,
-                'scada_alerts' => 0
-            ],
-            'timestamp' => date('c')
-        ];
-    }
-    
-    /**
-     * Get recent threats from alerts log
-     * @param string $alertsFile path to alerts log file
-     * @return array recent threats
+     * Retrieve recent threats from alerts log
+     *
+     * Reads the last 50 lines from the alerts log file and extracts up to 20 recent threats.
+     * Returns an empty array if the file is unavailable or empty.
+     *
+     * @param string $alertsFile Path to the alerts log file
+     * @return array Recent threat entries
      */
     private function getRecentThreats($alertsFile)
     {
         $recentThreats = [];
-        
+
         if (file_exists($alertsFile)) {
             $lines = @file($alertsFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
             if ($lines !== false) {
                 $lines = array_slice($lines, -50); // Get last 50 lines
-                
+
                 foreach (array_reverse($lines) as $line) {
                     $threat = @json_decode($line, true);
                     if ($threat !== null && isset($threat['threat_type'])) {
@@ -204,8 +412,7 @@ class SettingsController extends ApiMutableModelControllerBase
                             'description' => isset($threat['description']) ? $threat['description'] : 'No description',
                             'industrial_context' => isset($threat['industrial_context']) ? $threat['industrial_context'] : false
                         ];
-                        
-                        // Limit to 20 most recent threats
+
                         if (count($recentThreats) >= 20) {
                             break;
                         }
@@ -213,13 +420,17 @@ class SettingsController extends ApiMutableModelControllerBase
                 }
             }
         }
-        
+
         return $recentThreats;
     }
 
     /**
-     * Get system information
-     * @return array system info
+     * Retrieve system information for DeepInspector
+     *
+     * Collects runtime information about the DeepInspector engine, including status,
+     * process ID, CPU and memory usage, and signatures version.
+     *
+     * @return array System information including engine status and resource usage
      */
     private function getSystemInfo()
     {
@@ -232,16 +443,15 @@ class SettingsController extends ApiMutableModelControllerBase
             'memory_usage' => 'Unknown',
             'cpu_usage' => 'Unknown'
         ];
-        
-        // Get status from backend (correct approach)
+
         $backend = new Backend();
         $response = $backend->configdRun("deepinspector status");
-        
+
         $lines = explode("\n", trim($response));
         $running = false;
         $pid = null;
         $memory_usage = null;
-        
+
         foreach ($lines as $line) {
             if (strpos($line, "is running as PID") !== false) {
                 $running = true;
@@ -256,13 +466,11 @@ class SettingsController extends ApiMutableModelControllerBase
                 }
             }
         }
-        
+
         if ($running && $pid) {
             $info['engine_status'] = 'Active';
             $info['pid'] = $pid;
             $info['memory_usage'] = $memory_usage ?: 'Unknown';
-            
-            // Get additional process info
             $processInfo = $this->getProcessInfo($pid);
             $info['cpu_usage'] = $processInfo['cpu_usage'];
             $info['uptime'] = $processInfo['uptime'];
@@ -273,8 +481,7 @@ class SettingsController extends ApiMutableModelControllerBase
             $info['cpu_usage'] = 'N/A';
             $info['uptime'] = 'N/A';
         }
-        
-        // Get signatures version
+
         $sigFile = '/usr/local/etc/deepinspector/signatures.json';
         if (file_exists($sigFile)) {
             $sigData = @file_get_contents($sigFile);
@@ -282,33 +489,32 @@ class SettingsController extends ApiMutableModelControllerBase
                 $sigJson = @json_decode($sigData, true);
                 if ($sigJson !== null && isset($sigJson['version'])) {
                     $sigVersion = $sigJson['version'];
-                    // If it's a date, format it as yyyy-mm-dd
                     if (strtotime($sigVersion) !== false) {
                         $info['signatures_version'] = date('Y-m-d', strtotime($sigVersion));
                     } else {
                         $info['signatures_version'] = $sigVersion;
                     }
-                } else {
-                    $info['signatures_version'] = date('Y-m-d'); // Current date as default
                 }
             }
         }
-        
+
         return $info;
     }
-    
+
     /**
-     * Get process information
-     * @param string $pid
-     * @return array
+     * Retrieve process information for a given PID
+     *
+     * Collects CPU usage and uptime for the specified process ID using system commands.
+     *
+     * @param string $pid Process ID to query
+     * @return array{cpu_usage: string, uptime: string} Process information
      */
     private function getProcessInfo($pid)
     {
         $cpu_usage = "Unknown";
         $uptime = "Unknown";
-        
+
         try {
-            // Get CPU usage
             $cpuCmd = "ps -o pcpu= -p " . escapeshellarg($pid);
             $cpuResult = @shell_exec($cpuCmd);
             if ($cpuResult !== null && $cpuResult !== false) {
@@ -317,8 +523,7 @@ class SettingsController extends ApiMutableModelControllerBase
                     $cpu_usage = $cpuResult . "%";
                 }
             }
-            
-            // Get uptime
+
             $uptimeCmd = "ps -o etime= -p " . escapeshellarg($pid);
             $uptimeResult = @shell_exec($uptimeCmd);
             if ($uptimeResult !== null && $uptimeResult !== false) {
@@ -330,7 +535,7 @@ class SettingsController extends ApiMutableModelControllerBase
         } catch (Exception $e) {
             // Ignore errors, keep default values
         }
-        
+
         return [
             'cpu_usage' => $cpu_usage,
             'uptime' => $uptime

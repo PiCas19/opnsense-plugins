@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright (C) 2025 OPNsense Project
  * All rights reserved.
@@ -27,32 +28,29 @@
 
 namespace OPNsense\DeepInspector;
 
-use OPNsense\Base\IndexController;
-
 /**
- * ThreatsController
+ * StatisticsController
  *
- * Manages the Threats page of the DeepInspector plugin, displaying alerts
- * and analysis related to detected threats. This controller renders the threats
- * view, which may include details on malware, intrusions, or other security events
- * detected by the DPI engine.
+ * Provides the entry point for the DeepInspector statistics and reporting UI.
+ * This controller is responsible for rendering the statistics view, which
+ * includes dashboards, charts, and analytical reports on detected threats,
+ * network traffic, and protocol usage.
  *
  * @package OPNsense\DeepInspector
  */
-class ThreatsController extends IndexController
+class StatisticsController extends \OPNsense\Base\IndexController
 {
     /**
-     * Renders the DeepInspector Threats page
+     * Render the Statistics & Reports page
      *
-     * Sets the page title and selects the threats view template.
-     * Threat data is expected to be handled by the view or associated JavaScript,
-     * potentially linked to Settings::detection settings.
+     * Sets the page title and loads the Volt template that provides
+     * DeepInspector's statistical dashboards and reporting interface.
      *
-     * @throws \Exception If the view template cannot be loaded
+     * @throws \Exception If the view cannot be rendered
      */
     public function indexAction()
     {
-        $this->view->title = gettext('Deep Packet Inspector - Threats');
-        $this->view->pick('OPNsense/DeepInspector/threats');
+        $this->view->title = gettext('Deep Packet Inspector - Statistics & Reports');
+        $this->view->pick('OPNsense/DeepInspector/statistics');
     }
 }

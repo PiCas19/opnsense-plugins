@@ -1,7 +1,6 @@
 <?php
-
 /*
- * Copyright (C) 2024 OPNsense Validation Core Library
+ * Copyright (C) 2025 OPNsense Validation Core Library
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -31,6 +30,7 @@ namespace OPNsense\ValidationCore;
 use OPNsense\ValidationCore\Validators\NetworkValidator;
 use OPNsense\ValidationCore\Validators\RuleValidator;
 use OPNsense\ValidationCore\Validators\ProtocolValidator;
+use OPNsense\ValidationCore\Validators\AlertFilterValidator;
 use OPNsense\Base\Messages\MessageCollection;
 
 /**
@@ -58,6 +58,7 @@ use OPNsense\Base\Messages\MessageCollection;
  * - 'network': Network configuration and connectivity validation
  * - 'rules': Security rules and policy validation
  * - 'protocols': Protocol-specific validation for various network protocols
+ * - 'alerts': Alert filter validation for DeepInspector
  * - 'all': Complete validation across all registered validators
  * - Custom scopes: Plugin-specific validation categories
  *
@@ -302,6 +303,9 @@ class ValidationEngine
         
         // Register protocol-specific validator
         $this->validators['protocols'] = new ProtocolValidator();
+        
+        // Register alert filter validator for DeepInspector
+        $this->validators['alerts'] = new AlertFilterValidator();
 
         // Initialize execution statistics for default validators
         foreach ($this->validators as $name => $validator) {
@@ -328,7 +332,8 @@ class ValidationEngine
             'rules' => ['rules', 'protocols'],
             'protocols' => ['protocols'],
             'security' => ['rules', 'protocols'],
-            'all' => ['network', 'rules', 'protocols']
+            'alerts' => ['alerts'],
+            'all' => ['network', 'rules', 'protocols', 'alerts']
         ];
     }
 

@@ -1,179 +1,196 @@
 <?php
+/*
+ * Copyright (C) 2025 OPNsense Project
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
+ * OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
 
 namespace OPNsense\DeepInspector;
 
 use OPNsense\Base\BaseModel;
+use OPNsense\ValidationCore\ValidationEngine;
+use OPNsense\Base\Messages\MessageCollection;
 use OPNsense\Base\Messages\Message;
 
+/**
+ * Class Settings
+ *
+ * Configuration model for the DeepInspector plugin that implements clean
+ * validation architecture using the ValidationCore library. This model serves as the
+ * data layer for system configuration while delegating validation logic to
+ * specialized validator classes for maintainability and extensibility.
+ *
+ * @package OPNsense\DeepInspector
+ */
 class Settings extends BaseModel
 {
     /**
-     * Perform validation with comprehensive checks
+     * Validation engine instance for orchestrating validation logic
+     *
+     * @var ValidationEngine Centralized validation coordinator
      */
-    public function performValidation($validateFullModel = false)
+    private $validationEngine;
+
+    /**
+     * Initialize the Settings model and validation engine
+     */
+    public function __construct()
+    {
+        parent::__construct();
+        $this->validationEngine = new ValidationEngine();
+    }
+
+    /**
+     * Perform comprehensive configuration validation using ValidationCore
+     *
+     * Delegates validation logic to specialized validator classes via the validation engine.
+     *
+     * @param bool $validateFullModel Whether to validate entire model or only changed fields
+     * @param string $scope Validation scope to control which validators are executed
+     * @return MessageCollection Complete validation results
+     */
+    public function performValidation($validateFullModel = false, $scope = 'all'): MessageCollection
     {
         $messages = parent::performValidation($validateFullModel);
 
-        // Validate general settings
-        if ($validateFullModel || $this->general->enabled->isFieldChanged()) {
-            if ((string)$this->general->enabled === "1") {
-                // Check if at least one interface is selected
-                if (empty((string)$this->general->interfaces)) {
-                    $messages->appendMessage(new Message(
-                        gettext('At least one interface must be selected when DPI is enabled.'),
-                        'general.' . $this->general->interfaces->getInternalXMLTagName()
-                    ));
-                }
+        try {
+            $configurationData = $this->extractConfigurationData();
+            $validationMessages = $this->validationEngine->validate($configurationData, $validateFullModel, $scope);
 
-                // Validate performance profile requirements
-                $profile = (string)$this->general->performance_profile;
-                $mode = (string)$this->general->mode;
-                
-                if ($profile === 'high_security' && $mode === 'learning') {
-                    $messages->appendMessage(new Message(
-                        gettext('High Security profile is not compatible with Learning mode.'),
-                        'general.' . $this->general->mode->getInternalXMLTagName()
-                    ));
-                }
+            foreach ($validationMessages as $validationMessage) {
+                $messages->appendMessage($validationMessage);
             }
-        }
-
-        // Validate trusted networks format
-        if ($validateFullModel || $this->general->trusted_networks->isFieldChanged()) {
-            $networks = (string)$this->general->trusted_networks;
-            if (!empty($networks)) {
-                $networkList = explode(',', $networks);
-                foreach ($networkList as $network) {
-                    $network = trim($network);
-                    if (!empty($network) && !preg_match('/^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/', $network)) {
-                        $messages->appendMessage(new Message(
-                            sprintf(gettext('Invalid network format: %s. Use CIDR notation (e.g., 192.168.1.0/24)'), $network),
-                            'general.' . $this->general->trusted_networks->getInternalXMLTagName()
-                        ));
-                    }
-                }
-            }
-        }
-
-        // Validate deep scan ports
-        if ($validateFullModel || $this->general->deep_scan_ports->isFieldChanged()) {
-            $ports = (string)$this->general->deep_scan_ports;
-            if (!empty($ports) && !preg_match('/^[0-9,-\s]*$/', $ports)) {
-                $messages->appendMessage(new Message(
-                    gettext('Deep scan ports must contain only numbers, commas, dashes and spaces.'),
-                    'general.' . $this->general->deep_scan_ports->getInternalXMLTagName()
-                ));
-            }
-        }
-
-        // Validate packet size
-        if ($validateFullModel || $this->general->max_packet_size->isFieldChanged()) {
-            $size = (int)(string)$this->general->max_packet_size;
-            if ($size < 64 || $size > 9000) {
-                $messages->appendMessage(new Message(
-                    gettext('Maximum packet size must be between 64 and 9000 bytes.'),
-                    'general.' . $this->general->max_packet_size->getInternalXMLTagName()
-                ));
-            }
-        }
-
-        // Validate SSL inspection requirements
-        if ($validateFullModel || $this->general->ssl_inspection->isFieldChanged() || $this->protocols->https_inspection->isFieldChanged()) {
-            $sslEnabled = (string)$this->general->ssl_inspection === "1";
-            $httpsEnabled = (string)$this->protocols->https_inspection === "1";
-            
-            if ($httpsEnabled && !$sslEnabled) {
-                $messages->appendMessage(new Message(
-                    gettext('SSL inspection must be enabled for HTTPS protocol inspection.'),
-                    'protocols.' . $this->protocols->https_inspection->getInternalXMLTagName()
-                ));
-            }
-        }
-
-        // Validate detection engine dependencies
-        if ($validateFullModel || $this->detection->virus_signatures->isFieldChanged()) {
-            $virusEnabled = (string)$this->detection->virus_signatures === "1";
-            $malwareEnabled = (string)$this->general->malware_detection === "1";
-            
-            if ($virusEnabled && !$malwareEnabled) {
-                $messages->appendMessage(new Message(
-                    gettext('Malware detection must be enabled for virus signature scanning.'),
-                    'detection.' . $this->detection->virus_signatures->getInternalXMLTagName()
-                ));
-            }
-        }
-
-        // Validate performance vs security settings
-        if ($validateFullModel) {
-            $this->validatePerformanceSettings($messages);
+        } catch (\Exception $e) {
+            error_log("DeepInspector validation engine error: " . $e->getMessage());
+            $messages->appendMessage(new Message(
+                gettext('Internal validation error occurred. Please check configuration and try again.'),
+                'general.validation_engine'
+            ));
         }
 
         return $messages;
     }
 
     /**
-     * Validate performance settings and warn about potential conflicts
+     * Extract configuration data from OPNsense model for validator consumption
+     *
+     * @return array Structured configuration data
+     * @throws \RuntimeException When model data extraction fails
      */
-    private function validatePerformanceSettings($messages)
+    private function extractConfigurationData(): array
     {
-        $profile = (string)$this->general->performance_profile;
-        
-        // Count enabled detection engines
-        $detectionEngines = [
-            'virus_signatures', 'trojan_detection', 'crypto_mining',
-            'data_exfiltration', 'command_injection', 'sql_injection', 'script_injection'
-        ];
-        
-        $enabledEngines = 0;
-        foreach ($detectionEngines as $engine) {
-            if ((string)$this->detection->$engine === "1") {
-                $enabledEngines++;
+        try {
+            return [
+                'general' => [
+                    'enabled' => (string)$this->general->enabled,
+                    'interfaces' => (string)$this->general->interfaces,
+                    'performance_profile' => (string)$this->general->performance_profile,
+                    'mode' => (string)$this->general->mode,
+                    'trusted_networks' => (string)$this->general->trusted_networks,
+                    'deep_scan_ports' => (string)$this->general->deep_scan_ports,
+                    'max_packet_size' => (string)$this->general->max_packet_size,
+                    'ssl_inspection' => (string)$this->general->ssl_inspection,
+                    'malware_detection' => (string)$this->general->malware_detection,
+                    'archive_extraction' => (string)$this->general->archive_extraction,
+                    'anomaly_detection' => (string)$this->general->anomaly_detection,
+                    'low_latency_mode' => (string)$this->general->low_latency_mode,
+                    'industrial_mode' => (string)$this->general->industrial_mode,
+                    'log_level' => (string)$this->general->log_level,
+                    '_field_changes' => $this->extractFieldChanges('general')
+                ],
+                'protocols' => [
+                    'http_inspection' => (string)$this->protocols->http_inspection,
+                    'https_inspection' => (string)$this->protocols->https_inspection,
+                    'ftp_inspection' => (string)$this->protocols->ftp_inspection,
+                    'smtp_inspection' => (string)$this->protocols->smtp_inspection,
+                    'dns_inspection' => (string)$this->protocols->dns_inspection,
+                    'industrial_protocols' => (string)$this->protocols->industrial_protocols,
+                    'p2p_detection' => (string)$this->protocols->p2p_detection,
+                    'voip_inspection' => (string)$this->protocols->voip_inspection,
+                    'custom_protocols' => (string)$this->protocols->custom_protocols,
+                    '_field_changes' => $this->extractFieldChanges('protocols')
+                ],
+                'detection' => [
+                    'virus_signatures' => (string)$this->detection->virus_signatures,
+                    'trojan_detection' => (string)$this->detection->trojan_detection,
+                    'crypto_mining' => (string)$this->detection->crypto_mining,
+                    'data_exfiltration' => (string)$this->detection->data_exfiltration,
+                    'command_injection' => (string)$this->detection->command_injection,
+                    'sql_injection' => (string)$this->detection->sql_injection,
+                    'script_injection' => (string)$this->detection->script_injection,
+                    'suspicious_downloads' => (string)$this->detection->suspicious_downloads,
+                    'phishing_detection' => (string)$this->detection->phishing_detection,
+                    'botnet_detection' => (string)$this->detection->botnet_detection,
+                    'steganography_detection' => (string)$this->detection->steganography_detection,
+                    'zero_day_heuristics' => (string)$this->detection->zero_day_heuristics,
+                    '_field_changes' => $this->extractFieldChanges('detection')
+                ],
+                'advanced' => [
+                    'signature_updates' => (string)$this->advanced->signature_updates,
+                    'update_interval' => (string)$this->advanced->update_interval,
+                    'threat_intelligence_feeds' => (string)$this->advanced->threat_intelligence_feeds,
+                    'custom_signatures' => (string)$this->advanced->custom_signatures,
+                    'quarantine_enabled' => (string)$this->advanced->quarantine_enabled,
+                    'quarantine_path' => (string)$this->advanced->quarantine_path,
+                    'memory_limit' => (string)$this->advanced->memory_limit,
+                    'thread_count' => (string)$this->advanced->thread_count,
+                    'packet_buffer_size' => (string)$this->advanced->packet_buffer_size,
+                    'analysis_timeout' => (string)$this->advanced->analysis_timeout,
+                    'bypass_trusted_networks' => (string)$this->advanced->bypass_trusted_networks,
+                    'industrial_optimization' => (string)$this->advanced->industrial_optimization,
+                    'scada_protocols' => (string)$this->advanced->scada_protocols,
+                    'plc_protocols' => (string)$this->advanced->plc_protocols,
+                    'latency_threshold' => (string)$this->advanced->latency_threshold,
+                    '_field_changes' => $this->extractFieldChanges('advanced')
+                ]
+            ];
+        } catch (\Exception $e) {
+            throw new \RuntimeException(
+                'Failed to extract configuration data for validation: ' . $e->getMessage()
+            );
+        }
+    }
+
+    /**
+     * Extract field change information for incremental validation
+     *
+     * @param string $section Configuration section (general, protocols, detection, advanced)
+     * @return array Field change tracking data
+     */
+    private function extractFieldChanges(string $section): array
+    {
+        $changes = [];
+        try {
+            $sectionNode = $this->$section;
+            foreach ($sectionNode->getAttributes() as $field => $value) {
+                if (method_exists($sectionNode->$field, 'isFieldChanged')) {
+                    $changes[$field] = $sectionNode->$field->isFieldChanged();
+                }
             }
+        } catch (\Exception $e) {
+            error_log("DeepInspector field change detection failed for section $section: " . $e->getMessage());
         }
-
-        // Count enabled protocol inspections
-        $protocolInspections = [
-            'http_inspection', 'https_inspection', 'ftp_inspection',
-            'smtp_inspection', 'dns_inspection', 'industrial_protocols'
-        ];
-        
-        $enabledProtocols = 0;
-        foreach ($protocolInspections as $protocol) {
-            if ((string)$this->protocols->$protocol === "1") {
-                $enabledProtocols++;
-            }
-        }
-
-        // Performance profile validation
-        if ($profile === 'high_performance' && ($enabledEngines > 3 || $enabledProtocols > 4)) {
-            $messages->appendMessage(new Message(
-                gettext('High Performance profile recommends limiting active detection engines and protocol inspections for optimal performance.'),
-                'general.' . $this->general->performance_profile->getInternalXMLTagName()
-            ));
-        }
-
-        if ($profile === 'high_security' && ($enabledEngines < 5 || $enabledProtocols < 4)) {
-            $messages->appendMessage(new Message(
-                gettext('High Security profile recommends enabling more detection engines and protocol inspections for comprehensive coverage.'),
-                'general.' . $this->general->performance_profile->getInternalXMLTagName()
-            ));
-        }
-
-        // SSL inspection performance warning
-        if ((string)$this->general->ssl_inspection === "1" && $profile === 'high_performance') {
-            $messages->appendMessage(new Message(
-                gettext('SSL inspection may impact performance significantly in High Performance profile.'),
-                'general.' . $this->general->ssl_inspection->getInternalXMLTagName()
-            ));
-        }
-
-        // Archive extraction performance warning
-        if ((string)$this->general->archive_extraction === "1" && $profile === 'high_performance') {
-            $messages->appendMessage(new Message(
-                gettext('Archive extraction may impact performance in High Performance profile.'),
-                'general.' . $this->general->archive_extraction->getInternalXMLTagName()
-            ));
-        }
+        return $changes;
     }
 
     /**
@@ -218,7 +235,6 @@ class Settings extends BaseModel
             'enabled_detections' => 0
         ];
 
-        // Count enabled protocols
         $protocols = ['http_inspection', 'https_inspection', 'ftp_inspection', 'smtp_inspection', 'dns_inspection', 'industrial_protocols'];
         foreach ($protocols as $protocol) {
             if ((string)$this->protocols->$protocol === "1") {
@@ -226,7 +242,6 @@ class Settings extends BaseModel
             }
         }
 
-        // Count enabled detection engines
         $detections = ['virus_signatures', 'trojan_detection', 'crypto_mining', 'data_exfiltration', 'command_injection', 'sql_injection', 'script_injection'];
         foreach ($detections as $detection) {
             if ((string)$this->detection->$detection === "1") {
@@ -248,8 +263,8 @@ class Settings extends BaseModel
             'industrial_mode' => '1',
             'latency_threshold' => '50',
             'mode' => 'active',
-            'ssl_inspection' => '0',  // Disable for performance
-            'archive_extraction' => '0'  // Disable for performance
+            'ssl_inspection' => '0',
+            'archive_extraction' => '0'
         ];
     }
 

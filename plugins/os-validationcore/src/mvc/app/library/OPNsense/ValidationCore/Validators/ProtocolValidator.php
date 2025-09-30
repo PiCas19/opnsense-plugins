@@ -1,27 +1,46 @@
 <?php
-
 /*
- * Copyright (C) 2024 OPNsense Validation Core Library
+ * Copyright (C) 2025 OPNsense Validation Core Library
  * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
+ * OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
  */
 
 namespace OPNsense\ValidationCore\Validators;
 
+use OPNsense\Base\Messages\MessageCollection;
+use OPNsense\Base\Messages\Message;
+
 /**
- * Protocol Validator
+ * ProtocolValidator
  *
- * Specialized validator for protocol-specific configurations and requirements.
- * Validates protocol specifications, protocol-specific parameters, and ensures
- * compatibility between protocol choices and other configuration elements.
- *
- * This validator handles both standard network protocols and specialized
- * industrial automation protocols, providing comprehensive validation for
- * diverse network environments including SCADA, factory automation, and
- * building management systems.
+ * Specialized validator for DeepInspector protocol-specific configurations.
+ * Validates protocol inspection settings, ensuring compatibility with general
+ * settings (e.g., SSL inspection) and proper configuration of protocol-specific
+ * parameters, including standard and industrial protocols.
  *
  * @package OPNsense\ValidationCore\Validators
  * @author Pierpaolo Casati
- * @version 1.0
+ * @version 1.1
  */
 class ProtocolValidator extends AbstractValidator
 {
@@ -122,83 +141,125 @@ class ProtocolValidator extends AbstractValidator
     ];
 
     /**
-     * Perform protocol-specific validation
+     * Validate protocol settings for DeepInspector
+     *
+     * @param array $data Configuration data
+     * @param bool $validateFullModel Whether to perform full validation
+     * @return MessageCollection Validation messages
      */
-    protected function performValidation(): void
+    public function validate(array $data, bool $validateFullModel = false): MessageCollection
     {
-        $this->validateGeneralProtocolSettings();
-        $this->validateRuleProtocols();
-        $this->validateProtocolSecurity();
-        $this->validateProtocolCompatibility();
-    }
+        $messages = new MessageCollection();
+        $general = $data['general'] ?? [];
+        $protocols = $data['protocols'] ?? [];
+        $fieldChanges = $protocols['_field_changes'] ?? [];
+        $generalFieldChanges = $general['_field_changes'] ?? [];
 
-    /**
-     * Validate general protocol-related settings
-     */
-    protected function validateGeneralProtocolSettings(): void
-    {
-        $inspectionMode = $this->getStringValue('general.inspection_mode', 'stateless');
-        
-        // Validate inspection mode compatibility with protocols
-        $this->validateInspectionModeCompatibility($inspectionMode);
-    }
+        // Validate protocol inspection settings
+        if ($validateFullModel || ($generalFieldChanges['ssl_inspection'] ?? false) || ($fieldChanges['https_inspection'] ?? false)) {
+            $sslEnabled = $general['ssl_inspection'] === "1";
+            $httpsEnabled = $protocols['https_inspection'] === "1";
 
-    /**
-     * Validate protocols used in security rules
-     */
-    protected function validateRuleProtocols(): void
-    {
-        $rules = $this->getFieldValue('rules.rule', []);
-
-        foreach ($rules as $uuid => $rule) {
-            $this->validateRuleProtocol($rule, $uuid);
+            if ($httpsEnabled && !$sslEnabled) {
+                $messages->appendMessage(new Message(
+                    gettext('SSL inspection must be enabled for HTTPS protocol inspection.'),
+                    'protocols.https_inspection'
+                ));
+            }
         }
-    }
 
-    /**
-     * Validate security implications of protocol choices
-     */
-    protected function validateProtocolSecurity(): void
-    {
-        $rules = $this->getFieldValue('rules.rule', []);
-        $securityIssues = [];
+        // Validate boolean protocol inspection fields
+        $inspectionFields = [
+            'http_inspection', 'https_inspection', 'ftp_inspection',
+            'smtp_inspection', 'dns_inspection', 'industrial_protocols',
+            'p2p_detection', 'voip_inspection'
+        ];
 
-        foreach ($rules as $uuid => $rule) {
-            $protocol = strtolower($rule['protocol'] ?? '');
-            $action = strtolower($rule['action'] ?? '');
-
-            if ($this->isIndustrialProtocol($protocol)) {
-                $protocolInfo = self::INDUSTRIAL_PROTOCOLS[$protocol];
-                
-                // Check for security concerns with industrial protocols
-                if ($protocolInfo['security_level'] === 'low' && $action === 'allow') {
-                    $securityIssues[] = [
-                        'uuid' => $uuid,
-                        'protocol' => $protocol,
-                        'issue' => 'low_security_protocol'
-                    ];
+        foreach ($inspectionFields as $field) {
+            if ($validateFullModel || ($fieldChanges[$field] ?? false)) {
+                if (!in_array($protocols[$field] ?? '', ['0', '1', ''])) {
+                    $messages->appendMessage(new Message(
+                        sprintf(gettext('Field %s must be either 0 or 1.'), $field),
+                        "protocols.$field"
+                    ));
                 }
             }
         }
 
-        $this->reportSecurityIssues($securityIssues);
+        // Validate custom_protocols
+        if ($validateFullModel || ($fieldChanges['custom_protocols'] ?? false)) {
+            $customProtocols = $protocols['custom_protocols'] ?? '';
+            if (!empty($customProtocols) && !preg_match('/^[a-zA-Z0-9_,-\s]*$/', $customProtocols)) {
+                $messages->appendMessage(new Message(
+                    gettext('Custom protocols must contain only alphanumeric characters, commas, dashes, and spaces.'),
+                    'protocols.custom_protocols'
+                ));
+            }
+        }
+
+        // Validate industrial_protocols specific settings
+        if ($validateFullModel || ($fieldChanges['industrial_protocols'] ?? false)) {
+            if ($protocols['industrial_protocols'] === "1") {
+                $this->validateIndustrialProtocols($protocols, $general, $messages);
+            }
+        }
+
+        // Validate rule-specific protocols if rules are provided
+        if (isset($data['rules']['rule']) && ($validateFullModel || ($fieldChanges['rules'] ?? false))) {
+            $this->validateRuleProtocols($data['rules']['rule']);
+        }
+
+        return $messages;
     }
 
     /**
-     * Validate protocol compatibility with system configuration
+     * Validate industrial protocols configuration
+     *
+     * @param array $protocols Protocols configuration
+     * @param array $general General configuration
+     * @param MessageCollection $messages Validation messages
      */
-    protected function validateProtocolCompatibility(): void
+    private function validateIndustrialProtocols(array $protocols, array $general, MessageCollection $messages): void
     {
-        $inspectionMode = $this->getStringValue('general.inspection_mode', 'stateless');
-        $ipsMode = $this->getBoolValue('general.ips', false);
-        $rules = $this->getFieldValue('rules.rule', []);
+        $inspectionMode = $general['inspection_mode'] ?? 'stateless';
+        $enabledIndustrial = $protocols['industrial_protocols'] === "1";
 
-        foreach ($rules as $uuid => $rule) {
-            $protocol = strtolower($rule['protocol'] ?? '');
-            
-            if ($this->isIndustrialProtocol($protocol)) {
-                $this->validateIndustrialProtocolCompatibility($protocol, $inspectionMode, $ipsMode, $uuid);
+        if ($enabledIndustrial && $inspectionMode === 'stateless') {
+            $statefulProtocols = array_filter(self::INDUSTRIAL_PROTOCOLS, fn($p) => $p['stateful']);
+            $protocolNames = array_keys($statefulProtocols);
+            if (!empty($protocolNames)) {
+                $messages->appendMessage(new Message(
+                    sprintf(
+                        gettext('Stateless inspection mode may not be optimal for stateful industrial protocols: %s'),
+                        implode(', ', $protocolNames)
+                    ),
+                    'general.inspection_mode'
+                ));
             }
+        }
+
+        // Check for low-security industrial protocols
+        $lowSecurityProtocols = array_filter(self::INDUSTRIAL_PROTOCOLS, fn($p) => $p['security_level'] === 'low');
+        if ($enabledIndustrial && !empty($lowSecurityProtocols)) {
+            $messages->appendMessage(new Message(
+                sprintf(
+                    gettext('Enabling industrial protocols includes low-security protocols (%s). Consider additional security measures.'),
+                    implode(', ', array_keys($lowSecurityProtocols))
+                ),
+                'protocols.industrial_protocols'
+            ));
+        }
+    }
+
+    /**
+     * Validate protocols used in security rules
+     *
+     * @param array $rules Security rules
+     */
+    protected function validateRuleProtocols(array $rules): void
+    {
+        foreach ($rules as $uuid => $rule) {
+            $this->validateRuleProtocol($rule, $uuid);
         }
     }
 
@@ -214,15 +275,13 @@ class ProtocolValidator extends AbstractValidator
         $port = $rule['port'] ?? '';
 
         if (empty($protocol)) {
-            return; // Already handled by RuleValidator
+            return; // Handled by RuleValidator
         }
 
-        // Validate protocol exists and is supported
         if (!$this->isValidProtocol($protocol)) {
-            return; // Already handled by RuleValidator
+            return; // Handled by RuleValidator
         }
 
-        // Validate protocol-specific requirements
         $this->validateProtocolPortRequirements($protocol, $port, $uuid);
         $this->validateProtocolSpecificRules($protocol, $rule, $uuid);
     }
@@ -242,7 +301,6 @@ class ProtocolValidator extends AbstractValidator
             return;
         }
 
-        // Check if protocol requires ports
         if ($protocolInfo['requires_ports'] && (empty($port) || $port === 'any')) {
             $defaultPort = $protocolInfo['default_port'] ?? 'standard port';
             $this->addWarning(
@@ -255,7 +313,6 @@ class ProtocolValidator extends AbstractValidator
             );
         }
 
-        // Check if protocol doesn't use ports but port is specified
         if (!$protocolInfo['requires_ports'] && !empty($port) && $port !== 'any') {
             $this->addWarning(
                 sprintf(gettext('Protocol %s does not typically use port specifications'), $protocol),
@@ -263,7 +320,6 @@ class ProtocolValidator extends AbstractValidator
             );
         }
 
-        // Validate against default ports for industrial protocols
         if (isset($protocolInfo['default_port']) && !empty($port) && $port !== 'any') {
             $defaultPort = $protocolInfo['default_port'];
             if (!$this->portSpecificationContains($port, $defaultPort)) {
@@ -292,21 +348,16 @@ class ProtocolValidator extends AbstractValidator
             case 'icmp':
                 $this->validateICMPRule($rule, $uuid);
                 break;
-                
             case 'modbus_tcp':
                 $this->validateModbusRule($rule, $uuid);
                 break;
-                
             case 'opcua':
                 $this->validateOPCUARule($rule, $uuid);
                 break;
-                
             case 'mqtt':
                 $this->validateMQTTRule($rule, $uuid);
                 break;
-                
             default:
-                // Generic validation for other protocols
                 break;
         }
     }
@@ -321,7 +372,6 @@ class ProtocolValidator extends AbstractValidator
     {
         $action = strtolower($rule['action'] ?? '');
         
-        // ICMP blocking can interfere with network diagnostics
         if ($action === 'block') {
             $this->addWarning(
                 gettext('Blocking ICMP traffic may interfere with network diagnostics and path MTU discovery'),
@@ -358,7 +408,6 @@ class ProtocolValidator extends AbstractValidator
     {
         $port = $rule['port'] ?? '';
         
-        // OPC UA can use various ports, standard is 4840
         if (!empty($port) && $port !== 'any' && !$this->portSpecificationContains($port, 4840)) {
             $this->addWarning(
                 gettext('OPC UA typically uses port 4840. Ensure the specified port matches your OPC UA server configuration'),
@@ -398,32 +447,48 @@ class ProtocolValidator extends AbstractValidator
     }
 
     /**
-     * Validate inspection mode compatibility with protocols
-     *
-     * @param string $inspectionMode Current inspection mode
+     * Validate protocol security implications
      */
-    protected function validateInspectionModeCompatibility(string $inspectionMode): void
+    protected function validateProtocolSecurity(): void
     {
         $rules = $this->getFieldValue('rules.rule', []);
-        $statefulProtocols = [];
+        $securityIssues = [];
 
-        foreach ($rules as $rule) {
+        foreach ($rules as $uuid => $rule) {
             $protocol = strtolower($rule['protocol'] ?? '');
-            $protocolInfo = $this->getProtocolInfo($protocol);
-            
-            if ($protocolInfo && $protocolInfo['stateful']) {
-                $statefulProtocols[] = $protocol;
+            $action = strtolower($rule['action'] ?? '');
+
+            if ($this->isIndustrialProtocol($protocol)) {
+                $protocolInfo = self::INDUSTRIAL_PROTOCOLS[$protocol];
+                
+                if ($protocolInfo['security_level'] === 'low' && $action === 'allow') {
+                    $securityIssues[] = [
+                        'uuid' => $uuid,
+                        'protocol' => $protocol,
+                        'issue' => 'low_security_protocol'
+                    ];
+                }
             }
         }
 
-        if (!empty($statefulProtocols) && $inspectionMode === 'stateless') {
-            $this->addWarning(
-                sprintf(
-                    gettext('Stateless inspection mode may not be optimal for stateful protocols: %s'),
-                    implode(', ', array_unique($statefulProtocols))
-                ),
-                'general.inspection_mode'
-            );
+        $this->reportSecurityIssues($securityIssues);
+    }
+
+    /**
+     * Validate protocol compatibility with system configuration
+     */
+    protected function validateProtocolCompatibility(): void
+    {
+        $inspectionMode = $this->getStringValue('general.inspection_mode', 'stateless');
+        $ipsMode = $this->getBoolValue('general.ips', false);
+        $rules = $this->getFieldValue('rules.rule', []);
+
+        foreach ($rules as $uuid => $rule) {
+            $protocol = strtolower($rule['protocol'] ?? '');
+            
+            if ($this->isIndustrialProtocol($protocol)) {
+                $this->validateIndustrialProtocolCompatibility($protocol, $inspectionMode, $ipsMode, $uuid);
+            }
         }
     }
 
@@ -443,7 +508,6 @@ class ProtocolValidator extends AbstractValidator
             return;
         }
 
-        // Real-time industrial protocols may be sensitive to IPS blocking
         if ($ipsMode && in_array($protocol, ['ethercat', 'profinet'])) {
             $this->addWarning(
                 sprintf(
@@ -454,7 +518,6 @@ class ProtocolValidator extends AbstractValidator
             );
         }
 
-        // Security recommendations for industrial protocols
         if ($protocolInfo['security_level'] === 'low') {
             $this->addWarning(
                 sprintf(
@@ -537,13 +600,11 @@ class ProtocolValidator extends AbstractValidator
         
         foreach ($parts as $part) {
             if (strpos($part, '-') !== false) {
-                // Handle range
                 list($start, $end) = array_map('intval', explode('-', $part, 2));
                 if ($targetPort >= $start && $targetPort <= $end) {
                     return true;
                 }
             } else {
-                // Handle single port
                 if ((int)$part === $targetPort) {
                     return true;
                 }

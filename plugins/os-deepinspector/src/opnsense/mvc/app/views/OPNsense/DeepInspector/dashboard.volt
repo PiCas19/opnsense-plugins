@@ -89,7 +89,11 @@
                         </tr>
                     </thead>
                     <tbody id="threatTableBody">
-                        <!-- Dynamic content -->
+                        <tr>
+                            <td colspan="6" class="text-center text-muted">
+                                {{ lang._('No threats detected yet') }}
+                            </td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -143,24 +147,12 @@
 
 <script>
 $(document).ready(function() {
-    // Initialize dashboard
     loadDashboardData();
-    
-    // Set up periodic updates
-    setInterval(loadDashboardData, 30000); // Update every 30 seconds
-    
-    // Service control buttons
-    $('#startService').click(function() {
-        controlService('start');
-    });
-    
-    $('#restartService').click(function() {
-        controlService('restart');
-    });
-    
-    $('#stopService').click(function() {
-        controlService('stop');
-    });
+    setInterval(loadDashboardData, 30000);
+
+    $('#startService').click(function() { controlService('start'); });
+    $('#restartService').click(function() { controlService('restart'); });
+    $('#stopService').click(function() { controlService('stop'); });
 });
 
 function loadDashboardData() {
@@ -177,7 +169,7 @@ function updateMetrics(data) {
     $('#packetsAnalyzed').text(formatNumber(data.packets_analyzed || 0));
     $('#threatsDetected').text(formatNumber(data.threats_detected || 0));
     $('#criticalAlerts').text(formatNumber(data.critical_alerts || 0));
-    
+
     const detectionRate = data.packets_analyzed > 0 
         ? ((data.threats_detected / data.packets_analyzed) * 100).toFixed(2)
         : 0;
@@ -191,8 +183,7 @@ function updateSystemInfo(systemInfo) {
     $('#memoryUsage').text(systemInfo.memory_usage || '{{ lang._("Unknown") }}');
     $('#cpuUsage').text(systemInfo.cpu_usage || '{{ lang._("Unknown") }}');
     $('#uptime').text(systemInfo.uptime || '{{ lang._("Unknown") }}');
-    
-    // Update service status badge based on engine status
+
     if (systemInfo.engine_status === 'Active') {
         $('#serviceStatus').removeClass('badge-secondary badge-danger')
                          .addClass('badge-success')
@@ -207,8 +198,8 @@ function updateSystemInfo(systemInfo) {
 function updateRecentThreats(threats) {
     const tbody = $('#threatTableBody');
     tbody.empty();
-    
-    if (threats.length === 0) {
+
+    if (!threats || threats.length === 0) {
         tbody.append(`
             <tr>
                 <td colspan="6" class="text-center text-muted">
@@ -218,7 +209,7 @@ function updateRecentThreats(threats) {
         `);
         return;
     }
-    
+
     threats.forEach(function(threat) {
         const severityClass = getSeverityClass(threat.severity);
         const row = $(`
@@ -245,15 +236,14 @@ function updateRecentThreats(threats) {
 function controlService(action) {
     const button = $(`#${action}Service`);
     const originalText = button.text();
-    
+
     button.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> {{ lang._("Processing...") }}');
-    
+
     ajaxCall(`/api/deepinspector/service/${action}`, {}, function(data) {
         button.prop('disabled', false).html(originalText);
-        
+
         if (data.status === 'ok') {
             showNotification(`{{ lang._("Service") }} ${action} {{ lang._("completed successfully") }}`, 'success');
-            // Reload dashboard data after service action
             setTimeout(loadDashboardData, 2000);
         } else {
             showNotification(`{{ lang._("Service") }} ${action} {{ lang._("failed") }}`, 'error');
@@ -262,87 +252,65 @@ function controlService(action) {
 }
 
 function viewThreatDetails(threatId) {
-    // Prepare threat data from the current threats list
-    const threatData = getCurrentThreatData(threatId);
-    
-    // Create and show modal
-    const modal = $(`
-        <div class="modal fade" id="threatModal" tabindex="-1">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">{{ lang._("Threat Details") }}</h5>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <h6>{{ lang._("Basic Information") }}</h6>
-                                <p><strong>{{ lang._("Threat ID") }}:</strong> <code>${threatData.threat_id || threatId}</code></p>
-                                <p><strong>{{ lang._("Status") }}:</strong> <span class="badge badge-${threatData.status === 'active' ? 'danger' : 'secondary'}">${threatData.status || 'active'}</span></p>
-                                <p><strong>{{ lang._("First Seen") }}:</strong> ${formatTimestamp(threatData.first_seen || threatData.timestamp)}</p>
-                                <p><strong>{{ lang._("Last Seen") }}:</strong> ${formatTimestamp(threatData.last_seen || threatData.timestamp)}</p>
-                                <p><strong>{{ lang._("Source IP") }}:</strong> <code>${threatData.source_ip}</code></p>
-                                <p><strong>{{ lang._("Destination IP") }}:</strong> <code>${threatData.destination_ip}</code></p>
-                            </div>
-                            <div class="col-md-6">
-                                <h6>{{ lang._("Analysis Results") }}</h6>
-                                <p><strong>{{ lang._("Threat Type") }}:</strong> ${threatData.threat_type}</p>
-                                <p><strong>{{ lang._("Severity") }}:</strong> <span class="badge ${getSeverityClass(threatData.severity)}">${threatData.severity}</span></p>
-                                <p><strong>{{ lang._("Protocol") }}:</strong> ${threatData.protocol}</p>
-                                <p><strong>{{ lang._("Detection Method") }}:</strong> ${threatData.detection_method || 'N/A'}</p>
-                                <p><strong>{{ lang._("Pattern") }}:</strong> <code>${threatData.pattern || 'N/A'}</code></p>
-                                <p><strong>{{ lang._("Industrial Context") }}:</strong> ${threatData.industrial_context ? 'Yes' : 'No'}</p>
-                                <hr>
-                                <h6>{{ lang._("Description") }}</h6>
-                                <p>${threatData.description}</p>
+    ajaxCall(`/api/deepinspector/threat/${threatId}`, {}, function(data) {
+        if (data.status !== 'ok' || !data.data) {
+            showNotification('{{ lang._("Failed to load threat details") }}', 'error');
+            return;
+        }
+
+        const threatData = data.data;
+        const modal = $(`
+            <div class="modal fade" id="threatModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">{{ lang._("Threat Details") }}</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>{{ lang._("Basic Information") }}</h6>
+                                    <p><strong>{{ lang._("Threat ID") }}:</strong> <code>${threatData.threat_id || threatId}</code></p>
+                                    <p><strong>{{ lang._("Status") }}:</strong> <span class="badge badge-${threatData.status === 'active' ? 'danger' : 'secondary'}">${threatData.status || 'active'}</span></p>
+                                    <p><strong>{{ lang._("First Seen") }}:</strong> ${formatTimestamp(threatData.first_seen || threatData.timestamp)}</p>
+                                    <p><strong>{{ lang._("Last Seen") }}:</strong> ${formatTimestamp(threatData.last_seen || threatData.timestamp)}</p>
+                                    <p><strong>{{ lang._("Source IP") }}:</strong> <code>${threatData.source_ip}</code></p>
+                                    <p><strong>{{ lang._("Destination IP") }}:</strong> <code>${threatData.destination_ip}</code></p>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>{{ lang._("Analysis Results") }}</h6>
+                                    <p><strong>{{ lang._("Threat Type") }}:</strong> ${threatData.threat_type}</p>
+                                    <p><strong>{{ lang._("Severity") }}:</strong> <span class="badge ${getSeverityClass(threatData.severity)}">${threatData.severity}</span></p>
+                                    <p><strong>{{ lang._("Protocol") }}:</strong> ${threatData.protocol}</p>
+                                    <p><strong>{{ lang._("Detection Method") }}:</strong> ${threatData.detection_method || 'N/A'}</p>
+                                    <p><strong>{{ lang._("Pattern") }}:</strong> <code>${threatData.pattern || 'N/A'}</code></p>
+                                    <p><strong>{{ lang._("Industrial Context") }}:</strong> ${threatData.industrial_context ? 'Yes' : 'No'}</p>
+                                    <hr>
+                                    <h6>{{ lang._("Description") }}</h6>
+                                    <p>${threatData.description}</p>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-danger" onclick="blockSource('${threatData.source_ip}')">
-                            <i class="fa fa-ban"></i> {{ lang._("Block Source IP") }}
-                        </button>
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">
-                            {{ lang._("Close") }}
-                        </button>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-danger" onclick="blockSource('${threatData.source_ip}')">
+                                <i class="fa fa-ban"></i> {{ lang._("Block Source IP") }}
+                            </button>
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                                {{ lang._("Close") }}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-    `);
-    
-    $('body').append(modal);
-    $('#threatModal').modal('show');
-    
-    // Remove modal from DOM when closed
-    $('#threatModal').on('hidden.bs.modal', function() {
-        $(this).remove();
-    });
-}
+        `);
 
-function getCurrentThreatData(threatId) {
-    // Get threat data from the current display
-    // This is a fallback since the API endpoint might not exist yet
-    const defaultThreat = {
-        threat_id: threatId,
-        status: 'active',
-        first_seen: new Date().toISOString(),
-        last_seen: new Date().toISOString(),
-        source_ip: '34.107.221.82',
-        destination_ip: '192.168.216.110',
-        threat_type: 'command_injection',
-        severity: 'high',
-        protocol: 'TCP',
-        detection_method: 'pattern_match',
-        pattern: '(cmd\\.exe|powershell|bash|sh).*?[;|&]',
-        industrial_context: false,
-        description: 'Command injection attempt detected in HTTP traffic'
-    };
-    
-    return defaultThreat;
+        $('body').append(modal);
+        $('#threatModal').modal('show');
+        $('#threatModal').on('hidden.bs.modal', function() { $(this).remove(); });
+    });
 }
 
 function blockSource(sourceIP) {
@@ -350,7 +318,6 @@ function blockSource(sourceIP) {
         ajaxCall("/api/deepinspector/service/blockIP", {ip: sourceIP}, function(data) {
             if (data.status === 'ok') {
                 showNotification(`{{ lang._("IP") }} ${sourceIP} {{ lang._("blocked successfully") }}`, 'success');
-                // Close modal if open
                 $('#threatModal').modal('hide');
             } else {
                 showNotification(`{{ lang._("Failed to block IP") }}: ${data.message || '{{ lang._("Unknown error") }}'}`, 'error');
@@ -387,132 +354,10 @@ function showNotification(message, type) {
             </button>
         </div>
     `);
-    
+
     $('#notifications').append(notification);
     setTimeout(() => notification.alert('close'), 5000);
 }
 </script>
 
 <div id="notifications" style="position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px;"></div>
-
-<style>
-.dpi-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
-    padding-bottom: 1rem;
-    border-bottom: 2px solid #e5e7eb;
-}
-
-.metric-card {
-    background: white;
-    border-radius: 8px;
-    padding: 1.5rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    margin-bottom: 1rem;
-    display: flex;
-    align-items: center;
-}
-
-.metric-icon {
-    font-size: 2rem;
-    color: #2563eb;
-    margin-right: 1rem;
-}
-
-.metric-content {
-    flex: 1;
-}
-
-.metric-value {
-    font-size: 2rem;
-    font-weight: bold;
-    color: #1f2937;
-}
-
-.metric-label {
-    font-size: 0.875rem;
-    color: #6b7280;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.chart-container {
-    background: white;
-    border-radius: 8px;
-    padding: 1.5rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    margin-bottom: 1rem;
-}
-
-.table-container {
-    background: white;
-    border-radius: 8px;
-    padding: 1.5rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    margin-bottom: 1rem;
-}
-
-.system-info {
-    background: white;
-    border-radius: 8px;
-    padding: 1.5rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    margin-bottom: 1rem;
-}
-
-.info-item {
-    display: flex;
-    justify-content: space-between;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid #f3f4f6;
-}
-
-.info-item:last-child {
-    border-bottom: none;
-}
-
-.info-label {
-    font-weight: 600;
-    color: #374151;
-}
-
-.info-value {
-    color: #6b7280;
-    font-family: monospace;
-}
-
-.service-controls {
-    background: white;
-    border-radius: 8px;
-    padding: 1.5rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.service-controls .btn {
-    margin-bottom: 0.5rem;
-}
-
-.service-controls .btn:last-child {
-    margin-bottom: 0;
-}
-
-.modal-body h6 {
-    color: #1f2937;
-    margin-bottom: 1rem;
-    border-bottom: 1px solid #e5e7eb;
-    padding-bottom: 0.5rem;
-}
-
-.modal-body p {
-    margin-bottom: 0.5rem;
-}
-
-.modal-body code {
-    background-color: #f3f4f6;
-    padding: 0.2rem 0.4rem;
-    border-radius: 3px;
-    font-size: 0.9em;
-}
-</style>
