@@ -499,10 +499,6 @@ function showNotification(message, type) {
 
 <!-- HTML STRUCTURE -->
 <div class="statistics-header">
-    <div>
-        <h1>{{ lang._('DeepInspector Statistics') }}</h1>
-        <p class="text-muted">{{ lang._('Comprehensive security and traffic analysis') }}</p>
-    </div>
     <div class="report-controls">
         <div class="btn-group">
             <button id="exportPDF" class="btn btn-secondary">

@@ -1,11 +1,101 @@
 {# dashboard.volt - Deep Packet Inspector Dashboard #}
+<style>
+.metric-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 15px;
+    padding: 20px;
+    color: white;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+}
+
+.metric-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+}
+
+.metric-card::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+    animation: ripple 15s infinite;
+}
+
+@keyframes ripple {
+    0%, 100% { transform: scale(0.8) rotate(0deg); opacity: 0.3; }
+    50% { transform: scale(1.2) rotate(180deg); opacity: 0.5; }
+}
+
+.metric-card:nth-child(1) { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+.metric-card:nth-child(2) { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+.metric-card:nth-child(3) { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+.metric-card:nth-child(4) { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+
+.metric-icon {
+    font-size: 48px;
+    opacity: 0.9;
+    margin-bottom: 15px;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+}
+
+.metric-value {
+    font-size: 36px;
+    font-weight: bold;
+    margin-bottom: 5px;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+}
+
+.metric-label {
+    font-size: 14px;
+    opacity: 0.9;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.service-status {
+    float: right;
+}
+
+.badge-running {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: bold;
+    box-shadow: 0 4px 15px rgba(17, 153, 142, 0.4);
+}
+
+.badge-stopped {
+    background: linear-gradient(135deg, #ee0979 0%, #ff6a00 100%);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: bold;
+    box-shadow: 0 4px 15px rgba(238, 9, 121, 0.4);
+}
+
+.badge-loading {
+    background: linear-gradient(135deg, #868f96 0%, #596164 100%);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: bold;
+}
+</style>
+
 <div class="content-box">
     <div class="row">
         <div class="col-md-12">
             <div class="dpi-header">
-                <h1>{{ lang._('Deep Packet Inspector Dashboard') }}</h1>
                 <div class="service-status">
-                    <span id="serviceStatus" class="badge badge-secondary">{{ lang._('Loading...') }}</span>
+                    <span id="serviceStatus" class="badge badge-loading">{{ lang._('Loading...') }}</span>
                 </div>
             </div>
         </div>
@@ -54,21 +144,6 @@
                     <div class="metric-value" id="detectionRate">0%</div>
                     <div class="metric-label">{{ lang._('Detection Rate') }}</div>
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row">
-        <div class="col-md-6">
-            <div class="chart-container">
-                <h3>{{ lang._('Threat Detection Timeline') }}</h3>
-                <canvas id="threatTimelineChart"></canvas>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="chart-container">
-                <h3>{{ lang._('Protocol Analysis') }}</h3>
-                <canvas id="protocolChart"></canvas>
             </div>
         </div>
     </div>
@@ -177,21 +252,26 @@ function updateMetrics(data) {
 }
 
 function updateSystemInfo(systemInfo) {
-    $('#signaturesVersion').text(systemInfo.signatures_version || '{{ lang._("Unknown") }}');
-    $('#engineStatus').text(systemInfo.engine_status || '{{ lang._("Unknown") }}');
-    $('#enginePid').text(systemInfo.pid || '{{ lang._("Unknown") }}');
-    $('#memoryUsage').text(systemInfo.memory_usage || '{{ lang._("Unknown") }}');
-    $('#cpuUsage').text(systemInfo.cpu_usage || '{{ lang._("Unknown") }}');
-    $('#uptime').text(systemInfo.uptime || '{{ lang._("Unknown") }}');
+    $('#signaturesVersion').text(systemInfo.signatures_version || 'Unknown');
+    $('#engineStatus').text(systemInfo.engine_status || 'Unknown');
+    $('#enginePid').text(systemInfo.pid || 'Unknown');
+    $('#memoryUsage').text(systemInfo.memory_usage || 'Unknown');
+    $('#cpuUsage').text(systemInfo.cpu_usage || 'Unknown');
+    $('#uptime').text(systemInfo.uptime || 'Unknown');
 
-    if (systemInfo.engine_status === 'Active') {
-        $('#serviceStatus').removeClass('badge-secondary badge-danger')
-                         .addClass('badge-success')
-                         .text('{{ lang._("Running") }}');
+    updateServiceBadge(systemInfo.engine_status);
+}
+
+function updateServiceBadge(status) {
+    const badge = $('#serviceStatus');
+    badge.removeClass('badge-loading badge-running badge-stopped');
+    
+    if (status === 'Active') {
+        badge.addClass('badge-running').text('{{ lang._("Running") }}');
+    } else if (status === 'Inactive') {
+        badge.addClass('badge-stopped').text('{{ lang._("Stopped") }}');
     } else {
-        $('#serviceStatus').removeClass('badge-secondary badge-success')
-                         .addClass('badge-danger')
-                         .text('{{ lang._("Stopped") }}');
+        badge.addClass('badge-loading').text('{{ lang._("Unknown") }}');
     }
 }
 
@@ -235,16 +315,18 @@ function updateRecentThreats(threats) {
 
 function controlService(action) {
     const button = $(`#${action}Service`);
-    const originalText = button.text();
+    const originalHtml = button.html();
 
     button.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> {{ lang._("Processing...") }}');
 
     ajaxCall(`/api/deepinspector/service/${action}`, {}, function(data) {
-        button.prop('disabled', false).html(originalText);
+        button.prop('disabled', false).html(originalHtml);
 
         if (data.status === 'ok') {
             showNotification(`{{ lang._("Service") }} ${action} {{ lang._("completed successfully") }}`, 'success');
-            setTimeout(loadDashboardData, 2000);
+            setTimeout(function() {
+                loadDashboardData();
+            }, 2000);
         } else {
             showNotification(`{{ lang._("Service") }} ${action} {{ lang._("failed") }}`, 'error');
         }
@@ -252,7 +334,7 @@ function controlService(action) {
 }
 
 function viewThreatDetails(threatId) {
-    ajaxCall(`/api/deepinspector/threat/${threatId}`, {}, function(data) {
+    ajaxCall(`/api/deepinspector/alerts/threatDetails/${threatId}`, {}, function(data) {
         if (data.status !== 'ok' || !data.data) {
             showNotification('{{ lang._("Failed to load threat details") }}', 'error');
             return;
@@ -273,20 +355,17 @@ function viewThreatDetails(threatId) {
                             <div class="row">
                                 <div class="col-md-6">
                                     <h6>{{ lang._("Basic Information") }}</h6>
-                                    <p><strong>{{ lang._("Threat ID") }}:</strong> <code>${threatData.threat_id || threatId}</code></p>
-                                    <p><strong>{{ lang._("Status") }}:</strong> <span class="badge badge-${threatData.status === 'active' ? 'danger' : 'secondary'}">${threatData.status || 'active'}</span></p>
-                                    <p><strong>{{ lang._("First Seen") }}:</strong> ${formatTimestamp(threatData.first_seen || threatData.timestamp)}</p>
-                                    <p><strong>{{ lang._("Last Seen") }}:</strong> ${formatTimestamp(threatData.last_seen || threatData.timestamp)}</p>
+                                    <p><strong>{{ lang._("Threat ID") }}:</strong> <code>${threatData.id || threatId}</code></p>
+                                    <p><strong>{{ lang._("Timestamp") }}:</strong> ${formatTimestamp(threatData.timestamp)}</p>
                                     <p><strong>{{ lang._("Source IP") }}:</strong> <code>${threatData.source_ip}</code></p>
-                                    <p><strong>{{ lang._("Destination IP") }}:</strong> <code>${threatData.destination_ip}</code></p>
+                                    <p><strong>{{ lang._("Destination IP") }}:</strong> <code>${threatData.destination_ip || 'N/A'}</code></p>
+                                    <p><strong>{{ lang._("Protocol") }}:</strong> ${threatData.protocol}</p>
                                 </div>
                                 <div class="col-md-6">
                                     <h6>{{ lang._("Analysis Results") }}</h6>
                                     <p><strong>{{ lang._("Threat Type") }}:</strong> ${threatData.threat_type}</p>
                                     <p><strong>{{ lang._("Severity") }}:</strong> <span class="badge ${getSeverityClass(threatData.severity)}">${threatData.severity}</span></p>
-                                    <p><strong>{{ lang._("Protocol") }}:</strong> ${threatData.protocol}</p>
                                     <p><strong>{{ lang._("Detection Method") }}:</strong> ${threatData.detection_method || 'N/A'}</p>
-                                    <p><strong>{{ lang._("Pattern") }}:</strong> <code>${threatData.pattern || 'N/A'}</code></p>
                                     <p><strong>{{ lang._("Industrial Context") }}:</strong> ${threatData.industrial_context ? 'Yes' : 'No'}</p>
                                     <hr>
                                     <h6>{{ lang._("Description") }}</h6>
@@ -320,7 +399,7 @@ function blockSource(sourceIP) {
                 showNotification(`{{ lang._("IP") }} ${sourceIP} {{ lang._("blocked successfully") }}`, 'success');
                 $('#threatModal').modal('hide');
             } else {
-                showNotification(`{{ lang._("Failed to block IP") }}: ${data.message || '{{ lang._("Unknown error") }}'}`, 'error');
+                showNotification(`{{ lang._("Failed to block IP") }}`, 'error');
             }
         });
     }
@@ -349,8 +428,8 @@ function showNotification(message, type) {
     const notification = $(`
         <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
             ${message}
-            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                <span aria-hidden="true">&times;</span>
+            <button type="button" class="close" data-dismiss="alert">
+                <span>&times;</span>
             </button>
         </div>
     `);

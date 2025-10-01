@@ -1,7 +1,6 @@
 {# analysis.volt - Deep Packet Inspector Analysis #}
 <div class="content-box">
     <div class="analysis-header">
-        <h2>{{ lang._('Deep Packet Inspector - Analysis') }}</h2>
         <div class="analysis-controls">
             <button class="btn btn-secondary" id="refreshAnalysis">
                 <i class="fa fa-refresh"></i> {{ lang._('Refresh') }}
