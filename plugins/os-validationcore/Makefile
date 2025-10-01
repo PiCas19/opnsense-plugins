@@ -10,4 +10,5 @@ PLUGIN_WWW= https://git.consoli.ch/students/20250400_lavsem/moretto/
 do-install:
 	${MKDIR} -p ${STAGEDIR}${PREFIX}/opnsense/mvc/app/library/OPNsense/ValidationCore/Utils
 	${MKDIR} -p ${STAGEDIR}${PREFIX}/opnsense/mvc/app/library/OPNsense/ValidationCore/Validators
-	(cd ${WRKSRC}/src/opnsense && ${COPYTREE_SHARE} . ${STAGEDIR}${PREFIX}/opnsense)
+	${CP} -R ${WRKSRC}/src/mvc/app/library/OPNsense/ValidationCore/* \
+		${STAGEDIR}${PREFIX}/opnsense/mvc/app/library/OPNsense/ValidationCore/
