@@ -27,90 +27,82 @@
 
 namespace OPNsense\ValidationCore\Validators;
 
-use OPNsense\Base\Messages\MessageCollection;
-use OPNsense\Base\Messages\Message;
-
 /**
- * Class GeneralValidator
+ * General Validator
  *
  * Validator for DeepInspector general settings.
  *
  * @package OPNsense\ValidationCore\Validators
+ * @author Pierpaolo Casati
+ * @version 1.0
  */
 class GeneralValidator extends AbstractValidator
 {
     /**
-     * Validate general settings
-     *
-     * @param array $data Configuration data
-     * @param bool $validateFullModel Whether to perform full validation
-     * @return MessageCollection Validation messages
+     * Perform general settings validation
      */
-    public function validate(array $data, bool $validateFullModel = false): MessageCollection
+    protected function performValidation(): void
     {
-        $messages = new MessageCollection();
-        $general = $data['general'] ?? [];
+        $general = $this->data['general'] ?? [];
         $fieldChanges = $general['_field_changes'] ?? [];
 
         // Validate enabled and interfaces
-        if ($validateFullModel || ($fieldChanges['enabled'] ?? false) || ($fieldChanges['interfaces'] ?? false)) {
+        if ($this->validateFullModel || ($fieldChanges['enabled'] ?? false) || ($fieldChanges['interfaces'] ?? false)) {
             if ($general['enabled'] === "1" && empty($general['interfaces'])) {
-                $messages->appendMessage(new Message(
-                    gettext('At least one interface must be selected when DPI is enabled.'),
+                $this->addError(
+                    'At least one interface must be selected when DPI is enabled.',
                     'general.interfaces'
-                ));
+                );
             }
         }
 
         // Validate performance profile and mode
-        if ($validateFullModel || ($fieldChanges['performance_profile'] ?? false) || ($fieldChanges['mode'] ?? false)) {
+        if ($this->validateFullModel || ($fieldChanges['performance_profile'] ?? false) || ($fieldChanges['mode'] ?? false)) {
             if ($general['performance_profile'] === 'high_security' && $general['mode'] === 'learning') {
-                $messages->appendMessage(new Message(
-                    gettext('High Security profile is not compatible with Learning mode.'),
+                $this->addError(
+                    'High Security profile is not compatible with Learning mode.',
                     'general.mode'
-                ));
+                );
             }
         }
 
         // Validate trusted networks format
-        if ($validateFullModel || ($fieldChanges['trusted_networks'] ?? false)) {
+        if ($this->validateFullModel || ($fieldChanges['trusted_networks'] ?? false)) {
             $networks = $general['trusted_networks'] ?? '';
             if (!empty($networks)) {
                 $networkList = explode(',', $networks);
                 foreach ($networkList as $network) {
                     $network = trim($network);
                     if (!empty($network) && !preg_match('/^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/', $network)) {
-                        $messages->appendMessage(new Message(
-                            sprintf(gettext('Invalid network format: %s. Use CIDR notation (e.g., 192.168.1.0/24)'), $network),
+                        $this->addError(
+                            sprintf('Invalid network format: %s. Use CIDR notation (e.g., 192.168.1.0/24)', $network),
                             'general.trusted_networks'
-                        ));
+                        );
                     }
                 }
             }
         }
 
         // Validate deep scan ports
-        if ($validateFullModel || ($fieldChanges['deep_scan_ports'] ?? false)) {
+        if ($this->validateFullModel || ($fieldChanges['deep_scan_ports'] ?? false)) {
             $ports = $general['deep_scan_ports'] ?? '';
             if (!empty($ports) && !preg_match('/^[0-9,-\s]*$/', $ports)) {
-                $messages->appendMessage(new Message(
-                    gettext('Deep scan ports must contain only numbers, commas, dashes and spaces.'),
+                $this->addError(
+                    'Deep scan ports must contain only numbers, commas, dashes and spaces.',
                     'general.deep_scan_ports'
-                ));
+                );
             }
         }
 
         // Validate max packet size
-        if ($validateFullModel || ($fieldChanges['max_packet_size'] ?? false)) {
+        if ($this->validateFullModel || ($fieldChanges['max_packet_size'] ?? false)) {
             $size = (int)$general['max_packet_size'];
             if ($size < 64 || $size > 9000) {
-                $messages->appendMessage(new Message(
-                    gettext('Maximum packet size must be between 64 and 9000 bytes.'),
+                $this->addError(
+                    'Maximum packet size must be between 64 and 9000 bytes.',
                     'general.max_packet_size'
-                ));
+                );
             }
         }
-
-        return $messages;
     }
 }

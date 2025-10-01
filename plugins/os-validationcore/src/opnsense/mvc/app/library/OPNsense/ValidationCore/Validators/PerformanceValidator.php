@@ -27,33 +27,27 @@
 
 namespace OPNsense\ValidationCore\Validators;
 
-use OPNsense\Base\Messages\MessageCollection;
-use OPNsense\Base\Messages\Message;
-
 /**
- * Class PerformanceValidator
+ * Performance Validator
  *
  * Validator for DeepInspector performance settings.
  *
  * @package OPNsense\ValidationCore\Validators
+ * @author Pierpaolo Casati
+ * @version 1.0
  */
 class PerformanceValidator extends AbstractValidator
 {
     /**
-     * Validate performance settings
-     *
-     * @param array $data Configuration data
-     * @param bool $validateFullModel Whether to perform full validation
-     * @return MessageCollection Validation messages
+     * Perform performance settings validation
      */
-    public function validate(array $data, bool $validateFullModel = false): MessageCollection
+    protected function performValidation(): void
     {
-        $messages = new MessageCollection();
-        $general = $data['general'] ?? [];
-        $detection = $data['detection'] ?? [];
-        $protocols = $data['protocols'] ?? [];
+        $general = $this->data['general'] ?? [];
+        $detection = $this->data['detection'] ?? [];
+        $protocols = $this->data['protocols'] ?? [];
 
-        if ($validateFullModel) {
+        if ($this->validateFullModel) {
             $profile = $general['performance_profile'] ?? '';
 
             // Count enabled detection engines
@@ -82,36 +76,34 @@ class PerformanceValidator extends AbstractValidator
 
             // Performance profile validation
             if ($profile === 'high_performance' && ($enabledEngines > 3 || $enabledProtocols > 4)) {
-                $messages->appendMessage(new Message(
-                    gettext('High Performance profile recommends limiting active detection engines and protocol inspections for optimal performance.'),
+                $this->addWarning(
+                    'High Performance profile recommends limiting active detection engines and protocol inspections for optimal performance.',
                     'general.performance_profile'
-                ));
+                );
             }
 
             if ($profile === 'high_security' && ($enabledEngines < 5 || $enabledProtocols < 4)) {
-                $messages->appendMessage(new Message(
-                    gettext('High Security profile recommends enabling more detection engines and protocol inspections for comprehensive coverage.'),
+                $this->addWarning(
+                    'High Security profile recommends enabling more detection engines and protocol inspections for comprehensive coverage.',
                     'general.performance_profile'
-                ));
+                );
             }
 
             // SSL inspection performance warning
             if (($general['ssl_inspection'] ?? '0') === "1" && $profile === 'high_performance') {
-                $messages->appendMessage(new Message(
-                    gettext('SSL inspection may impact performance significantly in High Performance profile.'),
+                $this->addWarning(
+                    'SSL inspection may impact performance significantly in High Performance profile.',
                     'general.ssl_inspection'
-                ));
+                );
             }
 
             // Archive extraction performance warning
             if (($general['archive_extraction'] ?? '0') === "1" && $profile === 'high_performance') {
-                $messages->appendMessage(new Message(
-                    gettext('Archive extraction may impact performance in High Performance profile.'),
+                $this->addWarning(
+                    'Archive extraction may impact performance in High Performance profile.',
                     'general.archive_extraction'
-                ));
+                );
             }
         }
-
-        return $messages;
     }
 }

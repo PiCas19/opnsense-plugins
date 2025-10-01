@@ -27,43 +27,34 @@
 
 namespace OPNsense\ValidationCore\Validators;
 
-use OPNsense\Base\Messages\MessageCollection;
-use OPNsense\Base\Messages\Message;
-
 /**
- * Class AdvancedValidator
+ * Advanced Validator
  *
  * Validator for DeepInspector advanced settings.
  *
  * @package OPNsense\ValidationCore\Validators
+ * @author Pierpaolo Casati
+ * @version 1.0
  */
 class AdvancedValidator extends AbstractValidator
 {
     /**
-     * Validate advanced settings
-     *
-     * @param array $data Configuration data
-     * @param bool $validateFullModel Whether to perform full validation
-     * @return MessageCollection Validation messages
+     * Perform advanced settings validation
      */
-    public function validate(array $data, bool $validateFullModel = false): MessageCollection
+    protected function performValidation(): void
     {
-        $messages = new MessageCollection();
-        $advanced = $data['advanced'] ?? [];
+        $advanced = $this->data['advanced'] ?? [];
         $fieldChanges = $advanced['_field_changes'] ?? [];
 
-        // Add validation for advanced settings if needed
-        // Example: Validate update_interval
-        if ($validateFullModel || ($fieldChanges['update_interval'] ?? false)) {
-            $interval = (int)$advanced['update_interval'];
+        // Validate update_interval
+        if ($this->validateFullModel || ($fieldChanges['update_interval'] ?? false)) {
+            $interval = (int)($advanced['update_interval'] ?? 3600);
             if ($interval < 60 || $interval > 86400) {
-                $messages->appendMessage(new Message(
-                    gettext('Update interval must be between 60 and 86400 seconds.'),
+                $this->addError(
+                    'Update interval must be between 60 and 86400 seconds.',
                     'advanced.update_interval'
-                ));
+                );
             }
         }
-
-        return $messages;
     }
 }

@@ -27,46 +27,38 @@
 
 namespace OPNsense\ValidationCore\Validators;
 
-use OPNsense\Base\Messages\MessageCollection;
-use OPNsense\Base\Messages\Message;
-
 /**
- * Class DetectionValidator
+ * Detection Validator
  *
  * Validator for DeepInspector detection settings.
  *
  * @package OPNsense\ValidationCore\Validators
+ * @author Pierpaolo Casati
+ * @version 1.0
  */
 class DetectionValidator extends AbstractValidator
 {
     /**
-     * Validate detection settings
-     *
-     * @param array $data Configuration data
-     * @param bool $validateFullModel Whether to perform full validation
-     * @return MessageCollection Validation messages
+     * Perform detection settings validation
      */
-    public function validate(array $data, bool $validateFullModel = false): MessageCollection
+    protected function performValidation(): void
     {
-        $messages = new MessageCollection();
-        $general = $data['general'] ?? [];
-        $detection = $data['detection'] ?? [];
+        $general = $this->data['general'] ?? [];
+        $detection = $this->data['detection'] ?? [];
         $fieldChanges = $detection['_field_changes'] ?? [];
         $generalFieldChanges = $general['_field_changes'] ?? [];
 
         // Validate detection engine dependencies
-        if ($validateFullModel || ($fieldChanges['virus_signatures'] ?? false) || ($generalFieldChanges['malware_detection'] ?? false)) {
-            $virusEnabled = $detection['virus_signatures'] === "1";
-            $malwareEnabled = $general['malware_detection'] === "1";
-
+        if ($this->validateFullModel || ($fieldChanges['virus_signatures'] ?? false) || ($generalFieldChanges['malware_detection'] ?? false)) {
+            $virusEnabled = ($detection['virus_signatures'] ?? '0') === "1";
+            $malwareEnabled = ($general['malware_detection'] ?? '0') === "1";
+            
             if ($virusEnabled && !$malwareEnabled) {
-                $messages->appendMessage(new Message(
-                    gettext('Malware detection must be enabled for virus signature scanning.'),
+                $this->addError(
+                    'Malware detection must be enabled for virus signature scanning.',
                     'detection.virus_signatures'
-                ));
+                );
             }
         }
-
-        return $messages;
     }
 }

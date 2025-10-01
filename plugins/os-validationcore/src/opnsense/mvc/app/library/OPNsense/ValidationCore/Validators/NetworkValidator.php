@@ -17,14 +17,6 @@ use OPNsense\ValidationCore\Utils\NetworkUtils;
  * requirements. This validator ensures that network configurations are valid,
  * consistent, and operationally feasible.
  *
- * Validation Capabilities:
- * - CIDR notation validation with proper subnet mask checking
- * - IP address range validation and overlap detection
- * - Network interface assignment validation
- * - Home network specification validation
- * - IPv4 and IPv6 address format validation
- * - Network accessibility and reachability validation
- *
  * @package OPNsense\ValidationCore\Validators
  * @author Pierpaolo Casati
  * @version 1.0
@@ -52,11 +44,6 @@ class NetworkValidator extends AbstractValidator
 
     /**
      * Perform network-specific validation
-     *
-     * Executes comprehensive network configuration validation including
-     * CIDR networks, interface assignments, and network accessibility
-     * requirements. Validates both individual network specifications
-     * and their relationships within the overall configuration.
      */
     protected function performValidation(): void
     {
@@ -68,10 +55,6 @@ class NetworkValidator extends AbstractValidator
 
     /**
      * Validate service enablement dependencies
-     *
-     * Ensures that required network configurations are present when
-     * the service is enabled, preventing incomplete configurations
-     * that would result in service startup failures.
      */
     protected function validateServiceDependencies(): void
     {
@@ -80,7 +63,7 @@ class NetworkValidator extends AbstractValidator
 
         if ($enabled && empty($interfaces)) {
             $this->addError(
-                gettext('At least one interface must be selected when the service is enabled'),
+                'At least one interface must be selected when the service is enabled',
                 'general.interfaces'
             );
         }
@@ -91,7 +74,7 @@ class NetworkValidator extends AbstractValidator
             foreach ($interfaceList as $interface) {
                 if (!$this->isValidInterfaceName($interface)) {
                     $this->addError(
-                        sprintf(gettext('Invalid interface name format: %s'), $interface),
+                        sprintf('Invalid interface name format: %s', $interface),
                         'general.interfaces'
                     );
                 }
@@ -101,10 +84,6 @@ class NetworkValidator extends AbstractValidator
 
     /**
      * Validate home network specifications
-     *
-     * Validates home network CIDR specifications ensuring proper format,
-     * valid IP ranges, and practical network configurations. Detects
-     * common configuration errors and network overlaps.
      */
     protected function validateHomeNetworks(): void
     {
@@ -116,7 +95,7 @@ class NetworkValidator extends AbstractValidator
         
         if (empty($homeNetworks)) {
             $this->addWarning(
-                gettext('No home networks defined. All traffic will be processed which may impact performance'),
+                'No home networks defined. All traffic will be processed which may impact performance',
                 'general.homenet'
             );
             return;
@@ -135,7 +114,7 @@ class NetworkValidator extends AbstractValidator
             // Validate CIDR format
             if (!$this->isValidCIDR($network)) {
                 $this->addError(
-                    sprintf(gettext('Invalid CIDR format: %s. Expected format: 192.168.1.0/24'), $network),
+                    sprintf('Invalid CIDR format: %s. Expected format: 192.168.1.0/24', $network),
                     'general.homenet'
                 );
                 continue;
@@ -144,7 +123,7 @@ class NetworkValidator extends AbstractValidator
             // Validate IP and subnet mask ranges
             if (!$this->isValidNetworkRange($network)) {
                 $this->addError(
-                    sprintf(gettext('Invalid network range: %s'), $network),
+                    sprintf('Invalid network range: %s', $network),
                     'general.homenet'
                 );
                 continue;
@@ -153,7 +132,7 @@ class NetworkValidator extends AbstractValidator
             // Check for reserved ranges
             if ($this->isReservedRange($network)) {
                 $this->addWarning(
-                    sprintf(gettext('Network %s is in a reserved range and may cause issues'), $network),
+                    sprintf('Network %s is in a reserved range and may cause issues', $network),
                     'general.homenet'
                 );
             }
@@ -167,9 +146,6 @@ class NetworkValidator extends AbstractValidator
 
     /**
      * Validate network interface assignments
-     *
-     * Ensures that assigned interfaces are valid, available, and properly
-     * configured for network monitoring operations.
      */
     protected function validateInterfaceAssignments(): void
     {
@@ -182,29 +158,22 @@ class NetworkValidator extends AbstractValidator
         foreach ($interfaces as $interface) {
             if (!$this->isValidInterfaceName($interface)) {
                 $this->addError(
-                    sprintf(gettext('Invalid interface name: %s'), $interface),
+                    sprintf('Invalid interface name: %s', $interface),
                     'general.interfaces'
                 );
                 continue;
             }
-
-            // Additional interface-specific validation could be added here
-            // such as checking interface availability or configuration
         }
     }
 
     /**
      * Validate network accessibility requirements
-     *
-     * Performs higher-level validation of network accessibility and
-     * connectivity requirements based on the overall configuration.
      */
     protected function validateNetworkAccessibility(): void
     {
         $homeNetworks = $this->getArrayValue('general.homenet');
         $interfaces = $this->getArrayValue('general.interfaces');
 
-        // Validate that home networks are accessible through configured interfaces
         if (!empty($homeNetworks) && !empty($interfaces)) {
             $this->validateNetworkReachability($homeNetworks, $interfaces);
         }
@@ -256,7 +225,6 @@ class NetworkValidator extends AbstractValidator
      */
     private function isValidInterfaceName(string $interface): bool
     {
-        // Basic interface name validation (alphanumeric plus underscore)
         return preg_match('/^[a-zA-Z0-9_]+$/', $interface) === 1;
     }
 
@@ -272,7 +240,7 @@ class NetworkValidator extends AbstractValidator
                 if (NetworkUtils::networksOverlap($networks[$i], $networks[$j])) {
                     $this->addWarning(
                         sprintf(
-                            gettext('Networks %s and %s overlap, which may cause routing issues'),
+                            'Networks %s and %s overlap, which may cause routing issues',
                             $networks[$i],
                             $networks[$j]
                         ),
@@ -291,13 +259,9 @@ class NetworkValidator extends AbstractValidator
      */
     private function validateNetworkReachability(array $networks, array $interfaces): void
     {
-        // This is a placeholder for more advanced reachability validation
-        // In a full implementation, this would check if the specified networks
-        // are actually reachable through the configured interfaces
-        
         if (count($networks) > count($interfaces) * 2) {
             $this->addWarning(
-                gettext('Large number of home networks relative to interfaces may impact performance'),
+                'Large number of home networks relative to interfaces may impact performance',
                 'general.homenet'
             );
         }

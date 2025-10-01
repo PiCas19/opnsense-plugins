@@ -37,13 +37,6 @@ use OPNsense\ValidationCore\Utils\NetworkUtils;
  * source IP, page number, and limit to ensure they are correctly formatted
  * and logically consistent for querying alerts.
  *
- * Validation Features:
- * - Severity filter validation (low, medium, high, critical, all)
- * - Threat type filter validation (e.g., malware, intrusion, all)
- * - Time range filter validation (1h, 24h, 7d, 30d, all)
- * - Source IP filter validation (IPv4/IPv6 or partial match)
- * - Pagination parameters validation (page and limit)
- *
  * @package OPNsense\ValidationCore\Validators
  * @author Pierpaolo Casati
  * @version 1.0
@@ -72,9 +65,6 @@ class AlertFilterValidator extends AbstractValidator
 
     /**
      * Perform alert filter validation
-     *
-     * Validates all filter parameters provided in the configuration data,
-     * ensuring they meet the required format and constraints.
      */
     protected function performValidation(): void
     {
@@ -82,7 +72,7 @@ class AlertFilterValidator extends AbstractValidator
 
         if (empty($filters)) {
             $this->addWarning(
-                gettext('No filter parameters provided. All alerts will be returned'),
+                'No filter parameters provided. All alerts will be returned',
                 'filters'
             );
             return;
@@ -108,7 +98,7 @@ class AlertFilterValidator extends AbstractValidator
         if (!in_array($severity, self::VALID_SEVERITIES)) {
             $this->addError(
                 sprintf(
-                    gettext('Invalid severity filter: %s. Must be one of: %s'),
+                    'Invalid severity filter: %s. Must be one of: %s',
                     $severity,
                     implode(', ', self::VALID_SEVERITIES)
                 ),
@@ -130,7 +120,7 @@ class AlertFilterValidator extends AbstractValidator
         if (!in_array($type, self::VALID_THREAT_TYPES)) {
             $this->addError(
                 sprintf(
-                    gettext('Invalid threat type filter: %s. Must be one of: %s'),
+                    'Invalid threat type filter: %s. Must be one of: %s',
                     $type,
                     implode(', ', self::VALID_THREAT_TYPES)
                 ),
@@ -152,7 +142,7 @@ class AlertFilterValidator extends AbstractValidator
         if (!in_array($time, self::VALID_TIME_RANGES)) {
             $this->addError(
                 sprintf(
-                    gettext('Invalid time range filter: %s. Must be one of: %s'),
+                    'Invalid time range filter: %s. Must be one of: %s',
                     $time,
                     implode(', ', self::VALID_TIME_RANGES)
                 ),
@@ -172,10 +162,9 @@ class AlertFilterValidator extends AbstractValidator
         $source = $this->getStringValue('filters.source', '');
 
         if (!empty($source)) {
-            // Allow partial IP matches, but validate format
             if (!NetworkUtils::isValidIpAddress($source) && !NetworkUtils::isValidPartialIp($source)) {
                 $this->addError(
-                    gettext('Source IP filter must be a valid IPv4/IPv6 address or partial address'),
+                    'Source IP filter must be a valid IPv4/IPv6 address or partial address',
                     $fieldPath
                 );
             }
@@ -183,7 +172,7 @@ class AlertFilterValidator extends AbstractValidator
     }
 
     /**
-     * Validate pagination parameters (page and limit)
+     * Validate pagination parameters
      *
      * @param array $filters Filter parameters
      * @param string $pageFieldPath Field path for page parameter
@@ -196,17 +185,14 @@ class AlertFilterValidator extends AbstractValidator
 
         if ($page < 1) {
             $this->addError(
-                gettext('Page number must be greater than or equal to 1'),
+                'Page number must be greater than or equal to 1',
                 $pageFieldPath
             );
         }
 
         if ($limit < 1 || $limit > self::MAX_PAGE_LIMIT) {
             $this->addError(
-                sprintf(
-                    gettext('Limit must be between 1 and %d'),
-                    self::MAX_PAGE_LIMIT
-                ),
+                sprintf('Limit must be between 1 and %d', self::MAX_PAGE_LIMIT),
                 $limitFieldPath
             );
         }
