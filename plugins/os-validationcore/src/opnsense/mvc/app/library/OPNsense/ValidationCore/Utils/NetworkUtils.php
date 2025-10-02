@@ -526,4 +526,29 @@ class NetworkUtils
         // For IPv6, return as-is (more complex normalization would be needed)
         return $cidr;
     }
+
+    /**
+     * Validate if string is a valid IP address (IPv4 or IPv6)
+     *
+     * @param string $ip IP address to validate
+     * @return bool True if valid IP address
+     */
+    public static function isValidIpAddress(string $ip): bool
+    {
+        return filter_var($ip, FILTER_VALIDATE_IP) !== false;
+    }
+
+    /**
+     * Validate if string is a valid partial IP address
+     * Allows partial IPs like "192.168" or "10.0.0" for filtering
+     *
+     * @param string $ip Partial IP address to validate
+     * @return bool True if valid partial IP
+     */
+    public static function isValidPartialIp(string $ip): bool
+    {
+        // Allow partial IPs: one or more groups of 1-3 digits separated by dots
+        // Examples: "192", "192.168", "10.0.0"
+        return preg_match('/^(\d{1,3}\.)*\d{1,3}$/', $ip) === 1;
+    }
 }
