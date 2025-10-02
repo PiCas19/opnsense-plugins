@@ -1,62 +1,62 @@
 {# dashboard.volt - Deep Packet Inspector Dashboard #}
 <style>
+/* Stile migliorato per le metric card */
 .metric-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 15px;
+    background: white;
+    border-radius: 8px;
     padding: 20px;
-    color: white;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     margin-bottom: 20px;
     position: relative;
     overflow: hidden;
+    border-left: 4px solid #667eea;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .metric-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
 }
 
-.metric-card::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    right: -50%;
-    width: 200%;
-    height: 200%;
-    background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
-    animation: ripple 15s infinite;
+.metric-card:nth-child(1) { border-left-color: #667eea; }
+.metric-card:nth-child(2) { border-left-color: #f5576c; }
+.metric-card:nth-child(3) { border-left-color: #fbbf24; }
+.metric-card:nth-child(4) { border-left-color: #10b981; }
+
+.metric-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
-@keyframes ripple {
-    0%, 100% { transform: scale(0.8) rotate(0deg); opacity: 0.3; }
-    50% { transform: scale(1.2) rotate(180deg); opacity: 0.5; }
+.metric-info {
+    flex: 1;
 }
-
-.metric-card:nth-child(1) { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-.metric-card:nth-child(2) { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
-.metric-card:nth-child(3) { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
-.metric-card:nth-child(4) { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
 
 .metric-icon {
-    font-size: 48px;
-    opacity: 0.9;
-    margin-bottom: 15px;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+    font-size: 32px;
+    opacity: 0.3;
+    color: #6b7280;
 }
 
+.metric-card:nth-child(1) .metric-icon { color: #667eea; }
+.metric-card:nth-child(2) .metric-icon { color: #f5576c; }
+.metric-card:nth-child(3) .metric-icon { color: #fbbf24; }
+.metric-card:nth-child(4) .metric-icon { color: #10b981; }
+
 .metric-value {
-    font-size: 36px;
+    font-size: 32px;
     font-weight: bold;
+    color: #1f2937;
     margin-bottom: 5px;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
 }
 
 .metric-label {
-    font-size: 14px;
-    opacity: 0.9;
+    font-size: 12px;
+    color: #6b7280;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 0.5px;
+    font-weight: 600;
 }
 
 .service-status {
@@ -64,29 +64,30 @@
 }
 
 .badge-running {
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    background-color: #10b981;
     color: white;
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-weight: bold;
-    box-shadow: 0 4px 15px rgba(17, 153, 142, 0.4);
+    padding: 6px 12px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 12px;
 }
 
 .badge-stopped {
-    background: linear-gradient(135deg, #ee0979 0%, #ff6a00 100%);
+    background-color: #ef4444;
     color: white;
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-weight: bold;
-    box-shadow: 0 4px 15px rgba(238, 9, 121, 0.4);
+    padding: 6px 12px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 12px;
 }
 
 .badge-loading {
-    background: linear-gradient(135deg, #868f96 0%, #596164 100%);
+    background-color: #6b7280;
     color: white;
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-weight: bold;
+    padding: 6px 12px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 12px;
 }
 
 .table-container {
@@ -158,6 +159,12 @@
     border-radius: 3px;
     font-size: 0.9em;
 }
+
+.dpi-header {
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e5e7eb;
+}
 </style>
 
 <div class="content-box">
@@ -174,45 +181,53 @@
     <div class="row">
         <div class="col-md-3">
             <div class="metric-card">
-                <div class="metric-icon">
-                    <i class="fa fa-search"></i>
-                </div>
                 <div class="metric-content">
-                    <div class="metric-value" id="packetsAnalyzed">0</div>
-                    <div class="metric-label">{{ lang._('Packets Analyzed') }}</div>
+                    <div class="metric-info">
+                        <div class="metric-value" id="packetsAnalyzed">0</div>
+                        <div class="metric-label">{{ lang._('Packets Analyzed') }}</div>
+                    </div>
+                    <div class="metric-icon">
+                        <i class="fa fa-search"></i>
+                    </div>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
             <div class="metric-card">
-                <div class="metric-icon">
-                    <i class="fa fa-shield"></i>
-                </div>
                 <div class="metric-content">
-                    <div class="metric-value" id="threatsDetected">0</div>
-                    <div class="metric-label">{{ lang._('Threats Detected') }}</div>
+                    <div class="metric-info">
+                        <div class="metric-value" id="threatsDetected">0</div>
+                        <div class="metric-label">{{ lang._('Threats Detected') }}</div>
+                    </div>
+                    <div class="metric-icon">
+                        <i class="fa fa-shield"></i>
+                    </div>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
             <div class="metric-card">
-                <div class="metric-icon">
-                    <i class="fa fa-exclamation-triangle"></i>
-                </div>
                 <div class="metric-content">
-                    <div class="metric-value" id="criticalAlerts">0</div>
-                    <div class="metric-label">{{ lang._('Critical Alerts') }}</div>
+                    <div class="metric-info">
+                        <div class="metric-value" id="criticalAlerts">0</div>
+                        <div class="metric-label">{{ lang._('Critical Alerts') }}</div>
+                    </div>
+                    <div class="metric-icon">
+                        <i class="fa fa-exclamation-triangle"></i>
+                    </div>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
             <div class="metric-card">
-                <div class="metric-icon">
-                    <i class="fa fa-percent"></i>
-                </div>
                 <div class="metric-content">
-                    <div class="metric-value" id="detectionRate">0%</div>
-                    <div class="metric-label">{{ lang._('Detection Rate') }}</div>
+                    <div class="metric-info">
+                        <div class="metric-value" id="detectionRate">0%</div>
+                        <div class="metric-label">{{ lang._('Detection Rate') }}</div>
+                    </div>
+                    <div class="metric-icon">
+                        <i class="fa fa-percent"></i>
+                    </div>
                 </div>
             </div>
         </div>
@@ -400,11 +415,27 @@ function controlService(action) {
 
         if (data.status === 'ok') {
             showNotification(`{{ lang._("Service") }} ${action} {{ lang._("completed successfully") }}`, 'success');
+            
+            // Aggiorna immediatamente lo status badge in base all'azione
+            if (action === 'start') {
+                updateServiceBadge('Active');
+            } else if (action === 'stop') {
+                updateServiceBadge('Inactive');
+            } else if (action === 'restart') {
+                updateServiceBadge('Active');
+            }
+            
+            // Aggiorna i dati della dashboard dopo 2 secondi
             setTimeout(function() {
                 loadDashboardData();
             }, 2000);
+            
+            // Aggiorna nuovamente dopo 5 secondi per essere sicuri
+            setTimeout(function() {
+                loadDashboardData();
+            }, 5000);
         } else {
-            showNotification(`{{ lang._("Service") }} ${action} {{ lang._("failed") }}`, 'error');
+            showNotification(`{{ lang._("Service") }} ${action} {{ lang._("failed") }}: ${data.message || ''}`, 'error');
         }
     });
 }
