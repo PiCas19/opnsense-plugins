@@ -31,7 +31,6 @@ $(document).ready(function() {
         }
     });
     
-    $('#exportPDF').click(function() { exportReport('pdf'); });
     $('#exportCSV').click(function() { exportReport('csv'); });
     $('#exportJSON').click(function() { exportReport('json'); });
     
@@ -425,20 +424,18 @@ function blockThreatSource(sourceIP) {
 function exportReport(format) {
     const $btn = $(`#export${format.toUpperCase()}`);
     const originalText = $btn.html();
-    
+
     $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> {{ lang._("Exporting...") }}');
-    
+
     ajaxCall("/api/deepinspector/statistics/exportReport", {
         format: format,
         timeRange: $('#timeRangeFilter').val(),
         reportType: $('#reportType').val()
     }, function(data) {
         $btn.prop('disabled', false).html(originalText);
-        
+
         if (data.status === 'ok' && data.data) {
-            if (format === 'pdf') {
-                downloadFile(data.data.content, data.data.filename, 'application/pdf');
-            } else if (format === 'csv') {
+            if (format === 'csv') {
                 downloadFile(data.data.content, data.data.filename, 'text/csv');
             } else if (format === 'json') {
                 downloadFile(data.data.content, data.data.filename, 'application/json');
@@ -513,9 +510,6 @@ function showNotification(message, type) {
 <div class="statistics-header">
     <div class="report-controls">
         <div class="btn-group">
-            <button id="exportPDF" class="btn btn-secondary">
-                <i class="fa fa-file-pdf-o"></i> PDF
-            </button>
             <button id="exportCSV" class="btn btn-secondary">
                 <i class="fa fa-file-excel-o"></i> CSV
             </button>

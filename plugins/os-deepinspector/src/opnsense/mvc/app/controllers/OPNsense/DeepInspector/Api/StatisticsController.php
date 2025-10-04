@@ -482,15 +482,6 @@ class StatisticsController extends ApiControllerBase
                     ];
                     break;
 
-                case 'pdf':
-                    // For now, return JSON with a note that PDF generation requires additional libraries
-                    $result['data'] = [
-                        'content' => "PDF export is not yet implemented. Please use JSON or CSV format.\n\n" .
-                                   json_encode($reportData, JSON_PRETTY_PRINT),
-                        'filename' => 'deepinspector_report_' . date('Ymd_His') . '.txt'
-                    ];
-                    break;
-
                 default:
                     $result["status"] = "error";
                     $result["message"] = "Unsupported export format";
