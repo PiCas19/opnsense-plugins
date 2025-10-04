@@ -37,7 +37,22 @@ use OPNsense\Core\Backend;
 class SettingsController extends ApiMutableModelControllerBase
 {
     protected static $internalModelName = 'deepinspector';
-    protected static $internalModelClass = 'OPNsense\DeepInspector\DeepInspector';
+    protected static $internalModelClass = '\\OPNsense\\DeepInspector\\DeepInspector';
+
+    /**
+     * Get all settings
+     * @return array all deepinspector settings
+     * @throws \ReflectionException when not bound to model
+     */
+    public function getAction()
+    {
+        $result = ['deepinspector' => []];
+        $mdl = $this->getModel();
+        if ($mdl !== null) {
+            $result['deepinspector'] = $mdl->getNodes();
+        }
+        return $result;
+    }
 
     /**
      * check if changes to the deepinspector settings were made
@@ -57,7 +72,12 @@ class SettingsController extends ApiMutableModelControllerBase
      */
     public function getGeneralAction()
     {
-        return ['deepinspector' => $this->getModel()->general->getNodes(), 'result' => 'ok'];
+        $result = ['deepinspector' => []];
+        $mdl = $this->getModel();
+        if ($mdl !== null && $mdl->general !== null) {
+            $result['deepinspector'] = ['general' => $mdl->general->getNodes()];
+        }
+        return $result;
     }
 
     /**
@@ -67,7 +87,12 @@ class SettingsController extends ApiMutableModelControllerBase
      */
     public function getProtocolsAction()
     {
-        return ['deepinspector' => $this->getModel()->protocols->getNodes(), 'result' => 'ok'];
+        $result = ['deepinspector' => []];
+        $mdl = $this->getModel();
+        if ($mdl !== null && $mdl->protocols !== null) {
+            $result['deepinspector'] = ['protocols' => $mdl->protocols->getNodes()];
+        }
+        return $result;
     }
 
     /**
@@ -77,7 +102,12 @@ class SettingsController extends ApiMutableModelControllerBase
      */
     public function getDetectionAction()
     {
-        return ['deepinspector' => $this->getModel()->detection->getNodes(), 'result' => 'ok'];
+        $result = ['deepinspector' => []];
+        $mdl = $this->getModel();
+        if ($mdl !== null && $mdl->detection !== null) {
+            $result['deepinspector'] = ['detection' => $mdl->detection->getNodes()];
+        }
+        return $result;
     }
 
     /**
@@ -87,7 +117,12 @@ class SettingsController extends ApiMutableModelControllerBase
      */
     public function getAdvancedAction()
     {
-        return ['deepinspector' => $this->getModel()->advanced->getNodes(), 'result' => 'ok'];
+        $result = ['deepinspector' => []];
+        $mdl = $this->getModel();
+        if ($mdl !== null && $mdl->advanced !== null) {
+            $result['deepinspector'] = ['advanced' => $mdl->advanced->getNodes()];
+        }
+        return $result;
     }
 
     /**
@@ -205,33 +240,38 @@ class SettingsController extends ApiMutableModelControllerBase
     
     /**
      * Get recent threats from alerts log
+     *
+     * Returns only real threat data - no fallback values (Zero Trust principle).
+     *
      * @param string $alertsFile path to alerts log file
-     * @return array recent threats
+     * @return array recent threats (empty if none)
      */
     private function getRecentThreats($alertsFile)
     {
         $recentThreats = [];
-        
+
         if (file_exists($alertsFile)) {
             $lines = @file($alertsFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
             if ($lines !== false) {
                 $lines = array_slice($lines, -50); // Get last 50 lines
-                
+
                 foreach (array_reverse($lines) as $line) {
                     $threat = @json_decode($line, true);
-                    if ($threat !== null && isset($threat['threat_type'])) {
+                    // Only include threats with complete required data (Zero Trust)
+                    if ($threat !== null &&
+                        isset($threat['threat_type'], $threat['id'], $threat['timestamp'], $threat['source_ip'], $threat['destination_ip'])) {
                         $recentThreats[] = [
-                            'id' => isset($threat['id']) ? $threat['id'] : uniqid(),
-                            'timestamp' => isset($threat['timestamp']) ? $threat['timestamp'] : date('c'),
-                            'source_ip' => isset($threat['source_ip']) ? $threat['source_ip'] : 'Unknown',
-                            'destination_ip' => isset($threat['destination_ip']) ? $threat['destination_ip'] : 'Unknown',
+                            'id' => $threat['id'],
+                            'timestamp' => $threat['timestamp'],
+                            'source_ip' => $threat['source_ip'],
+                            'destination_ip' => $threat['destination_ip'],
                             'threat_type' => $threat['threat_type'],
-                            'severity' => isset($threat['severity']) ? $threat['severity'] : 'medium',
-                            'protocol' => isset($threat['protocol']) ? $threat['protocol'] : 'Unknown',
-                            'description' => isset($threat['description']) ? $threat['description'] : 'No description',
-                            'industrial_context' => isset($threat['industrial_context']) ? $threat['industrial_context'] : false
+                            'severity' => $threat['severity'] ?? 'medium',
+                            'protocol' => $threat['protocol'] ?? '',
+                            'description' => $threat['description'] ?? '',
+                            'industrial_context' => $threat['industrial_context'] ?? false
                         ];
-                        
+
                         // Limit to 20 most recent threats
                         if (count($recentThreats) >= 20) {
                             break;
@@ -240,7 +280,7 @@ class SettingsController extends ApiMutableModelControllerBase
                 }
             }
         }
-        
+
         return $recentThreats;
     }
 
