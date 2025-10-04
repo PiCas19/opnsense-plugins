@@ -96,30 +96,38 @@ function initializeCharts() {
 function loadStatisticsData() {
     const timeRange = $('#timeRangeFilter').val();
     const reportType = $('#reportType').val();
-    
+
     $('#lastUpdated').text(new Date().toLocaleString());
-    
-    ajaxCall("/api/deepinspector/statistics/getSecurityStats", {}, function(data) {
+
+    ajaxCall("/api/deepinspector/statistics/getSecurityStats", {timeRange: timeRange}, function(data) {
         if (data.status === 'ok' && data.data) {
             updateSecurityMetrics(data.data);
             updateThreatSources(data.data.top_threat_sources || {});
             updateMaliciousPatterns(data.data.malicious_patterns || {});
             updateThreatTypesTable(data.data.threats_by_type || {});
-            
+
             if (window.severityChart) {
                 updateSeverityChart(data.data.threats_by_severity || {});
             }
         }
     });
-    
-    ajaxCall("/api/deepinspector/statistics/getBlockingStats", {}, function(data) {
+
+    ajaxCall("/api/deepinspector/statistics/getBlockingStats", {timeRange: timeRange}, function(data) {
         if (data.status === 'ok' && data.data) {
             updateBlockingStats(data.data);
         }
     });
-    
+
+    if (reportType === 'traffic' || reportType === 'comprehensive') {
+        ajaxCall("/api/deepinspector/statistics/getTrafficStats", {timeRange: timeRange}, function(data) {
+            if (data.status === 'ok' && data.data) {
+                updateTrafficStats(data.data);
+            }
+        });
+    }
+
     if (reportType === 'industrial' || reportType === 'comprehensive') {
-        ajaxCall("/api/deepinspector/statistics/getIndustrialStats", {}, function(data) {
+        ajaxCall("/api/deepinspector/statistics/getIndustrialStats", {timeRange: timeRange}, function(data) {
             if (data.status === 'ok' && data.data) {
                 updateIndustrialStats(data.data);
                 $('#industrialSection').show();
@@ -144,6 +152,10 @@ function updateBlockingStats(data) {
     $('#connectionsBlocked').text(formatNumber(data.total_connections_blocked || 0));
     $('#blockingEffectiveness').text((data.blocking_effectiveness || 0) + '%');
     $('#autoUnblocked').text(formatNumber(data.auto_unblocked || 0));
+}
+
+function updateTrafficStats(data) {
+    $('#packetsAnalyzed').text(formatNumber(data.total_packets_analyzed || 0));
 }
 
 function updateIndustrialStats(data) {

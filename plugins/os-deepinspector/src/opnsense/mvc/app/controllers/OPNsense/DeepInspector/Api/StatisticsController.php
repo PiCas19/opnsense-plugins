@@ -52,12 +52,15 @@ class StatisticsController extends ApiControllerBase
     public function getSecurityStatsAction()
     {
         $result = ["status" => "ok"];
-        
+
         try {
+            $timeRange = $this->request->get('timeRange') ?: 'last24h';
+            $timeLimit = $this->calculateTimeLimit($timeRange);
+
             $alertsFile = '/var/log/deepinspector/alerts.log';
             $threatsFile = '/var/log/deepinspector/threats.log';
             $engineFile = '/var/log/deepinspector/engine.log';
-            
+
             $securityStats = [
                 'total_threats_detected' => 0,
                 'threats_blocked' => 0,
@@ -76,17 +79,17 @@ class StatisticsController extends ApiControllerBase
                 'false_positives' => 0,
                 'detection_accuracy' => 0
             ];
-            
+
             // Process alerts file
             if (file_exists($alertsFile) && is_readable($alertsFile)) {
-                $this->processAlertsForStats($alertsFile, $securityStats);
+                $this->processAlertsForStats($alertsFile, $securityStats, $timeLimit);
             }
-            
+
             // Process threats file
             if (file_exists($threatsFile) && is_readable($threatsFile)) {
-                $this->processThreatsForStats($threatsFile, $securityStats);
+                $this->processThreatsForStats($threatsFile, $securityStats, $timeLimit);
             }
-            
+
             // Calculate detection accuracy
             $total_detections = $securityStats['total_threats_detected'] + $securityStats['false_positives'];
             if ($total_detections > 0) {
@@ -94,16 +97,16 @@ class StatisticsController extends ApiControllerBase
                     ($securityStats['total_threats_detected'] / $total_detections) * 100, 2
                 );
             }
-            
+
             $result['data'] = $securityStats;
-            
+
         } catch (Exception $e) {
             error_log("DeepInspector: Error in getSecurityStatsAction: " . $e->getMessage());
             $result["status"] = "error";
             $result["message"] = "Error retrieving security statistics";
             $result["data"] = $this->getEmptySecurityStats();
         }
-        
+
         return $result;
     }
     
@@ -118,11 +121,14 @@ class StatisticsController extends ApiControllerBase
     public function getTrafficStatsAction()
     {
         $result = ["status" => "ok"];
-        
+
         try {
+            $timeRange = $this->request->get('timeRange') ?: 'last24h';
+            $timeLimit = $this->calculateTimeLimit($timeRange);
+
             $engineFile = '/var/log/deepinspector/engine.log';
             $latencyFile = '/var/log/deepinspector/latency.log';
-            
+
             $trafficStats = [
                 'total_packets_analyzed' => 0,
                 'total_bytes_analyzed' => 0,
@@ -143,26 +149,26 @@ class StatisticsController extends ApiControllerBase
                     'closed' => 0
                 ]
             ];
-            
+
             // Process engine log for traffic data
             if (file_exists($engineFile) && is_readable($engineFile)) {
-                $this->processEngineLogForTraffic($engineFile, $trafficStats);
+                $this->processEngineLogForTraffic($engineFile, $trafficStats, $timeLimit);
             }
-            
+
             // Process latency data
             if (file_exists($latencyFile) && is_readable($latencyFile)) {
-                $this->processLatencyData($latencyFile, $trafficStats);
+                $this->processLatencyData($latencyFile, $trafficStats, $timeLimit);
             }
-            
+
             $result['data'] = $trafficStats;
-            
+
         } catch (Exception $e) {
             error_log("DeepInspector: Error in getTrafficStatsAction: " . $e->getMessage());
             $result["status"] = "error";
             $result["message"] = "Error retrieving traffic statistics";
             $result["data"] = $this->getEmptyTrafficStats();
         }
-        
+
         return $result;
     }
     
@@ -177,10 +183,13 @@ class StatisticsController extends ApiControllerBase
     public function getBlockingStatsAction()
     {
         $result = ["status" => "ok"];
-        
+
         try {
+            $timeRange = $this->request->get('timeRange') ?: 'last24h';
+            $timeLimit = $this->calculateTimeLimit($timeRange);
+
             $backend = new Backend();
-            
+
             $blockingStats = [
                 'total_ips_blocked' => 0,
                 'total_connections_blocked' => 0,
@@ -196,27 +205,27 @@ class StatisticsController extends ApiControllerBase
                 'whitelist_bypasses' => 0,
                 'auto_unblocked' => 0
             ];
-            
+
             // Get blocked IPs list
             $blockedResponse = $backend->configdpRun("deepinspector", array("list_blocked"));
             $blockedIPs = array_filter(explode("\n", trim($blockedResponse)));
             $blockingStats['total_ips_blocked'] = count($blockedIPs);
-            
+
             // Process blocking history from alerts
             $alertsFile = '/var/log/deepinspector/alerts.log';
             if (file_exists($alertsFile) && is_readable($alertsFile)) {
-                $this->processBlockingHistory($alertsFile, $blockingStats);
+                $this->processBlockingHistory($alertsFile, $blockingStats, $timeLimit);
             }
-            
+
             $result['data'] = $blockingStats;
-            
+
         } catch (Exception $e) {
             error_log("DeepInspector: Error in getBlockingStatsAction: " . $e->getMessage());
             $result["status"] = "error";
             $result["message"] = "Error retrieving blocking statistics";
             $result["data"] = $this->getEmptyBlockingStats();
         }
-        
+
         return $result;
     }
     
@@ -231,8 +240,11 @@ class StatisticsController extends ApiControllerBase
     public function getIndustrialStatsAction()
     {
         $result = ["status" => "ok"];
-        
+
         try {
+            $timeRange = $this->request->get('timeRange') ?: 'last24h';
+            $timeLimit = $this->calculateTimeLimit($timeRange);
+
             $industrialStats = [
                 'protocols_detected' => [
                     'modbus' => 0,
@@ -249,22 +261,22 @@ class StatisticsController extends ApiControllerBase
                 'control_systems_identified' => [],
                 'critical_operations_monitored' => 0
             ];
-            
+
             // Process industrial-specific logs
             $alertsFile = '/var/log/deepinspector/alerts.log';
             if (file_exists($alertsFile) && is_readable($alertsFile)) {
-                $this->processIndustrialData($alertsFile, $industrialStats);
+                $this->processIndustrialData($alertsFile, $industrialStats, $timeLimit);
             }
-            
+
             $result['data'] = $industrialStats;
-            
+
         } catch (Exception $e) {
             error_log("DeepInspector: Error in getIndustrialStatsAction: " . $e->getMessage());
             $result["status"] = "error";
             $result["message"] = "Error retrieving industrial statistics";
             $result["data"] = $this->getEmptyIndustrialStats();
         }
-        
+
         return $result;
     }
     
@@ -279,34 +291,34 @@ class StatisticsController extends ApiControllerBase
     public function getSuspiciousPacketsAction()
     {
         $result = ["status" => "ok"];
-        
+
         try {
             $timeFilter = $this->request->get('timeRange') ?: '24h';
             $severityFilter = $this->request->get('severity') ?: 'all';
             $limit = max(1, min(100, intval($this->request->get('limit') ?: 50)));
-            
+
             $suspiciousPackets = [];
             $alertsFile = '/var/log/deepinspector/alerts.log';
-            
+
             if (file_exists($alertsFile) && is_readable($alertsFile)) {
                 $timeLimit = $this->calculateTimeLimit($timeFilter);
                 $suspiciousPackets = $this->extractSuspiciousPackets($alertsFile, $timeLimit, $severityFilter, $limit);
             }
-            
+
             $highRiskCount = 0;
             foreach ($suspiciousPackets as $packet) {
                 if (in_array($packet['risk_level'], ['critical', 'high'])) {
                     $highRiskCount++;
                 }
             }
-            
+
             $result['data'] = [
                 'packets' => $suspiciousPackets,
                 'total_count' => count($suspiciousPackets),
                 'high_risk_count' => $highRiskCount,
                 'patterns_detected' => $this->getDetectedPatterns($suspiciousPackets)
             ];
-            
+
         } catch (Exception $e) {
             error_log("DeepInspector: Error in getSuspiciousPacketsAction: " . $e->getMessage());
             $result["status"] = "error";
@@ -318,7 +330,178 @@ class StatisticsController extends ApiControllerBase
                 'patterns_detected' => []
             ];
         }
-        
+
+        return $result;
+    }
+
+    /**
+     * Get packet details by ID
+     *
+     * Retrieves detailed information about a specific packet from the alerts log.
+     *
+     * @return array JSON-serializable response containing packet details
+     */
+    public function getPacketDetailsAction()
+    {
+        $result = ["status" => "ok"];
+
+        try {
+            $packetId = $this->request->get('packetId');
+
+            if (empty($packetId)) {
+                $result["status"] = "error";
+                $result["message"] = "Packet ID is required";
+                return $result;
+            }
+
+            $alertsFile = '/var/log/deepinspector/alerts.log';
+
+            if (!file_exists($alertsFile) || !is_readable($alertsFile)) {
+                $result["status"] = "error";
+                $result["message"] = "Alerts log not available";
+                return $result;
+            }
+
+            $lines = file($alertsFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            if (!$lines) {
+                $result["status"] = "error";
+                $result["message"] = "No data available";
+                return $result;
+            }
+
+            // Search for packet by ID
+            foreach (array_reverse($lines) as $line) {
+                $alert = json_decode(trim($line), true);
+                if (!$alert) continue;
+
+                $alertId = $alert['id'] ?? '';
+                if ($alertId === $packetId) {
+                    $result['data'] = [
+                        'id' => $alert['id'] ?? $packetId,
+                        'timestamp' => $alert['timestamp'] ?? date('c'),
+                        'source_ip' => $alert['source_ip'] ?? 'Unknown',
+                        'source_port' => $alert['source_port'] ?? null,
+                        'destination_ip' => $alert['destination_ip'] ?? 'Unknown',
+                        'destination_port' => $alert['destination_port'] ?? null,
+                        'protocol' => $alert['protocol'] ?? 'Unknown',
+                        'threat_type' => $alert['threat_type'] ?? 'Unknown',
+                        'risk_level' => $alert['severity'] ?? 'medium',
+                        'pattern_matched' => $alert['pattern'] ?? 'N/A',
+                        'payload_size' => $alert['payload_size'] ?? 0,
+                        'flags' => $alert['flags'] ?? [],
+                        'industrial_context' => $alert['industrial_context'] ?? false,
+                        'description' => $alert['description'] ?? 'Suspicious packet detected',
+                        'action_taken' => $alert['action'] ?? 'logged',
+                        'confidence_score' => $alert['confidence'] ?? 75
+                    ];
+                    return $result;
+                }
+            }
+
+            $result["status"] = "error";
+            $result["message"] = "Packet not found";
+
+        } catch (Exception $e) {
+            error_log("DeepInspector: Error in getPacketDetailsAction: " . $e->getMessage());
+            $result["status"] = "error";
+            $result["message"] = "Error retrieving packet details";
+        }
+
+        return $result;
+    }
+
+    /**
+     * Export statistics report in various formats
+     *
+     * Generates and exports a comprehensive statistics report in PDF, CSV, or JSON format.
+     *
+     * @return array JSON-serializable response containing exported report data
+     */
+    public function exportReportAction()
+    {
+        $result = ["status" => "ok"];
+
+        try {
+            $format = $this->request->get('format') ?: 'json';
+            $timeRange = $this->request->get('timeRange') ?: 'last24h';
+            $reportType = $this->request->get('reportType') ?: 'comprehensive';
+
+            // Collect all statistics data
+            $reportData = [
+                'generated_at' => date('Y-m-d H:i:s'),
+                'time_range' => $timeRange,
+                'report_type' => $reportType,
+                'security_stats' => [],
+                'traffic_stats' => [],
+                'blocking_stats' => [],
+                'industrial_stats' => []
+            ];
+
+            // Get security stats
+            $securityResult = $this->getSecurityStatsAction();
+            if ($securityResult['status'] === 'ok') {
+                $reportData['security_stats'] = $securityResult['data'];
+            }
+
+            // Get blocking stats
+            $blockingResult = $this->getBlockingStatsAction();
+            if ($blockingResult['status'] === 'ok') {
+                $reportData['blocking_stats'] = $blockingResult['data'];
+            }
+
+            // Get traffic stats if needed
+            if (in_array($reportType, ['traffic', 'comprehensive'])) {
+                $trafficResult = $this->getTrafficStatsAction();
+                if ($trafficResult['status'] === 'ok') {
+                    $reportData['traffic_stats'] = $trafficResult['data'];
+                }
+            }
+
+            // Get industrial stats if needed
+            if (in_array($reportType, ['industrial', 'comprehensive'])) {
+                $industrialResult = $this->getIndustrialStatsAction();
+                if ($industrialResult['status'] === 'ok') {
+                    $reportData['industrial_stats'] = $industrialResult['data'];
+                }
+            }
+
+            // Generate export based on format
+            switch (strtolower($format)) {
+                case 'json':
+                    $result['data'] = [
+                        'content' => json_encode($reportData, JSON_PRETTY_PRINT),
+                        'filename' => 'deepinspector_report_' . date('Ymd_His') . '.json'
+                    ];
+                    break;
+
+                case 'csv':
+                    $csvContent = $this->generateCSVReport($reportData);
+                    $result['data'] = [
+                        'content' => $csvContent,
+                        'filename' => 'deepinspector_report_' . date('Ymd_His') . '.csv'
+                    ];
+                    break;
+
+                case 'pdf':
+                    // For now, return JSON with a note that PDF generation requires additional libraries
+                    $result['data'] = [
+                        'content' => "PDF export is not yet implemented. Please use JSON or CSV format.\n\n" .
+                                   json_encode($reportData, JSON_PRETTY_PRINT),
+                        'filename' => 'deepinspector_report_' . date('Ymd_His') . '.txt'
+                    ];
+                    break;
+
+                default:
+                    $result["status"] = "error";
+                    $result["message"] = "Unsupported export format";
+            }
+
+        } catch (Exception $e) {
+            error_log("DeepInspector: Error in exportReportAction: " . $e->getMessage());
+            $result["status"] = "error";
+            $result["message"] = "Error exporting report";
+        }
+
         return $result;
     }
     
@@ -330,70 +513,77 @@ class StatisticsController extends ApiControllerBase
      *
      * @param string $alertsFile Path to the alerts log file
      * @param array  $stats Reference to security statistics array
+     * @param int    $timeLimit UNIX timestamp lower bound (0 for no filter)
      * @return void
      */
-    private function processAlertsForStats($alertsFile, &$stats)
+    private function processAlertsForStats($alertsFile, &$stats, $timeLimit = 0)
     {
         $lines = file($alertsFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
         if (!$lines) return;
-        
+
         $threatTypes = [];
         $threatSources = [];
         $blockedIPs = [];
         $patterns = [];
-        
+
         foreach (array_slice($lines, -1000) as $line) {
             $alert = json_decode(trim($line), true);
             if (!$alert) continue;
-            
+
+            // Apply time filter
+            if ($timeLimit > 0) {
+                $alertTime = strtotime($alert['timestamp'] ?? '');
+                if ($alertTime === false || $alertTime < $timeLimit) continue;
+            }
+
             $stats['total_threats_detected']++;
-            
+
             // Count by severity
             $severity = $alert['severity'] ?? 'medium';
             if (isset($stats['threats_by_severity'][$severity])) {
                 $stats['threats_by_severity'][$severity]++;
             }
-            
+
             // Count by type
             $threatType = $alert['threat_type'] ?? 'unknown';
             $threatTypes[$threatType] = ($threatTypes[$threatType] ?? 0) + 1;
-            
+
             // Track sources
             $sourceIP = $alert['source_ip'] ?? 'unknown';
             $threatSources[$sourceIP] = ($threatSources[$sourceIP] ?? 0) + 1;
-            
+
             // Industrial context
             if ($alert['industrial_context'] ?? false) {
                 $stats['industrial_threats']++;
             }
-            
+
             // Zero trust violations
             if ($alert['zero_trust_triggered'] ?? false) {
                 $stats['zero_trust_violations']++;
             }
-            
+
             // Pattern tracking
             if (isset($alert['pattern'])) {
                 $patterns[$alert['pattern']] = ($patterns[$alert['pattern']] ?? 0) + 1;
             }
-            
+
             // Check if blocked
             if (isset($alert['action']) && $alert['action'] === 'blocked') {
                 $stats['threats_blocked']++;
                 $blockedIPs[$sourceIP] = true;
             }
-            
+
             // False positives
             if (isset($alert['false_positive']) && $alert['false_positive'] === true) {
                 $stats['false_positives']++;
             }
         }
-        
+
         // Sort and limit results
         arsort($threatTypes);
         arsort($threatSources);
         arsort($patterns);
-        
+
         $stats['threats_by_type'] = array_slice($threatTypes, 0, 10, true);
         $stats['top_threat_sources'] = array_slice($threatSources, 0, 10, true);
         $stats['blocked_ips'] = array_keys($blockedIPs);
@@ -407,9 +597,10 @@ class StatisticsController extends ApiControllerBase
      *
      * @param string $threatsFile Path to the threats log file
      * @param array  $stats Reference to security statistics array
+     * @param int    $timeLimit UNIX timestamp lower bound (0 for no filter)
      * @return void
      */
-    private function processThreatsForStats($threatsFile, &$stats)
+    private function processThreatsForStats($threatsFile, &$stats, $timeLimit = 0)
     {
         $lines = file($threatsFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
         if (!$lines) return;
@@ -417,6 +608,12 @@ class StatisticsController extends ApiControllerBase
         foreach (array_slice($lines, -1000) as $line) {
             $threat = json_decode(trim($line), true);
             if (!$threat) continue;
+
+            // Apply time filter
+            if ($timeLimit > 0) {
+                $threatTime = strtotime($threat['timestamp'] ?? '');
+                if ($threatTime === false || $threatTime < $timeLimit) continue;
+            }
 
             // Update false positives
             if (isset($threat['false_positive']) && $threat['false_positive'] === true) {
@@ -460,9 +657,10 @@ class StatisticsController extends ApiControllerBase
      *
      * @param string $engineFile Path to the engine log file
      * @param array  $stats Reference to traffic statistics array
+     * @param int    $timeLimit UNIX timestamp lower bound (0 for no filter)
      * @return void
      */
-    private function processEngineLogForTraffic($engineFile, &$stats)
+    private function processEngineLogForTraffic($engineFile, &$stats, $timeLimit = 0)
     {
         $lines = file($engineFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
         if (!$lines) return;
@@ -470,6 +668,12 @@ class StatisticsController extends ApiControllerBase
         foreach (array_slice($lines, -1000) as $line) {
             $entry = json_decode(trim($line), true);
             if (!$entry) continue;
+
+            // Apply time filter
+            $timestamp = strtotime($entry['timestamp'] ?? '');
+            if ($timeLimit > 0) {
+                if ($timestamp === false || $timestamp < $timeLimit) continue;
+            }
 
             // Update packet and byte counts
             $stats['total_packets_analyzed'] += $entry['packet_count'] ?? 1;
@@ -480,7 +684,6 @@ class StatisticsController extends ApiControllerBase
             $stats['protocols_analyzed'][$protocol] = ($stats['protocols_analyzed'][$protocol] ?? 0) + 1;
 
             // Update traffic by hour
-            $timestamp = strtotime($entry['timestamp'] ?? '');
             if ($timestamp !== false) {
                 $hour = date('Y-m-d H:00:00', $timestamp);
                 $stats['traffic_by_hour'][$hour] = ($stats['traffic_by_hour'][$hour] ?? 0) + ($entry['bytes'] ?? 0);
@@ -523,9 +726,10 @@ class StatisticsController extends ApiControllerBase
      *
      * @param string $latencyFile Path to the latency log file
      * @param array  $stats Reference to traffic statistics array
+     * @param int    $timeLimit UNIX timestamp lower bound (0 for no filter)
      * @return void
      */
-    private function processLatencyData($latencyFile, &$stats)
+    private function processLatencyData($latencyFile, &$stats, $timeLimit = 0)
     {
         $lines = file($latencyFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
         if (!$lines) return;
@@ -537,6 +741,9 @@ class StatisticsController extends ApiControllerBase
             // Update bandwidth usage
             $timestamp = strtotime($entry['timestamp'] ?? '');
             if ($timestamp !== false) {
+                // Apply time filter
+                if ($timeLimit > 0 && $timestamp < $timeLimit) continue;
+
                 $hour = date('Y-m-d H:00:00', $timestamp);
                 $bandwidth = $entry['bandwidth_bps'] ?? 0;
                 $stats['bandwidth_usage'][$hour] = ($stats['bandwidth_usage'][$hour] ?? 0) + $bandwidth;
@@ -555,9 +762,10 @@ class StatisticsController extends ApiControllerBase
      *
      * @param string $alertsFile Path to the alerts log file
      * @param array  $stats Reference to blocking statistics array
+     * @param int    $timeLimit UNIX timestamp lower bound (0 for no filter)
      * @return void
      */
-    private function processBlockingHistory($alertsFile, &$stats)
+    private function processBlockingHistory($alertsFile, &$stats, $timeLimit = 0)
     {
         $lines = file($alertsFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
         if (!$lines) return;
@@ -574,6 +782,12 @@ class StatisticsController extends ApiControllerBase
             $alert = json_decode(trim($line), true);
             if (!$alert || !isset($alert['action']) || $alert['action'] !== 'blocked') continue;
 
+            // Apply time filter
+            $timestamp = strtotime($alert['timestamp'] ?? '');
+            if ($timeLimit > 0) {
+                if ($timestamp === false || $timestamp < $timeLimit) continue;
+            }
+
             // Update blocking reasons
             $reason = $alert['reason'] ?? 'unknown';
             $stats['blocking_reasons'][$reason] = ($stats['blocking_reasons'][$reason] ?? 0) + 1;
@@ -583,7 +797,6 @@ class StatisticsController extends ApiControllerBase
             $stats['top_blocked_sources'][$sourceIP] = ($stats['top_blocked_sources'][$sourceIP] ?? 0) + 1;
 
             // Update timeframe counts
-            $timestamp = strtotime($alert['timestamp'] ?? '');
             if ($timestamp !== false) {
                 foreach ($timeframes as $key => $limit) {
                     if ($timestamp >= $limit) {
@@ -626,9 +839,10 @@ class StatisticsController extends ApiControllerBase
      *
      * @param string $alertsFile Path to the alerts log file
      * @param array  $stats Reference to industrial statistics array
+     * @param int    $timeLimit UNIX timestamp lower bound (0 for no filter)
      * @return void
      */
-    private function processIndustrialData($alertsFile, &$stats)
+    private function processIndustrialData($alertsFile, &$stats, $timeLimit = 0)
     {
         $lines = file($alertsFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
         if (!$lines) return;
@@ -636,6 +850,12 @@ class StatisticsController extends ApiControllerBase
         foreach (array_slice($lines, -1000) as $line) {
             $alert = json_decode(trim($line), true);
             if (!$alert || !isset($alert['industrial_context']) || !$alert['industrial_context']) continue;
+
+            // Apply time filter
+            if ($timeLimit > 0) {
+                $alertTime = strtotime($alert['timestamp'] ?? '');
+                if ($alertTime === false || $alertTime < $timeLimit) continue;
+            }
 
             // Update protocol counts
             $protocol = strtolower($alert['protocol'] ?? 'unknown');
@@ -881,5 +1101,106 @@ class StatisticsController extends ApiControllerBase
             'control_systems_identified' => [],
             'critical_operations_monitored' => 0
         ];
+    }
+
+    /**
+     * Generate CSV report from statistics data
+     *
+     * Converts collected statistics into CSV format for export.
+     *
+     * @param array $reportData The statistics data to convert
+     * @return string CSV-formatted report content
+     */
+    private function generateCSVReport($reportData)
+    {
+        $csv = [];
+
+        // Header
+        $csv[] = "DeepInspector Statistics Report";
+        $csv[] = "Generated: " . $reportData['generated_at'];
+        $csv[] = "Time Range: " . $reportData['time_range'];
+        $csv[] = "Report Type: " . $reportData['report_type'];
+        $csv[] = "";
+
+        // Security Statistics
+        if (!empty($reportData['security_stats'])) {
+            $csv[] = "SECURITY STATISTICS";
+            $csv[] = "Metric,Value";
+            $stats = $reportData['security_stats'];
+            $csv[] = "Total Threats Detected," . ($stats['total_threats_detected'] ?? 0);
+            $csv[] = "Threats Blocked," . ($stats['threats_blocked'] ?? 0);
+            $csv[] = "Detection Accuracy," . ($stats['detection_accuracy'] ?? 0) . "%";
+            $csv[] = "Industrial Threats," . ($stats['industrial_threats'] ?? 0);
+            $csv[] = "Zero Trust Violations," . ($stats['zero_trust_violations'] ?? 0);
+            $csv[] = "False Positives," . ($stats['false_positives'] ?? 0);
+            $csv[] = "";
+
+            // Severity breakdown
+            if (!empty($stats['threats_by_severity'])) {
+                $csv[] = "Threats by Severity";
+                $csv[] = "Severity,Count";
+                foreach ($stats['threats_by_severity'] as $severity => $count) {
+                    $csv[] = ucfirst($severity) . "," . $count;
+                }
+                $csv[] = "";
+            }
+
+            // Threat types
+            if (!empty($stats['threats_by_type'])) {
+                $csv[] = "Threats by Type";
+                $csv[] = "Type,Count";
+                foreach ($stats['threats_by_type'] as $type => $count) {
+                    $csv[] = $type . "," . $count;
+                }
+                $csv[] = "";
+            }
+        }
+
+        // Blocking Statistics
+        if (!empty($reportData['blocking_stats'])) {
+            $csv[] = "BLOCKING STATISTICS";
+            $csv[] = "Metric,Value";
+            $stats = $reportData['blocking_stats'];
+            $csv[] = "Total IPs Blocked," . ($stats['total_ips_blocked'] ?? 0);
+            $csv[] = "Total Connections Blocked," . ($stats['total_connections_blocked'] ?? 0);
+            $csv[] = "Blocking Effectiveness," . ($stats['blocking_effectiveness'] ?? 0) . "%";
+            $csv[] = "Auto Unblocked," . ($stats['auto_unblocked'] ?? 0);
+            $csv[] = "Whitelist Bypasses," . ($stats['whitelist_bypasses'] ?? 0);
+            $csv[] = "";
+        }
+
+        // Traffic Statistics
+        if (!empty($reportData['traffic_stats'])) {
+            $csv[] = "TRAFFIC STATISTICS";
+            $csv[] = "Metric,Value";
+            $stats = $reportData['traffic_stats'];
+            $csv[] = "Total Packets Analyzed," . ($stats['total_packets_analyzed'] ?? 0);
+            $csv[] = "Total Bytes Analyzed," . ($stats['total_bytes_analyzed'] ?? 0);
+            $csv[] = "";
+        }
+
+        // Industrial Statistics
+        if (!empty($reportData['industrial_stats'])) {
+            $csv[] = "INDUSTRIAL STATISTICS";
+            $csv[] = "Metric,Value";
+            $stats = $reportData['industrial_stats'];
+            $csv[] = "Industrial Threats," . ($stats['industrial_threats'] ?? 0);
+            $csv[] = "SCADA Anomalies," . ($stats['scada_anomalies'] ?? 0);
+            $csv[] = "Unauthorized Commands," . ($stats['unauthorized_commands'] ?? 0);
+            $csv[] = "Protocol Violations," . ($stats['protocol_violations'] ?? 0);
+            $csv[] = "";
+
+            // Protocol breakdown
+            if (!empty($stats['protocols_detected'])) {
+                $csv[] = "Protocols Detected";
+                $csv[] = "Protocol,Count";
+                foreach ($stats['protocols_detected'] as $protocol => $count) {
+                    $csv[] = strtoupper($protocol) . "," . $count;
+                }
+                $csv[] = "";
+            }
+        }
+
+        return implode("\n", $csv);
     }
 }
