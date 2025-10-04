@@ -3,7 +3,6 @@
     <div class="row">
         <div class="col-md-12">
             <div class="dpi-header">
-                <h1>{{ lang._('Deep Packet Inspector Dashboard') }}</h1>
                 <div class="service-status">
                     <span id="serviceStatus" class="badge badge-secondary">{{ lang._('Loading...') }}</span>
                 </div>

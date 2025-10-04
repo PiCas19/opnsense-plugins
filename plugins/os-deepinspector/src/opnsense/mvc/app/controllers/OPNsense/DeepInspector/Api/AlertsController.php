@@ -450,7 +450,171 @@ class AlertsController extends ApiControllerBase
                 return false;
             }
         }
-        
+
         return true;
+    }
+
+    /**
+     * Export alerts to file
+     *
+     * Exports filtered alerts to JSON or CSV format for download.
+     * Returns only real data - no fallback values.
+     *
+     * @return array Export data with filename
+     */
+    public function exportAction()
+    {
+        $result = ["status" => "ok"];
+
+        try {
+            $alertsFile = '/var/log/deepinspector/alerts.log';
+            $format = $this->request->get('format') ?: 'json';
+            $severityFilter = $this->request->get('severity') ?: 'all';
+            $typeFilter = $this->request->get('type') ?: 'all';
+            $timeFilter = $this->request->get('timeRange') ?: 'all';
+            $sourceFilter = $this->request->get('source') ?: '';
+
+            $alerts = [];
+            $timeLimit = $this->calculateTimeLimit($timeFilter);
+
+            if (file_exists($alertsFile) && is_readable($alertsFile)) {
+                $lines = @file($alertsFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+
+                if ($lines !== false && is_array($lines)) {
+                    foreach ($lines as $line) {
+                        try {
+                            $alert = json_decode($line, true);
+
+                            // Only include alerts with complete required data (Zero Trust)
+                            if ($alert && is_array($alert) &&
+                                isset($alert['id'], $alert['timestamp'], $alert['source_ip'], $alert['destination_ip']) &&
+                                $this->matchesFilters($alert, $severityFilter, $typeFilter, $sourceFilter, $timeLimit)) {
+                                $alerts[] = $alert;
+                            }
+                        } catch (Exception $e) {
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            // Sort by timestamp descending
+            usort($alerts, function ($a, $b) {
+                return strcmp($b['timestamp'] ?? '', $a['timestamp'] ?? '');
+            });
+
+            // Generate export data
+            if ($format === 'csv') {
+                $csv = "ID,Timestamp,Source IP,Source Port,Destination IP,Destination Port,Threat Type,Severity,Protocol,Description\n";
+                foreach ($alerts as $alert) {
+                    $csv .= sprintf(
+                        "%s,%s,%s,%s,%s,%s,%s,%s,%s,\"%s\"\n",
+                        $alert['id'] ?? '',
+                        $alert['timestamp'] ?? '',
+                        $alert['source_ip'] ?? '',
+                        $alert['source_port'] ?? '',
+                        $alert['destination_ip'] ?? '',
+                        $alert['destination_port'] ?? '',
+                        $alert['threat_type'] ?? '',
+                        $alert['severity'] ?? '',
+                        $alert['protocol'] ?? '',
+                        str_replace('"', '""', $alert['description'] ?? '')
+                    );
+                }
+                $result['data'] = $csv;
+                $result['filename'] = 'deepinspector_alerts_' . date('Y-m-d_H-i-s') . '.csv';
+            } else {
+                $result['data'] = json_encode($alerts, JSON_PRETTY_PRINT);
+                $result['filename'] = 'deepinspector_alerts_' . date('Y-m-d_H-i-s') . '.json';
+            }
+
+        } catch (Exception $e) {
+            error_log("DeepInspector: Error in exportAction: " . $e->getMessage());
+            $result["status"] = "error";
+            $result["message"] = "Error exporting alerts: " . $e->getMessage();
+            $result["data"] = "";
+        }
+
+        return $result;
+    }
+
+    /**
+     * Clear old alerts
+     *
+     * Removes alerts older than specified days from the log file.
+     * Returns count of deleted alerts (no fallback data).
+     *
+     * @return array Result with deleted count
+     */
+    public function clearOldAction()
+    {
+        $result = ["status" => "ok"];
+
+        try {
+            $days = (int)($this->request->getPost('days') ?: 30);
+            if ($days < 1) {
+                $days = 30;
+            }
+
+            $alertsFile = '/var/log/deepinspector/alerts.log';
+            $cutoffTime = time() - ($days * 86400);
+
+            $deletedCount = 0;
+            $keptAlerts = [];
+
+            if (file_exists($alertsFile) && is_readable($alertsFile)) {
+                $lines = @file($alertsFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+
+                if ($lines !== false && is_array($lines)) {
+                    foreach ($lines as $line) {
+                        try {
+                            $alert = json_decode($line, true);
+                            if ($alert && isset($alert['timestamp'])) {
+                                $alertTime = strtotime($alert['timestamp']);
+                                if ($alertTime !== false && $alertTime >= $cutoffTime) {
+                                    $keptAlerts[] = $line;
+                                } else {
+                                    $deletedCount++;
+                                }
+                            } else {
+                                // Keep malformed entries to avoid data loss
+                                $keptAlerts[] = $line;
+                            }
+                        } catch (Exception $e) {
+                            // Keep entries that can't be parsed
+                            $keptAlerts[] = $line;
+                        }
+                    }
+
+                    // Backup original file
+                    $backupFile = $alertsFile . '.backup.' . date('Y-m-d-H-i-s');
+                    @copy($alertsFile, $backupFile);
+
+                    // Write kept alerts back
+                    if (file_put_contents($alertsFile, implode("\n", $keptAlerts) . "\n") !== false) {
+                        $result['deleted_count'] = $deletedCount;
+                        $result['message'] = "Deleted $deletedCount alerts older than $days days";
+                    } else {
+                        $result['status'] = 'error';
+                        $result['message'] = 'Failed to write updated alerts file';
+                        $result['deleted_count'] = 0;
+                    }
+                } else {
+                    $result['deleted_count'] = 0;
+                    $result['message'] = 'Could not read alerts file';
+                }
+            } else {
+                $result['deleted_count'] = 0;
+                $result['message'] = 'Alerts file not found or not readable';
+            }
+
+        } catch (Exception $e) {
+            error_log("DeepInspector: Error in clearOldAction: " . $e->getMessage());
+            $result["status"] = "error";
+            $result["message"] = "Error clearing old alerts: " . $e->getMessage();
+            $result["deleted_count"] = 0;
+        }
+
+        return $result;
     }
 }
