@@ -32,19 +32,24 @@ use OPNsense\Core\Backend;
 use OPNsense\Core\Config;
 
 /**
- * Class ServiceController
+ * API controller for service management
+ *
+ * Provides endpoints for controlling the Deep Packet Inspector service lifecycle,
+ * IP blocking/whitelisting, and log management.
+ *
  * @package OPNsense\DeepInspector\Api
  */
 class ServiceController extends ApiMutableServiceControllerBase
 {
     protected static $internalServiceClass = '\\OPNsense\\DeepInspector\\DeepInspector';
     protected static $internalServiceTemplate = 'OPNsense/DeepInspector';
-    protected static $internalServiceEnabled = 'enabled';
+    protected static $internalServiceEnabled = 'general.enabled';
     protected static $internalServiceName = 'deepinspector';
 
     /**
-     * Start DeepInspector service
-     * @return array
+     * Starts the Deep Packet Inspector service
+     *
+     * @return array Response with status and message
      */
     public function startAction()
     {
@@ -61,8 +66,9 @@ class ServiceController extends ApiMutableServiceControllerBase
     }
 
     /**
-     * Stop DeepInspector service
-     * @return array
+     * Stops the Deep Packet Inspector service
+     *
+     * @return array Response with status and message
      */
     public function stopAction()
     {
@@ -79,8 +85,9 @@ class ServiceController extends ApiMutableServiceControllerBase
     }
 
     /**
-     * Restart DeepInspector service
-     * @return array
+     * Restarts the Deep Packet Inspector service
+     *
+     * @return array Response with status and message
      */
     public function restartAction()
     {
@@ -97,8 +104,11 @@ class ServiceController extends ApiMutableServiceControllerBase
     }
 
     /**
-     * Get DeepInspector service status
-     * @return array
+     * Gets the Deep Packet Inspector service status
+     *
+     * Returns detailed status including PID and socket status.
+     *
+     * @return array Service status information
      */
     public function statusAction()
     {
@@ -134,8 +144,11 @@ class ServiceController extends ApiMutableServiceControllerBase
     }
 
     /**
-     * Reconfigure and restart DeepInspector service
-     * @return array
+     * Reconfigures and restarts the service
+     *
+     * Regenerates configuration from templates and restarts the service.
+     *
+     * @return array Response with status
      */
     public function reconfigureAction()
     {
