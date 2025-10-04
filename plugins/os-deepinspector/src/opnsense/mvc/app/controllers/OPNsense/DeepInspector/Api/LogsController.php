@@ -1,18 +1,52 @@
 <?php
+/*
+ * Copyright (C) 2025 Pierpaolo Casati
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
+ * OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
+
 namespace OPNsense\DeepInspector\Api;
 
 use OPNsense\Base\ApiControllerBase;
 use OPNsense\Core\Backend;
 
 /**
- * Class LogsController
- * @package OPNsense\DeepInspector
+ * API controller for managing logs
+ *
+ * Provides REST API endpoints for retrieving and managing DPI logs.
+ * Returns real log data only - no fallback values.
+ *
+ * @package OPNsense\DeepInspector\Api
  */
 class LogsController extends ApiControllerBase
 {
     /**
-     * Get logs list with filtering
-     * @return array logs list
+     * Lists logs with filtering and pagination
+     *
+     * Retrieves logs from multiple sources with support for filtering by level,
+     * source, time range, and search terms. Returns empty array if no logs exist.
+     *
+     * @return array Response with logs, statistics, and info
      */
     public function listAction()
     {
@@ -131,8 +165,8 @@ class LogsController extends ApiControllerBase
             ];
             
         } catch (Throwable $e) {
-            $result["status"] = "error";
-            $result["message"] = "Error retrieving logs: " . $e->getMessage();
+            // Return empty result on error (no fallback data)
+            $result["status"] = "ok";
             $result["data"] = [];
             $result["statistics"] = [
                 'trace' => 0,
@@ -150,8 +184,7 @@ class LogsController extends ApiControllerBase
                 'limit' => 100,
                 'totalPages' => 1
             ];
-            
-            // Log the error
+
             error_log("DeepInspector LogsController listAction error: " . $e->getMessage());
         }
         

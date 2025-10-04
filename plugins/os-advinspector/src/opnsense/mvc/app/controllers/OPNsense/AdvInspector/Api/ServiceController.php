@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright (C) 2024 Your Name
+ * Copyright (C) 205 Pieproalo Casati
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

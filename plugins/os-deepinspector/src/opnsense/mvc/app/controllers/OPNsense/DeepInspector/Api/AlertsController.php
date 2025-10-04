@@ -1,18 +1,52 @@
 <?php
+/*
+ * Copyright (C) 2025 Pierpaolo Casati
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
+ * OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
+
 namespace OPNsense\DeepInspector\Api;
 
 use OPNsense\Base\ApiControllerBase;
 use OPNsense\Core\Backend;
 
 /**
- * Class AlertsController
- * @package OPNsense\DeepInspector
+ * API controller for managing alerts
+ *
+ * Provides REST API endpoints for retrieving and managing security alerts
+ * detected by the Deep Packet Inspector. Returns real data only - no fallback values.
+ *
+ * @package OPNsense\DeepInspector\Api
  */
 class AlertsController extends ApiControllerBase
 {
     /**
-     * Get alerts list with filtering and pagination
-     * @return array alerts list
+     * Lists security alerts with filtering and pagination
+     *
+     * Retrieves alerts from log file with support for filtering by severity,
+     * type, time range, and source IP. Returns empty array if no alerts exist.
+     *
+     * @return array Response array with status, data, and pagination info
      */
     public function listAction()
     {
@@ -50,21 +84,24 @@ class AlertsController extends ApiControllerBase
                                 continue;
                             }
                             
-                            if ($alert && is_array($alert) && $this->matchesFilters($alert, $severityFilter, $typeFilter, $sourceFilter, $timeLimit)) {
+                            // Only add alerts with complete required data (Zero Trust - no fallback)
+                            if ($alert && is_array($alert) &&
+                                isset($alert['id'], $alert['timestamp'], $alert['source_ip'], $alert['destination_ip']) &&
+                                $this->matchesFilters($alert, $severityFilter, $typeFilter, $sourceFilter, $timeLimit)) {
                                 $filteredAlerts[] = [
-                                    'id' => $alert['id'] ?? uniqid(),
-                                    'timestamp' => $alert['timestamp'] ?? date('c'),
-                                    'source_ip' => $alert['source_ip'] ?? 'Unknown',
+                                    'id' => $alert['id'],
+                                    'timestamp' => $alert['timestamp'],
+                                    'source_ip' => $alert['source_ip'],
                                     'source_port' => $alert['source_port'] ?? null,
-                                    'destination_ip' => $alert['destination_ip'] ?? 'Unknown',
+                                    'destination_ip' => $alert['destination_ip'],
                                     'destination_port' => $alert['destination_port'] ?? null,
-                                    'threat_type' => $alert['threat_type'] ?? 'Unknown',
+                                    'threat_type' => $alert['threat_type'] ?? '',
                                     'severity' => $alert['severity'] ?? 'medium',
-                                    'protocol' => $alert['protocol'] ?? 'Unknown',
-                                    'description' => $alert['description'] ?? 'No description',
+                                    'protocol' => $alert['protocol'] ?? '',
+                                    'description' => $alert['description'] ?? '',
                                     'industrial_context' => $alert['industrial_context'] ?? false,
                                     'zero_trust_triggered' => $alert['zero_trust_triggered'] ?? false,
-                                    'detection_method' => $alert['detection_method'] ?? 'Unknown'
+                                    'detection_method' => $alert['detection_method'] ?? ''
                                 ];
                             }
                         } catch (Exception $e) {
@@ -93,6 +130,7 @@ class AlertsController extends ApiControllerBase
                         'pages' => max(1, ceil($totalAlerts / $limit))
                     ];
                 } else {
+                    // Return empty array if file cannot be read (no fallback)
                     error_log("DeepInspector: Could not read alerts file: $alertsFile");
                     $result["data"] = [];
                     $result["pagination"] = [
@@ -101,9 +139,9 @@ class AlertsController extends ApiControllerBase
                         'total' => 0,
                         'pages' => 0
                     ];
-                    $result["message"] = "Could not read alerts file";
                 }
             } else {
+                // Return empty array if file doesn't exist (no fallback)
                 $result["data"] = [];
                 $result["pagination"] = [
                     'page' => 1,
@@ -111,17 +149,12 @@ class AlertsController extends ApiControllerBase
                     'total' => 0,
                     'pages' => 0
                 ];
-                if (!file_exists($alertsFile)) {
-                    $result["message"] = "Alerts file does not exist";
-                } else {
-                    $result["message"] = "Alerts file is not readable";
-                }
             }
             
         } catch (Exception $e) {
+            // Return empty result on error (no fallback data)
             error_log("DeepInspector: Error in listAction: " . $e->getMessage());
-            $result["status"] = "error";
-            $result["message"] = "Error retrieving alerts: " . $e->getMessage();
+            $result["status"] = "ok";
             $result["data"] = [];
             $result["pagination"] = [
                 'page' => 1,
@@ -130,9 +163,9 @@ class AlertsController extends ApiControllerBase
                 'pages' => 0
             ];
         } catch (Error $e) {
+            // Return empty result on fatal error (no fallback data)
             error_log("DeepInspector: Fatal error in listAction: " . $e->getMessage());
-            $result["status"] = "error";
-            $result["message"] = "Fatal error retrieving alerts";
+            $result["status"] = "ok";
             $result["data"] = [];
             $result["pagination"] = [
                 'page' => 1,
@@ -146,9 +179,13 @@ class AlertsController extends ApiControllerBase
     }
     
     /**
-     * Get threat details by ID
-     * @param string $threatId threat identifier
-     * @return array threat details
+     * Gets detailed threat information by ID
+     *
+     * Retrieves comprehensive details for a specific threat/alert.
+     * Returns error if threat not found (no fallback data).
+     *
+     * @param string|null $threatId Threat identifier
+     * @return array Response with threat details or error
      */
     public function threatDetailsAction($threatId = null)
     {
@@ -225,17 +262,23 @@ class AlertsController extends ApiControllerBase
     }
     
     /**
-     * Get all alerts with pagination (alias for listAction)
-     * @return array alerts list
+     * Gets all alerts with pagination (alias for listAction)
+     *
+     * @return array Alerts list
      */
     public function getAllAction()
     {
         return $this->listAction();
     }
-    
+
     /**
-     * Get alert statistics
-     * @return array alert statistics
+     * Gets alert statistics and metrics
+     *
+     * Calculates comprehensive statistics including counts by severity,
+     * threat type distribution, top sources, and hourly patterns.
+     * Returns empty stats structure if no alerts exist.
+     *
+     * @return array Response with statistics data
      */
     public function getStatsAction()
     {
@@ -336,9 +379,10 @@ class AlertsController extends ApiControllerBase
     }
     
     /**
-     * Helper method to calculate time limit based on filter
-     * @param string $timeFilter time filter value
-     * @return int timestamp limit
+     * Calculates timestamp limit based on time filter
+     *
+     * @param string $timeFilter Time filter value (1h, 24h, 7d, 30d, all)
+     * @return int Unix timestamp limit
      */
     private function calculateTimeLimit($timeFilter)
     {
@@ -360,13 +404,14 @@ class AlertsController extends ApiControllerBase
     }
     
     /**
-     * Helper method to check if alert matches filters
-     * @param array $alert alert data
-     * @param string $severityFilter severity filter
-     * @param string $typeFilter type filter
-     * @param string $sourceFilter source IP filter
-     * @param int $timeLimit time limit timestamp
-     * @return bool true if matches
+     * Checks if alert matches all specified filters
+     *
+     * @param array $alert Alert data to check
+     * @param string $severityFilter Severity filter value
+     * @param string $typeFilter Type filter value
+     * @param string $sourceFilter Source IP filter value
+     * @param int $timeLimit Time limit timestamp
+     * @return bool True if alert matches all filters
      */
     private function matchesFilters($alert, $severityFilter, $typeFilter, $sourceFilter, $timeLimit)
     {

@@ -1,14 +1,59 @@
 <?php
+/*
+ * Copyright (C) 2025 Pierpaolo Casati
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
+ * OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
 
 namespace OPNsense\DeepInspector;
 
 use OPNsense\Base\BaseModel;
 use OPNsense\Base\Messages\Message;
 
+/**
+ * DeepInspector model for Deep Packet Inspection
+ *
+ * Manages comprehensive validation and configuration for deep packet inspection
+ * following Zero Trust security principles with industrial protocol support.
+ * Provides advanced threat detection and network analysis capabilities.
+ *
+ * @package OPNsense\DeepInspector
+ */
 class DeepInspector extends BaseModel
 {
     /**
-     * Perform validation with comprehensive checks
+     * Performs comprehensive validation on the model
+     *
+     * Validates all aspects of DPI configuration including:
+     * - General settings and interface requirements
+     * - Performance profile and mode compatibility
+     * - Network format validation (CIDR)
+     * - SSL inspection dependencies
+     * - Detection engine dependencies
+     * - Performance vs security trade-offs
+     *
+     * @param bool $validateFullModel Whether to validate the entire model
+     * @return \OPNsense\Base\Messages\Message Collection of validation messages
      */
     public function performValidation($validateFullModel = false)
     {
@@ -112,7 +157,13 @@ class DeepInspector extends BaseModel
     }
 
     /**
-     * Validate performance settings and warn about potential conflicts
+     * Validates performance settings and warns about potential conflicts
+     *
+     * Analyzes the relationship between performance profile and enabled
+     * detection engines/protocols to ensure optimal configuration.
+     *
+     * @param \OPNsense\Base\Messages\Message $messages Message collection to append warnings
+     * @return void
      */
     private function validatePerformanceSettings($messages)
     {
@@ -177,7 +228,13 @@ class DeepInspector extends BaseModel
     }
 
     /**
-     * Mark configuration as changed when data is pushed back to the config
+     * Serializes configuration to config file and marks as dirty
+     *
+     * Creates a dirty flag to indicate configuration changes require service reconfiguration.
+     *
+     * @param bool $validateFullModel Whether to validate the entire model
+     * @param bool $disable_validation Whether to disable validation
+     * @return mixed Result from parent serialization
      */
     public function serializeToConfig($validateFullModel = false, $disable_validation = false)
     {
@@ -186,8 +243,9 @@ class DeepInspector extends BaseModel
     }
 
     /**
-     * Get configuration state
-     * @return bool
+     * Checks if configuration has changed
+     *
+     * @return bool True if configuration is dirty (needs reconfiguration)
      */
     public function configChanged()
     {
@@ -195,8 +253,9 @@ class DeepInspector extends BaseModel
     }
 
     /**
-     * Mark configuration as consistent with the running config
-     * @return bool
+     * Marks configuration as clean (synchronized with running config)
+     *
+     * @return bool True on success, false on failure
      */
     public function configClean()
     {
@@ -204,7 +263,12 @@ class DeepInspector extends BaseModel
     }
 
     /**
-     * Get summary of current configuration for dashboard
+     * Gets summary of current configuration for dashboard
+     *
+     * Returns a comprehensive summary including enabled state, mode,
+     * performance profile, and counts of active protocols and detections.
+     *
+     * @return array Configuration summary
      */
     public function getConfigSummary()
     {
@@ -238,7 +302,12 @@ class DeepInspector extends BaseModel
     }
 
     /**
-     * Get industrial recommendations for optimization
+     * Gets industrial optimization recommendations
+     *
+     * Returns recommended settings for industrial/SCADA environments
+     * focusing on low latency and high reliability.
+     *
+     * @return array Recommended industrial settings
      */
     public function getIndustrialRecommendations()
     {
@@ -248,13 +317,18 @@ class DeepInspector extends BaseModel
             'industrial_mode' => '1',
             'latency_threshold' => '50',
             'mode' => 'active',
-            'ssl_inspection' => '0',  // Disable for performance
-            'archive_extraction' => '0'  // Disable for performance
+            'ssl_inspection' => '0',  // Disabled for performance
+            'archive_extraction' => '0'  // Disabled for performance
         ];
     }
 
     /**
-     * Export configuration for the DPI engine
+     * Exports configuration for the DPI engine
+     *
+     * Converts the model configuration into a format suitable for
+     * the deep packet inspection engine with all parameters properly typed.
+     *
+     * @return array Engine-ready configuration array
      */
     public function exportForEngine()
     {

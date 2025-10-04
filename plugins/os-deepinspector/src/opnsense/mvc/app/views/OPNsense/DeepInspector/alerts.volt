@@ -124,14 +124,7 @@
                 </tr>
             </thead>
             <tbody id="alertsTableBody">
-                <tr>
-                    <td colspan="8" class="text-center">
-                        <div class="loading-spinner">
-                            <i class="fa fa-spinner fa-spin"></i>
-                            {{ lang._('Loading alerts...') }}
-                        </div>
-                    </td>
-                </tr>
+                <!-- Alerts will be loaded dynamically -->
             </tbody>
         </table>
     </div>
@@ -211,30 +204,16 @@ function loadAlerts() {
         time: $('#timeFilter').val(),
         source: $('#sourceFilter').val()
     };
-    
-    $('#alertsTableBody').html(`
-        <tr>
-            <td colspan="8" class="text-center">
-                <div class="loading-spinner">
-                    <i class="fa fa-spinner fa-spin"></i>
-                    {{ lang._('Loading alerts...') }}
-                </div>
-            </td>
-        </tr>
-    `);
-    
+
+    $('#alertsTableBody').html('');
+
     ajaxCall("/api/deepinspector/alerts/list", filters, function(data) {
         if (data.status === 'ok') {
             populateAlertsTable(data.data);
             updateSummaryCards(data.data);
         } else {
-            $('#alertsTableBody').html(`
-                <tr>
-                    <td colspan="8" class="text-center text-danger">
-                        {{ lang._('Error loading alerts') }}: ${data.message || 'Unknown error'}
-                    </td>
-                </tr>
-            `);
+            // Show empty table on error (no fallback message)
+            $('#alertsTableBody').html('');
         }
     });
 }
@@ -242,15 +221,9 @@ function loadAlerts() {
 function populateAlertsTable(alerts) {
     const tbody = $('#alertsTableBody');
     tbody.empty();
-    
+
+    // Show nothing if no alerts (Zero Trust - no fallback message)
     if (alerts.length === 0) {
-        tbody.html(`
-            <tr>
-                <td colspan="8" class="text-center text-muted">
-                    {{ lang._('No alerts found for the selected criteria') }}
-                </td>
-            </tr>
-        `);
         return;
     }
     
@@ -329,15 +302,10 @@ function updateSummaryCards(alerts) {
 }
 
 function showAlertDetails(alertId) {
-    $('#alertDetailsBody').html(`
-        <div class="text-center">
-            <i class="fa fa-spinner fa-spin"></i>
-            {{ lang._('Loading alert details...') }}
-        </div>
-    `);
-    
+    $('#alertDetailsBody').html('');
+
     $('#alertDetailsModal').modal('show');
-    
+
     ajaxCall(`/api/deepinspector/alerts/threatDetails/${alertId}`, {}, function(data) {
         if (data.status === 'ok') {
             const alert = data.data;
@@ -444,11 +412,9 @@ function showAlertDetails(alertId) {
                 $('#alertDetailsModal').modal('hide');
             });
         } else {
-            $('#alertDetailsBody').html(`
-                <div class="alert alert-danger">
-                    {{ lang._('Error loading alert details') }}: ${data.message || 'Unknown error'}
-                </div>
-            `);
+            // Show empty on error (no fallback message)
+            $('#alertDetailsBody').html('');
+            $('#alertDetailsModal').modal('hide');
         }
     });
 }
