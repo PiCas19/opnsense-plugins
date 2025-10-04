@@ -20,14 +20,15 @@
       }
 
       /**
-       * chain std_bootgrid_reload from opnsense_bootgrid_plugin.js
-       * to get the isSubsystemDirty state on "UIBootgrid" changes
+       * chain std_bootgrid_reload - only if it exists
        */
-      var opn_std_bootgrid_reload = std_bootgrid_reload;
-      std_bootgrid_reload = function(gridId) {
-         opn_std_bootgrid_reload(gridId);
-         isSubsystemDirty();
-      };
+      if (typeof std_bootgrid_reload !== 'undefined') {
+         var opn_std_bootgrid_reload = std_bootgrid_reload;
+         std_bootgrid_reload = function(gridId) {
+            opn_std_bootgrid_reload(gridId);
+            isSubsystemDirty();
+         };
+      }
 
       /**
        * apply changes and reload deepinspector
@@ -38,64 +39,17 @@
 
       /**
        * Load all settings using single endpoint
-       * Fixed: Use individual endpoints per form and proper data extraction
        */
-      ajaxGet("/api/deepinspector/settings/get", {}, function(data, status) {
-         if (status == "success" && data.deepinspector) {
-            console.log("Raw API data:", data);
-            
-            // Transform complex structure to simple values for UI
-            var transformedData = {
-               deepinspector: {}
-            };
-            
-            // Process each section
-            ['general', 'protocols', 'detection', 'advanced'].forEach(function(section) {
-               if (data.deepinspector[section]) {
-                  transformedData.deepinspector[section] = {};
-                  
-                  $.each(data.deepinspector[section], function(key, value) {
-                     console.log(value);
-                     if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-                        // Check if it's an OptionField structure with 'selected'
-                        var selectedValues = [];
-                        var hasSelected = false;
-                        
-                        $.each(value, function(optKey, optValue) {
-                           if (optValue && optValue.selected == 1) {
-                              selectedValues.push(optKey);
-                              hasSelected = true;
-                           }
-                        });
-                        
-                        if (hasSelected) {
-                           // Multi-select or single select
-                           transformedData.deepinspector[section][key] = selectedValues.join(',');
-                        } else {
-                           // Not an option field, keep as is
-                           transformedData.deepinspector[section][key] = value;
-                        }
-                     } else {
-                        // Simple value
-                        transformedData.deepinspector[section][key] = value;
-                     }
-                  });
-               }
-            });
-            
-            console.log("Transformed data:", transformedData);
-            
-            // Apply to forms
-            setFormData('frm_GeneralSettings', transformedData.deepinspector);
-            setFormData('frm_ProtocolsSettings', transformedData.deepinspector);
-            setFormData('frm_DetectionSettings', transformedData.deepinspector);
-            setFormData('frm_AdvancedSettings', transformedData.deepinspector);
-            
-            formatTokenizersUI();
-            $('.selectpicker').selectpicker('refresh');
-            isSubsystemDirty();
-            updateServiceControlUI('deepinspector');
-         }
+      mapDataToFormUI({
+         'frm_GeneralSettings': "/api/deepinspector/settings/get",
+         'frm_ProtocolsSettings': "/api/deepinspector/settings/get",
+         'frm_DetectionSettings': "/api/deepinspector/settings/get",
+         'frm_AdvancedSettings': "/api/deepinspector/settings/get"
+      }).done(function(){
+         formatTokenizersUI();
+         $('.selectpicker').selectpicker('refresh');
+         isSubsystemDirty();
+         updateServiceControlUI('deepinspector');
       });
 
       /**
