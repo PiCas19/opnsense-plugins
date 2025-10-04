@@ -1,5 +1,17 @@
 #!/usr/local/bin/python3
 
+# netzones_simulate.py - Traffic Simulator for OPNsense NetZones
+#
+# This script simulates network traffic by sending packet data to the NetZones policy
+# evaluator, either via a UNIX socket or direct module calls. It supports single packet
+# simulation, batch testing with sample packets, and flexible input/output options.
+# The script integrates with the NetZones decision engine and settings loader for policy
+# evaluation and zone resolution.
+#
+# Author: Pierpaolo Casati
+# Version: 1.0.0
+#
+
 import sys
 import json
 import socket
@@ -13,6 +25,7 @@ try:
     from settings_loader import get_zone_by_ip, get_zone_config
     from netzones_decisions_engine import evaluate_policy
 except ImportError as e:
+    # Handle import errors and provide user-friendly feedback
     print(json.dumps({
         "success": False,
         "error": f"Failed to import NetZones modules: {e}",
@@ -20,14 +33,27 @@ except ImportError as e:
     }, indent=2))
     sys.exit(1)
 
-SOCKET_PATH = "/var/run/netzones.sock"
-REQUIRED_FIELDS = ["src", "dst", "port"]
+# Configuration constants
+SOCKET_PATH = "/var/run/netzones.sock"  # Path to NetZones evaluator socket
+REQUIRED_FIELDS = ["src", "dst", "port"]  # Mandatory fields for packet data
 
 def validate_packet(data):
-    """Validate packet data structure"""
+    """
+    Validate the structure and content of packet data.
+
+    Args:
+        data (dict): Packet data with 'src', 'dst', 'port', and optional 'protocol'
+
+    Returns:
+        dict: Validated packet data
+
+    Raises:
+        ValueError: If validation fails (missing fields, invalid IPs, or invalid port)
+    """
     if not isinstance(data, dict):
         raise ValueError("Input must be a JSON object")
     
+    # Check for missing required fields
     missing = [field for field in REQUIRED_FIELDS if field not in data]
     if missing:
         raise ValueError(f"Missing required field(s): {', '.join(missing)}")
@@ -52,14 +78,25 @@ def validate_packet(data):
     return data
 
 def simulate_via_socket(packet_data):
-    """Simulate via socket connection to running evaluator"""
+    """
+    Simulate packet evaluation by sending data to the NetZones evaluator via UNIX socket.
+
+    Args:
+        packet_data (dict): Packet data with 'src', 'dst', 'port', and optional 'protocol'
+
+    Returns:
+        dict: Simulation result with decision, method, and details
+
+    Raises:
+        ConnectionError: If socket communication fails
+    """
     try:
         if not os.path.exists(SOCKET_PATH):
             raise ConnectionError(f"NetZones socket not found at {SOCKET_PATH}. Is the service running?")
         
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
-            sock.settimeout(10.0)
-            sock.connect(SOCKET_PATH)
+            sock.settimeout(10.0)  # Set timeout for socket operations
+            sock.connect(SOCKET_PATH)  # Connect to NetZones evaluator
             
             # Send request
             request = json.dumps(packet_data)
@@ -81,14 +118,25 @@ def simulate_via_socket(packet_data):
         raise ConnectionError(f"Socket communication failed: {e}")
 
 def simulate_direct(packet_data):
-    """Simulate via direct module calls (fallback)"""
+    """
+    Simulate packet evaluation using direct module calls (fallback method).
+
+    Args:
+        packet_data (dict): Packet data with 'src', 'dst', 'port', and optional 'protocol'
+
+    Returns:
+        dict: Simulation result with decision, method, and details
+
+    Raises:
+        RuntimeError: If direct evaluation fails
+    """
     try:
         src_ip = packet_data["src"]
         dst_ip = packet_data["dst"]
         port = packet_data["port"]
-        protocol = packet_data.get("protocol", "tcp")  # Use provided protocol or default to tcp
+        protocol = packet_data.get("protocol", "tcp")  # Default to TCP if not specified
         
-        # Get zones
+        # Resolve zones for source and destination IPs
         src_zone = get_zone_by_ip(src_ip)
         dst_zone = get_zone_by_ip(dst_ip)
         
@@ -96,7 +144,7 @@ def simulate_direct(packet_data):
         src_config = get_zone_config(src_zone) if src_zone != "UNKNOWN" else None
         dst_config = get_zone_config(dst_zone) if dst_zone != "UNKNOWN" else None
         
-        # Evaluate policy
+        # Evaluate policy using the decision engine
         decision = evaluate_policy(src_zone, dst_zone, protocol, port)
         
         return {
@@ -124,7 +172,15 @@ def simulate_direct(packet_data):
         raise RuntimeError(f"Direct evaluation failed: {e}")
 
 def read_input():
-    """Read input from various sources"""
+    """
+    Read packet input from command-line argument, file, or stdin.
+
+    Returns:
+        dict: Parsed JSON packet data
+
+    Raises:
+        ValueError: If no valid input is provided or parsing fails
+    """
     if len(sys.argv) >= 2:
         # Try to parse as JSON from command line
         arg = sys.argv[1]
@@ -144,7 +200,12 @@ def read_input():
         raise ValueError("No input provided. Use: JSON string, file path, or pipe JSON to stdin.")
 
 def create_sample_packets():
-    """Create sample packets for testing"""
+    """
+    Create a list of sample packets for batch testing.
+
+    Returns:
+        list: List of dictionaries containing sample packet data
+    """
     return [
         {
             "name": "Corporate to DMZ (HTTP)",
@@ -184,7 +245,12 @@ def create_sample_packets():
     ]
 
 def run_batch_test():
-    """Run batch test with sample packets"""
+    """
+    Run a batch test using sample packets, simulating via socket or direct method.
+
+    Returns:
+        list: List of test results with packet details and outcomes
+    """
     samples = create_sample_packets()
     results = []
     
@@ -231,7 +297,12 @@ def run_batch_test():
     return results
 
 def main():
-    """Main simulation function"""
+    """
+    Main function for running the NetZones traffic simulator.
+
+    Supports single packet simulation, batch testing, and configurable simulation methods
+    (socket or direct). Outputs results to stdout or a specified file.
+    """
     parser = argparse.ArgumentParser(description='NetZones Traffic Simulator')
     parser.add_argument('input', nargs='?', help='JSON packet data, file path, or stdin')
     parser.add_argument('--batch', action='store_true', help='Run batch test with sample packets')
@@ -243,6 +314,7 @@ def main():
     
     try:
         if args.batch:
+            # Run batch test with sample packets
             results = run_batch_test()
             output = {
                 "success": True,
@@ -281,6 +353,7 @@ def main():
             print(json.dumps(output, indent=2))
             
     except Exception as e:
+        # Handle errors and provide detailed help information
         error_output = {
             "success": False,
             "error": str(e),

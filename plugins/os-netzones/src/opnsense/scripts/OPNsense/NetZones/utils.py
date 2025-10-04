@@ -1,12 +1,27 @@
 #!/usr/local/bin/python3
 
+# protocol_detection.py - Protocol Detection for OPNsense NetZones
+#
+# This script provides functions to detect and classify network protocols based on port numbers,
+# focusing on both standard internet protocols and industrial/OT protocols as defined in the
+# NetZones model. It includes risk level assessment and categorization for security analysis,
+# ensuring compatibility with the OPNsense ecosystem.
+#
+# Author: [Not specified]
+# Version: 1.0.0
+#
+
 def detect_protocol(port):
     """
-    Detect protocol based on port number
-    Comprehensive mapping based on NetZones model protocol definitions
+    Detect the protocol associated with a given port number, aligned with NetZones model definitions.
+
+    Args:
+        port (int): Port number to analyze
+
+    Returns:
+        str: Detected protocol name (e.g., "http", "modbus_tcp", "tcp")
     """
-    
-    # Standard internet protocols
+    # Standard internet protocols mapping
     standard_mapping = {
         # Web protocols
         80: "http",
@@ -45,7 +60,7 @@ def detect_protocol(port):
         2049: "nfs",
     }
     
-    # Industrial/OT protocols - matching your NetZones model exactly
+    # Industrial/OT protocols mapping, aligned with NetZones model
     industrial_mapping = {
         # Modbus
         502: "modbus_tcp",
@@ -70,19 +85,19 @@ def detect_protocol(port):
         2404: "iec104",
         
         # IEC 61850
-        102: "iec61850",  # Note: Same port as S7comm, context dependent
+        102: "iec61850",  # Note: Same port as S7comm, context-dependent
         
         # Profinet
         34962: "profinet",
         34963: "profinet",
         34964: "profinet",
         
-        # EtherCAT - typically uses raw ethernet frames, but some implementations use these ports
+        # EtherCAT - typically uses raw Ethernet frames, but some implementations use these ports
         34980: "ethercat",
         88: "ethercat",  # Some EtherCAT over UDP implementations
     }
     
-    # Additional industrial protocols not in your current model but commonly used
+    # Additional industrial protocols for future expansion (not in current NetZones model)
     extended_industrial_mapping = {
         # Additional Modbus variants
         503: "modbus_tcp",  # Modbus over TCP (secure)
@@ -111,19 +126,19 @@ def detect_protocol(port):
         1089: "ff_hse",      # Foundation Fieldbus HSE
     }
     
-    # Try industrial protocols first (higher priority)
+    # Check industrial protocols first (higher priority for OT environments)
     if port in industrial_mapping:
         return industrial_mapping[port]
     
-    # Then try standard protocols
+    # Check standard protocols
     if port in standard_mapping:
         return standard_mapping[port]
     
-    # Extended industrial for future expansion
+    # Check extended industrial protocols for potential future use
     if port in extended_industrial_mapping:
         return extended_industrial_mapping[port]
     
-    # Port-based protocol detection for common ranges
+    # Fallback to port range-based detection for common scenarios
     if 20 <= port <= 21:
         return "ftp"
     elif 67 <= port <= 68:
@@ -139,15 +154,22 @@ def detect_protocol(port):
     elif port >= 32768:
         return "tcp"  # Dynamic/private port range
     
-    # Default fallback
+    # Default fallback to TCP
     return "tcp"
 
 def get_protocol_info(port):
     """
-    Get detailed information about a protocol
+    Retrieve detailed information about a protocol based on its port number.
+
+    Args:
+        port (int): Port number to analyze
+
+    Returns:
+        dict: Dictionary containing protocol name, description, and category
     """
     protocol = detect_protocol(port)
     
+    # Comprehensive protocol information mapping
     protocol_info = {
         # Standard protocols
         "http": {"name": "HTTP", "description": "Hypertext Transfer Protocol", "category": "web"},
@@ -157,7 +179,7 @@ def get_protocol_info(port):
         "dns": {"name": "DNS", "description": "Domain Name System", "category": "network"},
         "dhcp": {"name": "DHCP", "description": "Dynamic Host Configuration Protocol", "category": "network"},
         
-        # Industrial protocols - matching your model
+        # Industrial protocols, aligned with NetZones model
         "modbus_tcp": {"name": "Modbus TCP", "description": "Modbus over TCP/IP", "category": "industrial"},
         "opcua": {"name": "OPC UA", "description": "OPC Unified Architecture", "category": "industrial"},
         "mqtt": {"name": "MQTT", "description": "Message Queuing Telemetry Transport", "category": "iot"},
@@ -183,13 +205,20 @@ def get_protocol_info(port):
 
 def is_industrial_protocol(port_or_protocol):
     """
-    Check if a port or protocol is industrial/OT related
+    Check if a port or protocol is associated with industrial/OT systems.
+
+    Args:
+        port_or_protocol (int or str): Port number or protocol name
+
+    Returns:
+        bool: True if the protocol is industrial, False otherwise
     """
     if isinstance(port_or_protocol, int):
         protocol = detect_protocol(port_or_protocol)
     else:
         protocol = port_or_protocol.lower()
     
+    # Set of industrial protocols defined in the NetZones model
     industrial_protocols = {
         "modbus_tcp", "opcua", "mqtt", "bacnet", "dnp3", 
         "s7comm", "iec104", "iec61850", "profinet", "ethercat"
@@ -199,15 +228,22 @@ def is_industrial_protocol(port_or_protocol):
 
 def get_protocol_risk_level(port_or_protocol):
     """
-    Get risk level for a protocol (for security assessment)
+    Assess the security risk level of a protocol or port.
+
+    Args:
+        port_or_protocol (int or str): Port number or protocol name
+
+    Returns:
+        str: Risk level ("low", "medium", "high", "critical", or "unknown")
     """
     if isinstance(port_or_protocol, int):
         protocol = detect_protocol(port_or_protocol)
     else:
         protocol = port_or_protocol.lower()
     
+    # Risk level mapping for protocols
     risk_levels = {
-        # High risk - critical industrial protocols
+        # High risk - critical industrial protocols (unencrypted or sensitive)
         "modbus_tcp": "high",
         "dnp3": "high",
         "s7comm": "high",
@@ -242,7 +278,7 @@ def get_protocol_risk_level(port_or_protocol):
 
 # Example usage and testing
 if __name__ == "__main__":
-    # Test with your model's protocols
+    # Test with ports relevant to the NetZones model
     test_ports = [80, 443, 22, 502, 4840, 1883, 8883, 47808, 20000, 102, 2404, 34962, 34963, 34964]
     
     print("=== Protocol Detection Test ===")
@@ -252,6 +288,7 @@ if __name__ == "__main__":
         risk = get_protocol_risk_level(port)
         industrial = is_industrial_protocol(port)
         
+        # Print formatted test results
         print(f"Port {port:5d}: {protocol:12s} | {info['name']:15s} | Risk: {risk:8s} | Industrial: {industrial}")
     
     print("\n=== Industrial Protocol Check ===")
