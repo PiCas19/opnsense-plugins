@@ -55,6 +55,7 @@
                   transformedData.deepinspector[section] = {};
                   
                   $.each(data.deepinspector[section], function(key, value) {
+                     console.log(value);
                      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
                         // Check if it's an OptionField structure with 'selected'
                         var selectedValues = [];
