@@ -31,8 +31,12 @@ use OPNsense\Core\Config;
 use OPNsense\Core\Backend;
 
 /**
- * Class SettingsController
- * @package OPNsense\DeepInspector
+ * API controller for Deep Packet Inspector settings management
+ *
+ * Provides unified endpoints for retrieving and updating all DPI configuration
+ * settings including general, protocol, detection, and advanced options.
+ *
+ * @package OPNsense\DeepInspector\Api
  */
 class SettingsController extends ApiMutableModelControllerBase
 {
@@ -40,8 +44,12 @@ class SettingsController extends ApiMutableModelControllerBase
     protected static $internalModelClass = '\\OPNsense\\DeepInspector\\DeepInspector';
 
     /**
-     * Get all settings
-     * @return array all deepinspector settings
+     * Get all Deep Packet Inspector settings
+     *
+     * Retrieves complete configuration including general, protocols, detection,
+     * and advanced settings. Used by all form tabs to populate their fields.
+     *
+     * @return array Complete settings structure with all sections
      * @throws \ReflectionException when not bound to model
      */
     public function getAction()
@@ -65,69 +73,15 @@ class SettingsController extends ApiMutableModelControllerBase
         return $result;
     }
 
-    /**
-     * Retrieve general settings
-     * @return array deepinspector general settings content
-     * @throws \ReflectionException when not bound to model
-     */
-    public function getGeneralAction()
-    {
-        $result = ['deepinspector' => []];
-        $mdl = $this->getModel();
-        if ($mdl !== null && $mdl->general !== null) {
-            $result['deepinspector'] = ['general' => $mdl->general->getNodes()];
-        }
-        return $result;
-    }
 
     /**
-     * Retrieve protocol settings
-     * @return array deepinspector protocol settings content
-     * @throws \ReflectionException when not bound to model
-     */
-    public function getProtocolsAction()
-    {
-        $result = ['deepinspector' => []];
-        $mdl = $this->getModel();
-        if ($mdl !== null && $mdl->protocols !== null) {
-            $result['deepinspector'] = ['protocols' => $mdl->protocols->getNodes()];
-        }
-        return $result;
-    }
-
-    /**
-     * Retrieve detection settings
-     * @return array deepinspector detection settings content
-     * @throws \ReflectionException when not bound to model
-     */
-    public function getDetectionAction()
-    {
-        $result = ['deepinspector' => []];
-        $mdl = $this->getModel();
-        if ($mdl !== null && $mdl->detection !== null) {
-            $result['deepinspector'] = ['detection' => $mdl->detection->getNodes()];
-        }
-        return $result;
-    }
-
-    /**
-     * Retrieve advanced settings
-     * @return array deepinspector advanced settings content
-     * @throws \ReflectionException when not bound to model
-     */
-    public function getAdvancedAction()
-    {
-        $result = ['deepinspector' => []];
-        $mdl = $this->getModel();
-        if ($mdl !== null && $mdl->advanced !== null) {
-            $result['deepinspector'] = ['advanced' => $mdl->advanced->getNodes()];
-        }
-        return $result;
-    }
-
-    /**
-     * Set settings and automatically apply changes
-     * @return array save result + validation output
+     * Set Deep Packet Inspector settings and apply changes
+     *
+     * Validates and saves all posted settings (general, protocols, detection, advanced).
+     * Automatically triggers service reconfiguration after successful save.
+     * Follows Zero Trust principles with strict validation.
+     *
+     * @return array Save result with validation messages if any
      */
     public function setAction()
     {
@@ -137,7 +91,7 @@ class SettingsController extends ApiMutableModelControllerBase
             // Set all posted data
             $mdl->setNodes($this->request->getPost("deepinspector"));
             $valMsgs = $mdl->performValidation();
-            
+
             if ($valMsgs->count() > 0) {
                 $result["validations"] = [];
                 foreach ($valMsgs as $msg) {
@@ -147,14 +101,14 @@ class SettingsController extends ApiMutableModelControllerBase
             } else {
                 $mdl->serializeToConfig();
                 Config::getInstance()->save();
-                
+
                 // Automatically reconfigure after save
                 $backend = new Backend();
                 $backend->configdRun('deepinspector reconfigure');
-                
+
                 // Clear the dirty flag
                 $mdl->configClean();
-                
+
                 $result["result"] = "saved";
             }
         }

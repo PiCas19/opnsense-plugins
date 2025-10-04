@@ -38,20 +38,27 @@
       }});
 
       /**
-       * general settings
+       * Load all settings using single endpoint
        */
-      mapDataToFormUI({'frm_GeneralSettings':"/api/deepinspector/settings/getGeneral/"}).done(function(){
+      mapDataToFormUI({
+         'frm_GeneralSettings': "/api/deepinspector/settings/get/",
+         'frm_ProtocolsSettings': "/api/deepinspector/settings/get/",
+         'frm_DetectionSettings': "/api/deepinspector/settings/get/",
+         'frm_AdvancedSettings': "/api/deepinspector/settings/get/"
+      }).done(function(){
          formatTokenizersUI();
          $('.selectpicker').selectpicker('refresh');
          isSubsystemDirty();
          updateServiceControlUI('deepinspector');
       });
 
+      /**
+       * Save general settings
+       */
       $('#btnSaveGeneral').unbind('click').click(function(){
          $("#btnSaveGeneralProgress").addClass("fa fa-spinner fa-pulse");
          var frm_id = 'frm_GeneralSettings';
          saveFormToEndpoint("/api/deepinspector/settings/set/", frm_id, function(){
-            // Don't call isSubsystemDirty() here since we auto-apply
             updateServiceControlUI('deepinspector');
          }, true);
          $("#btnSaveGeneralProgress").removeClass("fa fa-spinner fa-pulse");
@@ -59,54 +66,39 @@
       });
 
       /**
-       * protocols settings - FIX: Use correct endpoint
+       * Save protocol settings
        */
-      mapDataToFormUI({'frm_ProtocolsSettings':"/api/deepinspector/settings/getProtocols/"}).done(function(){
-         formatTokenizersUI();
-         $('.selectpicker').selectpicker('refresh');
-      });
-
       $('#btnSaveProtocols').unbind('click').click(function(){
          $("#btnSaveProtocolsProgress").addClass("fa fa-spinner fa-pulse");
          var frm_id = 'frm_ProtocolsSettings';
          saveFormToEndpoint("/api/deepinspector/settings/set/", frm_id, function(){
-            // Don't call isSubsystemDirty() here since we auto-apply
+            // Configuration saved and auto-applied
          }, true);
          $("#btnSaveProtocolsProgress").removeClass("fa fa-spinner fa-pulse");
          $("#btnSaveProtocols").blur();
       });
 
       /**
-       * detection settings - FIX: Use correct endpoint
+       * Save detection settings
        */
-      mapDataToFormUI({'frm_DetectionSettings':"/api/deepinspector/settings/getDetection/"}).done(function(){
-         formatTokenizersUI();
-         $('.selectpicker').selectpicker('refresh');
-      });
-
       $('#btnSaveDetection').unbind('click').click(function(){
          $("#btnSaveDetectionProgress").addClass("fa fa-spinner fa-pulse");
          var frm_id = 'frm_DetectionSettings';
          saveFormToEndpoint("/api/deepinspector/settings/set/", frm_id, function(){
-            // Don't call isSubsystemDirty() here since we auto-apply
+            // Configuration saved and auto-applied
          }, true);
          $("#btnSaveDetectionProgress").removeClass("fa fa-spinner fa-pulse");
          $("#btnSaveDetection").blur();
       });
 
       /**
-       * advanced settings - FIX: Use correct endpoint
+       * Save advanced settings
        */
-      mapDataToFormUI({'frm_AdvancedSettings':"/api/deepinspector/settings/getAdvanced/"}).done(function(){
-         formatTokenizersUI();
-         $('.selectpicker').selectpicker('refresh');
-      });
-
       $('#btnSaveAdvanced').unbind('click').click(function(){
          $("#btnSaveAdvancedProgress").addClass("fa fa-spinner fa-pulse");
          var frm_id = 'frm_AdvancedSettings';
          saveFormToEndpoint("/api/deepinspector/settings/set/", frm_id, function(){
-            // Don't call isSubsystemDirty() here since we auto-apply
+            // Configuration saved and auto-applied
          }, true);
          $("#btnSaveAdvancedProgress").removeClass("fa fa-spinner fa-pulse");
          $("#btnSaveAdvanced").blur();
