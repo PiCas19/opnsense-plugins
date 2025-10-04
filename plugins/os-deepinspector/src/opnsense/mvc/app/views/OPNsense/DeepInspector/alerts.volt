@@ -1,7 +1,6 @@
 {# alerts.volt - Deep Packet Inspector Alerts #}
 <div class="content-box">
     <div class="alert-header">
-        <h2>{{ lang._('Deep Packet Inspector Alerts') }}</h2>
         <div class="alert-controls">
             <button class="btn btn-secondary" id="refreshAlerts">
                 <i class="fa fa-refresh"></i> {{ lang._('Refresh') }}

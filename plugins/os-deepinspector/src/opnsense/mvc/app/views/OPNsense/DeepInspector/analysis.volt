@@ -2,7 +2,6 @@
 
 <div class="content-box">
     <div class="analysis-header">
-        <h2>{{ lang._('Deep Packet Inspector - Traffic Analysis') }}</h2>
         <div class="analysis-controls">
             <button class="btn btn-primary" id="startAnalysis">
                 <i class="fa fa-play"></i> {{ lang._('Start Analysis') }}
