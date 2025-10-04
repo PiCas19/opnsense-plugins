@@ -2,7 +2,6 @@
  # Copyright (C) 2025 OPNsense Project
  # All rights reserved.
  #}
-
 <script>
    $( document ).ready(function() {
       /**
@@ -39,17 +38,63 @@
 
       /**
        * Load all settings using single endpoint
+       * Fixed: Use individual endpoints per form and proper data extraction
        */
-      mapDataToFormUI({
-         'frm_GeneralSettings': "/api/deepinspector/settings/get/",
-         'frm_ProtocolsSettings': "/api/deepinspector/settings/get/",
-         'frm_DetectionSettings': "/api/deepinspector/settings/get/",
-         'frm_AdvancedSettings': "/api/deepinspector/settings/get/"
-      }).done(function(){
-         formatTokenizersUI();
-         $('.selectpicker').selectpicker('refresh');
-         isSubsystemDirty();
-         updateServiceControlUI('deepinspector');
+      ajaxGet("/api/deepinspector/settings/get", {}, function(data, status) {
+         if (status == "success" && data.deepinspector) {
+            console.log("Raw API data:", data);
+            
+            // Transform complex structure to simple values for UI
+            var transformedData = {
+               deepinspector: {}
+            };
+            
+            // Process each section
+            ['general', 'protocols', 'detection', 'advanced'].forEach(function(section) {
+               if (data.deepinspector[section]) {
+                  transformedData.deepinspector[section] = {};
+                  
+                  $.each(data.deepinspector[section], function(key, value) {
+                     if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                        // Check if it's an OptionField structure with 'selected'
+                        var selectedValues = [];
+                        var hasSelected = false;
+                        
+                        $.each(value, function(optKey, optValue) {
+                           if (optValue && optValue.selected == 1) {
+                              selectedValues.push(optKey);
+                              hasSelected = true;
+                           }
+                        });
+                        
+                        if (hasSelected) {
+                           // Multi-select or single select
+                           transformedData.deepinspector[section][key] = selectedValues.join(',');
+                        } else {
+                           // Not an option field, keep as is
+                           transformedData.deepinspector[section][key] = value;
+                        }
+                     } else {
+                        // Simple value
+                        transformedData.deepinspector[section][key] = value;
+                     }
+                  });
+               }
+            });
+            
+            console.log("Transformed data:", transformedData);
+            
+            // Apply to forms
+            setFormData('frm_GeneralSettings', transformedData.deepinspector);
+            setFormData('frm_ProtocolsSettings', transformedData.deepinspector);
+            setFormData('frm_DetectionSettings', transformedData.deepinspector);
+            setFormData('frm_AdvancedSettings', transformedData.deepinspector);
+            
+            formatTokenizersUI();
+            $('.selectpicker').selectpicker('refresh');
+            isSubsystemDirty();
+            updateServiceControlUI('deepinspector');
+         }
       });
 
       /**
@@ -58,8 +103,9 @@
       $('#btnSaveGeneral').unbind('click').click(function(){
          $("#btnSaveGeneralProgress").addClass("fa fa-spinner fa-pulse");
          var frm_id = 'frm_GeneralSettings';
-         saveFormToEndpoint("/api/deepinspector/settings/set/", frm_id, function(){
+         saveFormToEndpoint("/api/deepinspector/settings/set", frm_id, function(){
             updateServiceControlUI('deepinspector');
+            isSubsystemDirty();
          }, true);
          $("#btnSaveGeneralProgress").removeClass("fa fa-spinner fa-pulse");
          $("#btnSaveGeneral").blur();
@@ -71,8 +117,8 @@
       $('#btnSaveProtocols').unbind('click').click(function(){
          $("#btnSaveProtocolsProgress").addClass("fa fa-spinner fa-pulse");
          var frm_id = 'frm_ProtocolsSettings';
-         saveFormToEndpoint("/api/deepinspector/settings/set/", frm_id, function(){
-            // Configuration saved and auto-applied
+         saveFormToEndpoint("/api/deepinspector/settings/set", frm_id, function(){
+            isSubsystemDirty();
          }, true);
          $("#btnSaveProtocolsProgress").removeClass("fa fa-spinner fa-pulse");
          $("#btnSaveProtocols").blur();
@@ -84,8 +130,8 @@
       $('#btnSaveDetection').unbind('click').click(function(){
          $("#btnSaveDetectionProgress").addClass("fa fa-spinner fa-pulse");
          var frm_id = 'frm_DetectionSettings';
-         saveFormToEndpoint("/api/deepinspector/settings/set/", frm_id, function(){
-            // Configuration saved and auto-applied
+         saveFormToEndpoint("/api/deepinspector/settings/set", frm_id, function(){
+            isSubsystemDirty();
          }, true);
          $("#btnSaveDetectionProgress").removeClass("fa fa-spinner fa-pulse");
          $("#btnSaveDetection").blur();
@@ -97,8 +143,8 @@
       $('#btnSaveAdvanced').unbind('click').click(function(){
          $("#btnSaveAdvancedProgress").addClass("fa fa-spinner fa-pulse");
          var frm_id = 'frm_AdvancedSettings';
-         saveFormToEndpoint("/api/deepinspector/settings/set/", frm_id, function(){
-            // Configuration saved and auto-applied
+         saveFormToEndpoint("/api/deepinspector/settings/set", frm_id, function(){
+            isSubsystemDirty();
          }, true);
          $("#btnSaveAdvancedProgress").removeClass("fa fa-spinner fa-pulse");
          $("#btnSaveAdvanced").blur();
