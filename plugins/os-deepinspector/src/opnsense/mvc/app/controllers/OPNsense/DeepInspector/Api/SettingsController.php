@@ -56,10 +56,63 @@ class SettingsController extends ApiMutableModelControllerBase
     {
         $result = ['deepinspector' => []];
         $mdl = $this->getModel();
+        
         if ($mdl !== null) {
-            $result['deepinspector'] = $mdl->getNodes();
+            $nodes = $mdl->getNodes();
+            
+            $result['deepinspector'] = $this->flattenForUI($nodes);
         }
+        
         return $result;
+    }
+
+    /**
+     * Flatten complex model structure to simple key-value pairs for UI consumption
+     *
+     * Transforms the nested model structure returned by getNodes() into a flat
+     * structure that OPNsense's form framework expects. Handles OptionField types
+     * that return complex objects with 'value' and 'selected' properties by
+     * extracting only the selected values as comma-separated strings.
+     *
+     * Example transformation:
+     * Input:  ['mode' => ['passive' => ['selected' => 1], 'active' => ['selected' => 0]]]
+     * Output: ['mode' => 'passive']
+     *
+     * Input:  ['interfaces' => ['lan' => ['selected' => 1], 'wan' => ['selected' => 1]]]
+     * Output: ['interfaces' => 'lan,wan']
+     *
+     * @param array $nodes Raw nested structure from model's getNodes() method
+     * @return array Flattened structure with selected values only
+     */
+    private function flattenForUI($nodes)
+    {
+        $flattened = [];
+        
+        foreach ($nodes as $section => $fields) {
+            if (!is_array($fields)) {
+                $flattened[$section] = $fields;
+                continue;
+            }
+            
+            $flattened[$section] = [];
+            
+            foreach ($fields as $fieldName => $fieldValue) {
+                if (is_array($fieldValue)) {
+                    // Gestisce OptionField con struttura complessa
+                    $selected = [];
+                    foreach ($fieldValue as $optKey => $optData) {
+                        if (isset($optData['selected']) && $optData['selected'] == 1) {
+                            $selected[] = $optKey;
+                        }
+                    }
+                    $flattened[$section][$fieldName] = implode(',', $selected);
+                } else {
+                    $flattened[$section][$fieldName] = $fieldValue;
+                }
+            }
+        }
+        
+        return $flattened;
     }
 
     /**
