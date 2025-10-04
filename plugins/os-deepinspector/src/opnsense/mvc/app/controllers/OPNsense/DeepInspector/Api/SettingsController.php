@@ -58,81 +58,12 @@ class SettingsController extends ApiMutableModelControllerBase
         $mdl = $this->getModel();
         
         if ($mdl !== null) {
-            $nodes = $mdl->getNodes();
-            
-            $result['deepinspector'] = $this->flattenForUI($nodes);
+            $result['deepinspector'] = $mdl->getNodes();
         }
         
         return $result;
     }
-    
-    /**
-     * Flatten complex model structure to simple key-value pairs for UI consumption
-     *
-     * Transforms the nested model structure returned by getNodes() into a flat
-     * structure that OPNsense's form framework expects. Handles OptionField types
-     * that return complex objects with 'value' and 'selected' properties by
-     * extracting only the selected values as comma-separated strings.
-     *
-     * Example transformation:
-     * Input:  ['mode' => ['passive' => ['selected' => 1], 'active' => ['selected' => 0]]]
-     * Output: ['mode' => 'passive']
-     *
-     * Input:  ['interfaces' => ['lan' => ['selected' => 1], 'wan' => ['selected' => 1]]]
-     * Output: ['interfaces' => 'lan,wan']
-     *
-     * @param array $nodes Raw nested structure from model's getNodes() method
-     * @return array Flattened structure with selected values only
-     */
-    private function flattenForUI($nodes)
-    {
-        $flattened = [];
-        
-        foreach ($nodes as $section => $fields) {
-            if (!is_array($fields)) {
-                // Valore scalare, mantienilo così
-                $flattened[$section] = $fields;
-                continue;
-            }
-            
-            $flattened[$section] = [];
-            
-            foreach ($fields as $fieldName => $fieldValue) {
-                if (!is_array($fieldValue)) {
-                    // Campo semplice (stringa, numero, ecc)
-                    $flattened[$section][$fieldName] = $fieldValue;
-                    continue;
-                }
-                
-                // Verifica se è una struttura OptionField
-                $hasSelectedStructure = false;
-                foreach ($fieldValue as $item) {
-                    if (is_array($item) && isset($item['selected'])) {
-                        $hasSelectedStructure = true;
-                        break;
-                    }
-                }
-                
-                if ($hasSelectedStructure) {
-                    // Struttura OptionField con 'selected'
-                    $selected = [];
-                    foreach ($fieldValue as $optKey => $optData) {
-                        if (is_array($optData) && 
-                            isset($optData['selected']) && 
-                            $optData['selected'] == 1) {
-                            $selected[] = $optKey;
-                        }
-                    }
-                    $flattened[$section][$fieldName] = implode(',', $selected);
-                } else {
-                    // Array semplice o struttura diversa, mantieni così
-                    $flattened[$section][$fieldName] = $fieldValue;
-                }
-            }
-        }
-        
-        return $flattened;
-    }
+
 
     /**
      * check if changes to the deepinspector settings were made
