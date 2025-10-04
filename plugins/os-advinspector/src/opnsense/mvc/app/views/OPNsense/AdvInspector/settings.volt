@@ -19,7 +19,7 @@ $(document).ready(function () {
   const $spinner = $("#applySpinner");
   const $label = $("#applyLabel");
 
-  // Load the data into the form
+  // Carica i dati nel form
   const data_get_map = {};
   data_get_map[formId] = getEndpoint;
   mapDataToFormUI(data_get_map).done(function () {
@@ -27,12 +27,12 @@ $(document).ready(function () {
     $('.selectpicker').selectpicker('refresh');
   });
 
-  // Show the Apply button when something is changed
+  // Mostra il pulsante Apply quando si modifica qualcosa
   $(`#${formId}`).on("input change", "input, select, textarea", function () {
     $applyButton.removeClass("d-none");
   });
 
-  // Apply button
+  // Pulsante Apply
   $applyButton.click(function () {
     $spinner.removeClass("d-none");
     $label.text("{{ lang._('Applying...') }}");
@@ -44,7 +44,7 @@ $(document).ready(function () {
         $label.text("{{ lang._('Apply') }}");
         $applyButton.prop("disabled", false).addClass("d-none");
 
-        // “Apply Changes” message in rules style, without button
+        // Messaggio "Apply Changes" stile rules, senza bottone
         if ($("#applyBtnWrapper").length === 0) {
           const $applyBox = $('<div id="applyBtnWrapper" class="mt-3">').append(
             $('<div class="alert alert-info" role="alert">')

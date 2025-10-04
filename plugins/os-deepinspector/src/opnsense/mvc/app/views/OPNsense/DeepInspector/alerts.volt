@@ -338,8 +338,7 @@ function showAlertDetails(alertId) {
     
     $('#alertDetailsModal').modal('show');
     
-    // USA PARAMETRO GET INVECE DI PATH PARAMETER
-    ajaxCall("/api/deepinspector/alerts/threatDetails", {id: alertId}, function(data) {
+    ajaxCall(`/api/deepinspector/alerts/threatDetails/${alertId}`, {}, function(data) {
         if (data.status === 'ok') {
             const alert = data.data;
             
@@ -351,7 +350,7 @@ function showAlertDetails(alertId) {
                             <table class="table table-sm">
                                 <tr>
                                     <td><strong>{{ lang._('Alert ID') }}:</strong></td>
-                                    <td><code>${alert.id}</code></td>
+                                    <td>${alert.id}</td>
                                 </tr>
                                 <tr>
                                     <td><strong>{{ lang._('Timestamp') }}:</strong></td>
@@ -417,27 +416,9 @@ function showAlertDetails(alertId) {
                     
                     <div class="row">
                         <div class="col-md-12">
-                            <h6>{{ lang._('Detection Details') }}</h6>
-                            <table class="table table-sm">
-                                <tr>
-                                    <td><strong>{{ lang._('Detection Method') }}:</strong></td>
-                                    <td>${alert.detection_method || alert.method || 'Unknown'}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>{{ lang._('Pattern') }}:</strong></td>
-                                    <td><code>${alert.pattern || 'N/A'}</code></td>
-                                </tr>
-                                <tr>
-                                    <td><strong>{{ lang._('Industrial Context') }}:</strong></td>
-                                    <td>${alert.industrial_context ? 'Yes' : 'No'}</td>
-                                </tr>
-                                ${alert.industrial_protocol ? `
-                                <tr>
-                                    <td><strong>{{ lang._('Industrial Protocol') }}:</strong></td>
-                                    <td>${alert.industrial_protocol}</td>
-                                </tr>
-                                ` : ''}
-                            </table>
+                            <h6>{{ lang._('Detection Method') }}</h6>
+                            <p><strong>{{ lang._('Method') }}:</strong> ${alert.method || 'Unknown'}</p>
+                            <p><strong>{{ lang._('Pattern') }}:</strong> <code>${alert.pattern || 'N/A'}</code></p>
                         </div>
                     </div>
                     
@@ -445,7 +426,7 @@ function showAlertDetails(alertId) {
                     <div class="row">
                         <div class="col-md-12">
                             <h6>{{ lang._('Packet Data') }}</h6>
-                            <pre class="packet-data" style="background: #f5f5f5; padding: 10px; border-radius: 4px; max-height: 200px; overflow-y: auto;"><code>${alert.packet_data}</code></pre>
+                            <pre class="packet-data"><code>${alert.packet_data}</code></pre>
                         </div>
                     </div>
                     ` : ''}

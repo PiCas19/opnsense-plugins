@@ -16,8 +16,7 @@
     "python3": ">=3.8",
     "py38-psutil": "*",
     "py38-dpkt": "*",
-    "pcapy": "*",
-    "os-validationcore": "*"
+    "pcapy": "*"
   },
   "product_requirements": {
     "memory": ">=1GB",

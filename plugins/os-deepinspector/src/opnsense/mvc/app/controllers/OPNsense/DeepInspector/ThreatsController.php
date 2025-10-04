@@ -1,55 +1,12 @@
 <?php
-/*
- * Copyright (C) 2025 OPNsense Project
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
- * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
- * AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
- * OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- */
 
 namespace OPNsense\DeepInspector;
 
-use OPNsense\Base\IndexController;
-
 /**
- * ThreatsController
- *
- * Manages the Threats page of the DeepInspector plugin, displaying alerts
- * and analysis related to detected threats. This controller renders the threats
- * view, which may include details on malware, intrusions, or other security events
- * detected by the DPI engine.
- *
- * @package OPNsense\DeepInspector
+ * Threats Controller - Threat analysis and alerts
  */
-class ThreatsController extends IndexController
+class ThreatsController extends \OPNsense\Base\IndexController
 {
-    /**
-     * Renders the DeepInspector Threats page
-     *
-     * Sets the page title and selects the threats view template.
-     * Threat data is expected to be handled by the view or associated JavaScript,
-     * potentially linked to Settings::detection settings.
-     *
-     * @throws \Exception If the view template cannot be loaded
-     */
     public function indexAction()
     {
         $this->view->title = gettext('Deep Packet Inspector - Threats');

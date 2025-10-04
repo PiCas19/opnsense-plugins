@@ -1,138 +1,18 @@
 <?php
-/*
- * Copyright (C) 2025 OPNsense Project
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
- * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
- * AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
- * OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- */
-
 namespace OPNsense\DeepInspector\Api;
 
 use OPNsense\Base\ApiControllerBase;
+use OPNsense\Core\Backend;
 
 /**
  * Class LogsController
- *
- * Manages log retrieval, export, and clearing operations for the DeepInspector service
- * within the OPNsense framework. Provides API endpoints for listing logs with filtering,
- * retrieving log details by ID, exporting logs in various formats, and clearing log files.
- * Supports multiple log formats (JSON, Python logging, daemon, syslog) and handles pagination
- * and filtering for efficient log management.
- *
- * Key Features:
- * - Log listing with filters for level, source, time range, and search
- * - Detailed log entry retrieval by ID
- * - Log export in text or JSON format
- * - Log file clearing with backup functionality
- * - Robust error handling with logging of parsing errors
- *
- * @package OPNsense\DeepInspector\Api
- * @author Pierpaolo Casati
+ * @package OPNsense\DeepInspector
  */
 class LogsController extends ApiControllerBase
 {
     /**
-     * Retrieve logs with filtering
-     *
-     * Fetches log entries from DeepInspector log files, applying filters for level, source,
-     * time range, and search terms. Returns paginated results with statistics and metadata.
-     * Handles multiple log file formats and ensures memory-efficient processing by limiting
-     * the number of processed lines.
-     *
-     * @api GET /api/deepinspector/logs/list
-     *
-     * Request Parameters:
-     * - level: Log level filter (trace, debug, info, warning, error, critical, all) [default: all]
-     * - source: Log source filter (engine, daemon, detection, alerts, threats, latency, all) [default: all]
-     * - timeRange: Time range filter (1h, 6h, 24h, 7d, 30d) [default: 24h]
-     * - search: Search term for log messages [default: empty]
-     * - page: Page number for pagination [default: 1]
-     * - limit: Number of logs per page (1-1000) [default: 100]
-     *
-     * @return array{status: string, data?: array, statistics?: array, info?: array, message?: string} Filtered logs and metadata
-     *
-     * Response Format:
-     * - status: "ok" for successful execution, "error" if an error occurs
-     * - data: Array of log entries
-     * - statistics: Counts of logs by level
-     * - info: Metadata including count, size, last update, and pagination info
-     * - message: Error message if the operation fails
-     *
-     * @example
-     * GET /api/deepinspector/logs/list?level=error&source=alerts&timeRange=24h&page=1&limit=50
-     * Response: {
-     *   "status": "ok",
-     *   "data": [
-     *     {
-     *       "id": "abc123",
-     *       "timestamp": "2025-09-26T19:58:00+02:00",
-     *       "level": "error",
-     *       "source": "alerts",
-     *       "message": "Threat detected"
-     *     }
-     *   ],
-     *   "statistics": {
-     *     "trace": 0,
-     *     "debug": 0,
-     *     "info": 0,
-     *     "warning": 0,
-     *     "error": 1,
-     *     "critical": 0
-     *   },
-     *   "info": {
-     *     "count": 1,
-     *     "size": 123456,
-     *     "lastUpdated": "2025-09-26T19:58:00+02:00",
-     *     "page": 1,
-     *     "limit": 50,
-     *     "totalPages": 1
-     *   }
-     * }
-     *
-     * @example
-     * GET /api/deepinspector/logs/list
-     * Response: {
-     *   "status": "error",
-     *   "message": "Error retrieving logs: No log files found",
-     *   "data": [],
-     *   "statistics": {
-     *     "trace": 0,
-     *     "debug": 0,
-     *     "info": 0,
-     *     "warning": 0,
-     *     "error": 0,
-     *     "critical": 0
-     *   },
-     *   "info": {
-     *     "count": 0,
-     *     "size": 0,
-     *     "lastUpdated": "2025-09-26T19:58:00+02:00",
-     *     "page": 1,
-     *     "limit": 100,
-     *     "totalPages": 1
-     *   }
-     * }
-     *
-     * @security Ensure that log file paths are restricted to predefined locations to prevent unauthorized file access.
+     * Get logs list with filtering
+     * @return array logs list
      */
     public function listAction()
     {
@@ -279,50 +159,9 @@ class LogsController extends ApiControllerBase
     }
     
     /**
-     * Retrieve details of a specific log entry by ID
-     *
-     * Fetches detailed information about a log entry identified by its ID from the log files.
-     * Searches through all specified log files to locate the matching entry.
-     *
-     * @api GET /api/deepinspector/logs/details/{logId}
-     *
-     * @param string $logId Log entry identifier
-     * @return array{status: string, data?: array, message?: string} Log details
-     *
-     * Response Format:
-     * - status: "ok" if the log entry is found, "failed" otherwise
-     * - data: Detailed log entry information if found
-     * - message: Descriptive message for failure cases
-     *
-     * @example
-     * GET /api/deepinspector/logs/details/abc123
-     * Response: {
-     *   "status": "ok",
-     *   "data": {
-     *     "id": "abc123",
-     *     "timestamp": "2025-09-26T19:58:00+02:00",
-     *     "level": "error",
-     *     "source": "alerts",
-     *     "message": "Threat detected",
-     *     "details": {"threat_type": "malware"},
-     *     "context": "{\"threat_type\": \"malware\"}",
-     *     "thread": null,
-     *     "process": "deepinspector",
-     *     "module": null,
-     *     "function": null,
-     *     "line": null,
-     *     "stack_trace": null
-     *   }
-     * }
-     *
-     * @example
-     * GET /api/deepinspector/logs/details/abc123
-     * Response: {
-     *   "status": "failed",
-     *   "message": "Log entry not found"
-     * }
-     *
-     * @security Ensure that logId is properly sanitized to prevent injection attacks.
+     * Get log entry details by ID
+     * @param string $logId log identifier
+     * @return array log details
      */
     public function detailsAction($logId = null)
     {
@@ -393,44 +232,8 @@ class LogsController extends ApiControllerBase
     }
     
     /**
-     * Export filtered logs in text or JSON format
-     *
-     * Exports log entries based on specified filters, in either text or JSON format.
-     * Supports the same filters as listAction for consistency.
-     *
-     * @api GET /api/deepinspector/logs/export
-     *
-     * Request Parameters:
-     * - level: Log level filter (trace, debug, info, warning, error, critical, all) [default: all]
-     * - source: Log source filter (engine, daemon, detection, alerts, threats, all) [default: all]
-     * - timeRange: Time range filter (1h, 6h, 24h, 7d, 30d) [default: 24h]
-     * - search: Search term for log messages [default: empty]
-     * - format: Export format (txt, json) [default: txt]
-     *
-     * @return array{status: string, data?: string, filename?: string, message?: string} Exported log data
-     *
-     * Response Format:
-     * - status: "ok" if export is successful, "failed" otherwise
-     * - data: Exported log data in the requested format
-     * - filename: Suggested filename for the exported data
-     * - message: Error message if the operation fails
-     *
-     * @example
-     * GET /api/deepinspector/logs/export?format=json
-     * Response: {
-     *   "status": "ok",
-     *   "data": "[{\"id\":\"abc123\",\"timestamp\":\"2025-09-26T19:58:00+02:00\",\"level\":\"error\",\"source\":\"alerts\",\"message\":\"Threat detected\"}]",
-     *   "filename": "deepinspector_logs_2025-09-26_19-58-00.json"
-     * }
-     *
-     * @example
-     * GET /api/deepinspector/logs/export
-     * Response: {
-     *   "status": "failed",
-     *   "message": "Error exporting logs: No log files found"
-     * }
-     *
-     * @security Ensure that exported data is sanitized to prevent injection of malicious content.
+     * Export logs
+     * @return array export result
      */
     public function exportAction()
     {
@@ -509,36 +312,8 @@ class LogsController extends ApiControllerBase
     }
     
     /**
-     * Clear all DeepInspector log files
-     *
-     * Clears all specified log files after creating backups. Reports the number of cleared files
-     * and any errors encountered during the process.
-     *
-     * @api POST /api/deepinspector/logs/clear
-     *
-     * @return array{status: string, message: string, warnings?: array} Clear operation result
-     *
-     * Response Format:
-     * - status: "ok" if at least one log file was cleared, "failed" otherwise
-     * - message: Descriptive message of the operation
-     * - warnings: Array of warnings for individual file failures
-     *
-     * @example
-     * POST /api/deepinspector/logs/clear
-     * Response: {
-     *   "status": "ok",
-     *   "message": "Cleared 5 log files",
-     *   "warnings": ["Failed to backup: engine.log"]
-     * }
-     *
-     * @example
-     * POST /api/deepinspector/logs/clear
-     * Response: {
-     *   "status": "failed",
-     *   "message": "No log files were cleared. Errors: Failed to backup: engine.log"
-     * }
-     *
-     * @security Ensure that only authorized users can clear log files to prevent data loss.
+     * Clear logs
+     * @return array result
      */
     public function clearAction()
     {
@@ -599,14 +374,10 @@ class LogsController extends ApiControllerBase
     
     /**
      * Parse a log line into structured data
-     *
-     * Parses a log line based on its format (JSON, Python logging, daemon, syslog) and returns
-     * a structured array. Returns null if parsing fails or if the line is empty.
-     *
-     * @param string $line Log line content
-     * @param string $source Log source (e.g., engine, daemon)
-     * @param int $lineNum Line number for ID generation
-     * @return array|null Parsed log entry or null if parsing fails
+     * @param string $line log line
+     * @param string $source log source
+     * @param int $lineNum line number
+     * @return array|null parsed log entry
      */
     private function parseLogLine($line, $source, $lineNum = 0)
     {
@@ -712,12 +483,8 @@ class LogsController extends ApiControllerBase
     
     /**
      * Determine log level from JSON data
-     *
-     * Extracts the log level from JSON log data based on severity, level, or threat type.
-     * Uses a fallback level of 'info' if no specific level is found.
-     *
-     * @param array $jsonData JSON log data
-     * @return string Log level (trace, debug, info, warning, error, critical)
+     * @param array $jsonData
+     * @return string
      */
     private function determineLevelFromJson($jsonData)
     {
@@ -738,12 +505,8 @@ class LogsController extends ApiControllerBase
     
     /**
      * Extract message from JSON data
-     *
-     * Extracts the message content from JSON log data based on description, message, or threat type.
-     * Uses a fallback message if none is found.
-     *
-     * @param array $jsonData JSON log data
-     * @return string Log message
+     * @param array $jsonData
+     * @return string
      */
     private function extractMessageFromJson($jsonData)
     {
@@ -763,13 +526,9 @@ class LogsController extends ApiControllerBase
     }
     
     /**
-     * Determine log level from message content
-     *
-     * Infers the log level from the message content based on keywords.
-     * Uses a fallback level of 'info' if no specific level is inferred.
-     *
-     * @param string $message Log message
-     * @return string Log level (trace, debug, info, warning, error, critical)
+     * Determine level from message content
+     * @param string $message
+     * @return string
      */
     private function determineLevelFromMessage($message)
     {
@@ -800,12 +559,8 @@ class LogsController extends ApiControllerBase
     
     /**
      * Format timestamp to ISO 8601
-     *
-     * Converts a timestamp string to ISO 8601 format. Uses the current time as a fallback
-     * if parsing fails.
-     *
-     * @param string $timestamp Timestamp string
-     * @return string ISO 8601 formatted timestamp
+     * @param string $timestamp
+     * @return string
      */
     private function formatTimestamp($timestamp)
     {
@@ -818,17 +573,13 @@ class LogsController extends ApiControllerBase
     }
     
     /**
-     * Check if a log entry matches the specified filters
-     *
-     * Verifies if a log entry satisfies the level, source, search, and time filters.
-     * Returns false if any filter does not match or if an error occurs.
-     *
-     * @param array $logEntry Log entry data
-     * @param string $levelFilter Level filter (trace, debug, info, warning, error, critical, all)
-     * @param string $sourceFilter Source filter (engine, daemon, detection, alerts, threats, latency, all)
-     * @param string $searchFilter Search term
-     * @param int $timeLimit Timestamp limit for time range filter
-     * @return bool True if the log entry matches all filters
+     * Check if log entry matches filters
+     * @param array $logEntry log entry
+     * @param string $levelFilter level filter
+     * @param string $sourceFilter source filter
+     * @param string $searchFilter search filter
+     * @param int $timeLimit time limit
+     * @return bool true if matches
      */
     private function matchesLogFilters($logEntry, $levelFilter, $sourceFilter, $searchFilter, $timeLimit)
     {
@@ -871,13 +622,9 @@ class LogsController extends ApiControllerBase
     }
     
     /**
-     * Calculate the time limit for log filtering
-     *
-     * Converts a time range filter (e.g., 1h, 24h) to a Unix timestamp limit.
-     * Returns 0 for invalid or unknown filters to include all logs.
-     *
-     * @param string $timeFilter Time range filter (1h, 6h, 24h, 7d, 30d)
-     * @return int Unix timestamp limit
+     * Calculate time limit based on filter
+     * @param string $timeFilter time filter
+     * @return int timestamp limit
      */
     private function calculateTimeLimit($timeFilter)
     {
@@ -900,12 +647,9 @@ class LogsController extends ApiControllerBase
     }
     
     /**
-     * Calculate the total size of log files
-     *
-     * Sums the sizes of all specified log files in bytes. Ignores inaccessible files.
-     *
-     * @param array $logFiles Array of log file paths
-     * @return int Total size in bytes
+     * Get total size of log files
+     * @param array $logFiles array of log file paths
+     * @return int total size in bytes
      */
     private function getTotalLogSize($logFiles)
     {
@@ -928,13 +672,9 @@ class LogsController extends ApiControllerBase
     }
     
     /**
-     * Get the last update time of log files
-     *
-     * Returns the most recent modification time of the specified log files in ISO 8601 format.
-     * Uses the current time as a fallback if no files are available.
-     *
-     * @param array $logFiles Array of log file paths
-     * @return string ISO 8601 formatted timestamp
+     * Get last update time of log files
+     * @param array $logFiles array of log file paths
+     * @return string timestamp
      */
     private function getLastLogUpdate($logFiles)
     {
@@ -957,13 +697,9 @@ class LogsController extends ApiControllerBase
     }
     
     /**
-     * Generate text format from log entries
-     *
-     * Converts log entries into a formatted text string for export.
-     * Includes a header with metadata and formatted log entries.
-     *
-     * @param array $logs Array of log entries
-     * @return string Formatted text string
+     * Generate text format from logs
+     * @param array $logs log entries
+     * @return string formatted log text
      */
     private function generateLogText($logs)
     {

@@ -1,5 +1,0 @@
-OPNsense Validation Core Library
-
-This package provides a shared validation library for OPNsense plugins, including utilities for network, rule, protocol, and alert filter validation. It is used by plugins such as os-advinspector and os-deepinspector to ensure robust configuration and input validation.
-
-WWW: https://git.consoli.ch/students/20250400_lavsem/moretto/

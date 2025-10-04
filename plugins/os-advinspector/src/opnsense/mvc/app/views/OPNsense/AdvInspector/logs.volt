@@ -364,7 +364,7 @@ body[data-log-type="alerts"] #logViewMode {
   </div>
 
   <!-- Console View -->
-  <pre id="logContent" style="display: none;">{{ lang._('Loading logs...') }}</pre>
+  <pre id="logContent" style="display: none;"></pre>
 
   <!-- Table View -->
   <table id="logTable" class="table table-condensed table-hover table-striped" data-toggle="bootgrid" style="display: none;">
@@ -437,11 +437,12 @@ function loadLogs() {
           return `[${log.timestamp || '-'}] ${log.protocol?.toUpperCase() || ''} ${log.src || '-'} → ${log.dst || '-'} : ${log.reason || ''}`;
         });
         $console.text(lines.join('\n'));
-        
+
         // Auto-scroll to bottom
         $console.scrollTop($console[0].scrollHeight);
       } else {
-        $console.text("{{ lang._('No available logs.') }}");
+        // Show empty message only if no real data exists
+        $console.text("");
       }
 
     } else if (mode === 'table') {
@@ -472,9 +473,10 @@ function loadLogs() {
   }).fail(function() {
     // Remove loading state on error
     $button.removeClass('loading').prop("disabled", false);
-    
+
     if (mode === 'console') {
-      $console.show().text("{{ lang._('Error loading logs. Please try again.') }}");
+      // Show empty on error (no fallback message)
+      $console.show().text("");
     }
   });
 }

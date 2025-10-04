@@ -23,7 +23,7 @@
             </mode>
             
            <interfaces type="InterfaceField">
-                <Required>N</Required>
+                <Required>Y</Required>
                 <Multiple>Y</Multiple>
                 <style>selectpicker</style>    
                 <asList>N</asList>

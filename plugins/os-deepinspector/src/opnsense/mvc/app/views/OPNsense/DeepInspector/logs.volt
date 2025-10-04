@@ -2,6 +2,7 @@
 
 <div class="content-box">
     <div class="logs-header">
+        <h2>{{ lang._('Deep Packet Inspector - Logs') }}</h2>
         <div class="logs-controls">
             <button class="btn btn-secondary" id="refreshLogs">
                 <i class="fa fa-refresh"></i> {{ lang._('Refresh') }}
