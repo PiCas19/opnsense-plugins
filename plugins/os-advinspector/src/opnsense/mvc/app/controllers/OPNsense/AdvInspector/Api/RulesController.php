@@ -1,5 +1,4 @@
 <?php
-
 /*
  * Copyright (C) 2025 Pierpaolo Casati
  * All rights reserved.
