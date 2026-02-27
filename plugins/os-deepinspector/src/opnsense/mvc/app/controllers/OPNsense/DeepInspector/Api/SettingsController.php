@@ -124,75 +124,29 @@ class SettingsController extends ApiMutableModelControllerBase
      */
     public function statsAction()
     {
-        $result = ["status" => "ok"];
-        
+        $result = ["status" => "ok", "data" => []];
+
         $statsFile = '/var/log/deepinspector/stats.json';
         $alertsFile = '/var/log/deepinspector/alerts.log';
-        
-        // Load statistics from file
+
+        // Load real statistics from engine stats file only
         if (file_exists($statsFile)) {
             $statsData = @file_get_contents($statsFile);
             if ($statsData !== false) {
                 $decodedStats = @json_decode($statsData, true);
                 if ($decodedStats !== null) {
                     $result['data'] = $decodedStats;
-                } else {
-                    $result['data'] = $this->getDefaultStats();
                 }
-            } else {
-                $result['data'] = $this->getDefaultStats();
             }
-        } else {
-            $result['data'] = $this->getDefaultStats();
         }
-        
+
         // Load recent threats from alerts log
         $result['data']['recent_threats'] = $this->getRecentThreats($alertsFile);
-        
+
         // Add system information
         $result['data']['system_info'] = $this->getSystemInfo();
-        
+
         return $result;
-    }
-    
-    /**
-     * Get default statistics structure
-     * @return array default stats
-     */
-    private function getDefaultStats()
-    {
-        return [
-            'packets_analyzed' => 0,
-            'threats_detected' => 0,
-            'false_positives' => 0,
-            'critical_alerts' => 0,
-            'protocols_analyzed' => [
-                'TCP' => 0,
-                'UDP' => 0,
-                'ICMP' => 0
-            ],
-            'threat_types' => [
-                'malware' => 0,
-                'command_injection' => 0,
-                'sql_injection' => 0,
-                'script_injection' => 0,
-                'crypto_mining' => 0,
-                'industrial_threat' => 0
-            ],
-            'performance' => [
-                'cpu_usage' => 0,
-                'memory_usage' => 0,
-                'throughput_mbps' => 0,
-                'latency_avg' => 0
-            ],
-            'industrial_stats' => [
-                'modbus_packets' => 0,
-                'dnp3_packets' => 0,
-                'opcua_packets' => 0,
-                'scada_alerts' => 0
-            ],
-            'timestamp' => date('c')
-        ];
     }
     
     /**
@@ -329,7 +283,7 @@ class SettingsController extends ApiMutableModelControllerBase
                         $info['signatures_version'] = $sigVersion;
                     }
                 } else {
-                    $info['signatures_version'] = date('Y-m-d'); // Current date as default
+                    $info['signatures_version'] = 'N/A';
                 }
             }
         }
