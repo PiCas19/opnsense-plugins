@@ -404,8 +404,19 @@ class DeepInspectorEngine:
             re.compile(r'\\x4d\\x5a', re.IGNORECASE),
         ]
         self.threat_patterns['command_injection'] = [
-            re.compile(r'[\;\|&`\$\(\)].*?(ls|cat|wget|curl|nc|netcat)', re.IGNORECASE),
-            re.compile(r'(cmd\.exe|powershell|bash|sh).*?[\;\|&]', re.IGNORECASE),
+            # Shell chaining with common recon/exploit commands
+            re.compile(r'[\;\|&`][ \t]*(ls|cat|wget|curl|nc|netcat|whoami|id|uname|passwd|shadow|hostname|ifconfig|ipconfig|nmap|ping)', re.IGNORECASE),
+            # Direct shell binary references
+            re.compile(r'(/bin/|/usr/bin/)?(bash|sh|zsh|csh|ksh|tcsh|dash)[\s\"\'\&\;\|]', re.IGNORECASE),
+            # Windows shells
+            re.compile(r'(cmd\.exe|powershell|wscript|cscript)[\s/\-]', re.IGNORECASE),
+            # Command substitution: $(cmd) or `cmd`
+            re.compile(r'\$\([^\)]{1,100}\)|`[^`]{1,100}`', re.IGNORECASE),
+            # PHP/server-side execution functions
+            re.compile(r'(system|exec|popen|passthru|shell_exec|proc_open)\s*\(', re.IGNORECASE),
+            # Path traversal into shell configs
+            re.compile(r'\.\./\.\./\.\./etc/(passwd|shadow|hosts)', re.IGNORECASE),
+            # Hex-encoded payloads with exec keywords
             re.compile(r'\\x[0-9a-f]{2}.*?(system|exec|eval)', re.IGNORECASE),
         ]
         self.threat_patterns['sql_injection'] = [
@@ -774,42 +785,17 @@ class DeepInspectorEngine:
     def analyze_http_payload(self, payload):
         """Analyze HTTP payload for threats.
 
+        Performs URL decoding before pattern matching to catch percent-encoded attacks.
+
         Args:
             payload (bytes): HTTP packet payload.
 
         Returns:
             list: List of detected threats.
         """
-        threats = []
-        try:
-            payload_str = payload.decode('utf-8', errors='ignore')
-            for pattern in self.threat_patterns['command_injection']:
-                if pattern.search(payload_str):
-                    threats.append({
-                        'type': 'command_injection',
-                        'severity': 'high',
-                        'description': 'Command injection attempt detected in HTTP',
-                        'pattern': pattern.pattern
-                    })
-            for pattern in self.threat_patterns['sql_injection']:
-                if pattern.search(payload_str):
-                    threats.append({
-                        'type': 'sql_injection',
-                        'severity': 'high',
-                        'description': 'SQL injection attempt detected in HTTP',
-                        'pattern': pattern.pattern
-                    })
-            for pattern in self.threat_patterns['script_injection']:
-                if pattern.search(payload_str):
-                    threats.append({
-                        'type': 'script_injection',
-                        'severity': 'medium',
-                        'description': 'Script injection attempt detected in HTTP',
-                        'pattern': pattern.pattern
-                    })
-        except Exception as e:
-            self.logger.error(f"Error analyzing HTTP payload: {e}")
-        return threats
+        # analyze_generic_payload already covers injection patterns with URL decoding;
+        # this method is kept for protocol-specific context tagging on port 80.
+        return []
 
     def analyze_https_payload(self, payload):
         """Analyze HTTPS payload for threats (limited without decryption).
@@ -886,33 +872,83 @@ class DeepInspectorEngine:
         return threats
 
     def analyze_generic_payload(self, payload):
-        """Analyze generic payload for malware and crypto-mining signatures.
+        """Analyze generic payload for threats across all protocols and ports.
+
+        Checks malware signatures, crypto-mining, command injection, SQL injection,
+        and script injection on both raw and URL-decoded payload to catch encoded attacks.
 
         Args:
             payload (bytes): Packet payload.
 
         Returns:
-            list: List of detected threats.
+            list: List of detected threats (deduplicated by type).
         """
         threats = []
+        seen_types = set()
+
+        def add_threat(t):
+            if t['type'] not in seen_types:
+                seen_types.add(t['type'])
+                threats.append(t)
+
         try:
             payload_str = payload.decode('utf-8', errors='ignore')
-            for pattern in self.threat_patterns['malware_signatures']:
-                if pattern.search(payload_str):
-                    threats.append({
-                        'type': 'malware',
-                        'severity': 'critical',
-                        'description': 'Malware signature detected',
-                        'pattern': pattern.pattern
-                    })
-            for pattern in self.threat_patterns['crypto_mining']:
-                if pattern.search(payload_str):
-                    threats.append({
-                        'type': 'crypto_mining',
-                        'severity': 'medium',
-                        'description': 'Cryptocurrency mining activity detected',
-                        'pattern': pattern.pattern
-                    })
+
+            # URL-decode to catch percent-encoded attacks (e.g. %27 for ', %20 for space)
+            try:
+                from urllib.parse import unquote
+                payload_decoded = unquote(payload_str)
+            except Exception:
+                payload_decoded = payload_str
+
+            texts = [payload_str] if payload_str == payload_decoded else [payload_str, payload_decoded]
+
+            for text in texts:
+                for pattern in self.threat_patterns['malware_signatures']:
+                    if pattern.search(text):
+                        add_threat({
+                            'type': 'malware',
+                            'severity': 'critical',
+                            'description': 'Malware signature detected in payload',
+                            'pattern': pattern.pattern
+                        })
+
+                for pattern in self.threat_patterns['crypto_mining']:
+                    if pattern.search(text):
+                        add_threat({
+                            'type': 'crypto_mining',
+                            'severity': 'medium',
+                            'description': 'Cryptocurrency mining activity detected',
+                            'pattern': pattern.pattern
+                        })
+
+                for pattern in self.threat_patterns['command_injection']:
+                    if pattern.search(text):
+                        add_threat({
+                            'type': 'command_injection',
+                            'severity': 'high',
+                            'description': 'Command injection attempt detected in payload',
+                            'pattern': pattern.pattern
+                        })
+
+                for pattern in self.threat_patterns['sql_injection']:
+                    if pattern.search(text):
+                        add_threat({
+                            'type': 'sql_injection',
+                            'severity': 'high',
+                            'description': 'SQL injection attempt detected in payload',
+                            'pattern': pattern.pattern
+                        })
+
+                for pattern in self.threat_patterns['script_injection']:
+                    if pattern.search(text):
+                        add_threat({
+                            'type': 'script_injection',
+                            'severity': 'medium',
+                            'description': 'Script injection attempt detected in payload',
+                            'pattern': pattern.pattern
+                        })
+
         except Exception as e:
             self.logger.error(f"Error analyzing generic payload: {e}")
         return threats
@@ -1030,24 +1066,44 @@ class DeepInspectorEngine:
         return protocol_map.get(protocol_number, f'Protocol-{protocol_number}')
 
     def save_stats(self):
-        """Save engine statistics to a file."""
+        """Save engine statistics to a file.
+
+        Preserves in-memory packet/threat counters accumulated during capture.
+        Only enriches performance and industrial fields from external collectors.
+        Converts defaultdict objects to plain dicts for clean JSON serialization.
+        """
         try:
+            # Enrich industrial stats from collector (does not overwrite capture counters)
             industrial_stats = self.industrial_collector.get_industrial_stats()
             if 'error' not in industrial_stats:
                 self.stats['industrial_stats'].update(industrial_stats)
+
+            # Enrich latency average from collector
             latency_metrics = self.latency_collector.get_latency_metrics()
             if 'error' not in latency_metrics:
                 self.stats['performance']['latency_avg'] = latency_metrics.get('avg_latency', 0)
+
+            # Enrich CPU and memory from system metrics (psutil)
             system_metrics = self.performance_aggregator.get_metrics()
             if 'error' not in system_metrics:
-                self.stats['performance']['cpu_usage'] = system_metrics.get('system', {}).get('cpu', {}).get('usage_percent', 0)
-                self.stats['performance']['memory_usage'] = system_metrics.get('system', {}).get('memory', {}).get('virtual', {}).get('percent_used', 0)
-            dpi_stats = self.dpi_aggregator.get_stats()
-            if 'error' not in dpi_stats:
-                self.stats.update(dpi_stats)
+                self.stats['performance']['cpu_usage'] = (
+                    system_metrics.get('system', {}).get('cpu', {}).get('usage_percent', 0)
+                )
+                self.stats['performance']['memory_usage'] = (
+                    system_metrics.get('system', {}).get('memory', {}).get('virtual', {}).get('percent_used', 0)
+                )
+
             self.stats['timestamp'] = datetime.now().isoformat()
+
+            # Build serializable copy — convert defaultdicts to plain dicts
+            stats_copy = dict(self.stats)
+            stats_copy['protocols_analyzed'] = dict(self.stats['protocols_analyzed'])
+            stats_copy['threat_types'] = dict(self.stats['threat_types'])
+            stats_copy['detection_methods'] = dict(self.stats['detection_methods'])
+
             with open(STATS_FILE, 'w') as f:
-                json.dump(self.stats, f, indent=2, default=str)
+                json.dump(stats_copy, f, indent=2)
+
         except Exception as e:
             self.logger.error(f"Error saving stats: {e}")
 
