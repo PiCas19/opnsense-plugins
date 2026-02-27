@@ -419,8 +419,8 @@ class LogsController extends ApiControllerBase
                 return null;
             }
             
-            // Try to parse JSON log entries first (for detection, alerts, threats logs)
-            if (($source === 'detection' || $source === 'alerts' || $source === 'threats') && 
+            // Try to parse JSON log entries first (for detection, alerts, threats, latency logs)
+            if (($source === 'detection' || $source === 'alerts' || $source === 'threats' || $source === 'latency') &&
                 (strpos($line, '{') === 0)) {
                 try {
                     $jsonData = json_decode($line, true);
@@ -521,18 +521,23 @@ class LogsController extends ApiControllerBase
      */
     private function determineLevelFromJson($jsonData)
     {
+        // Latency entry: warning if threshold exceeded
+        if (isset($jsonData['latency'])) {
+            return (isset($jsonData['threshold_exceeded']) && $jsonData['threshold_exceeded']) ? 'warning' : 'info';
+        }
+
         if (isset($jsonData['severity'])) {
             return strtolower($jsonData['severity']);
         }
-        
+
         if (isset($jsonData['level'])) {
             return strtolower($jsonData['level']);
         }
-        
+
         if (isset($jsonData['threat_type'])) {
             return 'warning';
         }
-        
+
         return 'info';
     }
     
@@ -543,18 +548,26 @@ class LogsController extends ApiControllerBase
      */
     private function extractMessageFromJson($jsonData)
     {
+        // Latency entry
+        if (isset($jsonData['latency'])) {
+            $threshold = (isset($jsonData['threshold_exceeded']) && $jsonData['threshold_exceeded'])
+                ? ' — threshold exceeded' : '';
+            $iface = isset($jsonData['interface']) ? ' on ' . $jsonData['interface'] : '';
+            return sprintf('Latency %.2f ms%s%s', (float)$jsonData['latency'], $iface, $threshold);
+        }
+
         if (isset($jsonData['description'])) {
             return $jsonData['description'];
         }
-        
+
         if (isset($jsonData['message'])) {
             return $jsonData['message'];
         }
-        
+
         if (isset($jsonData['threat_type'])) {
             return "Threat detected: " . $jsonData['threat_type'];
         }
-        
+
         return "Log entry";
     }
     

@@ -715,36 +715,38 @@ function showIndustrialThreatDetails(alertId) {
     });
 }
 
-function isolateIndustrialDevice(threat) {
-    if (confirm(`{{ lang._('Are you sure you want to isolate the industrial device') }} ${threat.source_ip}? {{ lang._('This may impact production.') }}`)) {
-        ajaxCall("/api/deepinspector/service/isolateDevice", {
-            ip: threat.source_ip,
-            protocol: threat.industrial_protocol
-        }, function(data) {
+function blockSourceIP(sourceIP) {
+    if (confirm(`{{ lang._('Are you sure you want to block IP') }} ${sourceIP}?`)) {
+        ajaxCall("/api/deepinspector/service/blockIP", {ip: sourceIP}, function(data) {
             if (data.status === 'ok') {
-                showNotification('{{ lang._("Industrial device isolated successfully") }}', 'success');
+                showNotification(`IP ${sourceIP} {{ lang._('blocked successfully') }}`, 'success');
                 loadAlerts();
             } else {
-                showNotification('{{ lang._("Failed to isolate industrial device") }}', 'error');
+                showNotification(`{{ lang._('Failed to block IP') }}: ${data.message || 'Unknown error'}`, 'error');
             }
         });
     }
 }
 
-function emergencyShutdown(threat) {
-    if (confirm(`{{ lang._('EMERGENCY SHUTDOWN: Are you sure you want to initiate emergency shutdown procedures?') }} {{ lang._('This will immediately stop affected systems.') }}`)) {
-        ajaxCall("/api/deepinspector/service/emergencyShutdown", {
-            threat_id: threat.id,
-            target_system: threat.target_system
-        }, function(data) {
+function whitelistSourceIP(sourceIP) {
+    if (confirm(`{{ lang._('Are you sure you want to whitelist IP') }} ${sourceIP}?`)) {
+        ajaxCall("/api/deepinspector/service/whitelistIP", {ip: sourceIP}, function(data) {
             if (data.status === 'ok') {
-                showNotification('{{ lang._("Emergency shutdown initiated") }}', 'success');
+                showNotification(`IP ${sourceIP} {{ lang._('whitelisted successfully') }}`, 'success');
                 loadAlerts();
             } else {
-                showNotification('{{ lang._("Failed to initiate emergency shutdown") }}', 'error');
+                showNotification(`{{ lang._('Failed to whitelist IP') }}: ${data.message || 'Unknown error'}`, 'error');
             }
         });
     }
+}
+
+function isolateIndustrialDevice(threat) {
+    showNotification('{{ lang._("Isolate Device: feature not yet implemented") }}', 'warning');
+}
+
+function emergencyShutdown(threat) {
+    showNotification('{{ lang._("Emergency Shutdown: feature not yet implemented") }}', 'warning');
 }
 
 function exportAlerts() {
@@ -849,7 +851,9 @@ function debounce(func, delay) {
 }
 
 function showNotification(message, type) {
-    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const alertClass = type === 'success' ? 'alert-success' :
+                      type === 'warning' ? 'alert-warning' :
+                      type === 'info' ? 'alert-info' : 'alert-danger';
     const notification = $(`
         <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
             ${message}

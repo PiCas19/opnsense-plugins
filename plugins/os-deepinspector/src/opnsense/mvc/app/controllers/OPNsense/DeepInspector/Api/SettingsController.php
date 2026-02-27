@@ -267,13 +267,13 @@ class SettingsController extends ApiMutableModelControllerBase
         $memory_usage = null;
         
         foreach ($lines as $line) {
-            if (strpos($line, "is running as PID") !== false) {
+            if (stripos($line, "is not running") !== false || stripos($line, "stopped") !== false) {
+                $running = false;
+            } elseif (stripos($line, "is running") !== false || stripos($line, "started") !== false) {
                 $running = true;
-                if (preg_match('/PID (\d+)/', $line, $matches)) {
+                if (preg_match('/pid\s+(\d+)/i', $line, $matches)) {
                     $pid = $matches[1];
                 }
-            } elseif (strpos($line, "is not running") !== false) {
-                $running = false;
             } elseif (strpos($line, "Memory usage:") !== false) {
                 if (preg_match('/Memory usage:\s*(\d+(?:\.\d+)?)\s*MB/', $line, $matches)) {
                     $memory_usage = $matches[1] . "MB";

@@ -484,7 +484,7 @@ function startProgressMonitoring() {
     }
     
     progressInterval = setInterval(function() {
-        progress += Math.random() * 15 + 5; // Progresso più consistente
+        progress += 20; // Fixed increment: completes in 5 steps (~7.5s)
         if (progress > 100) progress = 100;
         
         $('#analysisProgress').css('width', progress + '%');
@@ -501,162 +501,148 @@ function startProgressMonitoring() {
     }, 1500);
 }
 
-// CORREZIONE: Funzione per gestire i filtri
 function loadAnalysisData() {
-    const filters = {
-        timeRange: $('#analysisTimeRange').val(),
-        protocol: $('#analysisProtocol').val(),
-        interface: $('#analysisInterface').val(),
-        type: $('#analysisType').val()
+    const timeRange = $('#analysisTimeRange').val();
+    let pending = 4;
+    let alertStatsResult = null;
+    let trafficStatsResult = null;
+    let industrialStatsResult = null;
+    let securityStatsResult = null;
+    let alertsListResult = null;
+
+    function tryUpdate() {
+        pending--;
+        if (pending === 0) {
+            const data = buildAnalysisData(alertStatsResult, trafficStatsResult, industrialStatsResult, securityStatsResult, alertsListResult);
+            updateAnalysisResults(data);
+        }
+    }
+
+    ajaxCall('/api/deepinspector/alerts/getStats', {}, function(result) {
+        if (result && result.status === 'ok') alertStatsResult = result.data;
+        tryUpdate();
+    });
+
+    ajaxCall('/api/deepinspector/statistics/getTrafficStats', {timeRange: timeRange}, function(result) {
+        if (result && result.status === 'ok') trafficStatsResult = result.data;
+        tryUpdate();
+    });
+
+    ajaxCall('/api/deepinspector/statistics/getIndustrialStats', {timeRange: timeRange}, function(result) {
+        if (result && result.status === 'ok') industrialStatsResult = result.data;
+        tryUpdate();
+    });
+
+    ajaxCall('/api/deepinspector/statistics/getSecurityStats', {timeRange: timeRange}, function(result) {
+        if (result && result.status === 'ok') securityStatsResult = result.data;
+        // Also load alerts list for anomalies table
+        ajaxCall('/api/deepinspector/alerts/list', {time: timeRange, limit: 20}, function(res) {
+            if (res && res.status === 'ok') alertsListResult = res.data;
+            tryUpdate();
+        });
+    });
+}
+
+function buildAnalysisData(alertStats, trafficStats, industrialStats, securityStats, alertsList) {
+    alertStats = alertStats || {};
+    trafficStats = trafficStats || {};
+    industrialStats = industrialStats || {};
+    securityStats = securityStats || {};
+
+    // Protocol stats from traffic data
+    const protocols = trafficStats.protocols_analyzed || {};
+    const protocolStats = {
+        http: protocols['http'] || protocols['HTTP'] || protocols['https'] || protocols['HTTPS'] || 0,
+        industrial: protocols['industrial'] || protocols['modbus'] || protocols['dnp3'] || 0,
+        email: protocols['smtp'] || protocols['email'] || protocols['SMTP'] || 0,
+        dns: protocols['dns'] || protocols['DNS'] || 0,
+        other: protocols['other'] || protocols['OTHER'] || 0
     };
-    
-    console.log('Loading data with filters:', filters);
-    
-    // CORREZIONE: Dati mock più realistici basati sui filtri
-    const mockData = generateMockData(filters);
-    updateAnalysisResults(mockData);
-}
 
-// CORREZIONE: Genera dati mock basati sui filtri
-function generateMockData(filters) {
-    const baseData = {
-        total_packets: 125430,
-        threats_found: 23,
-        anomalies_found: 7,
-        industrial_traffic: 8950
+    // Industrial protocol counts
+    const indProtocols = industrialStats.protocols_detected || {};
+    const industrialStatsData = {
+        modbus: indProtocols.modbus || 0,
+        dnp3: indProtocols.dnp3 || 0,
+        opcua: indProtocols.opcua || 0,
+        avg_latency: 0
     };
-    
-    // Modifica i dati basandosi sui filtri
-    let multiplier = 1;
-    
-    switch(filters.timeRange) {
-        case '1h': multiplier = 0.1; break;
-        case '6h': multiplier = 0.5; break;
-        case '24h': multiplier = 1; break;
-        case '7d': multiplier = 7; break;
-        case '30d': multiplier = 30; break;
-    }
-    
-    // Ajusta i dati per il protocollo
-    let protocolMultiplier = 1;
-    if (filters.protocol !== 'all') {
-        protocolMultiplier = 0.3; // Meno traffico per protocolli specifici
-    }
-    
-    return {
-        total_packets: Math.round(baseData.total_packets * multiplier * protocolMultiplier),
-        threats_found: Math.round(baseData.threats_found * multiplier * protocolMultiplier),
-        anomalies_found: Math.round(baseData.anomalies_found * multiplier),
-        industrial_traffic: Math.round(baseData.industrial_traffic * multiplier),
-        protocol_stats: {
-            http: Math.round(45680000 * multiplier),
-            industrial: Math.round(8950000 * multiplier),
-            email: Math.round(2340000 * multiplier),
-            dns: Math.round(890000 * multiplier),
-            other: Math.round(12340000 * multiplier)
-        },
-        industrial_stats: {
-            modbus: Math.round(45 * multiplier),
-            dnp3: Math.round(12 * multiplier),
-            opcua: Math.round(8 * multiplier),
-            avg_latency: 250 + Math.round(Math.random() * 100)
-        },
-        zero_trust_stats: {
-            untrusted: Math.round(15 * multiplier),
-            blocked: Math.round(8 * multiplier),
-            trust_score: 87 + Math.round(Math.random() * 10)
-        },
-        traffic_patterns: {
-            labels: generateTimeLabels(filters.timeRange),
-            total_traffic: generateTrafficData(filters.timeRange, 'total'),
-            threat_traffic: generateTrafficData(filters.timeRange, 'threat')
-        },
-        protocol_distribution: generateProtocolDistribution(filters.protocol),
-        anomalies: generateAnomalies(filters, Math.round(baseData.anomalies_found * multiplier)),
-        top_talkers: generateTopTalkers(multiplier)
+
+    // Industrial traffic total (sum of all industrial protocol counts)
+    const industrialTraffic = Object.values(indProtocols).reduce(function(sum, v) { return sum + (parseInt(v) || 0); }, 0);
+
+    // Zero trust stats from security data
+    const zeroTrustStats = {
+        untrusted: securityStats.zero_trust_violations || 0,
+        blocked: securityStats.threats_blocked || 0,
+        trust_score: securityStats.detection_accuracy || 100
     };
-}
 
-function generateTimeLabels(timeRange) {
-    const labels = [];
-    let count, format;
-    
-    switch(timeRange) {
-        case '1h':
-            count = 12; format = (i) => String(i * 5).padStart(2, '0') + ':00';
-            break;
-        case '6h':
-            count = 6; format = (i) => String(i).padStart(2, '0') + ':00';
-            break;
-        case '24h':
-            count = 6; format = (i) => String(i * 4).padStart(2, '0') + ':00';
-            break;
-        case '7d':
-            count = 7; format = (i) => `Day ${i + 1}`;
-            break;
-        case '30d':
-            count = 6; format = (i) => `Week ${i + 1}`;
-            break;
-    }
-    
-    for (let i = 0; i < count; i++) {
-        labels.push(format(i));
-    }
-    return labels;
-}
+    // Traffic patterns from hourly data
+    const trafficByHour = trafficStats.traffic_by_hour || {};
+    const alertsByHour = alertStats.hourly_distribution || {};
+    const allHoursSet = new Set(Object.keys(trafficByHour).concat(Object.keys(alertsByHour)));
+    const allHours = Array.from(allHoursSet).sort();
+    const trafficPatterns = {
+        labels: allHours.map(function(h) { return h + ':00'; }),
+        total_traffic: allHours.map(function(h) { return trafficByHour[h] || 0; }),
+        threat_traffic: allHours.map(function(h) { return alertsByHour[h] || 0; })
+    };
 
-function generateTrafficData(timeRange, type) {
-    const count = generateTimeLabels(timeRange).length;
-    const data = [];
-    const base = type === 'threat' ? 10 : 1000;
-    
-    for (let i = 0; i < count; i++) {
-        data.push(Math.round(base + Math.random() * base * 3));
-    }
-    return data;
-}
+    // Protocol distribution for pie chart
+    const protocolDistribution = {};
+    Object.keys(protocols).forEach(function(proto) {
+        if (protocols[proto] > 0) {
+            protocolDistribution[proto.toUpperCase()] = protocols[proto];
+        }
+    });
 
-function generateProtocolDistribution(selectedProtocol) {
-    if (selectedProtocol === 'all') {
+    // Anomalies from real alerts list
+    const alerts = Array.isArray(alertsList) ? alertsList : [];
+    const anomalies = alerts.slice(0, 20).map(function(alert) {
         return {
-            'HTTP/HTTPS': 45,
-            'Industrial': 25,
-            'Email': 15,
-            'DNS': 10,
-            'Other': 5
+            id: alert.id || '',
+            timestamp: alert.timestamp || '',
+            type: alert.threat_type || 'unknown',
+            source: alert.source_ip || 'N/A',
+            severity: alert.severity || 'medium',
+            description: alert.description || alert.threat_type || 'Alert detected'
         };
-    } else {
-        return {
-            [selectedProtocol.toUpperCase()]: 80,
-            'Other': 20
-        };
-    }
-}
+    });
 
-function generateAnomalies(filters, count) {
-    const anomalies = [];
-    const types = ['Unusual Traffic', 'Port Scan', 'DDoS Attack', 'Malware Communication'];
-    const severities = ['low', 'medium', 'high', 'critical'];
-    
-    for (let i = 0; i < Math.min(count, 10); i++) {
-        anomalies.push({
-            id: String(i + 1),
-            timestamp: new Date(Date.now() - Math.random() * 24 * 60 * 60 * 1000).toISOString(),
-            type: types[Math.floor(Math.random() * types.length)],
-            source: `192.168.1.${100 + i}`,
-            severity: severities[Math.floor(Math.random() * severities.length)],
-            description: `${types[Math.floor(Math.random() * types.length)]} detected from source`
+    // Top talkers from traffic destinations
+    const topTalkers = (trafficStats.top_destinations || []).map(function(dest) {
+        return {
+            ip: dest.ip || dest.destination || 'N/A',
+            bytes: dest.bytes || 0,
+            packets: dest.packets || 0
+        };
+    });
+
+    // Fallback to top threat sources from security stats
+    if (topTalkers.length === 0 && Array.isArray(securityStats.top_threat_sources)) {
+        securityStats.top_threat_sources.forEach(function(src) {
+            topTalkers.push({
+                ip: src.ip || src.source_ip || 'N/A',
+                bytes: src.bytes || 0,
+                packets: src.count || 0
+            });
         });
     }
-    return anomalies;
-}
 
-function generateTopTalkers(multiplier) {
-    return [
-        { ip: '192.168.1.100', bytes: Math.round(45680000 * multiplier), packets: Math.round(1234 * multiplier) },
-        { ip: '192.168.1.101', bytes: Math.round(23450000 * multiplier), packets: Math.round(856 * multiplier) },
-        { ip: '192.168.1.102', bytes: Math.round(12340000 * multiplier), packets: Math.round(567 * multiplier) }
-    ];
+    return {
+        total_packets: trafficStats.total_packets_analyzed || 0,
+        threats_found: alertStats.total_alerts || 0,
+        anomalies_found: (alertStats.critical_alerts || 0) + (alertStats.high_alerts || 0),
+        industrial_traffic: industrialTraffic,
+        protocol_stats: protocolStats,
+        industrial_stats: industrialStatsData,
+        zero_trust_stats: zeroTrustStats,
+        traffic_patterns: trafficPatterns,
+        protocol_distribution: protocolDistribution,
+        anomalies: anomalies,
+        top_talkers: topTalkers
+    };
 }
 
 // CORREZIONE: Export Report funzionante
@@ -874,19 +860,8 @@ function updateTopTalkersTable(topTalkers) {
 }
 
 function loadInterfaces() {
-    // Mock interfaces data
-    const mockInterfaces = [
-        { name: 'em0', description: 'WAN Interface' },
-        { name: 'em1', description: 'LAN Interface' },
-        { name: 'em2', description: 'DMZ Interface' }
-    ];
-    
-    const select = $('#analysisInterface');
-    select.find('option:not(:first)').remove();
-    
-    mockInterfaces.forEach(function(iface) {
-        select.append(`<option value="${iface.name}">${iface.description}</option>`);
-    });
+    // No interface endpoint available - keep only 'All Interfaces' option
+    $('#analysisInterface').find('option:not(:first)').remove();
 }
 
 function viewAnomalyDetails(anomalyId) {
@@ -896,62 +871,31 @@ function viewAnomalyDetails(anomalyId) {
             {{ lang._('Loading anomaly details...') }}
         </div>
     `);
-    
     $('#analysisDetailsModal').modal('show');
-    
-    // Mock anomaly details
-    setTimeout(function() {
+
+    ajaxCall('/api/deepinspector/alerts/threatDetails/' + anomalyId, {}, function(result) {
+        if (!result || result.status !== 'ok' || !result.data) {
+            $('#analysisDetailsBody').html('<div class="alert alert-warning">{{ lang._("Details not available") }}</div>');
+            return;
+        }
+        const d = result.data;
+        const severityClass = getSeverityClass(d.severity || 'medium');
         $('#analysisDetailsBody').html(`
             <div class="anomaly-details">
                 <h6>{{ lang._('Anomaly Information') }}</h6>
                 <table class="table table-sm">
-                    <tr>
-                        <td><strong>{{ lang._('ID') }}:</strong></td>
-                        <td>${anomalyId}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>{{ lang._('Type') }}:</strong></td>
-                        <td>Unusual Traffic Pattern</td>
-                    </tr>
-                    <tr>
-                        <td><strong>{{ lang._('Severity') }}:</strong></td>
-                        <td><span class="badge badge-warning">MEDIUM</span></td>
-                    </tr>
-                    <tr>
-                        <td><strong>{{ lang._('Source') }}:</strong></td>
-                        <td><code>192.168.1.100</code></td>
-                    </tr>
-                    <tr>
-                        <td><strong>{{ lang._('Description') }}:</strong></td>
-                        <td>Unusual traffic pattern detected from this source</td>
-                    </tr>
-                    <tr>
-                        <td><strong>{{ lang._('First Detected') }}:</strong></td>
-                        <td>${formatTimestamp(new Date(Date.now() - 3600000).toISOString())}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>{{ lang._('Last Seen') }}:</strong></td>
-                        <td>${formatTimestamp(new Date().toISOString())}</td>
-                    </tr>
+                    <tr><td><strong>{{ lang._('ID') }}:</strong></td><td>${d.id || anomalyId}</td></tr>
+                    <tr><td><strong>{{ lang._('Type') }}:</strong></td><td>${d.threat_type || 'N/A'}</td></tr>
+                    <tr><td><strong>{{ lang._('Severity') }}:</strong></td><td><span class="badge ${severityClass}">${(d.severity || 'N/A').toUpperCase()}</span></td></tr>
+                    <tr><td><strong>{{ lang._('Source') }}:</strong></td><td><code>${d.source_ip || 'N/A'}</code></td></tr>
+                    <tr><td><strong>{{ lang._('Destination') }}:</strong></td><td><code>${d.destination_ip || 'N/A'}</code></td></tr>
+                    <tr><td><strong>{{ lang._('Protocol') }}:</strong></td><td>${d.protocol || 'N/A'}</td></tr>
+                    <tr><td><strong>{{ lang._('Description') }}:</strong></td><td>${d.description || 'N/A'}</td></tr>
+                    <tr><td><strong>{{ lang._('Timestamp') }}:</strong></td><td>${formatTimestamp(d.timestamp || '')}</td></tr>
                 </table>
-                
-                <h6>{{ lang._('Technical Details') }}</h6>
-                <pre class="anomaly-details-text">Traffic volume exceeded normal baseline by 300%
-Protocol distribution anomaly detected
-Connections to unusual ports: 4444, 5555, 6666
-User-Agent strings indicate potential bot activity
-Packet timing suggests automated behavior</pre>
-                
-                <h6>{{ lang._('Recommended Actions') }}</h6>
-                <ul class="list-group">
-                    <li class="list-group-item">Monitor the source IP for continued suspicious activity</li>
-                    <li class="list-group-item">Consider blocking or rate-limiting the IP address</li>
-                    <li class="list-group-item">Review firewall logs for related events</li>
-                    <li class="list-group-item">Analyze packet captures for detailed inspection</li>
-                </ul>
             </div>
         `);
-    }, 1000);
+    });
 }
 
 // Debounce function

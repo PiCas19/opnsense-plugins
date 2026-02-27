@@ -385,30 +385,81 @@ function displayLogs(logs) {
 }
 
 function createLogEntry(log) {
-    const levelClass = getLogLevelClass(log.level);
-    const sourceIcon = getSourceIcon(log.source);
-    
+    const levelClass = getLogLevelClass(log.level || 'info');
+    const sourceIcon = getSourceIcon(log.source || '');
+    const source = (log.source || '').toLowerCase();
+
+    // Escape the message first, then apply search highlight (safe ordering)
+    let displayMessage = escapeHtml(log.message || '');
+    const searchTerm = $('#logSearch').val();
+    if (searchTerm) {
+        const escapedSearch = escapeHtml(searchTerm);
+        const regex = new RegExp('(' + escapeRegExp(escapedSearch) + ')', 'gi');
+        displayMessage = displayMessage.replace(regex, '<mark>$1</mark>');
+    }
+
+    // Build source-aware inline summary from structured details
+    let inlineExtra = '';
+    if (log.details && typeof log.details === 'object') {
+        const d = log.details;
+        const parts = [];
+
+        if (source === 'latency') {
+            // Latency channel: show latency value, interface, threshold badge
+            if (d.latency !== undefined) {
+                parts.push(`<strong>${parseFloat(d.latency).toFixed(2)} ms</strong>`);
+            }
+            if (d.interface) {
+                parts.push(`<span class="badge badge-secondary">${escapeHtml(d.interface)}</span>`);
+            }
+            if (d.source_ip) {
+                parts.push(`<code>${escapeHtml(d.source_ip)}</code> → <code>${escapeHtml(d.destination_ip || '')}</code>`);
+            }
+            if (d.threshold_exceeded) {
+                parts.push(`<span class="badge badge-warning">threshold exceeded</span>`);
+            }
+        } else {
+            // Threat/alert/detection channel: show IPs, protocol, severity
+            if (d.source_ip) {
+                parts.push(`<code>${escapeHtml(d.source_ip)}</code> → <code>${escapeHtml(d.destination_ip || '')}</code>`);
+            }
+            if (d.protocol) {
+                parts.push(`<span class="badge badge-secondary">${escapeHtml(d.protocol)}</span>`);
+            }
+            if (d.severity) {
+                parts.push(`<span class="badge badge-${getSeverityBadgeClass(d.severity)}">${escapeHtml(d.severity)}</span>`);
+            }
+        }
+
+        if (parts.length > 0) {
+            inlineExtra = `<small class="ml-2 text-muted">${parts.join(' ')}</small>`;
+        }
+    }
+
     return $(`
-        <div class="log-entry ${levelClass}" data-log-id="${log.id}">
+        <div class="log-entry ${levelClass}" data-log-id="${escapeHtml(log.id)}">
             <div class="log-timestamp">${formatTimestamp(log.timestamp)}</div>
             <div class="log-level">
-                <span class="badge badge-${levelClass}">${log.level.toUpperCase()}</span>
+                <span class="badge badge-${levelClass}">${(log.level || 'info').toUpperCase()}</span>
             </div>
             <div class="log-source">
-                <i class="fa ${sourceIcon}"></i>
-                ${log.source}
+                <i class="fa ${sourceIcon}"></i> ${escapeHtml(source)}
             </div>
-            <div class="log-message" onclick="showLogDetails('${log.id}')">
-                ${escapeHtml(highlightLogMessage(log.message))}
-                ${log.details ? '<i class="fa fa-info-circle text-info ms-2" title="Has details"></i>' : ''}
+            <div class="log-message" onclick="showLogDetails('${escapeHtml(log.id)}')">
+                ${displayMessage}${inlineExtra}
             </div>
-            ${log.context ? `
-            <div class="log-context">
-                <small class="text-muted">${escapeHtml(log.context)}</small>
-            </div>
-            ` : ''}
         </div>
     `);
+}
+
+function getSeverityBadgeClass(severity) {
+    switch ((severity || '').toLowerCase()) {
+        case 'critical': return 'danger';
+        case 'high':     return 'warning';
+        case 'medium':   return 'info';
+        case 'low':      return 'success';
+        default:         return 'secondary';
+    }
 }
 
 function updateLogStatistics(stats) {
@@ -529,7 +580,7 @@ function showLogDetails(logId) {
                         <div class="row">
                             <div class="col-md-12">
                                 <h6>{{ lang._('Details') }}</h6>
-                                <pre class="log-details-text">${escapeHtml(typeof log.details === 'object' ? JSON.stringify(log.details, null, 2) : log.details)}</pre>
+                                ${renderDetailsTable(log.details)}
                             </div>
                         </div>
                         ` : ''}
@@ -679,6 +730,34 @@ function highlightLogMessage(message) {
 
 function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function renderDetailsTable(details) {
+    if (!details || typeof details !== 'object') {
+        return `<pre class="log-details-text">${escapeHtml(String(details || ''))}</pre>`;
+    }
+    const skipKeys = ['id', 'timestamp'];
+    let rows = '';
+    Object.entries(details).forEach(function([key, value]) {
+        if (skipKeys.includes(key)) return;
+        let displayValue;
+        if (value === null || value === undefined || value === '') {
+            displayValue = '<span class="text-muted">—</span>';
+        } else if (typeof value === 'boolean') {
+            displayValue = value
+                ? '<span class="badge badge-success">Yes</span>'
+                : '<span class="badge badge-secondary">No</span>';
+        } else if (Array.isArray(value)) {
+            displayValue = value.length ? `<code>${escapeHtml(value.join(', '))}</code>` : '<span class="text-muted">—</span>';
+        } else if (typeof value === 'object') {
+            displayValue = `<code>${escapeHtml(JSON.stringify(value))}</code>`;
+        } else {
+            displayValue = escapeHtml(String(value));
+        }
+        const label = key.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+        rows += `<tr><td style="width:35%;font-weight:600">${escapeHtml(label)}</td><td>${displayValue}</td></tr>`;
+    });
+    return rows ? `<table class="table table-sm table-bordered">${rows}</table>` : '';
 }
 
 function escapeHtml(text) {

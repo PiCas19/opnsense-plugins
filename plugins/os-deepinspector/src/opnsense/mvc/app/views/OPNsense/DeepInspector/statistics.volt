@@ -231,7 +231,7 @@ function updateThreatTypesTable(threatTypes) {
     tbody.empty();
     
     if (Object.keys(threatTypes).length === 0) {
-        tbody.html('<tr><td colspan="5" class="text-center text-muted">{{ lang._("No threat types detected") }}</td></tr>');
+        tbody.html('<tr><td colspan="3" class="text-center text-muted">{{ lang._("No threat types detected") }}</td></tr>');
         return;
     }
     
@@ -239,15 +239,12 @@ function updateThreatTypesTable(threatTypes) {
     
     Object.entries(threatTypes).forEach(([type, count]) => {
         const percentage = total > 0 ? ((count / total) * 100).toFixed(1) : 0;
-        const blocked = Math.floor(count * 0.7);
-        
+
         const row = $(`
             <tr>
                 <td><strong>${type}</strong></td>
                 <td>${formatNumber(count)}</td>
                 <td>${percentage}%</td>
-                <td class="text-success">${formatNumber(blocked)}</td>
-                <td class="text-muted">{{ lang._("Recently") }}</td>
             </tr>
         `);
         tbody.append(row);
@@ -666,13 +663,11 @@ function showNotification(message, type) {
                 <th>{{ lang._('Type') }}</th>
                 <th>{{ lang._('Count') }}</th>
                 <th>{{ lang._('Percentage') }}</th>
-                <th>{{ lang._('Blocked') }}</th>
-                <th>{{ lang._('Last Seen') }}</th>
             </tr>
         </thead>
         <tbody id="threatTypesBody">
             <tr>
-                <td colspan="5" class="text-center text-muted">{{ lang._('Loading...') }}</td>
+                <td colspan="3" class="text-center text-muted">{{ lang._('Loading...') }}</td>
             </tr>
         </tbody>
     </table>
