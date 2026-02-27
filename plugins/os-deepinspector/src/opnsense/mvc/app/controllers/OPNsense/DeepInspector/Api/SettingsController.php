@@ -284,12 +284,28 @@ class SettingsController extends ApiMutableModelControllerBase
         if ($running && $pid) {
             $info['engine_status'] = 'Active';
             $info['pid'] = $pid;
-            $info['memory_usage'] = $memory_usage ?: 'Unknown';
-            
-            // Get additional process info
-            $processInfo = $this->getProcessInfo($pid);
-            $info['cpu_usage'] = $processInfo['cpu_usage'];
-            $info['uptime'] = $processInfo['uptime'];
+            $info['memory_usage'] = $memory_usage ?: 'N/A';
+            $info['cpu_usage'] = 'N/A';
+            $info['uptime'] = 'N/A';
+
+            // Read CPU and memory from stats.json (written by the Python engine)
+            $statsFile = '/var/log/deepinspector/stats.json';
+            if (file_exists($statsFile)) {
+                $statsData = @json_decode(@file_get_contents($statsFile), true);
+                if ($statsData !== null) {
+                    if (isset($statsData['performance']['cpu_usage'])) {
+                        $info['cpu_usage'] = $statsData['performance']['cpu_usage'] . '%';
+                    }
+                    if (isset($statsData['performance']['memory_usage'])) {
+                        $info['memory_usage'] = $statsData['performance']['memory_usage'] . ' MB';
+                    }
+                    if (isset($statsData['uptime'])) {
+                        $info['uptime'] = $statsData['uptime'];
+                    } elseif (isset($statsData['timestamp'])) {
+                        $info['uptime'] = 'Since ' . date('Y-m-d H:i', strtotime($statsData['timestamp']));
+                    }
+                }
+            }
         } else {
             $info['engine_status'] = 'Inactive';
             $info['pid'] = 'N/A';
@@ -321,43 +337,4 @@ class SettingsController extends ApiMutableModelControllerBase
         return $info;
     }
     
-    /**
-     * Get process information
-     * @param string $pid
-     * @return array
-     */
-    private function getProcessInfo($pid)
-    {
-        $cpu_usage = "Unknown";
-        $uptime = "Unknown";
-        
-        try {
-            // Get CPU usage
-            $cpuCmd = "ps -o pcpu= -p " . escapeshellarg($pid);
-            $cpuResult = @shell_exec($cpuCmd);
-            if ($cpuResult !== null && $cpuResult !== false) {
-                $cpuResult = trim($cpuResult);
-                if ($cpuResult !== '' && is_numeric($cpuResult)) {
-                    $cpu_usage = $cpuResult . "%";
-                }
-            }
-            
-            // Get uptime
-            $uptimeCmd = "ps -o etime= -p " . escapeshellarg($pid);
-            $uptimeResult = @shell_exec($uptimeCmd);
-            if ($uptimeResult !== null && $uptimeResult !== false) {
-                $uptimeResult = trim($uptimeResult);
-                if ($uptimeResult !== '') {
-                    $uptime = $uptimeResult;
-                }
-            }
-        } catch (Exception $e) {
-            // Ignore errors, keep default values
-        }
-        
-        return [
-            'cpu_usage' => $cpu_usage,
-            'uptime' => $uptime
-        ];
-    }
 }

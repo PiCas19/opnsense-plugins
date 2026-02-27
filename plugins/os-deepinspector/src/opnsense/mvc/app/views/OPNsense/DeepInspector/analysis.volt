@@ -442,17 +442,15 @@ function updateProtocolPieChart(data) {
 function startAnalysis() {
     const $btn = $('#startAnalysis');
     const originalText = $btn.html();
-    
+
     $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> {{ lang._("Starting...") }}');
-    
-    // Simulate starting analysis
-    setTimeout(function() {
-        $btn.prop('disabled', false).html(originalText);
-        $('#analysisStatus').text('{{ lang._("Running") }}');
-        $('#stopAnalysis').prop('disabled', false); // CORREZIONE: Abilita stop
-        showNotification('{{ lang._("Analysis started successfully") }}', 'success');
-        startProgressMonitoring();
-    }, 2000);
+
+    $('#analysisStatus').text('{{ lang._("Running") }}');
+    $('#stopAnalysis').prop('disabled', false);
+    showNotification('{{ lang._("Analysis started successfully") }}', 'success');
+    loadAnalysisData();
+    startProgressMonitoring();
+    $btn.prop('disabled', false).html(originalText);
 }
 
 function stopAnalysis() {
@@ -645,45 +643,38 @@ function buildAnalysisData(alertStats, trafficStats, industrialStats, securitySt
     };
 }
 
-// CORREZIONE: Export Report funzionante
 function exportAnalysisReport() {
     const $btn = $('#exportReport');
     const originalText = $btn.html();
-    
+
     $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> {{ lang._("Exporting...") }}');
-    
-    setTimeout(function() {
-        // Genera un report CSV semplice
-        const filters = {
-            timeRange: $('#analysisTimeRange').val(),
-            protocol: $('#analysisProtocol').val(),
-            interface: $('#analysisInterface').val(),
-            type: $('#analysisType').val()
-        };
-        
-        const csvContent = generateCSVReport(filters);
-        downloadCSV(csvContent, `dpi_analysis_report_${new Date().toISOString().split('T')[0]}.csv`);
-        
-        $btn.prop('disabled', false).html(originalText);
-        showNotification('{{ lang._("Analysis report exported successfully") }}', 'success');
-    }, 2000);
+
+    const filters = {
+        timeRange: $('#analysisTimeRange').val(),
+        protocol: $('#analysisProtocol').val(),
+        interface: $('#analysisInterface').val(),
+        type: $('#analysisType').val()
+    };
+
+    const csvContent = generateCSVReport(filters);
+    downloadCSV(csvContent, `dpi_analysis_report_${new Date().toISOString().split('T')[0]}.csv`);
+
+    $btn.prop('disabled', false).html(originalText);
+    showNotification('{{ lang._("Analysis report exported successfully") }}', 'success');
 }
 
-// CORREZIONE: Save Report dal modal
 function saveAnalysisReport() {
     const $btn = $('#saveAnalysisReport');
     const originalText = $btn.html();
-    
+
     $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> {{ lang._("Saving...") }}');
-    
-    setTimeout(function() {
-        const reportContent = generateDetailedReport();
-        downloadTXT(reportContent, `dpi_detailed_analysis_${new Date().toISOString().split('T')[0]}.txt`);
-        
-        $btn.prop('disabled', false).html(originalText);
-        $('#analysisDetailsModal').modal('hide');
-        showNotification('{{ lang._("Detailed report saved successfully") }}', 'success');
-    }, 1500);
+
+    const reportContent = generateDetailedReport();
+    downloadTXT(reportContent, `dpi_detailed_analysis_${new Date().toISOString().split('T')[0]}.txt`);
+
+    $btn.prop('disabled', false).html(originalText);
+    $('#analysisDetailsModal').modal('hide');
+    showNotification('{{ lang._("Detailed report saved successfully") }}', 'success');
 }
 
 function generateCSVReport(filters) {
