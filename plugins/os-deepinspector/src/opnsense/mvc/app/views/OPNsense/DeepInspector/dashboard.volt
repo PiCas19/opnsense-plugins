@@ -1,4 +1,5 @@
 {# dashboard.volt - Deep Packet Inspector Dashboard #}
+<script src="/ui/js/chart.min.js"></script>
 <div class="content-box">
     <div class="row">
         <div class="col-md-12">
@@ -61,13 +62,17 @@
         <div class="col-md-6">
             <div class="chart-container">
                 <h3>{{ lang._('Threat Detection Timeline') }}</h3>
-                <canvas id="threatTimelineChart"></canvas>
+                <div style="position:relative;height:250px;">
+                    <canvas id="threatTimelineChart"></canvas>
+                </div>
             </div>
         </div>
         <div class="col-md-6">
             <div class="chart-container">
                 <h3>{{ lang._('Protocol Analysis') }}</h3>
-                <canvas id="protocolChart"></canvas>
+                <div style="position:relative;height:250px;">
+                    <canvas id="protocolChart"></canvas>
+                </div>
             </div>
         </div>
     </div>
@@ -146,9 +151,12 @@
 
 <script>
 $(document).ready(function() {
-    // Initialize dashboard
+    // Initialize charts then load data
+    if (typeof Chart !== 'undefined') {
+        initDashboardCharts();
+    }
     loadDashboardData();
-    
+
     // Set up periodic updates
     setInterval(loadDashboardData, 30000); // Update every 30 seconds
     
@@ -166,12 +174,95 @@ $(document).ready(function() {
     });
 });
 
+function initDashboardCharts() {
+    const protocolCtx = document.getElementById('protocolChart');
+    if (protocolCtx) {
+        window.dashProtocolChart = new Chart(protocolCtx.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: [],
+                datasets: [{
+                    data: [],
+                    backgroundColor: ['#007bff','#28a745','#ffc107','#dc3545','#17a2b8','#6f42c1','#fd7e14','#20c997']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom' } }
+            }
+        });
+    }
+
+    const timelineCtx = document.getElementById('threatTimelineChart');
+    if (timelineCtx) {
+        window.dashTimelineChart = new Chart(timelineCtx.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Threats',
+                    data: [],
+                    borderColor: '#dc3545',
+                    backgroundColor: 'rgba(220,53,69,0.1)',
+                    tension: 0.3,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+            }
+        });
+    }
+}
+
+function updateCharts(data) {
+    updateProtocolChart(data.protocols_analyzed || {});
+    updateThreatTimeline(data.recent_threats || []);
+}
+
+function updateProtocolChart(protocols) {
+    if (!window.dashProtocolChart) return;
+    const labels = Object.keys(protocols);
+    const values = Object.values(protocols);
+    if (labels.length === 0) return;
+    window.dashProtocolChart.data.labels = labels;
+    window.dashProtocolChart.data.datasets[0].data = values;
+    window.dashProtocolChart.update();
+}
+
+function updateThreatTimeline(threats) {
+    if (!window.dashTimelineChart) return;
+    // Build 24 hourly buckets
+    const now = Date.now();
+    const buckets = {};
+    for (let i = 23; i >= 0; i--) {
+        const d = new Date(now - i * 3600000);
+        buckets[d.getHours().toString().padStart(2, '0') + ':00'] = 0;
+    }
+    threats.forEach(function(t) {
+        const d = new Date(t.timestamp);
+        if ((now - d.getTime()) <= 86400000) {
+            const label = d.getHours().toString().padStart(2, '0') + ':00';
+            if (buckets.hasOwnProperty(label)) {
+                buckets[label]++;
+            }
+        }
+    });
+    window.dashTimelineChart.data.labels = Object.keys(buckets);
+    window.dashTimelineChart.data.datasets[0].data = Object.values(buckets);
+    window.dashTimelineChart.update();
+}
+
 function loadDashboardData() {
     ajaxCall("/api/deepinspector/settings/stats", {}, function(data) {
         if (data.status === 'ok' && data.data) {
             updateMetrics(data.data);
             updateRecentThreats(data.data.recent_threats || []);
             updateSystemInfo(data.data.system_info || {});
+            updateCharts(data.data);
         }
     });
 
