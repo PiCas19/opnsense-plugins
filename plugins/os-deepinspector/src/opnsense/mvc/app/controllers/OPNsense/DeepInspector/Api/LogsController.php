@@ -418,12 +418,13 @@ class LogsController extends ApiControllerBase
             if (empty(trim($line))) {
                 return null;
             }
-            
-            // Try to parse JSON log entries first (for detection, alerts, threats, latency logs)
-            if (($source === 'detection' || $source === 'alerts' || $source === 'threats' || $source === 'latency') &&
-                (strpos($line, '{') === 0)) {
+
+            $trimmedLine = ltrim($line);
+
+            // Try JSON first for any source if line starts with '{'
+            if (isset($trimmedLine[0]) && $trimmedLine[0] === '{') {
                 try {
-                    $jsonData = json_decode($line, true);
+                    $jsonData = json_decode($trimmedLine, true);
                     if (json_last_error() === JSON_ERROR_NONE && is_array($jsonData)) {
                         return [
                             'id' => $jsonData['id'] ?? md5($line . $lineNum),
@@ -439,15 +440,35 @@ class LogsController extends ApiControllerBase
                     // Fall through to other parsing methods
                 }
             }
-            
+
             // Try to parse Python logging format: YYYY-MM-DD HH:MM:SS,mmm - LEVEL - MESSAGE
-            $pattern = '/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),?\d* - (\w+) - (.+)$/';
-            
+            $pattern = '/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),?\d* - (\w+) - (.+)$/s';
+
             if (preg_match($pattern, $line, $matches)) {
                 $timestamp = $matches[1];
                 $level = strtolower($matches[2]);
-                $message = $matches[3];
-                
+                $message = trim($matches[3]);
+
+                // If the message itself is JSON, parse it for a human-readable display
+                if (isset($message[0]) && $message[0] === '{') {
+                    try {
+                        $jsonData = json_decode($message, true);
+                        if (json_last_error() === JSON_ERROR_NONE && is_array($jsonData)) {
+                            return [
+                                'id' => $jsonData['id'] ?? md5($line . $lineNum),
+                                'timestamp' => $jsonData['timestamp'] ?? $this->formatTimestamp($timestamp),
+                                'level' => $this->determineLevelFromJson($jsonData) ?: $level,
+                                'source' => $source,
+                                'message' => $this->extractMessageFromJson($jsonData),
+                                'context' => null,
+                                'details' => $jsonData
+                            ];
+                        }
+                    } catch (Throwable $e) {
+                        // Fall through: show message as-is
+                    }
+                }
+
                 return [
                     'id' => md5($line . $lineNum),
                     'timestamp' => $this->formatTimestamp($timestamp),

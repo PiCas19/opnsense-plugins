@@ -291,29 +291,26 @@
 
 <script>
 $(document).ready(function() {
-    // Check if Chart.js is loaded
-    if (typeof Chart === 'undefined') {
-        console.error('Chart.js is not loaded. Charts will not be displayed.');
-        showNotification('{{ lang._("Chart.js library not loaded. Charts disabled.") }}', 'warning');
-        return;
-    }
-    
-    // Initialize analysis page
+    // Initialize analysis page (chart init handles missing Chart.js internally)
     initializeAnalysis();
     loadAnalysisData();
-    
-    // Event handlers
+
+    // Event handlers — always registered regardless of Chart.js availability
     $('#startAnalysis').click(function() {
         startAnalysis();
     });
-    
+
     $('#stopAnalysis').click(function() {
         stopAnalysis();
     });
-    
+
     $('#exportReport').click(function() {
         exportAnalysisReport();
     });
+
+    if (typeof Chart === 'undefined') {
+        console.warn('Chart.js is not loaded. Charts will not be displayed.');
+    }
     
     // CORREZIONE: Filter change handlers con debounce per evitare troppe chiamate
     $('#analysisTimeRange, #analysisProtocol, #analysisInterface, #analysisType').change(debounce(function() {

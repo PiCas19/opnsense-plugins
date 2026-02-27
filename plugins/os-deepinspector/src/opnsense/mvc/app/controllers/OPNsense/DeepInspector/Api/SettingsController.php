@@ -208,8 +208,20 @@ class SettingsController extends ApiMutableModelControllerBase
             'engine_status' => 'Unknown',
             'pid' => 'Unknown',
             'memory_usage' => 'Unknown',
-            'cpu_usage' => 'Unknown'
+            'cpu_usage' => 'Unknown',
+            'interfaces' => 'N/A'
         ];
+
+        // Read configured interfaces from model
+        try {
+            $mdl = new \OPNsense\DeepInspector\DeepInspector();
+            $ifaces = (string)$mdl->general->interfaces;
+            if (!empty($ifaces)) {
+                $info['interfaces'] = implode(', ', array_filter(explode(',', $ifaces)));
+            }
+        } catch (Throwable $e) {
+            // Keep 'N/A'
+        }
         
         // Get status from backend (correct approach)
         $backend = new Backend();

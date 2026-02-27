@@ -117,6 +117,10 @@
                     <span id="cpuUsage" class="info-value">{{ lang._('Unknown') }}</span>
                 </div>
                 <div class="info-item">
+                    <span class="info-label">{{ lang._('Monitored Interfaces') }}:</span>
+                    <span id="monitoredInterfaces" class="info-value">{{ lang._('Unknown') }}</span>
+                </div>
+                <div class="info-item">
                     <span class="info-label">{{ lang._('Signatures Version') }}:</span>
                     <span id="signaturesVersion" class="info-value">{{ lang._('Unknown') }}</span>
                 </div>
@@ -204,6 +208,7 @@ function updateSystemInfo(systemInfo) {
     $('#memoryUsage').text(systemInfo.memory_usage || '{{ lang._("Unknown") }}');
     $('#cpuUsage').text(systemInfo.cpu_usage || '{{ lang._("Unknown") }}');
     $('#uptime').text(systemInfo.uptime || '{{ lang._("Unknown") }}');
+    $('#monitoredInterfaces').text(systemInfo.interfaces || 'N/A');
     
     // Update service status badge based on engine status
     if (systemInfo.engine_status === 'Active') {
