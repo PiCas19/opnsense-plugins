@@ -121,15 +121,16 @@ class ServiceController extends ApiMutableServiceControllerBase
         $socket_status = "unknown";
         
         foreach ($lines as $line) {
-            if (strpos($line, "is running") !== false || strpos($line, "started") !== false) {
+            // Check "is not running" BEFORE "is running" — "is not running" contains "is running" as substring
+            if (stripos($line, "is not running") !== false || stripos($line, "stopped") !== false) {
+                $running = false;
+            } elseif (stripos($line, "is running") !== false || stripos($line, "started") !== false) {
                 $running = true;
-                if (preg_match('/PID (\d+)/', $line, $matches)) {
+                if (preg_match('/pid\s+(\d+)/i', $line, $matches)) {
                     $pid = $matches[1];
                 }
             } elseif (strpos($line, "Socket:") !== false) {
                 $socket_status = strpos($line, "(active)") !== false ? "active" : "inactive";
-            } elseif (strpos($line, "is not running") !== false || strpos($line, "stopped") !== false) {
-                $running = false;
             }
         }
         

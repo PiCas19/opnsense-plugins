@@ -518,6 +518,12 @@ class LogsController extends ApiControllerBase
                 ];
             }
             
+            // Skip JSON fragment lines (continuation lines from multi-line json.dumps output).
+            // These are indented lines like '  "general": {' or bare closing braces '}'.
+            if ($line !== $trimmedLine || preg_match('/^[}\]]\s*,?\s*$/', $trimmedLine)) {
+                return null;
+            }
+
             // Fallback: treat as plain message
             return [
                 'id' => md5($line . $lineNum),

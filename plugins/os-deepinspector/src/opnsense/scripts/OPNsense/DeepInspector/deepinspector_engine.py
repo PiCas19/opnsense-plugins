@@ -297,7 +297,7 @@ class DeepInspectorEngine:
             exporter.export_config()
             with open(CONFIG_FILE, 'r') as f:
                 self.config = json.load(f)
-            self.logger.info(f"Raw configuration loaded: {json.dumps(self.config, indent=2)}")
+            self.logger.info(f"Configuration loaded: {list(self.config.keys())}")
             defaults = {
                 'general': {
                     'enabled': False,
