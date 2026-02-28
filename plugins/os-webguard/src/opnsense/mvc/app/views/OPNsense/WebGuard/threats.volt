@@ -1442,52 +1442,10 @@ $(document).ready(function() {
                     }
                 }
                 
-                // IMPORTANTE: Non mostrare errore per il caricamento threats, usa fallback
-                if (url.includes('/api/webguard/threats/getStats')) {
-                    callback({
-                        total_threats: 124,
-                        threats_24h: 28,
-                        blocked_today: 15
-                    });
-                } else if (url.includes('/api/webguard/threats/get')) {
-                    callback({
-                        threats: generateSampleThreats(),
-                        total: 124
-                    });
-                } else {
-                    showNotification('{{ lang._("Error loading data") }}: ' + msg, 'error');
-                }
+                showNotification('{{ lang._("Error loading data") }}: ' + msg, 'error');
             }
         });
     }
     
-    // Genera dati di esempio se l'API non risponde
-    function generateSampleThreats() {
-        const sampleThreats = [];
-        const ips = ['192.168.1.100', '10.0.0.50', '172.16.0.25', '203.0.113.10', '198.51.100.5'];
-        const types = ['sql_injection', 'xss', 'csrf', 'file_upload', 'behavioral'];
-        const severities = ['critical', 'high', 'medium', 'low'];
-        const statuses = ['blocked', 'allowed', 'logged'];
-        const methods = ['GET', 'POST', 'PUT', 'DELETE'];
-        
-        for (let i = 0; i < 50; i++) {
-            const now = new Date();
-            const timestamp = new Date(now.getTime() - Math.random() * 7 * 24 * 60 * 60 * 1000);
-            
-            sampleThreats.push({
-                id: i + 1,
-                timestamp: timestamp.toISOString(),
-                source_ip: ips[Math.floor(Math.random() * ips.length)],
-                type: types[Math.floor(Math.random() * types.length)],
-                severity: severities[Math.floor(Math.random() * severities.length)],
-                target: '/admin/login.php',
-                method: methods[Math.floor(Math.random() * methods.length)],
-                status: statuses[Math.floor(Math.random() * statuses.length)],
-                description: 'Sample threat entry for testing'
-            });
-        }
-        
-        return sampleThreats;
-    }
 });
 </script>

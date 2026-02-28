@@ -456,74 +456,48 @@ $(document).ready(function() {
     }
 
     function initCharts() {
-        // Initialize Threat Distribution Chart
+        // Initialize Threat Distribution Chart — empty until real data arrives
         const ctx1 = document.getElementById('threatChart').getContext('2d');
         threatChart = new Chart(ctx1, {
             type: 'doughnut',
             data: {
-                labels: ['SQL Injection', 'XSS', 'CSRF', 'File Upload', 'Other'],
+                labels: [],
                 datasets: [{
-                    data: [12, 8, 5, 3, 7],
-                    backgroundColor: [
-                        '#FF6384',
-                        '#36A2EB',
-                        '#FFCE56',
-                        '#4BC0C0',
-                        '#9966FF'
-                    ]
+                    data: [],
+                    backgroundColor: ['#FF6384','#36A2EB','#FFCE56','#4BC0C0','#9966FF','#FF9F40','#C9CBCF']
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    }
-                }
+                plugins: { legend: { position: 'bottom' } }
             }
         });
 
-        // Initialize Timeline Chart
+        // Initialize Timeline Chart — empty until real data arrives
         const ctx2 = document.getElementById('threatTimelineChart').getContext('2d');
         timelineChart = new Chart(ctx2, {
             type: 'line',
             data: {
-                labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'],
+                labels: [],
                 datasets: [{
                     label: 'Threats Detected',
-                    data: [5, 12, 8, 15, 22, 18],
+                    data: [],
                     borderColor: '#dc3545',
                     backgroundColor: 'rgba(220, 53, 69, 0.1)',
-                    tension: 0.4
-                }, {
-                    label: 'Requests Analyzed',
-                    data: [150, 280, 200, 320, 450, 380],
-                    borderColor: '#007bff',
-                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
                     tension: 0.4
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'top'
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    }
-                }
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
             }
         });
 
-        // Load real chart data with delay to ensure charts are ready
-        setTimeout(function() {
-            updateChartData();
-        }, 500);
+        // Load real data immediately
+        updateChartData();
     }
 
     function updateChartData() {        
@@ -542,22 +516,17 @@ $(document).ready(function() {
             console.error('❌ getStats API failed:', error);
         });
 
-        // Carica dati per il grafico timeline
-        $.get('/api/webguard/threats/getTimeline', function(data) {            
-            if (data && data.timeline && data.timeline.labels) {                
+        // Load timeline data — threats only, no fake request calculation
+        $.get('/api/webguard/threats/getTimeline', function(data) {
+            if (data && data.timeline && data.timeline.labels) {
                 if (timelineChart) {
                     timelineChart.data.labels = data.timeline.labels;
                     timelineChart.data.datasets[0].data = data.timeline.threats || [];
-                    // Genera dati fittizi per le richieste (es: 10x le minacce + base)
-                    const requestsData = (data.timeline.threats || []).map(threats => 
-                        threats > 0 ? (threats * 10) + Math.floor(Math.random() * 50) + 100 : Math.floor(Math.random() * 20) + 50
-                    );
-                    timelineChart.data.datasets[1].data = requestsData;
                     timelineChart.update();
                 }
             }
         }).fail(function(xhr, status, error) {
-            console.error('❌ getTimeline API failed:', error);
+            console.error('getTimeline API failed:', error);
         });
     }
 

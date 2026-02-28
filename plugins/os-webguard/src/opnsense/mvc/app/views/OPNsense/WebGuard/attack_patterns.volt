@@ -2347,8 +2347,6 @@ $(document).ready(function() {
                         </div>
                         <div class="attacker-details">
                             <span class="attack-count">${count} attempts</span>
-                            <span class="last-seen">Last: ${generateRandomTime()}</span>
-                            <span class="geo-info">Location: ${generateRandomLocation()}</span>
                         </div>
                     </div>
                     <div class="risk-level ${riskLevel}">
@@ -2389,8 +2387,8 @@ $(document).ready(function() {
                                 count: item.count,
                                 score: item.avg_score,
                                 severity: getSeverityFromScore(item.avg_score),
-                                first_seen: generateFirstSeenDate(),
-                                trend: getRandomTrend(),
+                                first_seen: null,
+                                trend: 'stable',
                                 source: 'api'
                             })),
                             trending_attacks: patternsData.by_type
@@ -2399,9 +2397,9 @@ $(document).ready(function() {
                                 .map(item => ({
                                     pattern: item.type,
                                     count: item.count,
-                                    growth_rate: Math.floor(Math.random() * 100) + 1
+                                    growth_rate: 0
                                 })),
-                            attack_sequences: generateAttackSequences(patternsData.by_type)
+                            attack_sequences: []
                         };
                         
                         state.apiData.patterns = transformedData.patterns;
@@ -2429,29 +2427,8 @@ $(document).ready(function() {
         return 'low';
     }
 
-    function getRandomTrend() {
-        const trends = ['up', 'down', 'stable'];
-        return trends[Math.floor(Math.random() * trends.length)];
-    }
-
-    function generateFirstSeenDate() {
-        const now = new Date();
-        const hoursAgo = Math.floor(Math.random() * 48);
-        return new Date(now.getTime() - (hoursAgo * 60 * 60 * 1000)).toISOString();
-    }
-
     function generateAttackSequences(patterns) {
-        if (!patterns || patterns.length === 0) return [];
-        
-        return [
-            {
-                source_ip: generateRandomIP(),
-                sequence: patterns.slice(0, 3).map(p => p.type),
-                count: patterns.length,
-                risk_level: 'high',
-                duration: `${Math.floor(Math.random() * 5) + 1} hours`
-            }
-        ];
+        return [];
     }
 
 
@@ -2530,9 +2507,7 @@ $(document).ready(function() {
                     hourlyData[hour] += pattern.count || 1;
                 }
             });
-            if (hourlyData.every(val => val === 0)) {
-                hourlyData = hours.map(() => Math.floor(Math.random() * patterns.length / 4 + 1));
-            }
+            // No data available — keep zeros
         } else {
             hourlyData = hours.map(() => 0);
         }
@@ -2632,13 +2607,13 @@ $(document).ready(function() {
             const totalAttempts = patterns.reduce((sum, p) => sum + (p.count || 0), 0);
             const realDetectionRate = totalAttempts > 0 ? (totalBlocked / totalAttempts * 100) : 85;
             
-            confidence = hours.map(() => baseConfidence + (Math.random() * 10 - 5));
-            detectionRate = hours.map(() => Math.max(realDetectionRate + (Math.random() * 10 - 5), 70));
+            confidence = hours.map(() => baseConfidence);
+            detectionRate = hours.map(() => realDetectionRate);
             falsePositives = hours.map(() => Math.max(20 - baseConfidence / 5, 2));
         } else {
-            confidence = hours.map(() => Math.random() * 30 + 60);
-            detectionRate = hours.map(() => Math.random() * 40 + 50);
-            falsePositives = hours.map(() => Math.random() * 15 + 5);
+            confidence = hours.map(() => 0);
+            detectionRate = hours.map(() => 0);
+            falsePositives = hours.map(() => 0);
         }
         
         if (charts.ml) charts.ml.destroy();
@@ -2816,7 +2791,7 @@ $(document).ready(function() {
             const patternName = pattern.type || 'Unknown';
             const type = pattern.type || 'Unknown';
             const count = pattern.count || 0;
-            const successRate = Math.floor(Math.random() * 30); // Random success rate for demo
+            const successRate = 0;
             const riskScore = pattern.score || 0;
             const firstSeen = pattern.first_seen ? new Date(pattern.first_seen).toLocaleString() : 'Unknown';
             const trend = pattern.trend || 'stable';
@@ -3266,11 +3241,7 @@ $(document).ready(function() {
 
     function generateModernTimeline(pattern) {
         const now = new Date();
-        const activities = [
-            { time: new Date(now.getTime() - 300000), event: 'Pattern detected', ip: generateRandomIP(), severity: 'high' },
-            { time: new Date(now.getTime() - 1800000), event: 'Similar attack blocked', ip: generateRandomIP(), severity: 'medium' },
-            { time: new Date(now.getTime() - 3600000), event: 'Initial pattern recognition', ip: generateRandomIP(), severity: 'high' }
-        ];
+        const activities = [];
         
         return activities.map(activity => `
             <div class="timeline-item-modern">
@@ -3306,26 +3277,6 @@ $(document).ready(function() {
         }
         
         return ['Pattern Recognition', 'Signature Analysis', 'Behavioral Detection', 'Machine Learning'];
-    }
-
-    function generateRandomTime() {
-        const minutes = Math.floor(Math.random() * 60) + 1;
-        return `${minutes}m ago`;
-    }
-
-    function generateRandomIP() {
-        const ranges = [
-            () => `185.220.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`, // Tor exit nodes
-            () => `123.207.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`, // China
-            () => `93.174.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`,  // Russia
-            () => `104.248.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}` // DigitalOcean
-        ];
-        return ranges[Math.floor(Math.random() * ranges.length)]();
-    }
-
-    function generateRandomLocation() {
-        const locations = ['Unknown', 'Russia', 'China', 'Brazil', 'India', 'USA', 'Germany', 'France'];
-        return locations[Math.floor(Math.random() * locations.length)];
     }
 
     function sanitizeString(str) {

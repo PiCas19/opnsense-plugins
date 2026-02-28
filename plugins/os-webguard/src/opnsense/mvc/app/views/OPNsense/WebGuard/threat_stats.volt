@@ -349,8 +349,8 @@ $(document).ready(function() {
             });
         }
 
-        // Carica i dati iniziali dei grafici
-        setTimeout(updateCharts, 500);
+        // Load real chart data immediately
+        updateCharts();
     }
 
     function updateCharts() {

@@ -2443,19 +2443,11 @@
             var hours = [];
             var activity = [];
             
-            // Generate 24 hours with more realistic activity patterns
-            var peakHours = [8, 9, 10, 14, 18, 21]; // Peak activity hours
-            
+            // Generate 24 hours with no fake activity
             for (var i = 0; i < 24; i++) {
                 var hourStr = i < 10 ? '0' + i : i.toString();
                 hours.push(hourStr + ':00');
-                
-                // Generate more realistic activity data
-                var baseActivity = Math.floor(Math.random() * 3) + 1;
-                if (peakHours.indexOf(i) !== -1) {
-                    baseActivity += Math.floor(Math.random() * 6) + 3; // Higher activity during peak hours
-                }
-                activity.push(baseActivity);
+                activity.push(0);
             }
             
             // Calculate max for color intensity
