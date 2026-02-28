@@ -1,1145 +1,496 @@
+{# statistics.volt - Deep Packet Inspector Statistics #}
 <script src="/ui/js/chart.min.js"></script>
 
 <script>
 $(document).ready(function() {
-    initializeStatistics();
-    loadStatisticsData();
-    
-    $('#timeRangeFilter, #reportType').change(function() {
-        loadStatisticsData();
-    });
-    
-    $('#refreshStats').click(function() {
-        loadStatisticsData();
-    });
-    
-    $('#loadSuspiciousPackets').click(function() {
-        loadSuspiciousPackets();
-    });
-    
-    $('#packetSeverityFilter').change(function() {
-        if ($('#suspiciousPacketsBody tr').length > 1 && 
-            !$('#suspiciousPacketsBody').find('.text-muted').length) {
-            loadSuspiciousPackets();
-        }
-    });
-    
-    $('#packetTimeFilter').change(function() {
-        if ($('#suspiciousPacketsBody tr').length > 1 && 
-            !$('#suspiciousPacketsBody').find('.text-muted').length) {
-            loadSuspiciousPackets();
-        }
-    });
-    
-    $('#exportCSV').click(function() { exportReport('csv'); });
-    $('#exportJSON').click(function() { exportReport('json'); });
-    
-    setInterval(loadStatisticsData, 120000);
+    if (typeof Chart !== 'undefined') {
+        initCharts();
+    }
+    loadStats();
+    setInterval(loadStats, 30000);
+
+    $('#refreshStats').click(function() { loadStats(); });
+    $('#exportStats').click(function() { exportStats(); });
+    $('#severityFilter, #threatTypeFilter, #timeRangeFilter').change(function() { applyFilters(); });
 });
 
-function initializeStatistics() {
-    if (typeof Chart !== 'undefined') {
-        initializeCharts();
-    }
-}
+// ── Chart instances ──────────────────────────────────────────────────────────
 
-function initializeCharts() {
-    const severityCtx = document.getElementById('severityChart').getContext('2d');
-    window.severityChart = new Chart(severityCtx, {
+function initCharts() {
+    window.protocolChart = new Chart(
+        document.getElementById('protocolChart').getContext('2d'), {
         type: 'doughnut',
-        data: {
-            labels: ['Critical', 'High', 'Medium', 'Low'],
-            datasets: [{
-                data: [0, 0, 0, 0],
-                backgroundColor: ['#dc3545', '#fd7e14', '#ffc107', '#28a745']
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom' }
-            }
-        }
+        data: { labels: [], datasets: [{ data: [], backgroundColor: ['#007bff','#28a745','#ffc107','#dc3545','#17a2b8','#6f42c1','#fd7e14','#20c997','#e83e8c','#adb5bd'] }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
     });
-    
-    const timelineCtx = document.getElementById('timelineChart').getContext('2d');
-    window.timelineChart = new Chart(timelineCtx, {
+
+    window.threatTypesChart = new Chart(
+        document.getElementById('threatTypesChart').getContext('2d'), {
+        type: 'bar',
+        data: { labels: [], datasets: [{ label: 'Count', data: [], backgroundColor: ['#dc3545','#fd7e14','#ffc107','#6f42c1','#17a2b8','#28a745'] }] },
+        options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+    });
+
+    window.timelineChart = new Chart(
+        document.getElementById('timelineChart').getContext('2d'), {
         type: 'line',
-        data: {
-            labels: [],
-            datasets: [{
-                label: 'Threats Detected',
-                data: [],
-                borderColor: '#dc3545',
-                backgroundColor: 'rgba(220, 53, 69, 0.1)',
-                tension: 0.1
-            }, {
-                label: 'Threats Blocked',
-                data: [],
-                borderColor: '#28a745',
-                backgroundColor: 'rgba(40, 167, 69, 0.1)',
-                tension: 0.1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: { beginAtZero: true }
-            }
-        }
+        data: { labels: [], datasets: [{ label: 'Threats', data: [], borderColor: '#dc3545', backgroundColor: 'rgba(220,53,69,0.08)', tension: 0.3, fill: true }] },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }, plugins: { legend: { display: false } } }
+    });
+
+    window.severityChart = new Chart(
+        document.getElementById('severityChart').getContext('2d'), {
+        type: 'doughnut',
+        data: { labels: ['Critical','High','Medium','Low'], datasets: [{ data: [0,0,0,0], backgroundColor: ['#dc3545','#fd7e14','#ffc107','#28a745'] }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+    });
+
+    window.industrialChart = new Chart(
+        document.getElementById('industrialChart').getContext('2d'), {
+        type: 'bar',
+        data: { labels: ['Modbus','DNP3','OPC-UA','SCADA'], datasets: [{ label: 'Events', data: [0,0,0,0], backgroundColor: ['#6f42c1','#17a2b8','#fd7e14','#dc3545'] }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
     });
 }
 
-function loadStatisticsData() {
-    const timeRange = $('#timeRangeFilter').val();
-    const reportType = $('#reportType').val();
+// ── Data loading ─────────────────────────────────────────────────────────────
 
+var allThreats = [];
+
+function loadStats() {
     $('#lastUpdated').text(new Date().toLocaleString());
-
-    ajaxCall("/api/deepinspector/statistics/getSecurityStats", {timeRange: timeRange}, function(data) {
-        if (data.status === 'ok' && data.data) {
-            updateSecurityMetrics(data.data);
-            updateThreatSources(data.data.top_threat_sources || {});
-            updateMaliciousPatterns(data.data.malicious_patterns || {});
-            updateThreatTypesTable(data.data.threats_by_type || {});
-
-            if (window.severityChart) {
-                updateSeverityChart(data.data.threats_by_severity || {});
-            }
-        }
+    ajaxCall("/api/deepinspector/settings/stats", {}, function(data) {
+        if (data.status !== 'ok' || !data.data) return;
+        var d = data.data;
+        allThreats = d.recent_threats || [];
+        updateMetrics(d);
+        updateCharts(d);
+        applyFilters();
+        updateTopSources(allThreats);
+        updatePerformance(d.system_info || {});
     });
+}
 
-    ajaxCall("/api/deepinspector/statistics/getBlockingStats", {timeRange: timeRange}, function(data) {
-        if (data.status === 'ok' && data.data) {
-            updateBlockingStats(data.data);
+function updateMetrics(d) {
+    $('#packetsAnalyzed').text(formatNumber(d.packets_analyzed || 0));
+    $('#threatsDetected').text(formatNumber(d.threats_detected || 0));
+    var rate = d.packets_analyzed > 0
+        ? ((d.threats_detected / d.packets_analyzed) * 100).toFixed(2)
+        : '0.00';
+    $('#detectionRate').text(rate + '%');
+    var protocols = d.protocols_analyzed || {};
+    $('#activeProtocols').text(Object.keys(protocols).length);
+}
+
+function updateCharts(d) {
+    // Protocol distribution
+    if (window.protocolChart) {
+        var p = d.protocols_analyzed || {};
+        var pLabels = Object.keys(p);
+        var pValues = Object.values(p);
+        if (pLabels.length > 0) {
+            window.protocolChart.data.labels = pLabels;
+            window.protocolChart.data.datasets[0].data = pValues;
+            window.protocolChart.update();
         }
-    });
-
-    if (reportType === 'traffic' || reportType === 'comprehensive') {
-        ajaxCall("/api/deepinspector/statistics/getTrafficStats", {timeRange: timeRange}, function(data) {
-            if (data.status === 'ok' && data.data) {
-                updateTrafficStats(data.data);
-            }
-        });
     }
 
-    if (reportType === 'industrial' || reportType === 'comprehensive') {
-        ajaxCall("/api/deepinspector/statistics/getIndustrialStats", {timeRange: timeRange}, function(data) {
-            if (data.status === 'ok' && data.data) {
-                updateIndustrialStats(data.data);
-                $('#industrialSection').show();
+    // Threat types horizontal bar
+    if (window.threatTypesChart) {
+        var t = d.threat_types || {};
+        var tLabels = Object.keys(t);
+        var tValues = Object.values(t);
+        if (tLabels.length > 0) {
+            window.threatTypesChart.data.labels = tLabels;
+            window.threatTypesChart.data.datasets[0].data = tValues;
+            window.threatTypesChart.update();
+        }
+    }
+
+    // Timeline: 24h hourly buckets from recent_threats
+    if (window.timelineChart) {
+        var threats = d.recent_threats || [];
+        var now = Date.now();
+        var buckets = {};
+        for (var i = 23; i >= 0; i--) {
+            var dt = new Date(now - i * 3600000);
+            buckets[dt.getHours().toString().padStart(2,'0') + ':00'] = 0;
+        }
+        threats.forEach(function(t) {
+            var ts = new Date(t.timestamp);
+            if ((now - ts.getTime()) <= 86400000) {
+                var label = ts.getHours().toString().padStart(2,'0') + ':00';
+                if (buckets.hasOwnProperty(label)) buckets[label]++;
             }
         });
-    } else {
-        $('#industrialSection').hide();
+        window.timelineChart.data.labels = Object.keys(buckets);
+        window.timelineChart.data.datasets[0].data = Object.values(buckets);
+        window.timelineChart.update();
     }
-}
 
-function updateSecurityMetrics(data) {
-    $('#totalThreats').text(formatNumber(data.total_threats_detected || 0));
-    $('#threatsBlocked').text(formatNumber(data.threats_blocked || 0));
-    $('#detectionAccuracy').text((data.detection_accuracy || 0) + '%');
-    $('#industrialThreats').text(formatNumber(data.industrial_threats || 0));
-    $('#zeroTrustViolations').text(formatNumber(data.zero_trust_violations || 0));
-    $('#packetsAnalyzed').text(formatNumber(data.total_packets_analyzed || 0));
-}
-
-function updateBlockingStats(data) {
-    $('#blockedIPs').text(formatNumber(data.total_ips_blocked || 0));
-    $('#connectionsBlocked').text(formatNumber(data.total_connections_blocked || 0));
-    $('#blockingEffectiveness').text((data.blocking_effectiveness || 0) + '%');
-    $('#autoUnblocked').text(formatNumber(data.auto_unblocked || 0));
-}
-
-function updateTrafficStats(data) {
-    $('#packetsAnalyzed').text(formatNumber(data.total_packets_analyzed || 0));
-}
-
-function updateIndustrialStats(data) {
-    const protocols = data.protocols_detected || {};
-    $('#modbusCount').text(formatNumber(protocols.modbus || 0));
-    $('#dnp3Count').text(formatNumber(protocols.dnp3 || 0));
-    $('#opcuaCount').text(formatNumber(protocols.opcua || 0));
-    $('#scadaAnomalies').text(formatNumber(data.scada_anomalies || 0));
-}
-
-function updateSeverityChart(severityData) {
+    // Severity distribution from recent_threats
     if (window.severityChart) {
-        window.severityChart.data.datasets[0].data = [
-            severityData.critical || 0,
-            severityData.high || 0,
-            severityData.medium || 0,
-            severityData.low || 0
-        ];
+        var threats = d.recent_threats || [];
+        var sev = { critical: 0, high: 0, medium: 0, low: 0 };
+        threats.forEach(function(t) {
+            var s = (t.severity || 'medium').toLowerCase();
+            if (sev.hasOwnProperty(s)) sev[s]++;
+        });
+        window.severityChart.data.datasets[0].data = [sev.critical, sev.high, sev.medium, sev.low];
         window.severityChart.update();
     }
-}
 
-function updateThreatSources(sources) {
-    const container = $('#topThreatSources');
-    container.empty();
-    
-    if (Object.keys(sources).length === 0) {
-        container.html('<div class="alert alert-info">{{ lang._("No threat sources detected") }}</div>');
-        return;
+    // Industrial protocols from threat_types or protocols_analyzed
+    if (window.industrialChart) {
+        var protocols = d.protocols_analyzed || {};
+        var types = d.threat_types || {};
+        window.industrialChart.data.datasets[0].data = [
+            protocols['modbus'] || protocols['Modbus'] || 0,
+            protocols['dnp3']   || protocols['DNP3']   || 0,
+            protocols['opcua']  || protocols['OPC-UA'] || protocols['OPCUA'] || 0,
+            types['scada_attack'] || types['industrial_threat'] || 0
+        ];
+        window.industrialChart.update();
     }
-    
-    Object.entries(sources).slice(0, 10).forEach(([ip, count]) => {
-        const item = $(`
-            <div class="list-group-item d-flex justify-content-between align-items-center">
-                <span><code>${ip}</code></span>
-                <div>
-                    <span class="badge badge-danger">${count}</span>
-                    <button class="btn btn-sm btn-outline-danger ml-2" onclick="blockThreatSource('${ip}')">
-                        <i class="fa fa-ban"></i>
-                    </button>
-                </div>
-            </div>
-        `);
-        container.append(item);
-    });
 }
 
-function updateMaliciousPatterns(patterns) {
-    const container = $('#maliciousPatterns');
-    container.empty();
-    
-    if (Object.keys(patterns).length === 0) {
-        container.html('<div class="alert alert-info">{{ lang._("No malicious patterns detected") }}</div>');
-        return;
-    }
-    
-    Object.entries(patterns).slice(0, 5).forEach(([pattern, count]) => {
-        const item = $(`
-            <div class="pattern-item">
-                <div class="pattern-code">
-                    <code>${pattern.substring(0, 50)}${pattern.length > 50 ? '...' : ''}</code>
-                </div>
-                <div class="pattern-count">
-                    <span class="badge badge-warning">${count} matches</span>
-                </div>
-            </div>
-        `);
-        container.append(item);
+// ── Threats table with filters ───────────────────────────────────────────────
+
+function applyFilters() {
+    var severity  = $('#severityFilter').val();
+    var type      = $('#threatTypeFilter').val();
+    var timeRange = parseInt($('#timeRangeFilter').val()) || 0;
+    var now       = Date.now();
+
+    var filtered = allThreats.filter(function(t) {
+        if (severity !== 'all' && (t.severity || '').toLowerCase() !== severity) return false;
+        if (type !== 'all' && (t.threat_type || '').toLowerCase() !== type) return false;
+        if (timeRange > 0) {
+            var age = now - new Date(t.timestamp).getTime();
+            if (age > timeRange * 3600000) return false;
+        }
+        return true;
     });
+
+    renderThreatsTable(filtered);
 }
 
-function updateThreatTypesTable(threatTypes) {
-    const tbody = $('#threatTypesBody');
+function renderThreatsTable(threats) {
+    var tbody = $('#threatsBody');
     tbody.empty();
-    
-    if (Object.keys(threatTypes).length === 0) {
-        tbody.html('<tr><td colspan="3" class="text-center text-muted">{{ lang._("No threat types detected") }}</td></tr>');
+    if (threats.length === 0) {
+        tbody.html('<tr><td colspan="6" class="text-center text-muted">{{ lang._("No threats match the current filters") }}</td></tr>');
         return;
     }
-    
-    const total = Object.values(threatTypes).reduce((sum, count) => sum + count, 0);
-    
-    Object.entries(threatTypes).forEach(([type, count]) => {
-        const percentage = total > 0 ? ((count / total) * 100).toFixed(1) : 0;
-
-        const row = $(`
-            <tr>
-                <td><strong>${type}</strong></td>
-                <td>${formatNumber(count)}</td>
-                <td>${percentage}%</td>
-            </tr>
-        `);
-        tbody.append(row);
+    threats.forEach(function(t) {
+        tbody.append(
+            '<tr>' +
+            '<td style="font-family:monospace;font-size:.85em">' + new Date(t.timestamp).toLocaleString() + '</td>' +
+            '<td><code>' + (t.source_ip || 'N/A') + '</code></td>' +
+            '<td><code>' + (t.destination_ip || 'N/A') + '</code></td>' +
+            '<td>' + (t.threat_type || 'N/A') + '</td>' +
+            '<td><span class="badge ' + sevClass(t.severity) + '">' + (t.severity || 'N/A') + '</span></td>' +
+            '<td>' + (t.protocol || 'N/A') + '</td>' +
+            '</tr>'
+        );
     });
 }
 
-function loadSuspiciousPackets() {
-    const severity = $('#packetSeverityFilter').val();
-    const timeRange = $('#packetTimeFilter').val();
-    const $btn = $('#loadSuspiciousPackets');
-    
-    $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> {{ lang._("Loading...") }}');
-    
-    const params = {
-        severity: severity,
-        timeRange: timeRange,
-        limit: 50
-    };
-    
-    ajaxCall("/api/deepinspector/statistics/getSuspiciousPackets", params, function(data) {
-        $btn.prop('disabled', false).html('<i class="fa fa-search"></i> {{ lang._("Analyze Packets") }}');
-        
-        if (data.status === 'ok' && data.data) {
-            updateSuspiciousPacketsTable(data.data.packets || []);
-            const count = data.data.total_count || 0;
-            if (count > 0) {
-                showNotification(`{{ lang._("Found") }} ${count} {{ lang._("suspicious packets") }}`, 'info');
-            } else {
-                showNotification('{{ lang._("No suspicious packets found for the selected filters") }}', 'info');
-            }
-        } else {
-            showNotification(data.message || '{{ lang._("Error loading suspicious packets") }}', 'error');
-        }
+function updateTopSources(threats) {
+    var counts = {};
+    threats.forEach(function(t) {
+        if (t.source_ip) counts[t.source_ip] = (counts[t.source_ip] || 0) + 1;
     });
-}
-
-function updateSuspiciousPacketsTable(packets) {
-    const tbody = $('#suspiciousPacketsBody');
-    tbody.empty();
-    
-    if (packets.length === 0) {
-        tbody.html('<tr><td colspan="9" class="text-center text-muted">{{ lang._("No suspicious packets found") }}</td></tr>');
+    var sorted = Object.entries(counts).sort(function(a,b){ return b[1]-a[1]; }).slice(0,10);
+    var container = $('#topSources');
+    container.empty();
+    if (sorted.length === 0) {
+        container.html('<div class="text-muted text-center p-2">{{ lang._("No data") }}</div>');
         return;
     }
-    
-    packets.forEach(function(packet) {
-        const riskClass = getRiskLevelClass(packet.risk_level);
-        const row = $(`
-            <tr class="packet-row" data-packet-id="${packet.id}">
-                <td class="timestamp-cell">${formatTimestamp(packet.timestamp)}</td>
-                <td><code>${packet.source_ip}:${packet.source_port || 'N/A'}</code></td>
-                <td><code>${packet.destination_ip}:${packet.destination_port || 'N/A'}</code></td>
-                <td><span class="protocol-badge">${packet.protocol}</span></td>
-                <td>${packet.threat_type}</td>
-                <td><span class="badge ${riskClass}">${packet.risk_level.toUpperCase()}</span></td>
-                <td><code class="pattern-code">${packet.pattern_matched.substring(0, 20)}...</code></td>
-                <td>
-                    <span class="badge ${getActionClass(packet.action_taken)}">${packet.action_taken}</span>
-                </td>
-                <td>
-                    <button class="btn btn-sm btn-primary" onclick="viewPacketDetails('${packet.id}')">
-                        <i class="fa fa-eye"></i>
-                    </button>
-                </td>
-            </tr>
-        `);
-        tbody.append(row);
+    sorted.forEach(function(entry) {
+        var ip = entry[0], count = entry[1];
+        container.append(
+            '<div class="d-flex justify-content-between align-items-center mb-2">' +
+            '<code style="font-size:.9em">' + ip + '</code>' +
+            '<span class="badge badge-danger">' + count + '</span>' +
+            '</div>'
+        );
     });
 }
 
-function viewPacketDetails(packetId) {
-    ajaxCall("/api/deepinspector/statistics/getPacketDetails", {packetId: packetId}, function(data) {
-        if (data.status !== 'ok' || !data.data) {
-            showNotification('{{ lang._("Error loading packet details") }}', 'error');
-            return;
-        }
-        
-        const packetData = data.data;
-        
-        const modalBody = $('#packetDetailsBody');
-        modalBody.html(`
-            <div class="packet-analysis">
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6>{{ lang._("Packet Information") }}</h6>
-                        <table class="table table-sm">
-                            <tr>
-                                <td><strong>{{ lang._("Packet ID") }}:</strong></td>
-                                <td><code>${packetData.id}</code></td>
-                            </tr>
-                            <tr>
-                                <td><strong>{{ lang._("Timestamp") }}:</strong></td>
-                                <td>${formatTimestamp(packetData.timestamp)}</td>
-                            </tr>
-                            <tr>
-                                <td><strong>{{ lang._("Source") }}:</strong></td>
-                                <td><code>${packetData.source_ip}:${packetData.source_port || 'N/A'}</code></td>
-                            </tr>
-                            <tr>
-                                <td><strong>{{ lang._("Destination") }}:</strong></td>
-                                <td><code>${packetData.destination_ip}:${packetData.destination_port || 'N/A'}</code></td>
-                            </tr>
-                            <tr>
-                                <td><strong>{{ lang._("Protocol") }}:</strong></td>
-                                <td>${packetData.protocol}</td>
-                            </tr>
-                            <tr>
-                                <td><strong>{{ lang._("Payload Size") }}:</strong></td>
-                                <td>${packetData.payload_size || 0} bytes</td>
-                            </tr>
-                        </table>
-                    </div>
-                    <div class="col-md-6">
-                        <h6>{{ lang._("Threat Analysis") }}</h6>
-                        <table class="table table-sm">
-                            <tr>
-                                <td><strong>{{ lang._("Threat Type") }}:</strong></td>
-                                <td>${packetData.threat_type}</td>
-                            </tr>
-                            <tr>
-                                <td><strong>{{ lang._("Risk Level") }}:</strong></td>
-                                <td><span class="badge ${getRiskLevelClass(packetData.risk_level)}">${packetData.risk_level.toUpperCase()}</span></td>
-                            </tr>
-                            <tr>
-                                <td><strong>{{ lang._("Pattern Matched") }}:</strong></td>
-                                <td><code>${packetData.pattern_matched}</code></td>
-                            </tr>
-                            <tr>
-                                <td><strong>{{ lang._("Confidence Score") }}:</strong></td>
-                                <td>${packetData.confidence_score || 0}%</td>
-                            </tr>
-                            <tr>
-                                <td><strong>{{ lang._("Action Taken") }}:</strong></td>
-                                <td><span class="badge ${getActionClass(packetData.action_taken)}">${packetData.action_taken}</span></td>
-                            </tr>
-                            <tr>
-                                <td><strong>{{ lang._("Industrial Context") }}:</strong></td>
-                                <td>${packetData.industrial_context ? 'Yes' : 'No'}</td>
-                            </tr>
-                        </table>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-md-12">
-                        <h6>{{ lang._("Description") }}</h6>
-                        <p class="packet-description">${packetData.description}</p>
-                    </div>
-                </div>
-            </div>
-        `);
-        
-        $('#blockPacketSource').off('click').on('click', function() {
-            blockThreatSource(packetData.source_ip);
-        });
-        
-        $('#packetDetailsModal').modal('show');
+function updatePerformance(info) {
+    $('#cpuUsage').text(info.cpu_usage || 'N/A');
+    $('#memUsage').text(info.memory_usage || 'N/A');
+    $('#engineStatus').text(info.engine_status || 'N/A');
+    $('#engineUptime').text(info.uptime || 'N/A');
+}
+
+// ── Export ───────────────────────────────────────────────────────────────────
+
+function exportStats() {
+    ajaxCall("/api/deepinspector/settings/stats", {}, function(data) {
+        if (data.status !== 'ok') return;
+        var content = JSON.stringify(data.data, null, 2);
+        var blob = new Blob([content], { type: 'application/json' });
+        var link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'deepinspector_stats_' + new Date().toISOString().slice(0,19).replace(/:/g,'-') + '.json';
+        link.click();
     });
 }
 
-function blockThreatSource(sourceIP) {
-    if (confirm(`{{ lang._("Block IP address") }} ${sourceIP}?`)) {
-        ajaxCall("/api/deepinspector/service/blockIP", {ip: sourceIP}, function(data) {
-            if (data.status === 'ok') {
-                showNotification(`{{ lang._("IP") }} ${sourceIP} {{ lang._("blocked successfully") }}`, 'success');
-                $('#packetDetailsModal').modal('hide');
-                loadStatisticsData();
-            } else {
-                showNotification(`{{ lang._("Failed to block IP") }}: ${data.message}`, 'error');
-            }
-        });
-    }
-}
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
-function exportReport(format) {
-    const $btn = $(`#export${format.toUpperCase()}`);
-    const originalText = $btn.html();
-
-    $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> {{ lang._("Exporting...") }}');
-
-    ajaxCall("/api/deepinspector/statistics/exportReport", {
-        format: format,
-        timeRange: $('#timeRangeFilter').val(),
-        reportType: $('#reportType').val()
-    }, function(data) {
-        $btn.prop('disabled', false).html(originalText);
-
-        if (data.status === 'ok' && data.data) {
-            if (format === 'csv') {
-                downloadFile(data.data.content, data.data.filename, 'text/csv');
-            } else if (format === 'json') {
-                downloadFile(data.data.content, data.data.filename, 'application/json');
-            }
-            showNotification('{{ lang._("Report exported successfully") }}', 'success');
-        } else {
-            showNotification(data.message || '{{ lang._("Export failed") }}', 'error');
-        }
-    });
-}
-
-function downloadFile(content, filename, contentType) {
-    const blob = new Blob([content], { type: contentType });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-
-function getRiskLevelClass(level) {
-    switch(level.toLowerCase()) {
+function sevClass(s) {
+    switch ((s || '').toLowerCase()) {
         case 'critical': return 'badge-danger';
-        case 'high': return 'badge-warning';
-        case 'medium': return 'badge-info';
-        case 'low': return 'badge-success';
-        default: return 'badge-secondary';
+        case 'high':     return 'badge-warning';
+        case 'medium':   return 'badge-info';
+        case 'low':      return 'badge-success';
+        default:         return 'badge-secondary';
     }
 }
 
-function getActionClass(action) {
-    switch(action.toLowerCase()) {
-        case 'blocked': return 'badge-danger';
-        case 'allowed': return 'badge-success';
-        case 'logged': return 'badge-info';
-        default: return 'badge-secondary';
-    }
-}
-
-function formatNumber(num) {
-    return new Intl.NumberFormat().format(num);
-}
-
-function formatTimestamp(timestamp) {
-    return new Date(timestamp).toLocaleString();
-}
-
-function showNotification(message, type) {
-    const alertClass = type === 'success' ? 'alert-success' : 
-                      type === 'info' ? 'alert-info' : 
-                      type === 'warning' ? 'alert-warning' : 'alert-danger';
-    const notification = $(`
-        <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
-            ${message}
-            <button type="button" class="close" data-dismiss="alert">
-                <span>&times;</span>
-            </button>
-        </div>
-    `);
-    
-    $('#notifications').append(notification);
-    setTimeout(() => notification.alert('close'), 5000);
-}
+function formatNumber(n) { return new Intl.NumberFormat().format(n || 0); }
 </script>
 
-<div id="notifications" style="position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px;"></div>
+<div id="notifications" style="position:fixed;top:20px;right:20px;z-index:9999;min-width:280px;"></div>
 
-<!-- HTML STRUCTURE -->
-<div class="statistics-header">
-    <div class="report-controls">
-        <div class="btn-group">
-            <button id="exportCSV" class="btn btn-secondary">
-                <i class="fa fa-file-excel-o"></i> CSV
+<!-- ── Toolbar ───────────────────────────────────────────────────────────── -->
+<div class="content-box" style="padding:1rem 1.5rem;margin-bottom:1rem;">
+    <div class="row" style="align-items:center;">
+        <div class="col-md-8">
+            <span class="text-muted" style="font-size:.85em;">
+                {{ lang._('Last updated') }}: <strong id="lastUpdated">--</strong>
+            </span>
+        </div>
+        <div class="col-md-4 text-right">
+            <button class="btn btn-default btn-sm" id="refreshStats">
+                <i class="fa fa-refresh"></i> {{ lang._('Refresh') }}
             </button>
-            <button id="exportJSON" class="btn btn-secondary">
-                <i class="fa fa-file-code-o"></i> JSON
+            <button class="btn btn-default btn-sm" id="exportStats" style="margin-left:.5rem;">
+                <i class="fa fa-download"></i> {{ lang._('Export JSON') }}
             </button>
         </div>
-        <button id="refreshStats" class="btn btn-primary ml-2">
-            <i class="fa fa-refresh"></i> {{ lang._('Refresh') }}
-        </button>
     </div>
 </div>
 
-<div class="statistics-filters">
-    <div class="row">
-        <div class="col-md-4">
-            <label>{{ lang._('Time Range') }}</label>
-            <select id="timeRangeFilter" class="form-control">
-                <option value="today">{{ lang._('Today') }}</option>
-                <option value="last15m">{{ lang._('Last 15 minutes') }}</option>
-                <option value="last30m">{{ lang._('Last 30 minutes') }}</option>
-                <option value="last1h">{{ lang._('Last 1 hour') }}</option>
-                <option value="last24h" selected>{{ lang._('Last 24 hours') }}</option>
-                <option value="thisweek">{{ lang._('This week') }}</option>
-                <option value="last7d">{{ lang._('Last 7 days') }}</option>
-                <option value="last30d">{{ lang._('Last 30 days') }}</option>
-                <option value="last90d">{{ lang._('Last 90 days') }}</option>
-                <option value="last1y">{{ lang._('Last 1 year') }}</option>
-            </select>
+<!-- ── Metrics ───────────────────────────────────────────────────────────── -->
+<div class="row">
+    <div class="col-md-3">
+        <div class="stat-metric-card">
+            <div class="stat-metric-icon text-primary"><i class="fa fa-search"></i></div>
+            <div>
+                <div class="stat-metric-value" id="packetsAnalyzed">0</div>
+                <div class="stat-metric-label">{{ lang._('Packets Analyzed') }}</div>
+            </div>
         </div>
-        <div class="col-md-4">
-            <label>{{ lang._('Report Type') }}</label>
-            <select id="reportType" class="form-control">
-                <option value="security">{{ lang._('Security Only') }}</option>
-                <option value="traffic">{{ lang._('Traffic Analysis') }}</option>
-                <option value="industrial">{{ lang._('Industrial/SCADA') }}</option>
-                <option value="comprehensive" selected>{{ lang._('Comprehensive') }}</option>
-            </select>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-metric-card">
+            <div class="stat-metric-icon text-danger"><i class="fa fa-exclamation-triangle"></i></div>
+            <div>
+                <div class="stat-metric-value" id="threatsDetected">0</div>
+                <div class="stat-metric-label">{{ lang._('Threats Detected') }}</div>
+            </div>
         </div>
-        <div class="col-md-4">
-            <div class="statistics-summary">
-                <small class="summary-item">
-                    <i class="fa fa-clock-o"></i> {{ lang._('Last Updated') }}: 
-                    <strong id="lastUpdated">--</strong>
-                </small>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-metric-card">
+            <div class="stat-metric-icon text-warning"><i class="fa fa-percent"></i></div>
+            <div>
+                <div class="stat-metric-value" id="detectionRate">0%</div>
+                <div class="stat-metric-label">{{ lang._('Detection Rate') }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-metric-card">
+            <div class="stat-metric-icon text-success"><i class="fa fa-exchange"></i></div>
+            <div>
+                <div class="stat-metric-value" id="activeProtocols">0</div>
+                <div class="stat-metric-label">{{ lang._('Active Protocols') }}</div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Security Metrics Cards -->
+<!-- ── Charts row 1: Protocol / Threat Types / Timeline ──────────────────── -->
 <div class="row">
     <div class="col-md-4">
-        <div class="metric-card metric-threats">
-            <div class="metric-icon"><i class="fa fa-exclamation-triangle"></i></div>
-            <div class="metric-content">
-                <div class="metric-value" id="totalThreats">0</div>
-                <div class="metric-label">{{ lang._('Total Threats') }}</div>
+        <div class="content-box stat-chart-box">
+            <h5>{{ lang._('Protocol Distribution') }}</h5>
+            <div style="position:relative;height:240px;">
+                <canvas id="protocolChart"></canvas>
             </div>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="metric-card metric-blocked">
-            <div class="metric-icon"><i class="fa fa-shield"></i></div>
-            <div class="metric-content">
-                <div class="metric-value" id="threatsBlocked">0</div>
-                <div class="metric-label">{{ lang._('Threats Blocked') }}</div>
+        <div class="content-box stat-chart-box">
+            <h5>{{ lang._('Threat Types') }}</h5>
+            <div style="position:relative;height:240px;">
+                <canvas id="threatTypesChart"></canvas>
             </div>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="metric-card metric-accuracy">
-            <div class="metric-icon"><i class="fa fa-bullseye"></i></div>
-            <div class="metric-content">
-                <div class="metric-value" id="detectionAccuracy">0%</div>
-                <div class="metric-label">{{ lang._('Detection Accuracy') }}</div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row">
-    <div class="col-md-4">
-        <div class="metric-card metric-industrial">
-            <div class="metric-icon"><i class="fa fa-industry"></i></div>
-            <div class="metric-content">
-                <div class="metric-value" id="industrialThreats">0</div>
-                <div class="metric-label">{{ lang._('Industrial Threats') }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="metric-card metric-zerotrust">
-            <div class="metric-icon"><i class="fa fa-lock"></i></div>
-            <div class="metric-content">
-                <div class="metric-value" id="zeroTrustViolations">0</div>
-                <div class="metric-label">{{ lang._('Zero Trust Violations') }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="metric-card metric-packets">
-            <div class="metric-icon"><i class="fa fa-exchange"></i></div>
-            <div class="metric-content">
-                <div class="metric-value" id="packetsAnalyzed">0</div>
-                <div class="metric-label">{{ lang._('Packets Analyzed') }}</div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Charts Section -->
-<div class="row">
-    <div class="col-md-6">
-        <div class="statistics-section">
-            <h5>{{ lang._('Severity Distribution') }}</h5>
-            <div class="chart-container">
-                <canvas id="severityChart"></canvas>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6">
-        <div class="statistics-section">
-            <h5>{{ lang._('Threat Timeline') }}</h5>
-            <div class="chart-container">
+        <div class="content-box stat-chart-box">
+            <h5>{{ lang._('Threat Timeline (24h)') }}</h5>
+            <div style="position:relative;height:240px;">
                 <canvas id="timelineChart"></canvas>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Threat Sources and Patterns -->
+<!-- ── Charts row 2: Severity / Industrial ───────────────────────────────── -->
 <div class="row">
-    <div class="col-md-6">
-        <div class="statistics-section">
+    <div class="col-md-4">
+        <div class="content-box stat-chart-box">
+            <h5>{{ lang._('Severity Distribution') }}</h5>
+            <div style="position:relative;height:220px;">
+                <canvas id="severityChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="content-box stat-chart-box">
+            <h5>{{ lang._('Industrial / SCADA Events') }}</h5>
+            <div style="position:relative;height:220px;">
+                <canvas id="industrialChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="content-box stat-chart-box">
+            <h5>{{ lang._('Engine Performance') }}</h5>
+            <table class="table table-sm" style="margin-top:.5rem;">
+                <tr>
+                    <td>{{ lang._('Status') }}</td>
+                    <td><strong id="engineStatus">--</strong></td>
+                </tr>
+                <tr>
+                    <td>{{ lang._('Uptime') }}</td>
+                    <td><strong id="engineUptime">--</strong></td>
+                </tr>
+                <tr>
+                    <td>{{ lang._('CPU') }}</td>
+                    <td><strong id="cpuUsage">--</strong></td>
+                </tr>
+                <tr>
+                    <td>{{ lang._('Memory') }}</td>
+                    <td><strong id="memUsage">--</strong></td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ── Threats table + Top sources ───────────────────────────────────────── -->
+<div class="row">
+    <div class="col-md-8">
+        <div class="content-box" style="padding:1rem;">
+            <div class="row" style="margin-bottom:.75rem;align-items:flex-end;">
+                <div class="col-md-4">
+                    <label style="font-size:.85em;">{{ lang._('Severity') }}</label>
+                    <select class="form-control form-control-sm" id="severityFilter">
+                        <option value="all">{{ lang._('All') }}</option>
+                        <option value="critical">{{ lang._('Critical') }}</option>
+                        <option value="high">{{ lang._('High') }}</option>
+                        <option value="medium">{{ lang._('Medium') }}</option>
+                        <option value="low">{{ lang._('Low') }}</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label style="font-size:.85em;">{{ lang._('Threat Type') }}</label>
+                    <select class="form-control form-control-sm" id="threatTypeFilter">
+                        <option value="all">{{ lang._('All') }}</option>
+                        <option value="sql_injection">SQL Injection</option>
+                        <option value="command_injection">Command Injection</option>
+                        <option value="script_injection">Script Injection</option>
+                        <option value="malware">Malware</option>
+                        <option value="crypto_mining">Crypto Mining</option>
+                        <option value="industrial_threat">Industrial</option>
+                        <option value="scada_attack">SCADA</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label style="font-size:.85em;">{{ lang._('Time Range') }}</label>
+                    <select class="form-control form-control-sm" id="timeRangeFilter">
+                        <option value="0">{{ lang._('All') }}</option>
+                        <option value="1">{{ lang._('Last 1h') }}</option>
+                        <option value="6">{{ lang._('Last 6h') }}</option>
+                        <option value="24" selected>{{ lang._('Last 24h') }}</option>
+                    </select>
+                </div>
+            </div>
+            <h5>{{ lang._('Recent Threats') }}</h5>
+            <div class="table-responsive">
+                <table class="table table-striped table-sm">
+                    <thead>
+                        <tr>
+                            <th>{{ lang._('Time') }}</th>
+                            <th>{{ lang._('Source IP') }}</th>
+                            <th>{{ lang._('Destination IP') }}</th>
+                            <th>{{ lang._('Threat Type') }}</th>
+                            <th>{{ lang._('Severity') }}</th>
+                            <th>{{ lang._('Protocol') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody id="threatsBody">
+                        <tr><td colspan="6" class="text-center text-muted">{{ lang._('Loading...') }}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="content-box" style="padding:1rem;">
             <h5>{{ lang._('Top Threat Sources') }}</h5>
-            <div id="topThreatSources" class="threat-sources-list"></div>
-        </div>
-    </div>
-    <div class="col-md-6">
-        <div class="statistics-section">
-            <h5>{{ lang._('Malicious Patterns Detected') }}</h5>
-            <div id="maliciousPatterns" class="patterns-list"></div>
-        </div>
-    </div>
-</div>
-
-<!-- Threat Types Table -->
-<div class="statistics-section">
-    <h5>{{ lang._('Threat Types Summary') }}</h5>
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>{{ lang._('Type') }}</th>
-                <th>{{ lang._('Count') }}</th>
-                <th>{{ lang._('Percentage') }}</th>
-            </tr>
-        </thead>
-        <tbody id="threatTypesBody">
-            <tr>
-                <td colspan="3" class="text-center text-muted">{{ lang._('Loading...') }}</td>
-            </tr>
-        </tbody>
-    </table>
-</div>
-
-<!-- Suspicious Packets Analysis -->
-<div class="statistics-section">
-    <h5>{{ lang._('Suspicious Packets Analysis') }}</h5>
-    <div class="suspicious-packets-controls">
-        <div class="row">
-            <div class="col-md-4">
-                <label>{{ lang._('Severity Filter') }}</label>
-                <select id="packetSeverityFilter" class="form-control">
-                    <option value="all">{{ lang._('All Severities') }}</option>
-                    <option value="critical">{{ lang._('Critical') }}</option>
-                    <option value="high">{{ lang._('High') }}</option>
-                    <option value="medium">{{ lang._('Medium') }}</option>
-                    <option value="low">{{ lang._('Low') }}</option>
-                </select>
-            </div>
-            <div class="col-md-4">
-                <label>{{ lang._('Time Filter') }}</label>
-                <select id="packetTimeFilter" class="form-control">
-                    <option value="last15m">{{ lang._('Last 15 minutes') }}</option>
-                    <option value="last30m">{{ lang._('Last 30 minutes') }}</option>
-                    <option value="last1h">{{ lang._('Last 1 hour') }}</option>
-                    <option value="last24h" selected>{{ lang._('Last 24 hours') }}</option>
-                    <option value="last7d">{{ lang._('Last 7 days') }}</option>
-                    <option value="last30d">{{ lang._('Last 30 days') }}</option>
-                </select>
-            </div>
-            <div class="col-md-4">
-                <label>&nbsp;</label>
-                <button id="loadSuspiciousPackets" class="btn btn-primary btn-block">
-                    <i class="fa fa-search"></i> {{ lang._('Analyze Packets') }}
-                </button>
-            </div>
-        </div>
-    </div>
-    <div class="table-responsive">
-        <table class="table table-hover table-sm">
-            <thead>
-                <tr>
-                    <th>{{ lang._('Timestamp') }}</th>
-                    <th>{{ lang._('Source') }}</th>
-                    <th>{{ lang._('Destination') }}</th>
-                    <th>{{ lang._('Protocol') }}</th>
-                    <th>{{ lang._('Threat Type') }}</th>
-                    <th>{{ lang._('Risk') }}</th>
-                    <th>{{ lang._('Pattern') }}</th>
-                    <th>{{ lang._('Action') }}</th>
-                    <th>{{ lang._('Details') }}</th>
-                </tr>
-            </thead>
-            <tbody id="suspiciousPacketsBody">
-                <tr>
-                    <td colspan="9" class="text-center text-muted">{{ lang._('Click "Analyze Packets" to load data') }}</td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<!-- Blocking Statistics -->
-<div class="row">
-    <div class="col-md-3">
-        <div class="statistics-section">
-            <h6>{{ lang._('Blocked IPs') }}</h6>
-            <div class="stat-item">
-                <span class="stat-label">{{ lang._('Total') }}</span>
-                <span class="stat-value text-danger" id="blockedIPs">0</span>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="statistics-section">
-            <h6>{{ lang._('Connections Blocked') }}</h6>
-            <div class="stat-item">
-                <span class="stat-label">{{ lang._('Total') }}</span>
-                <span class="stat-value text-warning" id="connectionsBlocked">0</span>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="statistics-section">
-            <h6>{{ lang._('Blocking Effectiveness') }}</h6>
-            <div class="stat-item">
-                <span class="stat-label">{{ lang._('Rate') }}</span>
-                <span class="stat-value text-success" id="blockingEffectiveness">0%</span>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="statistics-section">
-            <h6>{{ lang._('Auto-Unblocked') }}</h6>
-            <div class="stat-item">
-                <span class="stat-label">{{ lang._('Count') }}</span>
-                <span class="stat-value text-info" id="autoUnblocked">0</span>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Industrial Statistics Section -->
-<div id="industrialSection" class="statistics-section" style="display: none;">
-    <h5>{{ lang._('Industrial Protocol Statistics') }}</h5>
-    <div class="row industrial-stats">
-        <div class="col-md-3">
-            <div class="stat-item">
-                <span class="stat-label">{{ lang._('Modbus') }}</span>
-                <span class="stat-value" id="modbusCount">0</span>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="stat-item">
-                <span class="stat-label">{{ lang._('DNP3') }}</span>
-                <span class="stat-value" id="dnp3Count">0</span>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="stat-item">
-                <span class="stat-label">{{ lang._('OPC UA') }}</span>
-                <span class="stat-value" id="opcuaCount">0</span>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="stat-item">
-                <span class="stat-label">{{ lang._('SCADA Anomalies') }}</span>
-                <span class="stat-value text-danger" id="scadaAnomalies">0</span>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Packet Details Modal -->
-<div class="modal fade" id="packetDetailsModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog modal-lg" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">{{ lang._('Packet Details') }}</h5>
-                <button type="button" class="close" data-dismiss="modal">
-                    <span>&times;</span>
-                </button>
-            </div>
-            <div class="modal-body" id="packetDetailsBody">
-                <p class="text-center text-muted">{{ lang._('Loading...') }}</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-danger" id="blockPacketSource">
-                    <i class="fa fa-ban"></i> {{ lang._('Block Source IP') }}
-                </button>
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">
-                    {{ lang._('Close') }}
-                </button>
-            </div>
+            <div id="topSources" style="max-height:340px;overflow-y:auto;"></div>
         </div>
     </div>
 </div>
 
 <style>
-.statistics-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1.5rem;
-    padding-bottom: 1rem;
-    border-bottom: 2px solid #e5e7eb;
-}
-
-.statistics-filters {
-    background: #f8f9fa;
-    padding: 1rem;
-    border-radius: 0.5rem;
-    margin-bottom: 1.5rem;
-}
-
-.statistics-summary {
-    text-align: right;
-    padding-top: 1.5rem;
-}
-
-.metric-card {
-    background: white;
-    border-radius: 0.5rem;
-    padding: 1.5rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+.stat-metric-card {
+    background: #fff;
+    border-radius: 6px;
+    padding: 1.25rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,.1);
     margin-bottom: 1rem;
     display: flex;
     align-items: center;
-    transition: transform 0.2s;
+    gap: 1rem;
 }
-
-.metric-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-}
-
-.metric-icon {
-    font-size: 2.5rem;
-    margin-right: 1rem;
-    width: 4rem;
-    text-align: center;
-}
-
-.metric-threats .metric-icon { color: #dc3545; }
-.metric-blocked .metric-icon { color: #fd7e14; }
-.metric-accuracy .metric-icon { color: #28a745; }
-.metric-industrial .metric-icon { color: #6f42c1; }
-.metric-zerotrust .metric-icon { color: #e83e8c; }
-.metric-packets .metric-icon { color: #20c997; }
-
-.metric-content {
-    flex: 1;
-}
-
-.metric-value {
+.stat-metric-icon {
     font-size: 2rem;
-    font-weight: bold;
-    color: #212529;
-    line-height: 1;
+    width: 2.5rem;
+    text-align: center;
+    flex-shrink: 0;
 }
-
-.metric-label {
-    font-size: 0.875rem;
-    color: #6c757d;
+.stat-metric-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #1f2937;
+    line-height: 1.1;
+}
+.stat-metric-label {
+    font-size: .78rem;
+    color: #6b7280;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-top: 0.25rem;
+    letter-spacing: .04em;
 }
-
-.statistics-section {
-    background: white;
-    border-radius: 0.5rem;
-    padding: 1.5rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    margin-bottom: 1.5rem;
-}
-
-.chart-container {
-    position: relative;
-    height: 300px;
-    margin-top: 1rem;
-}
-
-.suspicious-packets-controls {
-    margin-bottom: 1rem;
+.stat-chart-box {
     padding: 1rem;
-    background: #f8f9fa;
-    border-radius: 0.375rem;
+    margin-bottom: 1rem;
 }
-
-.packet-row:hover {
-    background-color: #f8f9fa;
-}
-
-.timestamp-cell {
-    font-family: monospace;
-    font-size: 0.875rem;
-}
-
-.protocol-badge {
-    background: #e9ecef;
-    padding: 0.2rem 0.5rem;
-    border-radius: 0.25rem;
-    font-family: monospace;
-    font-size: 0.8rem;
-}
-
-.pattern-code {
-    font-family: monospace;
-    font-size: 0.8rem;
-    background: #f8f9fa;
-    padding: 0.2rem 0.4rem;
-    border-radius: 0.25rem;
-}
-
-.stat-item {
-    display: flex;
-    justify-content: space-between;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid #e9ecef;
-}
-
-.stat-item:last-child {
-    border-bottom: none;
-}
-
-.stat-label {
+.stat-chart-box h5 {
+    margin-top: 0;
+    margin-bottom: .75rem;
+    font-size: .95rem;
     font-weight: 600;
     color: #374151;
-}
-
-.stat-value {
-    font-family: monospace;
-    font-weight: bold;
-}
-
-.threat-sources-list {
-    max-height: 400px;
-    overflow-y: auto;
-}
-
-.patterns-list {
-    max-height: 300px;
-    overflow-y: auto;
-}
-
-.pattern-item {
-    padding: 0.75rem;
-    border: 1px solid #e9ecef;
-    border-radius: 0.375rem;
-    margin-bottom: 0.5rem;
-    background: #f8f9fa;
-}
-
-.pattern-count {
-    text-align: right;
-}
-
-.packet-analysis h6 {
-    color: #495057;
-    border-bottom: 2px solid #e9ecef;
-    padding-bottom: 0.5rem;
-    margin-bottom: 1rem;
-}
-
-.packet-description {
-    background: #f8f9fa;
-    padding: 1rem;
-    border-radius: 0.375rem;
-    border-left: 4px solid #007bff;
-    margin: 0;
-}
-
-.industrial-stats .stat-item {
-    padding: 0.75rem 0;
-}
-
-.report-controls .btn-group {
-    margin-right: 0.5rem;
-}
-
-.summary-item {
-    font-size: 0.875rem;
-    color: #6c757d;
-}
-
-@media (max-width: 768px) {
-    .statistics-header {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    
-    .report-controls {
-        margin-top: 1rem;
-        text-align: center;
-    }
-    
-    .metric-card {
-        text-align: center;
-    }
-    
-    .metric-icon {
-        margin-right: 0;
-        margin-bottom: 1rem;
-    }
-    
-    .chart-container {
-        height: 250px;
-    }
-    
-    .suspicious-packets-controls .row {
-        margin-bottom: 1rem;
-    }
-    
-    .suspicious-packets-controls .col-md-4 {
-        margin-bottom: 0.5rem;
-    }
-}
-
-@media (max-width: 992px) {
-    .table-responsive {
-        font-size: 0.875rem;
-    }
-    
-    .packet-row td {
-        padding: 0.5rem 0.25rem;
-    }
-    
-    .timestamp-cell {
-        font-size: 0.75rem;
-    }
-}
-
-.loading-spinner {
-    display: inline-block;
-    width: 1rem;
-    height: 1rem;
-    border: 2px solid #f3f3f3;
-    border-top: 2px solid #007bff;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-.badge-critical {
-    background-color: #dc3545;
-    color: white;
-}
-
-.badge-high {
-    background-color: #fd7e14;
-    color: white;
-}
-
-.badge-medium {
-    background-color: #ffc107;
-    color: #212529;
-}
-
-.badge-low {
-    background-color: #28a745;
-    color: white;
-}
-
-.list-group-item:hover {
-    background-color: #f8f9fa;
-}
-
-.btn-outline-danger:hover {
-    transform: scale(1.05);
-}
-
-.modal-lg {
-    max-width: 900px;
-}
-
-.modal-body table {
-    margin-bottom: 0;
-}
-
-.modal-body .table-sm td {
-    padding: 0.5rem;
-    border-top: 1px solid #dee2e6;
-}
-
-@media print {
-    .statistics-header .report-controls,
-    .suspicious-packets-controls,
-    .btn {
-        display: none !important;
-    }
-    
-    .metric-card {
-        break-inside: avoid;
-        box-shadow: none;
-        border: 1px solid #dee2e6;
-    }
-    
-    .statistics-section {
-        break-inside: avoid;
-        box-shadow: none;
-        border: 1px solid #dee2e6;
-        margin-bottom: 1rem;
-    }
-    
-    .chart-container {
-        height: 200px;
-    }
 }
 </style>
