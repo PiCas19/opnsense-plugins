@@ -4,7 +4,6 @@
             <Dashboard order="10" url="/ui/deepinspector/dashboard"/>
             <Settings order="20" url="/ui/deepinspector/index"/>
             <Statistics order="30" url="/ui/deepinspector/statistics"/>
-            <Logs order="40" url="/ui/deepinspector/logs"/>
         </DeepInspector>
     </Services>
 </menu>
