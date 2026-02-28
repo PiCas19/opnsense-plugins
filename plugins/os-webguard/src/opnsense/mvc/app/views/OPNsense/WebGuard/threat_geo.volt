@@ -2,9 +2,9 @@
  # Copyright (C) 2024 OPNsense WebGuard Plugin
  # All rights reserved.
  #}
-<link rel="stylesheet" href="/css/leaflet.css"/>
-<script src="/js/leaflet.js"></script>
-<script src="/js/chart.min.js"></script>
+<link rel="stylesheet" href="/ui/css/leaflet.css"/>
+<script src="/ui/js/leaflet.js"></script>
+<script src="/ui/js/chart.min.js"></script>
 
 <style>
 .geo-stat-card {

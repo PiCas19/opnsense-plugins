@@ -1,5 +1,5 @@
 {# dashboard.volt - Deep Packet Inspector Dashboard #}
-<script src="/js/chart.min.js"></script>
+<script src="/ui/js/chart.min.js"></script>
 <div class="content-box">
     <div class="row">
         <div class="col-md-12">
