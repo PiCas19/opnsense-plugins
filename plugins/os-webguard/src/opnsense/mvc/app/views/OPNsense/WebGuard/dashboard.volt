@@ -213,7 +213,7 @@
 <div id="notifications" style="position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px;"></div>
 
 <!-- Chart.js CDN -->
-<script src="/ui/js/chart.min.js"></script>
+<script src="/js/chart.min.js"></script>
 
 <script>
 $(document).ready(function() {

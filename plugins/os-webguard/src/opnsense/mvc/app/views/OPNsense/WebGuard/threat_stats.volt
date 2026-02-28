@@ -123,7 +123,7 @@
     </div>
 </div>
 
-<script src="/ui/js/chart.min.js"></script>
+<script src="/js/chart.min.js"></script>
 <script>
 $(document).ready(function() {
     let threatTypeChart = null;

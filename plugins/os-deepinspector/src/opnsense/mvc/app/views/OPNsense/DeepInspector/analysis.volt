@@ -287,7 +287,7 @@
 </div>
 
 <!-- Chart.js CDN -->
-<script src="/ui/js/chart.min.js"></script>
+<script src="/js/chart.min.js"></script>
 
 <script>
 $(document).ready(function() {
