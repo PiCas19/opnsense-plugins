@@ -1,7 +1,7 @@
 {# dashboard.volt - Deep Packet Inspector Dashboard #}
-<link rel="stylesheet" href="/css/leaflet.css"/>
+<link rel="stylesheet" href="/ui/css/leaflet.css"/>
 <script src="/ui/js/chart.min.js"></script>
-<script src="/js/leaflet.js"></script>
+<script src="/ui/js/leaflet.js"></script>
 
 <div id="notifications" style="position:fixed;top:20px;right:20px;z-index:9999;min-width:300px;"></div>
 
@@ -449,10 +449,8 @@ function initCharts() {
 // ── Leaflet map ───────────────────────────────────────────────────────────────
 function initMap() {
     if (typeof L === 'undefined') return;
-    leafletMap = L.map('attackMap', { zoomControl:true }).setView([20,0], 2);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; CartoDB', subdomains:'abcd', maxZoom:19
-    }).addTo(leafletMap);
+    // No external tile provider — offline-safe dark canvas
+    leafletMap = L.map('attackMap', { zoomControl:true, attributionControl:false }).setView([20,0], 2);
     markersLayer = L.layerGroup().addTo(leafletMap);
 }
 
@@ -991,5 +989,13 @@ function showNotification(message, type) {
     font-size:.76em; width:auto !important;
 }
 
-#attackMap { background:#1a1a2e; }
+#attackMap {
+    background: #0d1117;
+    background-image:
+        linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+}
+/* Leaflet pane backgrounds inherit map bg — keep transparent */
+#attackMap .leaflet-tile-pane { display:none; }
 </style>
