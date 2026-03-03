@@ -188,9 +188,11 @@
 <div class="row">
     <div class="col-md-9">
         <div class="di-chart-box">
-            <div class="di-chart-hdr" style="margin-bottom:.75rem;">
+            <div class="di-chart-hdr" style="margin-bottom:.75rem;flex-wrap:wrap;gap:.4rem;">
                 <span class="di-chart-title">{{ lang._('Recent Threats') }}</span>
-                <div style="display:flex;gap:.4rem;align-items:center;">
+                <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;margin-left:auto;">
+                    <input type="text" class="form-control input-sm" id="threatSearch"
+                           placeholder="{{ lang._('Search...') }}" style="width:130px;height:26px;font-size:.82em;">
                     <select class="form-control di-inline-sel" id="severityFilter" style="width:90px;">
                         <option value="all">{{ lang._('All sev.') }}</option>
                         <option value="critical">Critical</option>
@@ -211,16 +213,16 @@
                 </div>
             </div>
             <div class="table-responsive">
-                <table class="table table-striped table-condensed" style="font-size:.85em;">
+                <table class="table table-striped table-condensed threats-table" style="font-size:.85em;">
                     <thead>
                         <tr>
-                            <th>{{ lang._('Time') }}</th>
-                            <th>{{ lang._('Source IP') }}</th>
-                            <th>{{ lang._('Dest IP') }}</th>
-                            <th>{{ lang._('Type') }}</th>
-                            <th>{{ lang._('Sev.') }}</th>
-                            <th>{{ lang._('Proto') }}</th>
-                            <th style="width:50px;">{{ lang._('Details') }}</th>
+                            <th class="sortable" data-col="timestamp" style="cursor:pointer;white-space:nowrap;">{{ lang._('Time') }} <i class="fa fa-sort text-muted"></i></th>
+                            <th class="sortable" data-col="source_ip" style="cursor:pointer;white-space:nowrap;">{{ lang._('Source IP') }} <i class="fa fa-sort text-muted"></i></th>
+                            <th class="sortable" data-col="destination_ip" style="cursor:pointer;white-space:nowrap;">{{ lang._('Dest IP') }} <i class="fa fa-sort text-muted"></i></th>
+                            <th class="sortable" data-col="threat_type" style="cursor:pointer;white-space:nowrap;">{{ lang._('Type') }} <i class="fa fa-sort text-muted"></i></th>
+                            <th class="sortable" data-col="severity" style="cursor:pointer;white-space:nowrap;">{{ lang._('Sev.') }} <i class="fa fa-sort text-muted"></i></th>
+                            <th class="sortable" data-col="protocol" style="cursor:pointer;white-space:nowrap;">{{ lang._('Proto') }} <i class="fa fa-sort text-muted"></i></th>
+                            <th style="width:90px;">{{ lang._('Actions') }}</th>
                         </tr>
                     </thead>
                     <tbody id="threatTableBody">
@@ -320,17 +322,41 @@ var leafletMap      = null;
 var markersLayer    = null;
 var _modalThreatId  = null;
 var _modalThreatIP  = null;
+var blockedIPs      = {};
+var fpAlertIds      = {};
+var threatsSortCol  = null;
+var threatsSortDir  = 'asc';
+var threatsSearch   = '';
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 $(document).ready(function () {
     if (typeof Chart !== 'undefined') initCharts();
     initMap();
     loadDashboardData();
+    loadBlockedIPs();
+    loadFPAlertIds();
     setInterval(loadDashboardData, 60000);
+    setInterval(loadBlockedIPs, 60000);
+    setInterval(loadFPAlertIds, 60000);
 
     $('#refreshDash').click(loadDashboardData);
     $('#globalTimeRange').change(loadDashboardData);
     $('#exportStats').click(exportStats);
+
+    $('#threatSearch').on('input', function() {
+        threatsSearch = $(this).val();
+        threatsPage = 1;
+        applyThreatFilters();
+    });
+
+    $(document).on('click', '.threats-table th.sortable', function() {
+        var col = $(this).data('col');
+        if (threatsSortCol === col) { threatsSortDir = threatsSortDir === 'asc' ? 'desc' : 'asc'; }
+        else { threatsSortCol = col; threatsSortDir = 'asc'; }
+        threatsPage = 1;
+        updateThreatSortHeaders();
+        applyThreatFilters();
+    });
 
     $('#startService').click(function ()   { controlService('start'); });
     $('#restartService').click(function () { controlService('restart'); });
@@ -358,17 +384,21 @@ $(document).ready(function () {
     $('#fpReasonInput').keypress(function (e) {
         if (e.which === 13) $('#modalConfirmFPBtn').click();
     });
-    $('#threatModal').on('hidden.bs.modal', function () {
-        $('#fpReasonRow').hide();
-        $('#fpReasonInput').val('');
-    });
 
     // Modal block flow
     $('#modalBlockBtn').click(function () {
         if (_modalThreatIP) {
-            blockSource(_modalThreatIP);
+            if (blockedIPs[_modalThreatIP]) { unblockSource(_modalThreatIP); }
+            else                            { blockSource(_modalThreatIP); }
             $('#threatModal').modal('hide');
         }
+    });
+
+    $('#threatModal').on('hidden.bs.modal', function () {
+        $('#fpReasonRow').hide();
+        $('#fpReasonInput').val('');
+        $('#modalBlockBtn').removeClass('btn-warning').addClass('btn-danger')
+            .html('<i class="fa fa-ban"></i> {{ lang._("Block Source IP") }}');
     });
 });
 
@@ -603,17 +633,30 @@ function renderTopSources() {
 
 // ── Threats table with pagination ─────────────────────────────────────────────
 function applyThreatFilters() {
-    var sev  = $('#severityFilter').val();
-    var type = $('#threatTypeFilter').val();
+    var sev    = $('#severityFilter').val();
+    var type   = $('#threatTypeFilter').val();
+    var search = threatsSearch.toLowerCase().trim();
     filteredThreats = allThreats.filter(function(t) {
         if (sev  !== 'all' && (t.severity   ||'').toLowerCase() !== sev)  return false;
         if (type !== 'all' && (t.threat_type||'').toLowerCase() !== type) return false;
+        if (search) {
+            var h = [t.source_ip, t.destination_ip, t.threat_type, t.severity, t.protocol].join(' ').toLowerCase();
+            if (h.indexOf(search) < 0) return false;
+        }
         return true;
     });
+    if (threatsSortCol) {
+        var col = threatsSortCol, dir = threatsSortDir;
+        filteredThreats.sort(function(a, b) {
+            var va = (a[col]||'').toLowerCase(), vb = (b[col]||'').toLowerCase();
+            return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+        });
+    }
     renderThreatsTable();
 }
 
 function renderThreatsTable() {
+    updateThreatSortHeaders();
     var tbody = $('#threatTableBody').empty();
     if (filteredThreats.length === 0) {
         tbody.html('<tr><td colspan="7" class="text-center text-muted">{{ lang._("No threats match current filters") }}</td></tr>');
@@ -623,6 +666,12 @@ function renderThreatsTable() {
     var start  = (threatsPage-1) * threatsPerPage;
     var page   = filteredThreats.slice(start, start + threatsPerPage);
     page.forEach(function(t) {
+        var isBlocked = !!(t.source_ip && blockedIPs[t.source_ip]);
+        var blockBtn = t.source_ip ? (
+            isBlocked
+            ? '<button class="btn btn-xs btn-default" title="{{ lang._("Unblock") }}" onclick="unblockSource(\'' + esc(t.source_ip) + '\')" style="margin-left:2px;"><i class="fa fa-unlock"></i></button>'
+            : '<button class="btn btn-xs btn-danger" title="{{ lang._("Block") }}" onclick="blockSource(\'' + esc(t.source_ip) + '\')" style="margin-left:2px;"><i class="fa fa-ban"></i></button>'
+        ) : '';
         tbody.append(
             '<tr>' +
             '<td style="font-size:.8em;font-family:monospace;white-space:nowrap;">' + fmtTime(t.timestamp) + '</td>' +
@@ -631,9 +680,10 @@ function renderThreatsTable() {
             '<td style="font-size:.82em;">' + esc(t.threat_type||'N/A') + '</td>' +
             '<td><span class="label ' + sevClass(t.severity) + '">' + esc(t.severity||'N/A') + '</span></td>' +
             '<td style="font-size:.82em;">' + esc(t.protocol||'N/A') + '</td>' +
-            '<td>' +
+            '<td style="white-space:nowrap;">' +
             '<button class="btn btn-xs btn-primary" onclick="viewThreatDetails(\'' + esc(t.id||'') + '\')">' +
             '<i class="fa fa-eye"></i></button>' +
+            blockBtn +
             '</td>' +
             '</tr>'
         );
@@ -756,8 +806,20 @@ function viewThreatDetails(threatId) {
                 '</div>' +
                 '</div>'
             );
-            $('#modalMarkFPBtn').show();
-            if (_modalThreatIP) $('#modalBlockBtn').show();
+            if (fpAlertIds[_modalThreatId]) {
+                $('#modalMarkFPBtn').hide();
+            } else {
+                $('#modalMarkFPBtn').show();
+            }
+            if (_modalThreatIP) {
+                if (blockedIPs[_modalThreatIP]) {
+                    $('#modalBlockBtn').removeClass('btn-danger').addClass('btn-warning')
+                        .html('<i class="fa fa-unlock"></i> {{ lang._("Unblock Source IP") }}').show();
+                } else {
+                    $('#modalBlockBtn').removeClass('btn-warning').addClass('btn-danger')
+                        .html('<i class="fa fa-ban"></i> {{ lang._("Block Source IP") }}').show();
+                }
+            }
         } else {
             $('#threatModalBody').html('<div class="alert alert-warning">{{ lang._("Threat details not available") }}</div>');
         }
@@ -767,13 +829,57 @@ function viewThreatDetails(threatId) {
 // ── Actions ───────────────────────────────────────────────────────────────────
 function blockSource(ip) {
     if (!ip) return;
-    if (!confirm('{{ lang._("Block IP") }} ' + ip + '?')) return;
+    if (!confirm('{{ lang._("Block IP") }} ' + esc(ip) + '?')) return;
     ajaxCall('/api/deepinspector/service/blockIP', { ip: ip }, function(data) {
         if (data.status === 'ok') {
-            showNotification('{{ lang._("IP") }} ' + ip + ' {{ lang._("blocked successfully") }}', 'success');
+            blockedIPs[ip] = true;
+            showNotification('{{ lang._("IP") }} ' + esc(ip) + ' {{ lang._("blocked successfully") }}', 'success');
+            renderThreatsTable();
         } else {
             showNotification('{{ lang._("Failed to block IP") }}: ' + esc(data.message||''), 'error');
         }
+    });
+}
+
+function unblockSource(ip) {
+    if (!ip) return;
+    if (!confirm('{{ lang._("Unblock IP") }} ' + esc(ip) + '?')) return;
+    ajaxCall('/api/deepinspector/service/unblockIP', { ip: ip }, function(data) {
+        if (data.status === 'ok') {
+            delete blockedIPs[ip];
+            showNotification('{{ lang._("IP") }} ' + esc(ip) + ' {{ lang._("unblocked") }}', 'success');
+            renderThreatsTable();
+        } else {
+            showNotification('{{ lang._("Failed to unblock IP") }}: ' + esc(data.message||''), 'error');
+        }
+    });
+}
+
+function loadBlockedIPs() {
+    ajaxCall('/api/deepinspector/service/listBlocked', {}, function(data) {
+        blockedIPs = {};
+        if (data.status === 'ok' && Array.isArray(data.data)) {
+            data.data.filter(Boolean).forEach(function(ip){ blockedIPs[ip] = true; });
+        }
+    });
+}
+
+function loadFPAlertIds() {
+    ajaxCall('/api/deepinspector/alerts/listFalsePositives', {}, function(data) {
+        fpAlertIds = {};
+        if (data.status === 'ok' && Array.isArray(data.data)) {
+            data.data.forEach(function(fp){ if (fp.alert_id) fpAlertIds[fp.alert_id] = true; });
+        }
+    });
+}
+
+function updateThreatSortHeaders() {
+    $('.threats-table th.sortable').each(function() {
+        var col = $(this).data('col');
+        var $i  = $(this).find('i');
+        $i.removeClass('fa-sort fa-sort-asc fa-sort-desc text-muted');
+        if (col === threatsSortCol) { $i.addClass(threatsSortDir === 'asc' ? 'fa-sort-asc' : 'fa-sort-desc'); }
+        else                       { $i.addClass('fa-sort text-muted'); }
     });
 }
 
@@ -781,7 +887,9 @@ function markFalsePositive(alertId, reason) {
     if (!alertId) return;
     ajaxCall('/api/deepinspector/alerts/markFalsePositive', { alert_id: alertId, reason: reason||'' }, function(data) {
         if (data.status === 'ok') {
+            fpAlertIds[alertId] = true;
             showNotification('{{ lang._("Alert marked as false positive") }}', 'success');
+            renderThreatsTable();
         } else {
             showNotification('{{ lang._("Failed") }}: ' + esc(data.message||''), 'error');
         }

@@ -705,6 +705,62 @@ class AlertsController extends ApiControllerBase
     }
 
     /**
+     * Updates the reason for an existing false positive entry
+     *
+     * POST parameters: alert_id (required), reason (optional)
+     *
+     * @return array Response with status
+     */
+    public function updateFalsePositiveAction()
+    {
+        if (!$this->request->isPost()) {
+            return ["status" => "failed", "message" => "POST method required"];
+        }
+
+        $alertId = $this->request->getPost('alert_id');
+        $reason  = $this->request->getPost('reason') ?: '';
+
+        if (empty($alertId)) {
+            return ["status" => "failed", "message" => "alert_id is required"];
+        }
+
+        if (!preg_match('/^[a-zA-Z0-9_\-]+$/', $alertId)) {
+            return ["status" => "failed", "message" => "Invalid alert_id format"];
+        }
+
+        try {
+            $fpFile = '/var/log/deepinspector/false_positives.json';
+            $fps = [];
+            if (file_exists($fpFile) && is_readable($fpFile)) {
+                $content = file_get_contents($fpFile);
+                if ($content !== false) {
+                    $decoded = json_decode($content, true);
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                        $fps = $decoded;
+                    }
+                }
+            }
+
+            if (!isset($fps[$alertId])) {
+                return ["status" => "failed", "message" => "False positive entry not found"];
+            }
+
+            $fps[$alertId]['reason']     = $reason;
+            $fps[$alertId]['updated_at'] = date('c');
+
+            if (file_put_contents($fpFile, json_encode($fps, JSON_PRETTY_PRINT)) === false) {
+                return ["status" => "failed", "message" => "Failed to write false positives file"];
+            }
+
+            return ["status" => "ok", "message" => "False positive reason updated"];
+
+        } catch (Exception $e) {
+            error_log("DeepInspector: Error in updateFalsePositiveAction: " . $e->getMessage());
+            return ["status" => "failed", "message" => "Error: " . $e->getMessage()];
+        }
+    }
+
+    /**
      * Clear old alerts
      *
      * Removes alerts older than specified days from the log file.

@@ -55,11 +55,17 @@
                 </div>
             </div>
 
+            <div style="margin-bottom:.5rem;">
+                <input type="text" class="form-control input-sm" id="blocklistSearch"
+                       placeholder="{{ lang._('Search IPs...') }}" style="max-width:300px;">
+            </div>
             <div class="table-responsive">
                 <table class="table table-striped table-condensed">
                     <thead>
                         <tr>
-                            <th>{{ lang._('IP Address') }}</th>
+                            <th class="sec-sortable" data-table="blocklist" style="cursor:pointer;white-space:nowrap;">
+                                {{ lang._('IP Address') }} <i class="fa fa-sort-asc"></i>
+                            </th>
                             <th style="width:100px;">{{ lang._('Actions') }}</th>
                         </tr>
                     </thead>
@@ -104,11 +110,17 @@
                 </div>
             </div>
 
+            <div style="margin-bottom:.5rem;">
+                <input type="text" class="form-control input-sm" id="whitelistSearch"
+                       placeholder="{{ lang._('Search IPs...') }}" style="max-width:300px;">
+            </div>
             <div class="table-responsive">
                 <table class="table table-striped table-condensed">
                     <thead>
                         <tr>
-                            <th>{{ lang._('IP Address') }}</th>
+                            <th class="sec-sortable" data-table="whitelist" style="cursor:pointer;white-space:nowrap;">
+                                {{ lang._('IP Address') }} <i class="fa fa-sort-asc"></i>
+                            </th>
                             <th style="width:100px;">{{ lang._('Actions') }}</th>
                         </tr>
                     </thead>
@@ -138,16 +150,20 @@
                 </div>
             </div>
 
+            <div style="margin-bottom:.5rem;">
+                <input type="text" class="form-control input-sm" id="fpSearch"
+                       placeholder="{{ lang._('Search...') }}" style="max-width:300px;">
+            </div>
             <div class="table-responsive">
                 <table class="table table-striped table-condensed">
                     <thead>
                         <tr>
-                            <th>{{ lang._('Alert ID') }}</th>
-                            <th>{{ lang._('Marked At') }}</th>
-                            <th>{{ lang._('Source IP') }}</th>
-                            <th>{{ lang._('Threat Type') }}</th>
+                            <th class="sec-sortable" data-table="fp" data-col="alert_id" style="cursor:pointer;white-space:nowrap;">{{ lang._('Alert ID') }} <i class="fa fa-sort text-muted"></i></th>
+                            <th class="sec-sortable" data-table="fp" data-col="marked_at" style="cursor:pointer;white-space:nowrap;">{{ lang._('Marked At') }} <i class="fa fa-sort-desc"></i></th>
+                            <th class="sec-sortable" data-table="fp" data-col="source_ip" style="cursor:pointer;white-space:nowrap;">{{ lang._('Source IP') }} <i class="fa fa-sort text-muted"></i></th>
+                            <th class="sec-sortable" data-table="fp" data-col="threat_type" style="cursor:pointer;white-space:nowrap;">{{ lang._('Threat Type') }} <i class="fa fa-sort text-muted"></i></th>
                             <th>{{ lang._('Reason') }}</th>
-                            <th style="width:90px;">{{ lang._('Actions') }}</th>
+                            <th style="width:195px;">{{ lang._('Actions') }}</th>
                         </tr>
                     </thead>
                     <tbody id="fpBody">
@@ -161,11 +177,43 @@
 
 </div><!-- /tab-content -->
 
+<!-- ── FP Review Modal ────────────────────────────────────────────────────────── -->
+<div class="modal fade" id="fpReviewModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+                <h4 class="modal-title">{{ lang._('Review False Positive') }}</h4>
+            </div>
+            <div class="modal-body">
+                <p><strong>{{ lang._('Alert ID') }}:</strong> <code id="reviewFPAlertId"></code></p>
+                <p><strong>{{ lang._('Source IP') }}:</strong> <code id="reviewFPSourceIP"></code></p>
+                <p><strong>{{ lang._('Threat Type') }}:</strong> <span id="reviewFPThreatType"></span></p>
+                <div class="form-group">
+                    <label>{{ lang._('Reason') }}</label>
+                    <input type="text" class="form-control input-sm" id="reviewFPReasonInput"
+                           maxlength="200" placeholder="{{ lang._('Optional reason') }}">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary btn-sm" id="saveReviewFPBtn">
+                    <i class="fa fa-save"></i> {{ lang._('Save') }}
+                </button>
+                <button type="button" class="btn btn-default btn-sm" data-dismiss="modal">{{ lang._('Cancel') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 // ── State ─────────────────────────────────────────────────────────────────────
-var blocklistData  = [], blocklistPage = 1, blocklistPerPage = 25;
-var whitelistData  = [], whitelistPage = 1, whitelistPerPage = 25;
-var fpData         = [], fpPage        = 1, fpPerPage        = 25;
+var blocklistData    = [], blocklistPage = 1, blocklistPerPage = 25;
+var blocklistSearch  = '', blocklistSortDir = 'asc';
+var whitelistData    = [], whitelistPage = 1, whitelistPerPage = 25;
+var whitelistSearch  = '', whitelistSortDir = 'asc';
+var fpData           = [], fpPage = 1, fpPerPage = 25;
+var fpSearch         = '', fpSortCol = 'marked_at', fpSortDir = 'desc';
+var _reviewFPAlertId = null;
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 $(document).ready(function () {
@@ -182,6 +230,43 @@ $(document).ready(function () {
 
     $('#blocklistAddIP').keypress(function(e){ if(e.which===13) addToBlocklist(); });
     $('#whitelistAddIP').keypress(function(e){ if(e.which===13) addToWhitelist(); });
+
+    // Live search
+    $('#blocklistSearch').on('input', function() { blocklistSearch=$(this).val(); blocklistPage=1; renderBlocklist(); });
+    $('#whitelistSearch').on('input', function() { whitelistSearch=$(this).val(); whitelistPage=1; renderWhitelist(); });
+    $('#fpSearch').on('input', function()         { fpSearch=$(this).val();        fpPage=1;        renderFP(); });
+
+    // Column sort
+    $(document).on('click', '.sec-sortable', function() {
+        var tbl = $(this).data('table');
+        var col = $(this).data('col');
+        if (tbl === 'blocklist') {
+            blocklistSortDir = blocklistSortDir === 'asc' ? 'desc' : 'asc';
+            blocklistPage = 1; renderBlocklist();
+        } else if (tbl === 'whitelist') {
+            whitelistSortDir = whitelistSortDir === 'asc' ? 'desc' : 'asc';
+            whitelistPage = 1; renderWhitelist();
+        } else if (tbl === 'fp') {
+            if (fpSortCol === col) { fpSortDir = fpSortDir === 'asc' ? 'desc' : 'asc'; }
+            else { fpSortCol = col; fpSortDir = 'asc'; }
+            fpPage = 1; renderFP();
+        }
+    });
+
+    // Review FP save
+    $('#saveReviewFPBtn').click(function() {
+        if (!_reviewFPAlertId) return;
+        var reason = $('#reviewFPReasonInput').val().trim();
+        ajaxCall('/api/deepinspector/alerts/updateFalsePositive', { alert_id: _reviewFPAlertId, reason: reason }, function(data) {
+            if (data.status === 'ok') {
+                secNotify('{{ lang._("Reason updated") }}', 'success');
+                $('#fpReviewModal').modal('hide');
+                fpPage = 1; loadFP();
+            } else {
+                secNotify(secEsc(data.message) || '{{ lang._("Failed to update") }}', 'error');
+            }
+        });
+    });
 
     // Reload tab data when switched to
     $('a[data-toggle="tab"]').on('shown.bs.tab', function(e) {
@@ -201,15 +286,26 @@ function loadBlocklist() {
     });
 }
 
+function getBlocklistFiltered() {
+    var s = blocklistSearch.toLowerCase().trim();
+    var d = s ? blocklistData.filter(function(ip){ return ip.toLowerCase().indexOf(s) >= 0; }) : blocklistData.slice();
+    d.sort(function(a, b) { return blocklistSortDir === 'asc' ? a.localeCompare(b) : b.localeCompare(a); });
+    return d;
+}
+
 function renderBlocklist() {
+    var data  = getBlocklistFiltered();
     var tbody = $('#blocklistBody').empty();
-    if (blocklistData.length === 0) {
+    var $th   = $('[data-table="blocklist"]');
+    $th.find('i').removeClass('fa-sort fa-sort-asc fa-sort-desc text-muted')
+       .addClass(blocklistSortDir === 'asc' ? 'fa-sort-asc' : 'fa-sort-desc');
+    if (data.length === 0) {
         tbody.html('<tr><td colspan="2" class="text-center text-muted">{{ lang._("No blocked IPs") }}</td></tr>');
         $('#blocklistPager').empty();
         return;
     }
     var start = (blocklistPage-1)*blocklistPerPage;
-    var page  = blocklistData.slice(start, start+blocklistPerPage);
+    var page  = data.slice(start, start+blocklistPerPage);
     page.forEach(function(ip) {
         tbody.append(
             '<tr>' +
@@ -220,7 +316,7 @@ function renderBlocklist() {
             '</td></tr>'
         );
     });
-    secRenderPager('blocklistPager', blocklistData.length, blocklistPage, blocklistPerPage, function(p){
+    secRenderPager('blocklistPager', data.length, blocklistPage, blocklistPerPage, function(p){
         blocklistPage=p; renderBlocklist();
     });
 }
@@ -260,15 +356,26 @@ function loadWhitelist() {
     });
 }
 
+function getWhitelistFiltered() {
+    var s = whitelistSearch.toLowerCase().trim();
+    var d = s ? whitelistData.filter(function(ip){ return ip.toLowerCase().indexOf(s) >= 0; }) : whitelistData.slice();
+    d.sort(function(a, b) { return whitelistSortDir === 'asc' ? a.localeCompare(b) : b.localeCompare(a); });
+    return d;
+}
+
 function renderWhitelist() {
+    var data  = getWhitelistFiltered();
     var tbody = $('#whitelistBody').empty();
-    if (whitelistData.length === 0) {
+    var $th   = $('[data-table="whitelist"]');
+    $th.find('i').removeClass('fa-sort fa-sort-asc fa-sort-desc text-muted')
+       .addClass(whitelistSortDir === 'asc' ? 'fa-sort-asc' : 'fa-sort-desc');
+    if (data.length === 0) {
         tbody.html('<tr><td colspan="2" class="text-center text-muted">{{ lang._("No whitelisted IPs") }}</td></tr>');
         $('#whitelistPager').empty();
         return;
     }
     var start = (whitelistPage-1)*whitelistPerPage;
-    var page  = whitelistData.slice(start, start+whitelistPerPage);
+    var page  = data.slice(start, start+whitelistPerPage);
     page.forEach(function(ip) {
         tbody.append(
             '<tr>' +
@@ -279,7 +386,7 @@ function renderWhitelist() {
             '</td></tr>'
         );
     });
-    secRenderPager('whitelistPager', whitelistData.length, whitelistPage, whitelistPerPage, function(p){
+    secRenderPager('whitelistPager', data.length, whitelistPage, whitelistPerPage, function(p){
         whitelistPage=p; renderWhitelist();
     });
 }
@@ -319,31 +426,63 @@ function loadFP() {
     });
 }
 
+function getFPFiltered() {
+    var s = fpSearch.toLowerCase().trim();
+    var d = s ? fpData.filter(function(fp) {
+        return [(fp.alert_id||''),(fp.source_ip||''),(fp.threat_type||''),(fp.reason||'')]
+            .join(' ').toLowerCase().indexOf(s) >= 0;
+    }) : fpData.slice();
+    var col = fpSortCol, dir = fpSortDir;
+    d.sort(function(a, b) {
+        var va = (a[col]||'').toLowerCase(), vb = (b[col]||'').toLowerCase();
+        return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+    });
+    return d;
+}
+
+function updateFPSortHeaders() {
+    $('[data-table="fp"]').each(function() {
+        var col = $(this).data('col');
+        var $i  = $(this).find('i');
+        $i.removeClass('fa-sort fa-sort-asc fa-sort-desc text-muted');
+        if (col === fpSortCol) { $i.addClass(fpSortDir === 'asc' ? 'fa-sort-asc' : 'fa-sort-desc'); }
+        else                   { $i.addClass('fa-sort text-muted'); }
+    });
+}
+
 function renderFP() {
+    updateFPSortHeaders();
+    var data  = getFPFiltered();
     var tbody = $('#fpBody').empty();
-    if (fpData.length === 0) {
+    if (data.length === 0) {
         tbody.html('<tr><td colspan="6" class="text-center text-muted">{{ lang._("No false positives recorded") }}</td></tr>');
         $('#fpPager').empty();
         return;
     }
     var start = (fpPage-1)*fpPerPage;
-    var page  = fpData.slice(start, start+fpPerPage);
+    var page  = data.slice(start, start+fpPerPage);
     page.forEach(function(fp) {
         var reason = fp.reason && fp.reason.trim() ? secEsc(fp.reason) : '<span class="text-muted">—</span>';
+        var aid = secEsc(fp.alert_id||'');
+        var sip = secEsc(fp.source_ip||'');
         tbody.append(
             '<tr>' +
-            '<td><code style="font-size:.78em;">' + secEsc(fp.alert_id||'') + '</code></td>' +
+            '<td><code style="font-size:.78em;">' + aid + '</code></td>' +
             '<td style="font-size:.82em;white-space:nowrap;">' + secEsc(fp.marked_at||'') + '</td>' +
-            '<td><code>' + secEsc(fp.source_ip||'') + '</code></td>' +
+            '<td><code>' + sip + '</code></td>' +
             '<td style="font-size:.85em;">' + secEsc(fp.threat_type||'') + '</td>' +
             '<td style="font-size:.85em;">' + reason + '</td>' +
-            '<td>' +
-            '<button class="btn btn-xs btn-danger" onclick="removeFP(\'' + secEsc(fp.alert_id||'') + '\')">' +
-            '<i class="fa fa-trash"></i> {{ lang._("Remove") }}</button>' +
+            '<td style="white-space:nowrap;">' +
+            '<button class="btn btn-xs btn-danger" onclick="removeFP(\'' + aid + '\')" title="{{ lang._("Delete") }}" style="margin-right:2px;">' +
+            '<i class="fa fa-trash"></i></button>' +
+            '<button class="btn btn-xs btn-default" onclick="reviewFP(\'' + aid + '\')" title="{{ lang._("Review / Edit Reason") }}" style="margin-right:2px;">' +
+            '<i class="fa fa-pencil"></i></button>' +
+            '<button class="btn btn-xs btn-success" onclick="whitelistFromFP(\'' + sip + '\')" title="{{ lang._("Whitelist IP") }}">' +
+            '<i class="fa fa-check-circle"></i></button>' +
             '</td></tr>'
         );
     });
-    secRenderPager('fpPager', fpData.length, fpPage, fpPerPage, function(p){
+    secRenderPager('fpPager', data.length, fpPage, fpPerPage, function(p){
         fpPage=p; renderFP();
     });
 }
@@ -357,6 +496,30 @@ function removeFP(alertId) {
             fpPage=1; loadFP();
         } else {
             secNotify(secEsc(data.message)||'{{ lang._("Failed to remove") }}', 'error');
+        }
+    });
+}
+
+function reviewFP(alertId) {
+    if (!alertId) return;
+    var fp = fpData.filter(function(f){ return f.alert_id === alertId; })[0];
+    if (!fp) return;
+    _reviewFPAlertId = alertId;
+    $('#reviewFPAlertId').text(fp.alert_id || '');
+    $('#reviewFPSourceIP').text(fp.source_ip || '');
+    $('#reviewFPThreatType').text(fp.threat_type || '');
+    $('#reviewFPReasonInput').val(fp.reason || '');
+    $('#fpReviewModal').modal('show');
+}
+
+function whitelistFromFP(ip) {
+    if (!ip) return;
+    if (!confirm('{{ lang._("Add") }} ' + ip + ' {{ lang._("to whitelist?") }}')) return;
+    ajaxCall('/api/deepinspector/service/whitelistIP', { ip: ip }, function(data) {
+        if (data.status === 'ok') {
+            secNotify('{{ lang._("IP whitelisted successfully") }}', 'success');
+        } else {
+            secNotify(secEsc(data.message) || '{{ lang._("Failed to whitelist IP") }}', 'error');
         }
     });
 }
