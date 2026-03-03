@@ -11,20 +11,7 @@
         <div class="col-md-2">
             <span id="serviceStatus" class="badge badge-secondary">{{ lang._('Loading...') }}</span>
         </div>
-        <div class="col-md-4">
-            <label style="font-size:.8em;margin:0 .4rem 0 0;">{{ lang._('Time Range') }}</label>
-            <select class="form-control" id="globalTimeRange" style="display:inline-block;width:auto;height:28px;padding:2px 6px;font-size:.82em;">
-                <option value="last30s">{{ lang._('Last 30s') }}</option>
-                <option value="last15m">{{ lang._('Last 15m') }}</option>
-                <option value="last1h">{{ lang._('Last 1h') }}</option>
-                <option value="last24h" selected>{{ lang._('Last 24h') }}</option>
-                <option value="today">{{ lang._('Today') }}</option>
-                <option value="thisweek">{{ lang._('This Week') }}</option>
-                <option value="thismonth">{{ lang._('This Month') }}</option>
-                <option value="last90d">{{ lang._('Last 90 days') }}</option>
-            </select>
-        </div>
-        <div class="col-md-6 text-right">
+        <div class="col-md-10 text-right">
             <span class="text-muted" style="font-size:.8em;">
                 {{ lang._('Updated') }}: <strong id="lastUpdated">--</strong>
             </span>
@@ -84,8 +71,17 @@
         <div class="di-chart-box">
             <div class="di-chart-hdr">
                 <span class="di-chart-title">{{ lang._('Threat Timeline') }}</span>
-                <div>
-                    <label style="font-size:.76em;margin:0 .3rem 0 0;">{{ lang._('Granularity') }}</label>
+                <div style="display:flex;gap:.3rem;align-items:center;">
+                    <select class="form-control di-inline-sel" id="timelineRange">
+                        <option value="last30s">30s</option>
+                        <option value="last15m">15m</option>
+                        <option value="last1h">1h</option>
+                        <option value="last24h" selected>24h</option>
+                        <option value="today">Today</option>
+                        <option value="thisweek">7d</option>
+                        <option value="thismonth">30d</option>
+                        <option value="last90d">90d</option>
+                    </select>
                     <select class="form-control di-inline-sel" id="timelineGranularity">
                         <option value="auto" selected>Auto</option>
                         <option value="minute">{{ lang._('Per min') }}</option>
@@ -115,12 +111,24 @@
         <div class="di-chart-box">
             <div class="di-chart-hdr">
                 <span class="di-chart-title">{{ lang._('Threat Types') }}</span>
-                <select class="form-control di-inline-sel" id="threatTypesTopN">
-                    <option value="5" selected>Top 5</option>
-                    <option value="10">Top 10</option>
-                    <option value="20">Top 20</option>
-                    <option value="0">{{ lang._('All') }}</option>
-                </select>
+                <div style="display:flex;gap:.3rem;">
+                    <select class="form-control di-inline-sel" id="threatTypesRange">
+                        <option value="last30s">30s</option>
+                        <option value="last15m">15m</option>
+                        <option value="last1h">1h</option>
+                        <option value="last24h" selected>24h</option>
+                        <option value="today">Today</option>
+                        <option value="thisweek">7d</option>
+                        <option value="thismonth">30d</option>
+                        <option value="last90d">90d</option>
+                    </select>
+                    <select class="form-control di-inline-sel" id="threatTypesTopN">
+                        <option value="5" selected>Top 5</option>
+                        <option value="10">Top 10</option>
+                        <option value="20">Top 20</option>
+                        <option value="0">{{ lang._('All') }}</option>
+                    </select>
+                </div>
             </div>
             <div style="position:relative;height:210px;"><canvas id="threatTypesChart"></canvas></div>
         </div>
@@ -131,13 +139,25 @@
 <div class="row">
     <div class="col-md-3">
         <div class="di-chart-box">
-            <div class="di-chart-hdr">
+            <div class="di-chart-hdr" style="flex-wrap:wrap;gap:.3rem;">
                 <span class="di-chart-title">{{ lang._('Severity') }}</span>
-                <div style="font-size:.72em;white-space:nowrap;">
-                    <label style="margin:0;"><input type="checkbox" class="sev-toggle" value="critical" checked> Crit</label>
-                    <label style="margin:0 0 0 .3rem;"><input type="checkbox" class="sev-toggle" value="high" checked> High</label>
-                    <label style="margin:0 0 0 .3rem;"><input type="checkbox" class="sev-toggle" value="medium" checked> Med</label>
-                    <label style="margin:0 0 0 .3rem;"><input type="checkbox" class="sev-toggle" value="low" checked> Low</label>
+                <div style="display:flex;gap:.3rem;align-items:center;">
+                    <select class="form-control di-inline-sel" id="severityRange">
+                        <option value="last30s">30s</option>
+                        <option value="last15m">15m</option>
+                        <option value="last1h">1h</option>
+                        <option value="last24h" selected>24h</option>
+                        <option value="today">Today</option>
+                        <option value="thisweek">7d</option>
+                        <option value="thismonth">30d</option>
+                        <option value="last90d">90d</option>
+                    </select>
+                    <div style="font-size:.72em;white-space:nowrap;">
+                        <label style="margin:0;"><input type="checkbox" class="sev-toggle" value="critical" checked> Crit</label>
+                        <label style="margin:0 0 0 .3rem;"><input type="checkbox" class="sev-toggle" value="high" checked> High</label>
+                        <label style="margin:0 0 0 .3rem;"><input type="checkbox" class="sev-toggle" value="medium" checked> Med</label>
+                        <label style="margin:0 0 0 .3rem;"><input type="checkbox" class="sev-toggle" value="low" checked> Low</label>
+                    </div>
                 </div>
             </div>
             <div style="position:relative;height:190px;"><canvas id="severityChart"></canvas></div>
@@ -147,12 +167,24 @@
         <div class="di-chart-box">
             <div class="di-chart-hdr">
                 <span class="di-chart-title">{{ lang._('Top Threat Sources') }}</span>
-                <select class="form-control di-inline-sel" id="topSourcesN">
-                    <option value="5">Top 5</option>
-                    <option value="10" selected>Top 10</option>
-                    <option value="20">Top 20</option>
-                    <option value="50">Top 50</option>
-                </select>
+                <div style="display:flex;gap:.3rem;">
+                    <select class="form-control di-inline-sel" id="sourcesRange">
+                        <option value="last30s">30s</option>
+                        <option value="last15m">15m</option>
+                        <option value="last1h">1h</option>
+                        <option value="last24h" selected>24h</option>
+                        <option value="today">Today</option>
+                        <option value="thisweek">7d</option>
+                        <option value="thismonth">30d</option>
+                        <option value="last90d">90d</option>
+                    </select>
+                    <select class="form-control di-inline-sel" id="topSourcesN">
+                        <option value="5">Top 5</option>
+                        <option value="10" selected>Top 10</option>
+                        <option value="20">Top 20</option>
+                        <option value="50">Top 50</option>
+                    </select>
+                </div>
             </div>
             <div id="topSources" style="max-height:196px;overflow-y:auto;margin-top:.25rem;"></div>
         </div>
@@ -191,6 +223,16 @@
             <div class="di-chart-hdr" style="margin-bottom:.75rem;flex-wrap:wrap;gap:.4rem;">
                 <span class="di-chart-title">{{ lang._('Recent Threats') }}</span>
                 <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;margin-left:auto;">
+                    <select class="form-control di-inline-sel" id="threatsRange">
+                        <option value="last30s">30s</option>
+                        <option value="last15m">15m</option>
+                        <option value="last1h">1h</option>
+                        <option value="last24h" selected>24h</option>
+                        <option value="today">Today</option>
+                        <option value="thisweek">7d</option>
+                        <option value="thismonth">30d</option>
+                        <option value="last90d">90d</option>
+                    </select>
                     <input type="text" class="form-control input-sm" id="threatSearch"
                            placeholder="{{ lang._('Search...') }}" style="width:130px;height:26px;font-size:.82em;">
                     <select class="form-control di-inline-sel" id="severityFilter" style="width:90px;">
@@ -261,14 +303,20 @@
                     {{ lang._('Partial map – GeoIP temporarily unavailable') }}
                 </span>
             </div>
-            <div id="attackMap" style="height:400px;border-radius:4px;overflow:hidden;"></div>
+            <div id="attackMap" style="height:380px;border-radius:4px;overflow:hidden;"></div>
+            <div id="mapLegend" style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap;padding:.4rem 0 0 0;font-size:.76em;color:#555;">
+                <div style="display:flex;align-items:center;gap:.3rem;"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#dc3545;border:1px solid rgba(0,0,0,.15);"></span> Critical</div>
+                <div style="display:flex;align-items:center;gap:.3rem;"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#fd7e14;border:1px solid rgba(0,0,0,.15);"></span> High</div>
+                <div style="display:flex;align-items:center;gap:.3rem;"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#ffc107;border:1px solid rgba(0,0,0,.15);"></span> Medium</div>
+                <div style="display:flex;align-items:center;gap:.3rem;"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#28a745;border:1px solid rgba(0,0,0,.15);"></span> Low</div>
+                <span class="text-muted" style="margin-left:.25rem;font-style:italic;">{{ lang._('Size = attack count') }}</span>
+            </div>
         </div>
     </div>
     <div class="col-md-3">
         <div class="di-chart-box" style="height:452px;">
-            <div class="di-chart-hdr"><span class="di-chart-title">{{ lang._('Private / Unknown Sources') }}</span></div>
-            <p class="text-muted" style="font-size:.78em;margin:.25rem 0 .5rem 0;">{{ lang._('Not plotted on map') }}</p>
-            <div id="privateSources" style="max-height:360px;overflow-y:auto;"></div>
+            <div class="di-chart-hdr"><span class="di-chart-title">{{ lang._('Attack Origins') }}</span></div>
+            <div id="mapSidebar" style="max-height:400px;overflow-y:auto;margin-top:.25rem;"></div>
         </div>
     </div>
 </div>
@@ -340,7 +388,6 @@ $(document).ready(function () {
     setInterval(loadFPAlertIds, 60000);
 
     $('#refreshDash').click(loadDashboardData);
-    $('#globalTimeRange').change(loadDashboardData);
     $('#exportStats').click(exportStats);
 
     $('#threatSearch').on('input', function() {
@@ -362,12 +409,13 @@ $(document).ready(function () {
     $('#restartService').click(function () { controlService('restart'); });
     $('#stopService').click(function ()    { controlService('stop'); });
 
-    $('#severityFilter, #threatTypeFilter').change(function () { threatsPage = 1; applyThreatFilters(); });
-    $('#threatTypesTopN').change(renderThreatTypesChart);
+    $('#severityFilter, #threatTypeFilter, #threatsRange').change(function () { threatsPage = 1; applyThreatFilters(); });
+    $('#threatTypesTopN, #threatTypesRange').change(renderThreatTypesChart);
     $('#protocolThreshold').change(renderProtocolChart);
-    $('#topSourcesN').change(function () { renderTopSources(); });
-    $('#timelineGranularity').change(function () { updateThreatTimeline(allThreats); });
+    $('#topSourcesN, #sourcesRange').change(renderTopSources);
+    $('#timelineGranularity, #timelineRange').change(function () { updateThreatTimeline(allThreats); });
     $(document).on('change', '.sev-toggle', renderSeverityChart);
+    $('#severityRange').change(renderSeverityChart);
     $('#hideZeroIndustrial').change(renderIndustrialChart);
 
     // Modal FP flow
@@ -531,8 +579,11 @@ function renderProtocolChart() {
 
 function renderThreatTypesChart() {
     if (!window.dashThreatTypesChart) return;
+    var filtered = filterThreatsByRange($('#threatTypesRange').val() || 'last24h');
+    var types = {};
+    filtered.forEach(function(t){ var tt=(t.threat_type||'unknown').toLowerCase(); types[tt]=(types[tt]||0)+1; });
     var topN  = parseInt($('#threatTypesTopN').val()) || 0;
-    var pairs = Object.entries(allThreatTypes).sort(function (a,b) { return b[1]-a[1]; });
+    var pairs = Object.entries(types).sort(function(a,b){ return b[1]-a[1]; });
     if (topN > 0) pairs = pairs.slice(0, topN);
     window.dashThreatTypesChart.data.labels = pairs.map(function(p){ return p[0]; });
     window.dashThreatTypesChart.data.datasets[0].data = pairs.map(function(p){ return p[1]; });
@@ -542,7 +593,7 @@ function renderThreatTypesChart() {
 function updateThreatTimeline(threats) {
     if (!window.dashTimelineChart) return;
     var granularity = $('#timelineGranularity').val();
-    var timeRange   = $('#globalTimeRange').val();
+    var timeRange   = $('#timelineRange').val() || 'last24h';
     if (granularity === 'auto') {
         if (timeRange === 'last30s' || timeRange === 'last15m' || timeRange === 'last1h') granularity = 'minute';
         else if (timeRange === 'last24h' || timeRange === 'today') granularity = 'hour';
@@ -587,11 +638,19 @@ function timeRangeToMs(range) {
     return map[range] || 86400000;
 }
 
+function filterThreatsByRange(range) {
+    var cutoff = Date.now() - timeRangeToMs(range);
+    return allThreats.filter(function(t) { return new Date(t.timestamp).getTime() >= cutoff; });
+}
+
 function renderSeverityChart() {
     if (!window.dashSeverityChart) return;
+    var filtered = filterThreatsByRange($('#severityRange').val() || 'last24h');
+    var sc = { critical:0, high:0, medium:0, low:0 };
+    filtered.forEach(function(t) { var s=(t.severity||'').toLowerCase(); if(sc.hasOwnProperty(s)) sc[s]++; });
     var labels=[], data=[], colors=[];
     var aL=['Critical','High','Medium','Low'], aK=['critical','high','medium','low'], aC=['#dc3545','#fd7e14','#ffc107','#28a745'];
-    $('.sev-toggle').each(function(i) { if($(this).is(':checked')){ labels.push(aL[i]); data.push(sevCounts[aK[i]]||0); colors.push(aC[i]); } });
+    $('.sev-toggle').each(function(i) { if($(this).is(':checked')){ labels.push(aL[i]); data.push(sc[aK[i]]||0); colors.push(aC[i]); } });
     window.dashSeverityChart.data.labels = labels;
     window.dashSeverityChart.data.datasets[0].data = data;
     window.dashSeverityChart.data.datasets[0].backgroundColor = colors;
@@ -617,9 +676,10 @@ function renderIndustrialChart() {
 
 // ── Top Threat Sources ────────────────────────────────────────────────────────
 function renderTopSources() {
-    var topN = parseInt($('#topSourcesN').val()) || 10;
-    var counts = {};
-    allThreats.forEach(function(t){ if(t.source_ip) counts[t.source_ip]=(counts[t.source_ip]||0)+1; });
+    var topN     = parseInt($('#topSourcesN').val()) || 10;
+    var filtered = filterThreatsByRange($('#sourcesRange').val() || 'last24h');
+    var counts   = {};
+    filtered.forEach(function(t){ if(t.source_ip) counts[t.source_ip]=(counts[t.source_ip]||0)+1; });
     var sorted = Object.entries(counts).sort(function(a,b){ return b[1]-a[1]; }).slice(0,topN);
     var $c = $('#topSources').empty();
     if (sorted.length === 0) { $c.html('<div class="text-muted text-center" style="font-size:.82em;padding:.5rem;">No data</div>'); return; }
@@ -638,7 +698,9 @@ function applyThreatFilters() {
     var sev    = $('#severityFilter').val();
     var type   = $('#threatTypeFilter').val();
     var search = threatsSearch.toLowerCase().trim();
+    var cutoff = Date.now() - timeRangeToMs($('#threatsRange').val() || 'last24h');
     filteredThreats = allThreats.filter(function(t) {
+        if (new Date(t.timestamp).getTime() < cutoff) return false;
         if (sev  !== 'all' && (t.severity   ||'').toLowerCase() !== sev)  return false;
         if (type !== 'all' && (t.threat_type||'').toLowerCase() !== type) return false;
         if (search) {
@@ -720,49 +782,82 @@ function updateMap(threats) {
     var privateIPs=[], publicIPs=[];
     Object.keys(ipCounts).forEach(function(ip){ if(isPrivateIP(ip)) privateIPs.push(ip); else publicIPs.push(ip); });
 
-    // Private sources sidebar
-    var $ps = $('#privateSources').empty();
-    if (privateIPs.length === 0) {
-        $ps.html('<div class="text-muted text-center" style="font-size:.82em;padding:.5rem;">None</div>');
-    } else {
-        privateIPs.forEach(function(ip){
-            $ps.append('<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem;"><code style="font-size:.82em;">'+esc(ip)+'</code><span class="label label-default">'+ipCounts[ip]+'</span></div>');
-        });
-    }
+    var privateCount = privateIPs.reduce(function(s,ip){ return s + ipCounts[ip]; }, 0);
 
-    if (publicIPs.length === 0) { $('#mapRateLimitedBadge').hide(); return; }
+    if (publicIPs.length === 0) {
+        $('#mapRateLimitedBadge').hide();
+        renderMapSidebar({}, privateCount);
+        return;
+    }
 
     // GeoIP lookup — pass IPs in URL query string so PHP reads via $_GET
     var ipsQS = encodeURIComponent(publicIPs.join(','));
     ajaxCall('/api/deepinspector/statistics/geoip?ips=' + ipsQS, {}, function(data) {
-        if (data.rate_limited) {
-            $('#mapRateLimitedBadge').show();
-        } else {
-            $('#mapRateLimitedBadge').hide();
-        }
-        if (data.status !== 'ok' || !data.data) return;
+        if (data.rate_limited) { $('#mapRateLimitedBadge').show(); } else { $('#mapRateLimitedBadge').hide(); }
+        if (data.status !== 'ok' || !data.data) { renderMapSidebar({}, privateCount); return; }
 
+        var countryCounts = {};
         Object.keys(data.data).forEach(function(ip) {
             var geo = data.data[ip];
             if (!geo || !geo.lat || !geo.lon) return;
-            var threat  = ipLast[ip] || {};
-            var sev     = (threat.severity||'low').toLowerCase();
-            var count   = ipCounts[ip] || 1;
-            var color   = ({critical:'#dc3545',high:'#fd7e14',medium:'#ffc107',low:'#28a745'})[sev] || '#6c757d';
-            var r       = Math.min(4 + Math.log(count+1)*3, 18);
+            var threat = ipLast[ip] || {};
+            var sev    = (threat.severity||'low').toLowerCase();
+            var count  = ipCounts[ip] || 1;
+            var color  = ({critical:'#dc3545',high:'#fd7e14',medium:'#ffc107',low:'#28a745'})[sev] || '#6c757d';
 
-            var marker = L.circleMarker([geo.lat, geo.lon], {
-                radius:r, color:color, fillColor:color, fillOpacity:0.75, weight:1
-            });
+            var marker = L.marker([geo.lat, geo.lon], { icon: makeMarkerIcon(count, color) });
             marker.bindPopup(
                 '<strong>' + esc(ip) + '</strong><br>' +
-                (geo.country ? esc(geo.country)+' ('+esc(geo.countryCode)+')' : '') + '<br>' +
+                (geo.country ? esc(geo.country) + ' (' + esc(geo.countryCode) + ')' : '') + '<br>' +
                 'Attacks: <strong>' + count + '</strong><br>' +
                 'Last: ' + esc(threat.threat_type||'N/A') + '<br>' +
-                '<span style="color:'+color+'">' + esc(sev) + '</span>'
+                '<span style="color:'+color+'">&#9632; ' + esc(sev) + '</span>'
             );
             markersLayer.addLayer(marker);
+
+            var cname = geo.country || 'Unknown';
+            countryCounts[cname] = (countryCounts[cname] || 0) + count;
         });
+
+        renderMapSidebar(countryCounts, privateCount);
+    });
+}
+
+function makeMarkerIcon(count, color) {
+    var size = Math.round(Math.max(30, Math.min(54, 24 + Math.log(count + 1) * 7)));
+    var fs   = Math.max(10, Math.round(size * 0.38));
+    return L.divIcon({
+        html: '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:'+color+
+              ';border:2px solid rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;'+
+              'color:#fff;font-weight:700;font-size:'+fs+'px;box-shadow:0 2px 6px rgba(0,0,0,.4);'+
+              'cursor:pointer;">'+count+'</div>',
+        className:   '',
+        iconSize:    [size, size],
+        iconAnchor:  [Math.round(size/2), Math.round(size/2)],
+        popupAnchor: [0, -Math.round(size/2)]
+    });
+}
+
+function renderMapSidebar(countryCounts, privateCount) {
+    var $sb = $('#mapSidebar').empty();
+    var entries = Object.entries(countryCounts).sort(function(a,b){ return b[1]-a[1]; });
+    if (privateCount > 0) entries.push(['Private / LAN', privateCount]);
+    entries.sort(function(a,b){ return b[1]-a[1]; });
+    var grandTotal = entries.reduce(function(s,e){ return s+e[1]; }, 0);
+    if (grandTotal === 0) { $sb.html('<div class="text-muted text-center" style="font-size:.82em;padding:.5rem;">No data</div>'); return; }
+    entries.forEach(function(e) {
+        var pct = Math.round(e[1] / grandTotal * 100);
+        $sb.append(
+            '<div style="margin-bottom:.5rem;">' +
+            '<div style="display:flex;justify-content:space-between;font-size:.8em;margin-bottom:2px;">' +
+            '<span>' + esc(e[0]) + '</span>' +
+            '<span><strong>' + e[1] + '</strong> <span class="text-muted">(' + pct + '%)</span></span>' +
+            '</div>' +
+            '<div style="background:#e9ecef;border-radius:3px;height:6px;">' +
+            '<div style="background:#2563eb;border-radius:3px;height:6px;width:' + pct + '%;"></div>' +
+            '</div>' +
+            '</div>'
+        );
     });
 }
 
