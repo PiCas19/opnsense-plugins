@@ -449,8 +449,12 @@ function initCharts() {
 // ── Leaflet map ───────────────────────────────────────────────────────────────
 function initMap() {
     if (typeof L === 'undefined') return;
-    // No external tile provider — offline-safe dark canvas
-    leafletMap = L.map('attackMap', { zoomControl:true, attributionControl:false }).setView([20,0], 2);
+    leafletMap = L.map('attackMap', { zoomControl:true }).setView([20,0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        subdomains: ['a','b','c'],
+        maxZoom: 19
+    }).addTo(leafletMap);
     markersLayer = L.layerGroup().addTo(leafletMap);
 }
 
@@ -989,13 +993,6 @@ function showNotification(message, type) {
     font-size:.76em; width:auto !important;
 }
 
-#attackMap {
-    background: #0d1117;
-    background-image:
-        linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
-    background-size: 40px 40px;
-}
-/* Leaflet pane backgrounds inherit map bg — keep transparent */
-#attackMap .leaflet-tile-pane { display:none; }
+/* Dark fallback shown until tiles load */
+#attackMap { background:#1a1a2e; }
 </style>

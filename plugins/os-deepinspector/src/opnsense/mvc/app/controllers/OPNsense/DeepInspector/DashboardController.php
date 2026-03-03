@@ -46,6 +46,20 @@ class DashboardController extends \OPNsense\Base\IndexController
      */
     public function indexAction()
     {
+        // Allow OpenStreetMap tile servers for the attack map.
+        // All other resources remain self-hosted (leaflet.js/css served from /js/ and /css/).
+        $this->response->setHeader(
+            'Content-Security-Policy',
+            "default-src 'self'; " .
+            "img-src 'self' data: blob: " .
+                "https://a.tile.openstreetmap.org " .
+                "https://b.tile.openstreetmap.org " .
+                "https://c.tile.openstreetmap.org; " .
+            "style-src 'self' 'unsafe-inline'; " .
+            "script-src 'self' 'unsafe-inline'; " .
+            "connect-src 'self';"
+        );
+
         $this->view->title = gettext('Deep Packet Inspector - Dashboard');
         $this->view->pick('OPNsense/DeepInspector/dashboard');
     }
