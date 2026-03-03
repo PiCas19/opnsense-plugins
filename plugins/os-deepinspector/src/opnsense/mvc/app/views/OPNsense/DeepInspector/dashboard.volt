@@ -780,7 +780,7 @@ function viewThreatDetails(threatId) {
     $('#fpReasonRow').hide(); $('#fpReasonInput').val('');
     $('#threatModal').modal('show');
 
-    ajaxCall('/api/deepinspector/alerts/threatDetails/' + threatId, {}, function(data) {
+    ajaxCall('/api/deepinspector/alerts/threatdetails/' + threatId, {}, function(data) {
         if (data.status === 'ok' && data.data) {
             var d = data.data;
             _modalThreatId = d.id || threatId;
@@ -832,7 +832,7 @@ function viewThreatDetails(threatId) {
 function blockSource(ip) {
     if (!ip) return;
     if (!confirm('{{ lang._("Block IP") }} ' + esc(ip) + '?')) return;
-    ajaxCall('/api/deepinspector/service/blockIP', { ip: ip }, function(data) {
+    ajaxCall('/api/deepinspector/service/blockip', { ip: ip }, function(data) {
         if (data.status === 'ok') {
             blockedIPs[ip] = true;
             showNotification('{{ lang._("IP") }} ' + esc(ip) + ' {{ lang._("blocked successfully") }}', 'success');
@@ -846,7 +846,7 @@ function blockSource(ip) {
 function unblockSource(ip) {
     if (!ip) return;
     if (!confirm('{{ lang._("Unblock IP") }} ' + esc(ip) + '?')) return;
-    ajaxCall('/api/deepinspector/service/unblockIP', { ip: ip }, function(data) {
+    ajaxCall('/api/deepinspector/service/unblockip', { ip: ip }, function(data) {
         if (data.status === 'ok') {
             delete blockedIPs[ip];
             showNotification('{{ lang._("IP") }} ' + esc(ip) + ' {{ lang._("unblocked") }}', 'success');
@@ -858,7 +858,7 @@ function unblockSource(ip) {
 }
 
 function loadBlockedIPs() {
-    ajaxCall('/api/deepinspector/service/listBlocked', {}, function(data) {
+    ajaxCall('/api/deepinspector/service/listblocked', {}, function(data) {
         blockedIPs = {};
         if (data.status === 'ok' && Array.isArray(data.data)) {
             data.data.filter(Boolean).forEach(function(ip){ blockedIPs[ip] = true; });
@@ -867,7 +867,7 @@ function loadBlockedIPs() {
 }
 
 function loadFPAlertIds() {
-    ajaxCall('/api/deepinspector/alerts/listFalsePositives', {}, function(data) {
+    ajaxCall('/api/deepinspector/alerts/listfalsepositives', {}, function(data) {
         fpAlertIds = {};
         if (data.status === 'ok' && Array.isArray(data.data)) {
             data.data.forEach(function(fp){ if (fp.alert_id) fpAlertIds[fp.alert_id] = true; });
@@ -887,7 +887,7 @@ function updateThreatSortHeaders() {
 
 function markFalsePositive(alertId, reason) {
     if (!alertId) return;
-    ajaxCall('/api/deepinspector/alerts/markFalsePositive', { alert_id: alertId, reason: reason||'' }, function(data) {
+    ajaxCall('/api/deepinspector/alerts/markfalsepositive', { alert_id: alertId, reason: reason||'' }, function(data) {
         if (data.status === 'ok') {
             fpAlertIds[alertId] = true;
             showNotification('{{ lang._("Alert marked as false positive") }}', 'success');

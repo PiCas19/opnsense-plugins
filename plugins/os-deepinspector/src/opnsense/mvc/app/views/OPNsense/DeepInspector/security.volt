@@ -257,7 +257,7 @@ $(document).ready(function () {
     $('#saveReviewFPBtn').click(function() {
         if (!_reviewFPAlertId) return;
         var reason = $('#reviewFPReasonInput').val().trim();
-        ajaxCall('/api/deepinspector/alerts/updateFalsePositive', { alert_id: _reviewFPAlertId, reason: reason }, function(data) {
+        ajaxCall('/api/deepinspector/alerts/updatefalsepositive', { alert_id: _reviewFPAlertId, reason: reason }, function(data) {
             if (data.status === 'ok') {
                 secNotify('{{ lang._("Reason updated") }}', 'success');
                 $('#fpReviewModal').modal('hide');
@@ -279,7 +279,7 @@ $(document).ready(function () {
 
 // ── Blocklist ─────────────────────────────────────────────────────────────────
 function loadBlocklist() {
-    ajaxCall('/api/deepinspector/service/listBlocked', {}, function(data) {
+    ajaxCall('/api/deepinspector/service/listblocked', {}, function(data) {
         blocklistData = (data.status==='ok' && Array.isArray(data.data)) ? data.data.filter(Boolean) : [];
         blocklistPage = 1;
         renderBlocklist();
@@ -324,7 +324,7 @@ function renderBlocklist() {
 function addToBlocklist() {
     var ip = $('#blocklistAddIP').val().trim();
     if (!ip) return;
-    ajaxCall('/api/deepinspector/service/blockIP', { ip: ip }, function(data) {
+    ajaxCall('/api/deepinspector/service/blockip', { ip: ip }, function(data) {
         if (data.status === 'ok') {
             secNotify('{{ lang._("IP blocked successfully") }}', 'success');
             $('#blocklistAddIP').val('');
@@ -337,7 +337,7 @@ function addToBlocklist() {
 
 function unblockIP(ip) {
     if (!confirm('{{ lang._("Remove") }} ' + ip + ' {{ lang._("from blocklist?") }}')) return;
-    ajaxCall('/api/deepinspector/service/unblockIP', { ip: ip }, function(data) {
+    ajaxCall('/api/deepinspector/service/unblockip', { ip: ip }, function(data) {
         if (data.status === 'ok') {
             secNotify('{{ lang._("IP removed from blocklist") }}', 'success');
             blocklistPage=1; loadBlocklist();
@@ -349,7 +349,7 @@ function unblockIP(ip) {
 
 // ── Whitelist ─────────────────────────────────────────────────────────────────
 function loadWhitelist() {
-    ajaxCall('/api/deepinspector/service/listWhitelist', {}, function(data) {
+    ajaxCall('/api/deepinspector/service/listwhitelist', {}, function(data) {
         whitelistData = (data.status==='ok' && Array.isArray(data.data)) ? data.data.filter(Boolean) : [];
         whitelistPage = 1;
         renderWhitelist();
@@ -394,7 +394,7 @@ function renderWhitelist() {
 function addToWhitelist() {
     var ip = $('#whitelistAddIP').val().trim();
     if (!ip) return;
-    ajaxCall('/api/deepinspector/service/whitelistIP', { ip: ip }, function(data) {
+    ajaxCall('/api/deepinspector/service/whitelistip', { ip: ip }, function(data) {
         if (data.status === 'ok') {
             secNotify('{{ lang._("IP whitelisted successfully") }}', 'success');
             $('#whitelistAddIP').val('');
@@ -407,7 +407,7 @@ function addToWhitelist() {
 
 function removeWhitelistIP(ip) {
     if (!confirm('{{ lang._("Remove") }} ' + ip + ' {{ lang._("from whitelist?") }}')) return;
-    ajaxCall('/api/deepinspector/service/removeWhitelistIP', { ip: ip }, function(data) {
+    ajaxCall('/api/deepinspector/service/removewhitelistip', { ip: ip }, function(data) {
         if (data.status === 'ok') {
             secNotify('{{ lang._("IP removed from whitelist") }}', 'success');
             whitelistPage=1; loadWhitelist();
@@ -419,7 +419,7 @@ function removeWhitelistIP(ip) {
 
 // ── False Positives ───────────────────────────────────────────────────────────
 function loadFP() {
-    ajaxCall('/api/deepinspector/alerts/listFalsePositives', {}, function(data) {
+    ajaxCall('/api/deepinspector/alerts/listfalsepositives', {}, function(data) {
         fpData = (data.status==='ok' && Array.isArray(data.data)) ? data.data : [];
         fpPage = 1;
         renderFP();
@@ -490,7 +490,7 @@ function renderFP() {
 function removeFP(alertId) {
     if (!alertId) return;
     if (!confirm('{{ lang._("Remove this false positive entry?") }}')) return;
-    ajaxCall('/api/deepinspector/alerts/removeFalsePositive', { alert_id: alertId }, function(data) {
+    ajaxCall('/api/deepinspector/alerts/removefalsepositive', { alert_id: alertId }, function(data) {
         if (data.status === 'ok') {
             secNotify('{{ lang._("False positive removed") }}', 'success');
             fpPage=1; loadFP();
@@ -515,7 +515,7 @@ function reviewFP(alertId) {
 function whitelistFromFP(ip) {
     if (!ip) return;
     if (!confirm('{{ lang._("Add") }} ' + ip + ' {{ lang._("to whitelist?") }}')) return;
-    ajaxCall('/api/deepinspector/service/whitelistIP', { ip: ip }, function(data) {
+    ajaxCall('/api/deepinspector/service/whitelistip', { ip: ip }, function(data) {
         if (data.status === 'ok') {
             secNotify('{{ lang._("IP whitelisted successfully") }}', 'success');
         } else {
