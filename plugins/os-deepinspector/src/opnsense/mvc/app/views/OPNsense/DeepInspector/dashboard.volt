@@ -1,7 +1,7 @@
 {# dashboard.volt - Deep Packet Inspector Dashboard #}
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<link rel="stylesheet" href="/ui/css/leaflet.min.css"/>
 <script src="/ui/js/chart.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="/ui/js/leaflet.min.js"></script>
 
 <div id="notifications" style="position:fixed;top:20px;right:20px;z-index:9999;min-width:300px;"></div>
 
