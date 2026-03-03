@@ -3,7 +3,7 @@
         <DeepInspector VisibleName="Deep Packet Inspector" cssClass="fa fa-search-plus fa-fw">
             <Dashboard order="10" url="/ui/deepinspector/dashboard"/>
             <Settings order="20" url="/ui/deepinspector/index"/>
-            <Statistics order="30" url="/ui/deepinspector/statistics"/>
+            <Security order="30" url="/ui/deepinspector/security"/>
         </DeepInspector>
     </Services>
 </menu>

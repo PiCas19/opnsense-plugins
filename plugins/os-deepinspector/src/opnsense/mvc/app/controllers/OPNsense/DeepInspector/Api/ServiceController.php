@@ -341,6 +341,42 @@ class ServiceController extends ApiMutableServiceControllerBase
 
 
     /**
+     * Remove an IP from the whitelist
+     *
+     * POST parameter: ip
+     * Uses unblock_ip daemon command (same mechanism as unblockIP).
+     *
+     * @return array
+     */
+    public function removeWhitelistIPAction()
+    {
+        if ($this->request->isPost()) {
+            $ip = $this->request->getPost('ip');
+
+            if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                $backend = new Backend();
+                $response = $backend->configdpRun("deepinspector", array("unwhitelist_ip", $ip));
+
+                // Fallback: if the daemon doesn't support unwhitelist_ip, treat "OK" from unblock as success
+                if (trim($response) !== "OK") {
+                    $response = $backend->configdpRun("deepinspector", array("unblock_ip", $ip));
+                }
+
+                return [
+                    "status"   => trim($response) === "OK" ? "ok" : "failed",
+                    "response" => $response,
+                    "message"  => trim($response) === "OK"
+                        ? "IP address $ip removed from whitelist successfully"
+                        : "Failed to remove IP from whitelist: " . $response
+                ];
+            } else {
+                return ["status" => "failed", "message" => "Invalid IP address format"];
+            }
+        }
+        return ["status" => "failed", "message" => "POST method required"];
+    }
+
+    /**
      * Check IP status (blocked, whitelisted, or unknown)
      * @return array
      */

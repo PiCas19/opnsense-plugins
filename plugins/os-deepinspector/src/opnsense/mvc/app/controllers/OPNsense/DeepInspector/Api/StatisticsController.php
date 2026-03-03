@@ -1194,4 +1194,147 @@ class StatisticsController extends ApiControllerBase
 
         return implode("\n", $csv);
     }
+
+    /**
+     * GeoIP lookup for a list of IP addresses
+     *
+     * GET /api/deepinspector/statistics/geoip?ips=1.2.3.4,5.6.7.8
+     *
+     * - Filters out private/loopback IPs (returns null for those)
+     * - Uses a 24-hour file cache at /tmp/deepinspector_geoip_cache.json
+     * - Calls ip-api.com/batch for uncached IPs (max 100 per request)
+     * - Handles HTTP 429 rate limiting gracefully
+     *
+     * @return array { status, data: { ip: {lat,lon,country,countryCode}|null }, rate_limited }
+     */
+    public function geoipAction()
+    {
+        $ipsParam = $this->request->get('ips') ?: '';
+        if (empty($ipsParam)) {
+            return ["status" => "ok", "data" => [], "rate_limited" => false];
+        }
+
+        $requestedIPs = array_unique(array_filter(
+            array_map('trim', explode(',', $ipsParam)),
+            function ($ip) { return filter_var($ip, FILTER_VALIDATE_IP) !== false; }
+        ));
+
+        // Cap at 100
+        $requestedIPs = array_slice($requestedIPs, 0, 100);
+
+        if (empty($requestedIPs)) {
+            return ["status" => "ok", "data" => [], "rate_limited" => false];
+        }
+
+        $cacheFile = '/tmp/deepinspector_geoip_cache.json';
+        $cacheTTL  = 86400; // 24 hours
+        $now       = time();
+
+        // Load cache
+        $cache = [];
+        if (file_exists($cacheFile) && is_readable($cacheFile)) {
+            $raw = file_get_contents($cacheFile);
+            if ($raw !== false) {
+                $decoded = json_decode($raw, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $cache = $decoded;
+                }
+            }
+        }
+
+        $result      = [];
+        $toFetch     = [];
+        $rateLimited = false;
+
+        foreach ($requestedIPs as $ip) {
+            if ($this->isPrivateIP($ip)) {
+                $result[$ip] = null;
+                continue;
+            }
+
+            if (isset($cache[$ip]) && ($now - ($cache[$ip]['cached_at'] ?? 0)) < $cacheTTL) {
+                $result[$ip] = $cache[$ip]['data'];
+            } else {
+                $toFetch[] = $ip;
+            }
+        }
+
+        if (!empty($toFetch)) {
+            $batchPayload = [];
+            foreach ($toFetch as $ip) {
+                $batchPayload[] = ["query" => $ip, "fields" => "status,message,country,countryCode,lat,lon,query"];
+            }
+
+            $ch = curl_init('http://ip-api.com/batch?fields=status,message,country,countryCode,lat,lon,query');
+            curl_setopt_array($ch, [
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => json_encode($batchPayload),
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 10,
+                CURLOPT_HTTPHEADER     => ['Content-Type: application/json']
+            ]);
+
+            $response   = curl_exec($ch);
+            $httpCode   = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($httpCode === 429) {
+                $rateLimited = true;
+                // Return whatever we have from cache for uncached IPs
+                foreach ($toFetch as $ip) {
+                    $result[$ip] = isset($cache[$ip]) ? $cache[$ip]['data'] : null;
+                }
+            } elseif ($response !== false && $httpCode === 200) {
+                $geoData = json_decode($response, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($geoData)) {
+                    foreach ($geoData as $entry) {
+                        $ip = $entry['query'] ?? null;
+                        if (!$ip) continue;
+
+                        if (($entry['status'] ?? '') === 'success') {
+                            $data = [
+                                'lat'         => $entry['lat'],
+                                'lon'         => $entry['lon'],
+                                'country'     => $entry['country'] ?? '',
+                                'countryCode' => $entry['countryCode'] ?? ''
+                            ];
+                            $result[$ip]  = $data;
+                            $cache[$ip]   = ['data' => $data, 'cached_at' => $now];
+                        } else {
+                            $result[$ip] = null;
+                        }
+                    }
+
+                    // Save updated cache
+                    @file_put_contents($cacheFile, json_encode($cache));
+                }
+            } else {
+                // Network error — return nulls for uncached IPs
+                foreach ($toFetch as $ip) {
+                    $result[$ip] = isset($cache[$ip]) ? $cache[$ip]['data'] : null;
+                }
+            }
+        }
+
+        return [
+            "status"       => "ok",
+            "data"         => $result,
+            "rate_limited" => $rateLimited
+        ];
+    }
+
+    /**
+     * Checks whether an IP is private, loopback, or link-local
+     *
+     * @param string $ip
+     * @return bool
+     */
+    private function isPrivateIP($ip)
+    {
+        return filter_var(
+            $ip,
+            FILTER_VALIDATE_IP,
+            FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+        ) === false;
+    }
 }

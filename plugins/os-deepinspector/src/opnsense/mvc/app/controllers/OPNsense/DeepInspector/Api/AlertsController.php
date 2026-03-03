@@ -539,6 +539,172 @@ class AlertsController extends ApiControllerBase
     }
 
     /**
+     * Lists alerts marked as false positives
+     *
+     * Reads /var/log/deepinspector/false_positives.json and returns all entries.
+     *
+     * @return array Response with false positives data
+     */
+    public function listFalsePositivesAction()
+    {
+        $result = ["status" => "ok", "data" => []];
+
+        try {
+            $fpFile = '/var/log/deepinspector/false_positives.json';
+            if (file_exists($fpFile) && is_readable($fpFile)) {
+                $content = file_get_contents($fpFile);
+                if ($content !== false) {
+                    $fps = json_decode($content, true);
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($fps)) {
+                        $result["data"] = array_values($fps);
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            error_log("DeepInspector: Error in listFalsePositivesAction: " . $e->getMessage());
+        }
+
+        return $result;
+    }
+
+    /**
+     * Marks an alert as a false positive
+     *
+     * POST parameters: alert_id (required), reason (optional)
+     * Appends entry to /var/log/deepinspector/false_positives.json.
+     *
+     * @return array Response with status
+     */
+    public function markFalsePositiveAction()
+    {
+        if (!$this->request->isPost()) {
+            return ["status" => "failed", "message" => "POST method required"];
+        }
+
+        $alertId = $this->request->getPost('alert_id');
+        $reason  = $this->request->getPost('reason') ?: '';
+
+        if (empty($alertId)) {
+            return ["status" => "failed", "message" => "alert_id is required"];
+        }
+
+        // Basic sanitisation — only allow safe ID characters
+        if (!preg_match('/^[a-zA-Z0-9_\-]+$/', $alertId)) {
+            return ["status" => "failed", "message" => "Invalid alert_id format"];
+        }
+
+        try {
+            $fpFile  = '/var/log/deepinspector/false_positives.json';
+            $alertsFile = '/var/log/deepinspector/alerts.log';
+
+            // Validate alert exists and get its data
+            $alertData = null;
+            if (file_exists($alertsFile) && is_readable($alertsFile)) {
+                $lines = @file($alertsFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                if ($lines !== false) {
+                    foreach ($lines as $line) {
+                        $a = json_decode($line, true);
+                        if (json_last_error() === JSON_ERROR_NONE && $a && isset($a['id']) && $a['id'] === $alertId) {
+                            $alertData = $a;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if ($alertData === null) {
+                return ["status" => "failed", "message" => "Alert not found"];
+            }
+
+            // Load existing FPs
+            $fps = [];
+            if (file_exists($fpFile) && is_readable($fpFile)) {
+                $content = file_get_contents($fpFile);
+                if ($content !== false) {
+                    $decoded = json_decode($content, true);
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                        $fps = $decoded;
+                    }
+                }
+            }
+
+            // Add entry
+            $fps[$alertId] = [
+                "alert_id"    => $alertId,
+                "marked_at"   => date('c'),
+                "source_ip"   => $alertData['source_ip'] ?? '',
+                "threat_type" => $alertData['threat_type'] ?? '',
+                "reason"      => $reason
+            ];
+
+            if (file_put_contents($fpFile, json_encode($fps, JSON_PRETTY_PRINT)) === false) {
+                return ["status" => "failed", "message" => "Failed to write false positives file"];
+            }
+
+            return ["status" => "ok", "message" => "Alert $alertId marked as false positive"];
+
+        } catch (Exception $e) {
+            error_log("DeepInspector: Error in markFalsePositiveAction: " . $e->getMessage());
+            return ["status" => "failed", "message" => "Error: " . $e->getMessage()];
+        }
+    }
+
+    /**
+     * Removes an alert from the false positives list
+     *
+     * POST parameter: alert_id
+     *
+     * @return array Response with status
+     */
+    public function removeFalsePositiveAction()
+    {
+        if (!$this->request->isPost()) {
+            return ["status" => "failed", "message" => "POST method required"];
+        }
+
+        $alertId = $this->request->getPost('alert_id');
+
+        if (empty($alertId)) {
+            return ["status" => "failed", "message" => "alert_id is required"];
+        }
+
+        if (!preg_match('/^[a-zA-Z0-9_\-]+$/', $alertId)) {
+            return ["status" => "failed", "message" => "Invalid alert_id format"];
+        }
+
+        try {
+            $fpFile = '/var/log/deepinspector/false_positives.json';
+
+            $fps = [];
+            if (file_exists($fpFile) && is_readable($fpFile)) {
+                $content = file_get_contents($fpFile);
+                if ($content !== false) {
+                    $decoded = json_decode($content, true);
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                        $fps = $decoded;
+                    }
+                }
+            }
+
+            if (!isset($fps[$alertId])) {
+                return ["status" => "failed", "message" => "False positive entry not found"];
+            }
+
+            unset($fps[$alertId]);
+
+            if (file_put_contents($fpFile, json_encode($fps, JSON_PRETTY_PRINT)) === false) {
+                return ["status" => "failed", "message" => "Failed to write false positives file"];
+            }
+
+            return ["status" => "ok", "message" => "False positive entry removed"];
+
+        } catch (Exception $e) {
+            error_log("DeepInspector: Error in removeFalsePositiveAction: " . $e->getMessage());
+            return ["status" => "failed", "message" => "Error: " . $e->getMessage()];
+        }
+    }
+
+    /**
      * Clear old alerts
      *
      * Removes alerts older than specified days from the log file.
