@@ -86,15 +86,13 @@ class ManagementController extends ApiControllerBase
                 $ts = isset($e['timestamp']) ? strtotime($e['timestamp']) : false;
                 $result['data'][] = [
                     'timestamp'          => ($ts ? date('H:i:s', $ts) : 'N/A'),
-                    'src'                => htmlspecialchars(isset($e['src_ip']) ? $e['src_ip'] : (isset($e['source_ip']) ? $e['source_ip'] : 'unknown'), ENT_QUOTES, 'UTF-8'),
-                    'dst'                => htmlspecialchars(isset($e['dst_ip']) ? $e['dst_ip'] : (isset($e['destination_ip']) ? $e['destination_ip'] : 'unknown'), ENT_QUOTES, 'UTF-8'),
+                    'src'                => htmlspecialchars(isset($e['source_zone']) ? $e['source_zone'] : 'UNKNOWN', ENT_QUOTES, 'UTF-8'),
+                    'dst'                => htmlspecialchars(isset($e['destination_zone']) ? $e['destination_zone'] : 'UNKNOWN', ENT_QUOTES, 'UTF-8'),
                     'protocol'           => htmlspecialchars(strtoupper(isset($e['protocol']) ? $e['protocol'] : 'unknown'), ENT_QUOTES, 'UTF-8'),
                     'decision'           => htmlspecialchars(strtoupper(isset($e['decision']) ? $e['decision'] : 'unknown'), ENT_QUOTES, 'UTF-8'),
-                    'port'               => htmlspecialchars(isset($e['port']) ? $e['port'] : 'N/A', ENT_QUOTES, 'UTF-8'),
-                    'source_zone'        => htmlspecialchars(isset($e['source_zone']) ? $e['source_zone'] : 'UNKNOWN', ENT_QUOTES, 'UTF-8'),
-                    'destination_zone'   => htmlspecialchars(isset($e['destination_zone']) ? $e['destination_zone'] : 'UNKNOWN', ENT_QUOTES, 'UTF-8'),
-                    'processing_time_ms' => (float)(isset($e['processing_time_ms']) ? $e['processing_time_ms'] : 0),
-                    'cached'             => (bool)(isset($e['cached']) ? $e['cached'] : false)
+                    'port'               => htmlspecialchars(isset($e['port']) ? (string)$e['port'] : '-', ENT_QUOTES, 'UTF-8'),
+                    'reason'             => htmlspecialchars(isset($e['reason']) ? $e['reason'] : '', ENT_QUOTES, 'UTF-8'),
+                    'processing_time_ms' => (float)(isset($e['processing_time_ms']) ? $e['processing_time_ms'] : 0)
                 ];
             }
             return $result;

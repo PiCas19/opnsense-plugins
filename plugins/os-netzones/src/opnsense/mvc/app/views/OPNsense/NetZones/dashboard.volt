@@ -1,202 +1,177 @@
+{#
+ # NetZones Dashboard
+ #}
 <div id="nz-notifications" style="position:fixed;bottom:24px;right:24px;z-index:9999;min-width:280px;max-width:380px;pointer-events:none;"></div>
 
-<!-- Stats panels -->
-<div class="content-box" style="padding:1.25rem;margin-bottom:1rem;">
-  <div class="row">
-    <div class="col-md-3">
-      <div class="panel panel-default">
-        <div class="panel-heading"><h6 style="margin:0;"><i class="fa fa-server"></i> {{ lang._('Service Status') }}</h6></div>
-        <div class="panel-body text-center" id="serviceStatus">
-          <i class="fa fa-spinner fa-spin"></i>
+<!-- ── Toolbar ─────────────────────────────────────────────────────────────── -->
+<div class="content-box" style="padding:.65rem 1.25rem;margin-bottom:1rem;">
+    <div class="row" style="align-items:center;">
+        <div class="col-md-2">
+            <span id="nzServiceBadge" class="label label-default" style="font-size:.9em;padding:.35em .7em;">{{ lang._('Loading...') }}</span>
         </div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="panel panel-default">
-        <div class="panel-heading"><h6 style="margin:0;"><i class="fa fa-shield"></i> {{ lang._('Zones') }}</h6></div>
-        <div class="panel-body text-center" id="zonesStatus">
-          <i class="fa fa-spinner fa-spin"></i>
+        <div class="col-md-10 text-right">
+            <span class="text-muted" style="font-size:.8em;">
+                {{ lang._('Updated') }}: <strong id="nzLastUpdated">--</strong>
+            </span>
+            <button class="btn btn-default btn-sm" id="nzRefresh" style="margin-left:.5rem;">
+                <i class="fa fa-refresh"></i> {{ lang._('Refresh') }}
+            </button>
         </div>
-      </div>
     </div>
-    <div class="col-md-3">
-      <div class="panel panel-default">
-        <div class="panel-heading"><h6 style="margin:0;"><i class="fa fa-exchange"></i> {{ lang._('Policy Activity') }}</h6></div>
-        <div class="panel-body text-center" id="policyActivity">
-          <i class="fa fa-spinner fa-spin"></i>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="panel panel-default">
-        <div class="panel-heading"><h6 style="margin:0;"><i class="fa fa-exclamation-triangle"></i> {{ lang._('Security') }}</h6></div>
-        <div class="panel-body text-center" id="securitySummary">
-          <i class="fa fa-spinner fa-spin"></i>
-        </div>
-      </div>
-    </div>
-  </div>
 </div>
 
-<!-- Zone details + relationships -->
-<div class="content-box" style="padding:1.25rem;margin-bottom:1rem;">
-  <div class="row">
-    <div class="col-md-8">
-      <h5><i class="fa fa-list"></i> {{ lang._('Active Zones Overview') }}</h5>
-      <div id="zonesOverview">
-        <i class="fa fa-spinner fa-spin"></i> {{ lang._('Loading zones...') }}
-      </div>
+<!-- ── Metric cards ─────────────────────────────────────────────────────────── -->
+<div class="row">
+    <div class="col-md-3">
+        <div class="di-metric-card">
+            <div class="di-metric-icon"><i class="fa fa-server"></i></div>
+            <div class="di-metric-content">
+                <div class="di-metric-value" id="nzMetricService">--</div>
+                <div class="di-metric-label">{{ lang._('Service') }}</div>
+            </div>
+        </div>
     </div>
-    <div class="col-md-4">
-      <h5><i class="fa fa-sitemap"></i> {{ lang._('Zone Relationships') }}</h5>
-      <div id="zoneRelationships" style="min-height:100px;margin-bottom:1.25rem;">
-        <i class="fa fa-spinner fa-spin"></i>
-      </div>
-
-      <h6><i class="fa fa-tachometer text-info"></i> {{ lang._('Traffic Flow') }}</h6>
-      <div id="trafficFlow" style="margin-bottom:1.25rem;">
-        <i class="fa fa-spinner fa-spin"></i>
-      </div>
-
-      <h6><i class="fa fa-ban text-danger"></i> {{ lang._('Top Blocked Sources') }}</h6>
-      <div id="topBlockedSources" class="small">
-        <i class="fa fa-spinner fa-spin"></i>
-      </div>
+    <div class="col-md-3">
+        <div class="di-metric-card">
+            <div class="di-metric-icon" style="color:#2563eb;"><i class="fa fa-shield"></i></div>
+            <div class="di-metric-content">
+                <div class="di-metric-value" id="nzMetricZones">--</div>
+                <div class="di-metric-label">{{ lang._('Active Zones') }}</div>
+            </div>
+        </div>
     </div>
-  </div>
+    <div class="col-md-3">
+        <div class="di-metric-card">
+            <div class="di-metric-icon" style="color:#059669;"><i class="fa fa-exchange"></i></div>
+            <div class="di-metric-content">
+                <div class="di-metric-value" id="nzMetricPolicies">--</div>
+                <div class="di-metric-label">{{ lang._('Active Policies') }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="di-metric-card">
+            <div class="di-metric-icon" style="color:#d97706;"><i class="fa fa-list-alt"></i></div>
+            <div class="di-metric-content">
+                <div class="di-metric-value" id="nzMetricEvents">--</div>
+                <div class="di-metric-label">{{ lang._('Total Events') }}</div>
+            </div>
+        </div>
+    </div>
 </div>
 
-<!-- Recent activity -->
-<div class="content-box" style="padding:1.25rem;margin-bottom:1rem;">
-  <div class="row">
-    <div class="col-md-8">
-      <h5><i class="fa fa-history"></i> {{ lang._('Recent Policy Decisions') }}</h5>
-      <div class="table-responsive" style="max-height:400px;overflow-y:auto;">
-        <table class="table table-striped table-condensed" id="recentDecisions">
-          <thead>
-            <tr>
-              <th>{{ lang._('Time') }}</th>
-              <th>{{ lang._('Source') }}</th>
-              <th>{{ lang._('Destination') }}</th>
-              <th>{{ lang._('Protocol') }}</th>
-              <th>{{ lang._('Decision') }}</th>
-              <th>{{ lang._('Zones') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td colspan="6" class="text-center"><i class="fa fa-spinner fa-spin"></i></td></tr>
-          </tbody>
-        </table>
-      </div>
+<!-- ── Charts row ──────────────────────────────────────────────────────────── -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="di-chart-box">
+            <div class="di-chart-hdr">
+                <span class="di-chart-title">{{ lang._('Activity (last 6h)') }}</span>
+            </div>
+            <div id="nzActivityChart" style="height:120px;"></div>
+        </div>
     </div>
-    <div class="col-md-4">
-      <h6><i class="fa fa-bar-chart"></i> {{ lang._('Live Activity Monitor') }}</h6>
-      <div id="liveActivityChart" style="height:120px;margin-bottom:1.25rem;">
-        <i class="fa fa-spinner fa-spin"></i>
-      </div>
-
-      <h6><i class="fa fa-pie-chart"></i> {{ lang._('Protocol Distribution') }}</h6>
-      <div id="protocolDistribution">
-        <i class="fa fa-spinner fa-spin"></i>
-      </div>
+    <div class="col-md-3">
+        <div class="di-chart-box">
+            <div class="di-chart-hdr">
+                <span class="di-chart-title">{{ lang._('Decisions') }}</span>
+            </div>
+            <div id="nzDecisionStats" style="padding-top:.25rem;"></div>
+        </div>
     </div>
-  </div>
+    <div class="col-md-3">
+        <div class="di-chart-box">
+            <div class="di-chart-hdr">
+                <span class="di-chart-title">{{ lang._('Top Protocols') }}</span>
+            </div>
+            <div id="nzProtocols" style="padding-top:.25rem;"></div>
+        </div>
+    </div>
 </div>
 
-<!-- Test Zone Policy Modal -->
-<div class="modal fade" id="testModal" tabindex="-1" role="dialog">
-  <div class="modal-dialog" role="document">
-    <div class="modal-content">
-      <div class="modal-header">
-        <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
-        <h4 class="modal-title">{{ lang._('Test Zone Policy') }}</h4>
-      </div>
-      <div class="modal-body">
-        <form id="testForm">
-          <div class="form-group">
-            <label>{{ lang._('Source IP') }}</label>
-            <input type="text" class="form-control" id="testSrc" placeholder="192.168.1.100" required>
-          </div>
-          <div class="form-group">
-            <label>{{ lang._('Destination IP') }}</label>
-            <input type="text" class="form-control" id="testDst" placeholder="192.168.2.50" required>
-          </div>
-          <div class="form-group">
-            <label>{{ lang._('Port') }}</label>
-            <input type="number" class="form-control" id="testPort" placeholder="80" min="1" max="65535" required>
-          </div>
-          <div class="form-group">
-            <label>{{ lang._('Protocol') }}</label>
-            <select class="form-control" id="testProtocol">
-              <option value="tcp">TCP</option>
-              <option value="udp">UDP</option>
-              <option value="icmp">ICMP</option>
-              <option value="any">Any</option>
-            </select>
-          </div>
-        </form>
-        <div id="testResult" style="margin-top:1rem;"></div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-default" data-dismiss="modal">{{ lang._('Close') }}</button>
-        <button type="button" class="btn btn-primary" onclick="runTest()">{{ lang._('Run Test') }}</button>
-      </div>
+<!-- ── Main content ─────────────────────────────────────────────────────────── -->
+<div class="row">
+    <div class="col-md-9">
+        <div class="di-chart-box">
+            <div class="di-chart-hdr">
+                <span class="di-chart-title">{{ lang._('Recent Policy Decisions') }}</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-striped table-condensed" style="font-size:.85em;margin:0;">
+                    <thead>
+                        <tr>
+                            <th style="white-space:nowrap;">{{ lang._('Time') }}</th>
+                            <th>{{ lang._('Source Zone') }}</th>
+                            <th>{{ lang._('Dest Zone') }}</th>
+                            <th>{{ lang._('Proto') }}</th>
+                            <th>{{ lang._('Port') }}</th>
+                            <th>{{ lang._('Decision') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody id="nzDecisionsBody">
+                        <tr><td colspan="6" class="text-center text-muted"><i class="fa fa-spinner fa-spin"></i></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
-  </div>
+    <div class="col-md-3">
+        <div class="di-chart-box" style="margin-bottom:1rem;">
+            <div class="di-chart-hdr">
+                <span class="di-chart-title">{{ lang._('Zone Relationships') }}</span>
+            </div>
+            <div id="nzRelationships" style="padding-top:.25rem;"></div>
+        </div>
+        <div class="di-chart-box">
+            <div class="di-chart-hdr">
+                <span class="di-chart-title">{{ lang._('Service Controls') }}</span>
+            </div>
+            <div class="btn-group-vertical" style="width:100%;margin-top:.5rem;">
+                <button class="btn btn-success btn-sm" id="nzStartBtn" style="margin-bottom:.3rem;">
+                    <i class="fa fa-play"></i> {{ lang._('Start') }}
+                </button>
+                <button class="btn btn-warning btn-sm" id="nzRestartBtn" style="margin-bottom:.3rem;">
+                    <i class="fa fa-refresh"></i> {{ lang._('Restart') }}
+                </button>
+                <button class="btn btn-danger btn-sm" id="nzStopBtn">
+                    <i class="fa fa-stop"></i> {{ lang._('Stop') }}
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <style>
-/* Bar chart only — no Bootstrap overrides */
-.activity-chart-compact {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  padding: 8px 5px;
-  background: #f9f9f9;
-  border-radius: 4px;
-  height: 90px;
-  overflow: hidden;
+.di-metric-card {
+    background:#fff; border-radius:6px; padding:1.1rem;
+    box-shadow:0 1px 4px rgba(0,0,0,.1); margin-bottom:1rem;
+    display:flex; align-items:center; gap:.85rem;
 }
-.chart-bar-compact {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex: 1;
-  max-width: 14%;
-  margin: 0 1px;
+.di-metric-icon  { font-size:1.75rem; color:#2563eb; width:2rem; text-align:center; flex-shrink:0; }
+.di-metric-value { font-size:1.65rem; font-weight:700; color:#1f2937; line-height:1.1; }
+.di-metric-label { font-size:.75rem; color:#6b7280; text-transform:uppercase; letter-spacing:.04em; }
+.di-chart-box {
+    background:#fff; border-radius:6px; padding:.9rem;
+    box-shadow:0 1px 4px rgba(0,0,0,.1); margin-bottom:1rem;
 }
-.chart-bar-container {
-  height: 60px;
-  width: 100%;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  margin-bottom: 3px;
+.di-chart-hdr {
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:.5rem; min-height:26px;
 }
-.chart-bar-fill {
-  width: 80%;
-  background: #337ab7;
-  min-height: 2px;
-  border-radius: 2px 2px 0 0;
+.di-chart-title { font-size:.88rem; font-weight:600; color:#374151; }
+.nz-zone-link {
+    padding:4px 8px; border-left:3px solid #2563eb;
+    margin-bottom:4px; background:#f9fafb; font-size:.82em;
+    border-radius:0 3px 3px 0;
 }
-.chart-bar-label {
-  font-size: 9px;
-  color: #666;
-  text-align: center;
-}
-.zone-connection {
-  padding: 5px 8px;
-  border-left: 3px solid #337ab7;
-  margin-bottom: 5px;
-  background: #f9f9f9;
-}
+.nz-bar-wrap { display:flex; align-items:center; gap:.4rem; margin-bottom:.35rem; font-size:.82em; }
+.nz-bar-bg   { flex:1; height:8px; background:#e5e7eb; border-radius:4px; overflow:hidden; }
+.nz-bar-fill { height:100%; border-radius:4px; }
 </style>
 
 <script>
 function nzNotify(message, type) {
-    var isSuccess = (type === 'success');
-    var cls  = isSuccess ? 'alert-success' : 'alert-danger';
-    var icon = isSuccess ? 'fa-check' : 'fa-exclamation-circle';
+    var cls  = type === 'success' ? 'alert-success' : (type === 'warning' ? 'alert-warning' : 'alert-danger');
+    var icon = type === 'success' ? 'fa-check' : (type === 'warning' ? 'fa-exclamation-triangle' : 'fa-exclamation-circle');
     var $n = $('<div role="alert" style="pointer-events:all;margin-top:.4rem;border-radius:3px;box-shadow:0 2px 10px rgba(0,0,0,.28);">' +
                '<div class="alert ' + cls + ' alert-dismissible" style="margin:0;padding:.6rem .9rem;">' +
                '<button type="button" class="close" data-dismiss="alert" style="top:0;right:4px;"><span>&times;</span></button>' +
@@ -205,291 +180,184 @@ function nzNotify(message, type) {
     setTimeout(function() { $n.find('.alert').alert('close'); $n.remove(); }, 4000);
 }
 
+function nzEsc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 function loadDashboard() {
+    loadStats();
+    loadLogs();
+    loadRelationships();
+    loadTrafficPatterns();
     loadServiceStatus();
-    loadZonesStatus();
-    loadPolicyActivity();
-    loadSecuritySummary();
-    loadZonesOverview();
-    loadRecentDecisions();
-    loadZoneRelationships();
-    loadTrafficFlow();
-    loadTopBlockedSources();
-    loadLiveActivityChart();
-    loadProtocolDistribution();
+    $('#nzLastUpdated').text(new Date().toLocaleTimeString());
 }
 
 function loadServiceStatus() {
     ajaxCall('/api/netzones/service/status', {}, function(data) {
         if (data && data.running) {
-            $('#serviceStatus').html(
-                '<div class="text-success">' +
-                '<i class="fa fa-check-circle fa-2x"></i><br>' +
-                '<strong>{{ lang._("RUNNING") }}</strong><br>' +
-                '<small>PID: ' + (data.pid || 'N/A') + '</small>' +
-                '</div>'
-            );
+            $('#nzServiceBadge').removeClass('label-default label-danger').addClass('label-success').text('{{ lang._("RUNNING") }}');
+            $('#nzMetricService').text('{{ lang._("Running") }}').css('color','#059669');
         } else {
-            $('#serviceStatus').html(
-                '<div class="text-danger">' +
-                '<i class="fa fa-times-circle fa-2x"></i><br>' +
-                '<strong>{{ lang._("STOPPED") }}</strong>' +
-                '</div>'
-            );
+            $('#nzServiceBadge').removeClass('label-default label-success').addClass('label-danger').text('{{ lang._("STOPPED") }}');
+            $('#nzMetricService').text('{{ lang._("Stopped") }}').css('color','#dc2626');
         }
     }).fail(function() {
-        $('#serviceStatus').html(
-            '<div class="text-warning">' +
-            '<i class="fa fa-exclamation-triangle fa-2x"></i><br>' +
-            '<strong>{{ lang._("UNKNOWN") }}</strong>' +
-            '</div>'
+        $('#nzServiceBadge').removeClass('label-success label-danger').addClass('label-default').text('{{ lang._("Unknown") }}');
+        $('#nzMetricService').text('?');
+    });
+}
+
+function loadStats() {
+    ajaxCall('/api/netzones/management/dashboard_stats', {}, function(data) {
+        if (!data || data.status !== 'ok' || !data.data) { return; }
+        var s = data.data;
+
+        // Zones card
+        var za = (s.zones && s.zones.active) ? s.zones.active : 0;
+        var zt = (s.zones && s.zones.total)  ? s.zones.total  : 0;
+        $('#nzMetricZones').text(za + ' / ' + zt);
+
+        // Policies card
+        var pa = (s.policies && s.policies.active) ? s.policies.active : 0;
+        var pt = (s.policies && s.policies.total)  ? s.policies.total  : 0;
+        $('#nzMetricPolicies').text(pa + ' / ' + pt);
+
+        // Events card
+        var tot = s.total_events || 0;
+        var lh  = s.last_hour_count || 0;
+        $('#nzMetricEvents').text(tot);
+        $('#nzMetricEvents').closest('.di-metric-content')
+            .find('.di-metric-label').text(tot + ' {{ lang._("total") }} · ' + lh + ' {{ lang._("last hour") }}');
+
+        // Decision breakdown
+        var allow = s.allow_events || 0;
+        var block = s.block_events || 0;
+        var total = tot || 1;
+        var aRate = Math.round((allow / total) * 100);
+        var bRate = Math.round((block / total) * 100);
+        $('#nzDecisionStats').html(
+            '<div class="nz-bar-wrap">' +
+            '<span style="width:50px;color:#059669;font-weight:600;">{{ lang._("Pass") }}</span>' +
+            '<div class="nz-bar-bg"><div class="nz-bar-fill" style="width:' + aRate + '%;background:#059669;"></div></div>' +
+            '<span style="width:45px;text-align:right;">' + allow + '</span></div>' +
+            '<div class="nz-bar-wrap">' +
+            '<span style="width:50px;color:#dc2626;font-weight:600;">{{ lang._("Block") }}</span>' +
+            '<div class="nz-bar-bg"><div class="nz-bar-fill" style="width:' + bRate + '%;background:#dc2626;"></div></div>' +
+            '<span style="width:45px;text-align:right;">' + block + '</span></div>'
         );
-    });
+
+        // Top protocols
+        var protos = s.top_protocols || {};
+        var protoHtml = '';
+        var ptotal = tot || 1;
+        var pcount = 0;
+        $.each(protos, function(k, v) {
+            if (pcount++ >= 5) { return false; }
+            var pct = Math.min(Math.round((v / ptotal) * 100), 100);
+            protoHtml += '<div class="nz-bar-wrap">' +
+                '<span style="width:50px;overflow:hidden;white-space:nowrap;">' + nzEsc(k.toUpperCase()) + '</span>' +
+                '<div class="nz-bar-bg"><div class="nz-bar-fill" style="width:' + pct + '%;background:#2563eb;"></div></div>' +
+                '<span style="width:30px;text-align:right;">' + v + '</span></div>';
+        });
+        $('#nzProtocols').html(protoHtml || '<span class="text-muted">{{ lang._("No data") }}</span>');
+
+    }).fail(function() {});
 }
 
-function loadZonesStatus() {
-    ajaxCall('/api/netzones/management/dashboard_stats', {}, function(data) {
-        if (data && data.status === 'ok' && data.data && typeof data.data === 'object') {
-            var stats = data.data;
-            var zonesActive = (stats.zones && stats.zones.active) || 0;
-            var zonesTotal  = (stats.zones && stats.zones.total)  || 0;
-            var polActive   = (stats.policies && stats.policies.active) || 0;
-            var polTotal    = (stats.policies && stats.policies.total)  || 0;
-            $('#zonesStatus').html(
-                '<div class="row">' +
-                '<div class="col-xs-6"><h3 class="text-primary" style="margin:0;">' + zonesActive + '</h3><small>{{ lang._("Active") }}</small></div>' +
-                '<div class="col-xs-6"><h3 class="text-muted" style="margin:0;">' + zonesTotal + '</h3><small>{{ lang._("Total") }}</small></div>' +
-                '</div><hr style="margin:.5rem 0;"><small class="text-muted">{{ lang._("Policies:") }} ' + polActive + '/' + polTotal + '</small>'
-            );
-        } else {
-            $('#zonesStatus').html('<span class="text-muted">{{ lang._("No data") }}</span>');
+function loadLogs() {
+    ajaxCall('/api/netzones/management/dashboard_logs', {}, function(data) {
+        if (!data || data.status !== 'ok' || !data.data || data.data.length === 0) {
+            $('#nzDecisionsBody').html('<tr><td colspan="6" class="text-center text-muted">{{ lang._("No recent activity") }}</td></tr>');
+            return;
         }
+        var html = '';
+        data.data.slice(0, 15).forEach(function(e) {
+            var dec = (e.decision || '').toLowerCase();
+            var cls = (dec === 'pass' || dec === 'allow') ? 'success' : (dec === 'block' ? 'danger' : 'warning');
+            html += '<tr>' +
+                '<td style="white-space:nowrap;"><small>' + nzEsc(e.timestamp || '--') + '</small></td>' +
+                '<td><span class="label label-info">' + nzEsc(e.src || '--') + '</span></td>' +
+                '<td><span class="label label-info">' + nzEsc(e.dst || '--') + '</span></td>' +
+                '<td>' + nzEsc(e.protocol || '--') + '</td>' +
+                '<td>' + nzEsc(e.port || '--') + '</td>' +
+                '<td><span class="label label-' + cls + '">' + nzEsc(e.decision || '--') + '</span></td>' +
+                '</tr>';
+        });
+        $('#nzDecisionsBody').html(html);
     }).fail(function() {
-        $('#zonesStatus').html('<span class="text-muted">{{ lang._("Unavailable") }}</span>');
+        $('#nzDecisionsBody').html('<tr><td colspan="6" class="text-center text-warning">{{ lang._("Unavailable") }}</td></tr>');
     });
 }
 
-function loadPolicyActivity() {
-    ajaxCall('/api/netzones/management/dashboard_stats', {}, function(data) {
-        if (data && data.status === 'ok' && data.data) {
-            var stats = data.data;
-            $('#policyActivity').html(
-                '<h3 class="text-info" style="margin:0 0 .25rem;">' + (stats.total_events || 0) + '</h3>' +
-                '<small>{{ lang._("Total Events") }}</small><hr style="margin:.5rem 0;">' +
-                '<div class="row text-center">' +
-                '<div class="col-xs-4"><span class="label label-success">' + (stats.allow_events || 0) + '</span><br><small>{{ lang._("Allow") }}</small></div>' +
-                '<div class="col-xs-4"><span class="label label-danger">' + (stats.block_events || 0) + '</span><br><small>{{ lang._("Block") }}</small></div>' +
-                '<div class="col-xs-4"><span class="label label-warning">' + (stats.last_hour_count || 0) + '</span><br><small>{{ lang._("Last Hour") }}</small></div>' +
-                '</div>'
-            );
-        } else {
-            $('#policyActivity').html('<span class="text-muted">{{ lang._("No data") }}</span>');
-        }
-    }).fail(function() {
-        $('#policyActivity').html('<span class="text-muted">{{ lang._("Unavailable") }}</span>');
-    });
-}
-
-function loadSecuritySummary() {
-    ajaxCall('/api/netzones/management/dashboard_stats', {}, function(data) {
-        if (data && data.status === 'ok' && data.data) {
-            var stats    = data.data;
-            var blocked  = stats.block_events || 0;
-            var total    = stats.total_events || 1;
-            var rate     = Math.round((blocked / total) * 100);
-            var cls      = rate > 50 ? 'danger' : rate > 20 ? 'warning' : 'success';
-            $('#securitySummary').html(
-                '<div class="text-' + cls + '">' +
-                '<i class="fa fa-shield fa-2x"></i><br>' +
-                '<strong>' + rate + '%</strong><br>' +
-                '<small>{{ lang._("Block Rate") }}</small><br>' +
-                '<small class="text-muted">' + blocked + ' {{ lang._("blocked") }}</small>' +
-                '</div>'
-            );
-        } else {
-            $('#securitySummary').html('<span class="text-muted">{{ lang._("No data") }}</span>');
-        }
-    }).fail(function() {
-        $('#securitySummary').html('<span class="text-muted">{{ lang._("Unavailable") }}</span>');
-    });
-}
-
-function loadZonesOverview() {
-    ajaxCall('/api/netzones/management/getZoneList', {}, function(data) {
-        if (data && data.status === 'ok' && data.zones && data.zones.length > 0) {
-            var html = '<div class="row">';
-            data.zones.forEach(function(zone, index) {
-                if (index % 2 === 0 && index > 0) html += '</div><div class="row">';
-                html += '<div class="col-md-6" style="margin-bottom:.75rem;">' +
-                        '<div class="panel panel-default" style="margin-bottom:0;">' +
-                        '<div class="panel-body" style="padding:.75rem;">' +
-                        '<h6 style="margin:0;"><i class="fa fa-shield text-primary"></i> ' + nzEsc(zone.text || 'Unknown') + '</h6>' +
-                        '<small class="text-muted">' + (zone.value ? zone.value.substr(0,8) + '...' : 'N/A') + '</small>' +
-                        '</div></div></div>';
-            });
-            html += '</div>';
-            $('#zonesOverview').html(html);
-        } else {
-            $('#zonesOverview').html('<div class="alert alert-info">{{ lang._("No active zones configured") }}</div>');
-        }
-    }).fail(function() {
-        $('#zonesOverview').html('<div class="alert alert-warning">{{ lang._("Failed to load zones") }}</div>');
-    });
-}
-
-function loadZoneRelationships() {
+function loadRelationships() {
     ajaxCall('/api/netzones/management/dashboard_zone_relationships', {}, function(data) {
-        if (data && data.status === 'ok' && data.relationships && data.relationships.length > 0) {
-            var html = '';
-            data.relationships.forEach(function(rel) {
-                var action = rel.action.toLowerCase();
-                var cls = action === 'pass' || action === 'allow' ? 'success' : action === 'block' ? 'danger' : 'warning';
-                html += '<div class="zone-connection">' +
-                        '<span class="label label-info">' + nzEsc(rel.source_zone) + '</span>' +
-                        ' <i class="fa fa-arrow-right text-muted"></i> ' +
-                        '<span class="label label-info">' + nzEsc(rel.destination_zone) + '</span>' +
-                        '<span class="label label-' + cls + ' pull-right">' + nzEsc(rel.action) + '</span>' +
-                        '</div>';
-            });
-            $('#zoneRelationships').html(html);
-        } else {
-            $('#zoneRelationships').html('<div class="text-muted text-center"><i class="fa fa-info-circle"></i> {{ lang._("No policies configured") }}</div>');
+        if (!data || data.status !== 'ok' || !data.relationships || data.relationships.length === 0) {
+            $('#nzRelationships').html('<div class="text-muted text-center" style="font-size:.82em;padding:.5rem 0;">{{ lang._("No policies configured") }}</div>');
+            return;
         }
+        var html = '';
+        data.relationships.forEach(function(r) {
+            var act = (r.action || '').toLowerCase();
+            var cls = (act === 'pass' || act === 'allow') ? '#059669' : (act === 'block' ? '#dc2626' : '#d97706');
+            html += '<div class="nz-zone-link">' +
+                '<span style="font-weight:600;">' + nzEsc(r.source_zone) + '</span>' +
+                ' <i class="fa fa-arrow-right text-muted" style="font-size:.75em;"></i> ' +
+                '<span style="font-weight:600;">' + nzEsc(r.destination_zone) + '</span>' +
+                '<span class="pull-right" style="color:' + cls + ';font-weight:600;font-size:.8em;">' + nzEsc(r.action.toUpperCase()) + '</span>' +
+                '</div>';
+        });
+        $('#nzRelationships').html(html);
     }).fail(function() {
-        $('#zoneRelationships').html('<div class="text-muted text-center">{{ lang._("Unavailable") }}</div>');
+        $('#nzRelationships').html('<div class="text-muted text-center" style="font-size:.82em;">{{ lang._("Unavailable") }}</div>');
     });
 }
 
-function loadTrafficFlow() {
-    ajaxCall('/api/netzones/management/dashboard_stats', {}, function(data) {
-        if (data && data.status === 'ok' && data.data) {
-            var lastHour = data.data.last_hour_count || 0;
-            var pps = Math.round(lastHour / 3600) || 0;
-            var cls = pps > 50 ? 'danger' : pps > 10 ? 'warning' : 'success';
-            $('#trafficFlow').html(
-                '<div class="text-center">' +
-                '<i class="fa fa-tachometer fa-2x text-' + cls + '"></i><br>' +
-                '<strong>' + pps + '</strong> <small>pps</small><br>' +
-                '<small class="text-muted">' + lastHour + ' {{ lang._("events/hour") }}</small>' +
-                '</div>'
-            );
-        } else {
-            $('#trafficFlow').html('<span class="text-muted">{{ lang._("No data") }}</span>');
-        }
-    }).fail(function() {
-        $('#trafficFlow').html('<span class="text-muted">{{ lang._("Unavailable") }}</span>');
-    });
-}
-
-function loadRecentDecisions() {
-    ajaxCall('/api/netzones/management/dashboard_logs', {}, function(data) {
-        if (data && data.status === 'ok' && data.data && data.data.length > 0) {
-            var html = '';
-            data.data.slice(0, 10).forEach(function(entry) {
-                var dec = (entry.decision || 'unknown').toLowerCase();
-                var cls = dec === 'allow' || dec === 'pass' ? 'success' : dec === 'block' ? 'danger' : 'warning';
-                html += '<tr>' +
-                        '<td><small>' + nzEsc(entry.timestamp || 'N/A') + '</small></td>' +
-                        '<td><code>' + nzEsc(entry.src || 'unknown') + '</code></td>' +
-                        '<td><code>' + nzEsc(entry.dst || 'unknown') + '</code></td>' +
-                        '<td><span class="label label-info">' + nzEsc(entry.protocol || 'unknown') + '</span></td>' +
-                        '<td><span class="label label-' + cls + '">' + nzEsc(entry.decision || 'unknown') + '</span></td>' +
-                        '<td><small>' + nzEsc(entry.source_zone || 'UNKNOWN') + ' → ' + nzEsc(entry.destination_zone || 'UNKNOWN') + '</small></td>' +
-                        '</tr>';
-            });
-            $('#recentDecisions tbody').html(html);
-        } else {
-            $('#recentDecisions tbody').html('<tr><td colspan="6" class="text-center text-muted">{{ lang._("No recent activity") }}</td></tr>');
-        }
-    }).fail(function() {
-        $('#recentDecisions tbody').html('<tr><td colspan="6" class="text-center text-warning">{{ lang._("Failed to load activity") }}</td></tr>');
-    });
-}
-
-function loadLiveActivityChart() {
+function loadTrafficPatterns() {
     ajaxCall('/api/netzones/management/dashboard_traffic_patterns', { hours: 6 }, function(data) {
-        if (data && data.status === 'ok' && data.data && data.data.hourly) {
-            var values = Object.values(data.data.hourly);
-            var maxVal = Math.max.apply(null, values.concat([1]));
-            var html = '<div class="activity-chart-compact">';
-            values.slice(-6).forEach(function(val, i) {
-                var h   = (new Date(Date.now() - (5-i)*3600000)).getHours();
-                var pct = Math.max((val / maxVal) * 100, 2);
-                html += '<div class="chart-bar-compact">' +
-                        '<div class="chart-bar-container">' +
-                        '<div class="chart-bar-fill" style="height:' + pct + '%;" title="' + val + ' @ ' + h + ':00"></div>' +
-                        '</div><div class="chart-bar-label">' + h + 'h</div></div>';
-            });
-            html += '</div>';
-            $('#liveActivityChart').html(html);
-        } else {
-            $('#liveActivityChart').html('<div class="text-muted text-center"><i class="fa fa-line-chart"></i><br><small>{{ lang._("No data") }}</small></div>');
+        if (!data || data.status !== 'ok' || !data.data || !data.data.hourly) {
+            $('#nzActivityChart').html('<div class="text-muted text-center" style="padding:1rem;font-size:.82em;">{{ lang._("No data") }}</div>');
+            return;
         }
+        var values = Object.values(data.data.hourly);
+        if (values.length === 0) {
+            $('#nzActivityChart').html('<div class="text-muted text-center" style="padding:1rem;font-size:.82em;">{{ lang._("No data") }}</div>');
+            return;
+        }
+        var maxVal = Math.max.apply(null, values.concat([1]));
+        var bars = values.slice(-12);
+        var html = '<div style="display:flex;align-items:flex-end;justify-content:space-between;padding:8px 4px;height:110px;gap:2px;">';
+        bars.forEach(function(val, i) {
+            var h   = (new Date(Date.now() - (bars.length - 1 - i) * 3600000)).getHours();
+            var pct = Math.max(Math.round((val / maxVal) * 90), val > 0 ? 3 : 1);
+            html += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">' +
+                    '<div style="width:100%;height:90px;display:flex;align-items:flex-end;justify-content:center;">' +
+                    '<div style="width:80%;height:' + pct + '%;background:#2563eb;border-radius:2px 2px 0 0;min-height:2px;" title="' + val + ' events"></div></div>' +
+                    '<div style="font-size:9px;color:#9ca3af;">' + h + 'h</div></div>';
+        });
+        html += '</div>';
+        $('#nzActivityChart').html(html);
     }).fail(function() {
-        $('#liveActivityChart').html('<div class="text-muted text-center"><small>{{ lang._("Unavailable") }}</small></div>');
+        $('#nzActivityChart').html('<div class="text-muted text-center" style="padding:1rem;font-size:.82em;">{{ lang._("Unavailable") }}</div>');
     });
 }
 
-function loadProtocolDistribution() {
-    ajaxCall('/api/netzones/management/dashboard_stats', {}, function(data) {
-        if (data && data.status === 'ok' && data.data && data.data.top_protocols) {
-            var protocols = data.data.top_protocols;
-            var total     = data.data.total_events || 1;
-            var html      = '';
-            Object.entries(protocols).slice(0, 5).forEach(function(kv) {
-                var pct = Math.round((kv[1] / total) * 100) || 0;
-                html += '<div style="margin-bottom:.5rem;">' +
-                        '<div class="clearfix"><span class="pull-left">' + nzEsc(kv[0].toUpperCase()) + '</span>' +
-                        '<span class="pull-right">' + kv[1] + ' (' + pct + '%)</span></div>' +
-                        '<div class="progress progress-xs" style="margin-bottom:0;">' +
-                        '<div class="progress-bar" style="width:' + pct + '%;"></div>' +
-                        '</div></div>';
-            });
-            $('#protocolDistribution').html(html || '<div class="text-muted">{{ lang._("No data") }}</div>');
-        } else {
-            $('#protocolDistribution').html('<div class="text-muted text-center"><i class="fa fa-pie-chart"></i><br>{{ lang._("No data") }}</div>');
-        }
+function controlService(action) {
+    ajaxCall('/api/netzones/service/' + action, {}, function(data) {
+        var ok = data && (data.status === 'ok' || data.running === true);
+        nzNotify(ok ? '{{ lang._("Service") }} ' + action + ' {{ lang._("OK") }}' : '{{ lang._("Service action failed") }}', ok ? 'success' : 'error');
+        setTimeout(loadServiceStatus, 1500);
     }).fail(function() {
-        $('#protocolDistribution').html('<div class="text-muted text-center">{{ lang._("Unavailable") }}</div>');
+        nzNotify('{{ lang._("Service action failed") }}', 'error');
     });
-}
-
-function loadTopBlockedSources() {
-    ajaxCall('/api/netzones/management/dashboard_logs', {}, function(data) {
-        if (data && data.status === 'ok' && data.data) {
-            var sources = {};
-            data.data.filter(function(e) {
-                return (e.decision || '').toLowerCase() === 'block';
-            }).forEach(function(e) {
-                sources[e.src] = (sources[e.src] || 0) + 1;
-            });
-            var sorted = Object.entries(sources).sort(function(a,b){ return b[1]-a[1]; }).slice(0,5);
-            if (sorted.length > 0) {
-                var html = '';
-                sorted.forEach(function(kv) {
-                    html += '<div style="margin-bottom:.25rem;"><code>' + nzEsc(kv[0]) + '</code>' +
-                            '<span class="label label-danger pull-right">' + kv[1] + '</span></div>';
-                });
-                $('#topBlockedSources').html(html);
-            } else {
-                $('#topBlockedSources').html('<span class="text-muted">{{ lang._("No blocked sources") }}</span>');
-            }
-        } else {
-            $('#topBlockedSources').html('<span class="text-muted">{{ lang._("No data") }}</span>');
-        }
-    }).fail(function() {
-        $('#topBlockedSources').html('<span class="text-muted">{{ lang._("Unavailable") }}</span>');
-    });
-}
-
-function nzEsc(s) {
-    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 $(function() {
     loadDashboard();
     setInterval(loadDashboard, 30000);
+    $('#nzRefresh').click(loadDashboard);
+    $('#nzStartBtn').click(function()   { controlService('start'); });
+    $('#nzRestartBtn').click(function() { controlService('restart'); });
+    $('#nzStopBtn').click(function()    { controlService('stop'); });
 });
-
-window.reloadDashboard = loadDashboard;
 </script>
