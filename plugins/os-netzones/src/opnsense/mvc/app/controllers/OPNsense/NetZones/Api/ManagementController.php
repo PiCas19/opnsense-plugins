@@ -49,7 +49,6 @@ class ManagementController extends ApiControllerBase
      */
     public function dashboardStatsAction()
     {
-        $this->sessionClose();
         try {
             $stats = array_merge(
                 $this->loadServiceStats(),
@@ -68,38 +67,40 @@ class ManagementController extends ApiControllerBase
      */
     public function dashboardLogsAction()
     {
-        $this->sessionClose();
-        $result = ['status' => 'ok', 'data' => [], 'total' => 0];
-        if (!file_exists($this->decisionsLog)) {
-            return $result;
-        }
-        $lines = @file($this->decisionsLog, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-        if (!is_array($lines)) {
-            return ['status' => 'error', 'message' => 'Unable to read log', 'data' => [], 'total' => 0];
-        }
-        $lines = array_slice($lines, -100);
-        $result['total'] = count($lines);
-        foreach (array_reverse($lines) as $line) {
-            $e = json_decode($line, true);
-            if (!is_array($e)) {
-                continue;
+        try {
+            $result = ['status' => 'ok', 'data' => [], 'total' => 0];
+            if (!file_exists($this->decisionsLog)) {
+                return $result;
             }
-            $ts = $e['timestamp'] ?? '';
-            $t  = $ts ? strtotime($ts) : false;
-            $result['data'][] = [
-                'timestamp'        => ($t ? date('H:i:s', $t) : 'N/A'),
-                'src'              => htmlspecialchars($e['src_ip'] ?? $e['source_ip'] ?? 'unknown', ENT_QUOTES, 'UTF-8'),
-                'dst'              => htmlspecialchars($e['dst_ip'] ?? $e['destination_ip'] ?? 'unknown', ENT_QUOTES, 'UTF-8'),
-                'protocol'         => htmlspecialchars(strtoupper($e['protocol'] ?? 'unknown'), ENT_QUOTES, 'UTF-8'),
-                'decision'         => htmlspecialchars(strtoupper($e['decision'] ?? 'unknown'), ENT_QUOTES, 'UTF-8'),
-                'port'             => htmlspecialchars($e['port'] ?? 'N/A', ENT_QUOTES, 'UTF-8'),
-                'source_zone'      => htmlspecialchars($e['source_zone'] ?? 'UNKNOWN', ENT_QUOTES, 'UTF-8'),
-                'destination_zone' => htmlspecialchars($e['destination_zone'] ?? 'UNKNOWN', ENT_QUOTES, 'UTF-8'),
-                'processing_time_ms' => (float)($e['processing_time_ms'] ?? 0),
-                'cached'           => (bool)($e['cached'] ?? false)
-            ];
+            $lines = @file($this->decisionsLog, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            if (!is_array($lines)) {
+                return $result;
+            }
+            $lines = array_slice($lines, -100);
+            $result['total'] = count($lines);
+            foreach (array_reverse($lines) as $line) {
+                $e = json_decode($line, true);
+                if (!is_array($e)) {
+                    continue;
+                }
+                $ts = isset($e['timestamp']) ? strtotime($e['timestamp']) : false;
+                $result['data'][] = [
+                    'timestamp'          => ($ts ? date('H:i:s', $ts) : 'N/A'),
+                    'src'                => htmlspecialchars(isset($e['src_ip']) ? $e['src_ip'] : (isset($e['source_ip']) ? $e['source_ip'] : 'unknown'), ENT_QUOTES, 'UTF-8'),
+                    'dst'                => htmlspecialchars(isset($e['dst_ip']) ? $e['dst_ip'] : (isset($e['destination_ip']) ? $e['destination_ip'] : 'unknown'), ENT_QUOTES, 'UTF-8'),
+                    'protocol'           => htmlspecialchars(strtoupper(isset($e['protocol']) ? $e['protocol'] : 'unknown'), ENT_QUOTES, 'UTF-8'),
+                    'decision'           => htmlspecialchars(strtoupper(isset($e['decision']) ? $e['decision'] : 'unknown'), ENT_QUOTES, 'UTF-8'),
+                    'port'               => htmlspecialchars(isset($e['port']) ? $e['port'] : 'N/A', ENT_QUOTES, 'UTF-8'),
+                    'source_zone'        => htmlspecialchars(isset($e['source_zone']) ? $e['source_zone'] : 'UNKNOWN', ENT_QUOTES, 'UTF-8'),
+                    'destination_zone'   => htmlspecialchars(isset($e['destination_zone']) ? $e['destination_zone'] : 'UNKNOWN', ENT_QUOTES, 'UTF-8'),
+                    'processing_time_ms' => (float)(isset($e['processing_time_ms']) ? $e['processing_time_ms'] : 0),
+                    'cached'             => (bool)(isset($e['cached']) ? $e['cached'] : false)
+                ];
+            }
+            return $result;
+        } catch (\Throwable $e) {
+            return ['status' => 'ok', 'data' => [], 'total' => 0];
         }
-        return $result;
     }
 
     /**
@@ -108,7 +109,6 @@ class ManagementController extends ApiControllerBase
      */
     public function dashboardZoneRelationshipsAction()
     {
-        $this->sessionClose();
         try {
             $mdl   = new NetZones();
             $zones = [];
@@ -151,8 +151,7 @@ class ManagementController extends ApiControllerBase
      */
     public function dashboardTrafficPatternsAction()
     {
-        $this->sessionClose();
-        $hours = min((int)($this->request->getQuery('hours', 'int', 24)), 168);
+        $hours = min((int)($this->request->getPost('hours', 'int', 24)), 168);
         try {
             return ['status' => 'ok', 'data' => $this->calcTrafficPatterns($hours)];
         } catch (\Throwable $e) {
