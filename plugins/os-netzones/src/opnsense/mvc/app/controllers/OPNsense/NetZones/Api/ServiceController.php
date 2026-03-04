@@ -50,12 +50,16 @@ class ServiceController extends ApiMutableServiceControllerBase
     public function startAction()
     {
         if ($this->request->isPost()) {
-            $backend = new Backend();
-            $response = $backend->configdRun("netzones start");
-            return [
-                "response" => $response,
-                "status" => trim($response) === "netzones started successfully" ? "ok" : "failed"
-            ];
+            try {
+                $backend = new Backend();
+                $response = $backend->configdRun("netzones start");
+                return [
+                    "response" => $response,
+                    "status" => trim((string)$response) === "netzones started successfully" ? "ok" : "failed"
+                ];
+            } catch (\Exception $e) {
+                return ["status" => "failed", "message" => $e->getMessage()];
+            }
         }
         return ["status" => "failed", "message" => "POST method required"];
     }
@@ -67,12 +71,16 @@ class ServiceController extends ApiMutableServiceControllerBase
     public function stopAction()
     {
         if ($this->request->isPost()) {
-            $backend = new Backend();
-            $response = $backend->configdRun("netzones stop");
-            return [
-                "response" => $response,
-                "status" => trim($response) === "netzones stopped" ? "ok" : "failed"
-            ];
+            try {
+                $backend = new Backend();
+                $response = $backend->configdRun("netzones stop");
+                return [
+                    "response" => $response,
+                    "status" => trim((string)$response) === "netzones stopped" ? "ok" : "failed"
+                ];
+            } catch (\Exception $e) {
+                return ["status" => "failed", "message" => $e->getMessage()];
+            }
         }
         return ["status" => "failed", "message" => "POST method required"];
     }
@@ -84,12 +92,13 @@ class ServiceController extends ApiMutableServiceControllerBase
     public function restartAction()
     {
         if ($this->request->isPost()) {
-            $backend = new Backend();
-            $response = $backend->configdRun("netzones restart");
-            return [
-                "response" => $response,
-                "status" => "ok"
-            ];
+            try {
+                $backend = new Backend();
+                $response = $backend->configdRun("netzones restart");
+                return ["response" => $response, "status" => "ok"];
+            } catch (\Exception $e) {
+                return ["status" => "failed", "message" => $e->getMessage()];
+            }
         }
         return ["status" => "failed", "message" => "POST method required"];
     }
@@ -101,23 +110,20 @@ class ServiceController extends ApiMutableServiceControllerBase
     public function reconfigureAction()
     {
         if ($this->request->isPost()) {
-            $backend = new Backend();
-            
-            // Generate new configuration first
-            $backend->configdRun("template reload OPNsense/NetZones");
-            
-            // Then restart the service
-            $response = $backend->configdRun("netzones reconfigure");
-            
-            // Mark configuration as clean
-            $mdl = new \OPNsense\NetZones\NetZones();
-            $mdl->configClean();
-            
-            return [
-                "response" => $response,
-                "status" => "ok",
-                "message" => "Configuration applied and service restarted"
-            ];
+            try {
+                $backend = new Backend();
+                $backend->configdRun("template reload OPNsense/NetZones");
+                $response = $backend->configdRun("netzones reconfigure");
+                $mdl = new \OPNsense\NetZones\NetZones();
+                $mdl->configClean();
+                return [
+                    "response" => $response,
+                    "status" => "ok",
+                    "message" => "Configuration applied and service restarted"
+                ];
+            } catch (\Exception $e) {
+                return ["status" => "failed", "message" => $e->getMessage()];
+            }
         }
         return ["status" => "failed", "message" => "POST method required"];
     }
@@ -128,14 +134,24 @@ class ServiceController extends ApiMutableServiceControllerBase
      */
     public function statusAction()
     {
-        $backend = new Backend();
-        $response = $backend->configdRun("netzones status");
-        
-        $lines = explode("\n", trim($response));
+        try {
+            $backend = new Backend();
+            $response = $backend->configdRun("netzones status");
+        } catch (\Exception $e) {
+            return [
+                "status" => "ok",
+                "running" => false,
+                "pid" => null,
+                "socket_status" => "unknown",
+                "response" => ""
+            ];
+        }
+
+        $lines = explode("\n", trim((string)$response));
         $running = false;
         $pid = null;
         $socket_status = "unknown";
-        
+
         foreach ($lines as $line) {
             if (strpos($line, "is running as PID") !== false) {
                 $running = true;
@@ -148,7 +164,7 @@ class ServiceController extends ApiMutableServiceControllerBase
                 $running = false;
             }
         }
-        
+
         return [
             "status" => "ok",
             "response" => $response,
