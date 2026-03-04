@@ -179,4 +179,6 @@ if [ $ERRORS -eq 0 ]; then
 else
     # Failure: Report errors and exit
     echo ""
-    echo "[✗] Setup
+    echo "[✗] Setup completed with $ERRORS error(s). Please review the output above."
+    exit 1
+fi

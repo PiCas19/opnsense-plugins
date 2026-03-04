@@ -1,44 +1,84 @@
-This plugin provides a high-performance, low-latency Deep Packet Inspection (DPI) engine 
-for OPNsense, specifically designed for industrial environments and Zero Trust security architectures.
+This plugin provides a high-performance, low-latency Deep Packet Inspection (DPI) engine
+for OPNsense, designed for both enterprise and industrial environments under Zero Trust
+security principles.
 
 Key Features:
-- Deep Packet Inspection with application-layer analysis
-- Zero Trust principles: all traffic is untrusted until verified
-- Industrial protocol support (Modbus, DNP3, OPC UA)
-- Optimized for low-latency OT environments (SCADA, PLC systems)
-- Real-time threat detection and malware analysis
-- Advanced behavioral anomaly detection
-- SQL injection, XSS, and command injection detection
+- Real-time deep packet inspection with application-layer payload analysis
+- Zero Trust architecture: all traffic is untrusted until verified
+- Multiple operation modes: Passive Monitoring, Active Blocking, Learning Mode
+- Performance profiles: High Performance, Balanced, High Security, Industrial, Custom
+- Comprehensive web-based management interface
+
+Protocol Support:
+- Standard: HTTP/HTTPS, FTP, SMTP, DNS, VoIP, P2P
+- Industrial: Modbus, DNP3, OPC UA, IEC 61850, EtherNet/IP
+- SSL/TLS inspection (configurable)
+- Custom protocol signatures
+
+Threat Detection:
+- Malware, virus and trojan detection
+- SQL injection, XSS and command injection detection
+- Script injection and phishing detection
 - Cryptocurrency mining detection
 - Data exfiltration monitoring
-- Industrial-specific threat patterns
-- Performance monitoring with microsecond latency tracking
-- Comprehensive logging and alerting system
-- Web-based management interface
-- Custom signature support
-- Automatic threat intelligence updates
-
-Industrial Environment Support (F-06):
-- Microsecond-level latency monitoring
-- SCADA and PLC protocol awareness
-- Emergency response capabilities
-- Production-safe operation modes
-- Real-time performance metrics
-
-Deep Packet Inspection (F-08):
-- Application payload analysis
-- Multi-protocol support (HTTP/HTTPS, FTP, SMTP, DNS)
-- Pattern matching engine
-- Behavioral analysis
+- Botnet detection
+- Behavioral anomaly detection
 - Zero-day heuristics
-- Archive extraction and scanning
+- Archive extraction and scanning (ZIP, RAR, etc.)
+- Industrial protocol anomaly and SCADA/PLC attack detection
 
-The plugin is fully implemented in Python for optimal performance and flexibility,
-with a focus on maintaining sub-millisecond latency for critical industrial systems
-while providing comprehensive security coverage under Zero Trust principles.
+Dashboard:
+- Real-time service status and key metrics (packets analyzed, threats detected,
+  detection rate, active protocols)
+- Interactive charts: protocol distribution, threat types, 24-hour timeline,
+  severity distribution, industrial protocol activity
+- Leaflet-based geographic map (CartoDB Dark Matter, no API key required)
+- GeoIP threat source analysis via ip-api.com (24h server-side cache)
+- Global time range selector (last 30s to last 90d)
+- Auto-refresh every 60 seconds, manual refresh and JSON export
+
+Security Management (three-tab interface):
+- Blocklist: manual IP blocking with pfctl firewall enforcement, search, pagination
+- Whitelist: trusted IP exclusion list, search, pagination
+- False Positives: review, edit reason, delete and quick-whitelist from alerts
+
+Alerts & Threats:
+- Real-time alert table with severity badges (critical/high/medium/low)
+- Filtering by severity, threat type, time range and source IP
+- Alert export and old-alert cleanup
+- Detailed alert view with network information and detection method
+
+Logs:
+- Multi-source log aggregation (engine, daemon, detection, alerts, threats, latency)
+- Filtering by level, source, time range and search term
+- Log statistics by level, configurable auto-refresh (5s–1m) and result limits
+- Download and clear log actions
+
+Statistics & Analysis:
+- Comprehensive packet, protocol and threat statistics with Chart.js visualizations
+- Top source IP identification, CPU/memory/uptime metrics
+- Traffic pattern analysis with protocol distribution and export
+
+Industrial Environment Support:
+- Microsecond-level latency monitoring and tracking
+- SCADA and PLC protocol awareness
+- Production-safe operation modes
+- Low-latency mode for OT environments
 
 Changelog
 =========
+Version 1.1:
+- Dashboard: added Leaflet geographic map with GeoIP threat visualization
+- Dashboard: global time range selector and 60s auto-refresh
+- Security page: replaced Statistics tab with Security management (Blocklist,
+  Whitelist, False Positives) with search, sorting and pagination
+- False Positive management: mark, review, edit reason, remove, whitelist from FP
+- OPNsense-style snackbar notifications (removed confirm popups)
+- GeoIP batch lookup via ip-api.com with 24h server-side cache
+- Multiple performance profiles and operation modes
+- Improved chart suite: severity distribution, industrial protocol activity,
+  24-hour threat timeline
+
 Version 1.0:
 - Initial release
 - Deep Packet Inspection engine with industrial protocol support
@@ -46,10 +86,9 @@ Version 1.0:
 - Low-latency mode for OT environments (F-06 compliance)
 - Application-layer threat detection (F-08 compliance)
 - Real-time monitoring and alerting
-- Web-based configuration interface
-- Performance optimization for industrial systems
+- Web-based configuration interface with four settings tabs
 - Comprehensive logging and statistics
-- Threat intelligence integration
+- IP blocklist and whitelist management
 - Custom signature support
 
 Project Page:
