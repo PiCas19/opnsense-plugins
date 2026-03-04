@@ -37,6 +37,276 @@ use OPNsense\NetZones\NetZones;
  */
 class ManagementController extends ApiControllerBase
 {
+    private $decisionsLog = '/var/log/netzones_decisions.log';
+    private $statsFile    = '/var/run/netzones_stats.json';
+    private $socketPath   = '/var/run/netzones.sock';
+
+    // ===== DASHBOARD API METHODS =====
+
+    /**
+     * Dashboard statistics
+     * @return array
+     */
+    public function dashboardStatsAction()
+    {
+        $this->sessionClose();
+        try {
+            $stats = array_merge(
+                $this->loadServiceStats(),
+                $this->calcActivityStats(),
+                $this->calcModelStats()
+            );
+            return ['status' => 'ok', 'data' => $stats];
+        } catch (\Throwable $e) {
+            return ['status' => 'error', 'message' => $e->getMessage(), 'data' => $this->defaultStats()];
+        }
+    }
+
+    /**
+     * Recent decision log entries
+     * @return array
+     */
+    public function dashboardLogsAction()
+    {
+        $this->sessionClose();
+        $result = ['status' => 'ok', 'data' => [], 'total' => 0];
+        if (!file_exists($this->decisionsLog)) {
+            return $result;
+        }
+        $lines = @file($this->decisionsLog, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if (!is_array($lines)) {
+            return ['status' => 'error', 'message' => 'Unable to read log', 'data' => [], 'total' => 0];
+        }
+        $lines = array_slice($lines, -100);
+        $result['total'] = count($lines);
+        foreach (array_reverse($lines) as $line) {
+            $e = json_decode($line, true);
+            if (!is_array($e)) {
+                continue;
+            }
+            $ts = $e['timestamp'] ?? '';
+            $t  = $ts ? strtotime($ts) : false;
+            $result['data'][] = [
+                'timestamp'        => ($t ? date('H:i:s', $t) : 'N/A'),
+                'src'              => htmlspecialchars($e['src_ip'] ?? $e['source_ip'] ?? 'unknown', ENT_QUOTES, 'UTF-8'),
+                'dst'              => htmlspecialchars($e['dst_ip'] ?? $e['destination_ip'] ?? 'unknown', ENT_QUOTES, 'UTF-8'),
+                'protocol'         => htmlspecialchars(strtoupper($e['protocol'] ?? 'unknown'), ENT_QUOTES, 'UTF-8'),
+                'decision'         => htmlspecialchars(strtoupper($e['decision'] ?? 'unknown'), ENT_QUOTES, 'UTF-8'),
+                'port'             => htmlspecialchars($e['port'] ?? 'N/A', ENT_QUOTES, 'UTF-8'),
+                'source_zone'      => htmlspecialchars($e['source_zone'] ?? 'UNKNOWN', ENT_QUOTES, 'UTF-8'),
+                'destination_zone' => htmlspecialchars($e['destination_zone'] ?? 'UNKNOWN', ENT_QUOTES, 'UTF-8'),
+                'processing_time_ms' => (float)($e['processing_time_ms'] ?? 0),
+                'cached'           => (bool)($e['cached'] ?? false)
+            ];
+        }
+        return $result;
+    }
+
+    /**
+     * Zone relationships for dashboard visualization
+     * @return array
+     */
+    public function dashboardZoneRelationshipsAction()
+    {
+        $this->sessionClose();
+        try {
+            $mdl   = new NetZones();
+            $zones = [];
+            foreach ($mdl->zone->iterateItems() as $zone) {
+                if ((string)$zone->enabled === "1") {
+                    $zones[(string)$zone->getAttributes()["uuid"]] = (string)$zone->name;
+                }
+            }
+            $relationships = [];
+            foreach ($mdl->inter_zone_policy->iterateItems() as $policy) {
+                if ((string)$policy->enabled === "1") {
+                    $src = (string)$policy->source_zone;
+                    $dst = (string)$policy->destination_zone;
+                    if (isset($zones[$src]) && isset($zones[$dst])) {
+                        $relationships[] = [
+                            'source_zone'      => $zones[$src],
+                            'destination_zone' => $zones[$dst],
+                            'action'           => (string)$policy->action,
+                            'protocol'         => (string)$policy->protocol ?: 'any',
+                            'priority'         => (int)$policy->priority ?: 100,
+                            'name'             => (string)$policy->name ?: 'Unnamed Policy'
+                        ];
+                    }
+                }
+            }
+            return [
+                'status'              => 'ok',
+                'relationships'       => $relationships,
+                'zones'               => array_values($zones),
+                'total_relationships' => count($relationships)
+            ];
+        } catch (\Throwable $e) {
+            return ['status' => 'error', 'message' => $e->getMessage(), 'relationships' => [], 'zones' => []];
+        }
+    }
+
+    /**
+     * Traffic patterns for dashboard charts
+     * @return array
+     */
+    public function dashboardTrafficPatternsAction()
+    {
+        $this->sessionClose();
+        $hours = min((int)($this->request->getQuery('hours', 'int', 24)), 168);
+        try {
+            return ['status' => 'ok', 'data' => $this->calcTrafficPatterns($hours)];
+        } catch (\Throwable $e) {
+            return ['status' => 'error', 'message' => $e->getMessage(),
+                    'data' => ['hourly' => [], 'by_protocol' => [], 'by_decision' => []]];
+        }
+    }
+
+    // ===== DASHBOARD PRIVATE HELPERS =====
+
+    private function defaultStats()
+    {
+        return [
+            'zones'           => ['total' => 0, 'active' => 0],
+            'policies'        => ['total' => 0, 'active' => 0],
+            'total_events'    => 0,
+            'allow_events'    => 0,
+            'block_events'    => 0,
+            'last_hour_count' => 0,
+            'top_protocols'   => [],
+            'service_running' => false
+        ];
+    }
+
+    private function loadServiceStats()
+    {
+        $s = ['service_running' => false, 'uptime' => 0, 'requests_processed' => 0,
+              'decisions_pass' => 0, 'decisions_block' => 0, 'decisions_reject' => 0,
+              'cache_hits' => 0, 'cache_misses' => 0];
+        if (file_exists($this->statsFile)) {
+            $d = json_decode(@file_get_contents($this->statsFile), true);
+            if (is_array($d)) {
+                $s = array_merge($s, $d);
+                $s['service_running'] = file_exists($this->socketPath);
+            }
+        }
+        return $s;
+    }
+
+    private function calcActivityStats()
+    {
+        $s = ['total_events' => 0, 'allow_events' => 0, 'block_events' => 0, 'reject_events' => 0,
+              'last_hour_count' => 0, 'top_protocols' => [], 'top_zones' => [], 'avg_processing_time' => 0];
+        if (!file_exists($this->decisionsLog)) {
+            return $s;
+        }
+        $lines = @file($this->decisionsLog, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if (!is_array($lines)) {
+            return $s;
+        }
+        $oneHourAgo = time() - 3600;
+        $protocols = [];
+        $zones = [];
+        $times = [];
+        foreach ($lines as $line) {
+            $e = json_decode($line, true);
+            if (!is_array($e)) {
+                continue;
+            }
+            $s['total_events']++;
+            switch (strtolower($e['decision'] ?? '')) {
+                case 'allow': case 'pass': $s['allow_events']++; break;
+                case 'block':              $s['block_events']++; break;
+                case 'reject':             $s['reject_events']++; break;
+            }
+            $ts = strtotime($e['timestamp'] ?? '');
+            if ($ts && $ts > $oneHourAgo) {
+                $s['last_hour_count']++;
+            }
+            $proto = $e['protocol'] ?? 'unknown';
+            $protocols[$proto] = ($protocols[$proto] ?? 0) + 1;
+            $sz = $e['source_zone'] ?? 'UNKNOWN';
+            $dz = $e['destination_zone'] ?? 'UNKNOWN';
+            $zones[$sz] = ($zones[$sz] ?? 0) + 1;
+            if ($sz !== $dz) {
+                $zones[$dz] = ($zones[$dz] ?? 0) + 1;
+            }
+            if (isset($e['processing_time_ms']) && is_numeric($e['processing_time_ms'])) {
+                $times[] = (float)$e['processing_time_ms'];
+            }
+        }
+        arsort($protocols);
+        $s['top_protocols'] = array_slice($protocols, 0, 10, true);
+        arsort($zones);
+        $s['top_zones'] = array_slice($zones, 0, 10, true);
+        if (!empty($times)) {
+            $s['avg_processing_time'] = array_sum($times) / count($times);
+        }
+        return $s;
+    }
+
+    private function calcModelStats()
+    {
+        try {
+            $mdl = new NetZones();
+            $tz = 0; $az = 0; $tp = 0; $ap = 0;
+            foreach ($mdl->zone->iterateItems() as $z) {
+                $tz++;
+                if ((string)$z->enabled === "1") { $az++; }
+            }
+            foreach ($mdl->inter_zone_policy->iterateItems() as $p) {
+                $tp++;
+                if ((string)$p->enabled === "1") { $ap++; }
+            }
+            return ['zones' => ['total' => $tz, 'active' => $az],
+                    'policies' => ['total' => $tp, 'active' => $ap]];
+        } catch (\Throwable $e) {
+            return ['zones' => ['total' => 0, 'active' => 0], 'policies' => ['total' => 0, 'active' => 0]];
+        }
+    }
+
+    private function calcTrafficPatterns($hours)
+    {
+        $p = ['hourly' => [], 'by_protocol' => [], 'by_decision' => [], 'by_zone_pair' => []];
+        if (!file_exists($this->decisionsLog)) {
+            return $p;
+        }
+        $lines = @file($this->decisionsLog, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if (!is_array($lines)) {
+            return $p;
+        }
+        $cutoff = time() - ($hours * 3600);
+        $hourly = [];
+        foreach ($lines as $line) {
+            $e = json_decode($line, true);
+            if (!is_array($e)) {
+                continue;
+            }
+            $ts = strtotime($e['timestamp'] ?? '');
+            if (!$ts || $ts < $cutoff) {
+                continue;
+            }
+            $h = date('Y-m-d H:00', $ts);
+            $hourly[$h] = ($hourly[$h] ?? 0) + 1;
+            $proto = $e['protocol'] ?? 'unknown';
+            $p['by_protocol'][$proto] = ($p['by_protocol'][$proto] ?? 0) + 1;
+            $dec = $e['decision'] ?? 'unknown';
+            $p['by_decision'][$dec] = ($p['by_decision'][$dec] ?? 0) + 1;
+            $pair = ($e['source_zone'] ?? 'UNKNOWN') . ' → ' . ($e['destination_zone'] ?? 'UNKNOWN');
+            $p['by_zone_pair'][$pair] = ($p['by_zone_pair'][$pair] ?? 0) + 1;
+        }
+        for ($i = 0; $i < $hours; $i++) {
+            $h = date('Y-m-d H:00', time() - ($i * 3600));
+            if (!isset($hourly[$h])) {
+                $hourly[$h] = 0;
+            }
+        }
+        ksort($hourly);
+        $p['hourly'] = $hourly;
+        return $p;
+    }
+
+    // ===== ZONE MANAGEMENT METHODS =====
+
     /**
      * Get list of zones for dropdowns
      * @return array

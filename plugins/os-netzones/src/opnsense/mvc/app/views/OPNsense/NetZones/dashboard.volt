@@ -248,7 +248,7 @@ function loadServiceStatus() {
 }
 
 function loadZonesStatus() {
-    ajaxCall('/api/netzones/dashboard/stats', {}, function(data) {
+    ajaxCall('/api/netzones/management/dashboard_stats', {}, function(data) {
         if (data && data.status === 'ok' && data.data && typeof data.data === 'object') {
             var stats = data.data;
             var zonesActive = (stats.zones && stats.zones.active) || 0;
@@ -270,7 +270,7 @@ function loadZonesStatus() {
 }
 
 function loadPolicyActivity() {
-    ajaxCall('/api/netzones/dashboard/stats', {}, function(data) {
+    ajaxCall('/api/netzones/management/dashboard_stats', {}, function(data) {
         if (data && data.status === 'ok' && data.data) {
             var stats = data.data;
             $('#policyActivity').html(
@@ -291,7 +291,7 @@ function loadPolicyActivity() {
 }
 
 function loadSecuritySummary() {
-    ajaxCall('/api/netzones/dashboard/stats', {}, function(data) {
+    ajaxCall('/api/netzones/management/dashboard_stats', {}, function(data) {
         if (data && data.status === 'ok' && data.data) {
             var stats    = data.data;
             var blocked  = stats.block_events || 0;
@@ -338,7 +338,7 @@ function loadZonesOverview() {
 }
 
 function loadZoneRelationships() {
-    ajaxCall('/api/netzones/dashboard/zoneRelationships', {}, function(data) {
+    ajaxCall('/api/netzones/management/dashboard_zone_relationships', {}, function(data) {
         if (data && data.status === 'ok' && data.relationships && data.relationships.length > 0) {
             var html = '';
             data.relationships.forEach(function(rel) {
@@ -361,7 +361,7 @@ function loadZoneRelationships() {
 }
 
 function loadTrafficFlow() {
-    ajaxCall('/api/netzones/dashboard/stats', {}, function(data) {
+    ajaxCall('/api/netzones/management/dashboard_stats', {}, function(data) {
         if (data && data.status === 'ok' && data.data) {
             var lastHour = data.data.last_hour_count || 0;
             var pps = Math.round(lastHour / 3600) || 0;
@@ -382,7 +382,7 @@ function loadTrafficFlow() {
 }
 
 function loadRecentDecisions() {
-    ajaxCall('/api/netzones/dashboard/logs_list', {}, function(data) {
+    ajaxCall('/api/netzones/management/dashboard_logs', {}, function(data) {
         if (data && data.status === 'ok' && data.data && data.data.length > 0) {
             var html = '';
             data.data.slice(0, 10).forEach(function(entry) {
@@ -407,7 +407,7 @@ function loadRecentDecisions() {
 }
 
 function loadLiveActivityChart() {
-    ajaxCall('/api/netzones/dashboard/traffic_patterns', { hours: 6 }, function(data) {
+    ajaxCall('/api/netzones/management/dashboard_traffic_patterns', { hours: 6 }, function(data) {
         if (data && data.status === 'ok' && data.data && data.data.hourly) {
             var values = Object.values(data.data.hourly);
             var maxVal = Math.max.apply(null, values.concat([1]));
@@ -431,7 +431,7 @@ function loadLiveActivityChart() {
 }
 
 function loadProtocolDistribution() {
-    ajaxCall('/api/netzones/dashboard/stats', {}, function(data) {
+    ajaxCall('/api/netzones/management/dashboard_stats', {}, function(data) {
         if (data && data.status === 'ok' && data.data && data.data.top_protocols) {
             var protocols = data.data.top_protocols;
             var total     = data.data.total_events || 1;
@@ -455,7 +455,7 @@ function loadProtocolDistribution() {
 }
 
 function loadTopBlockedSources() {
-    ajaxCall('/api/netzones/dashboard/logs_list', {}, function(data) {
+    ajaxCall('/api/netzones/management/dashboard_logs', {}, function(data) {
         if (data && data.status === 'ok' && data.data) {
             var sources = {};
             data.data.filter(function(e) {
