@@ -3,8 +3,8 @@
 </div>
 
 <p>
-  <button class="btn btn-primary d-none d-flex align-items-center" id="saveAct" type="button">
-    <span class="spinner-border spinner-border-sm me-2 d-none" id="applySpinner" role="status" aria-hidden="true"></span>
+  <button class="btn btn-primary hidden" id="saveAct" type="button">
+    <i class="fa fa-spinner fa-pulse hidden" id="applySpinner"></i>
     <span id="applyLabel">{{ lang._('Apply') }}</span>
   </button>
 </p>
@@ -19,7 +19,6 @@ $(document).ready(function () {
   const $spinner = $("#applySpinner");
   const $label = $("#applyLabel");
 
-  // Carica i dati nel form
   const data_get_map = {};
   data_get_map[formId] = getEndpoint;
   mapDataToFormUI(data_get_map).done(function () {
@@ -27,35 +26,29 @@ $(document).ready(function () {
     $('.selectpicker').selectpicker('refresh');
   });
 
-  // Mostra il pulsante Apply quando si modifica qualcosa
   $(`#${formId}`).on("input change", "input, select, textarea", function () {
-    $applyButton.removeClass("d-none");
+    $applyButton.removeClass("hidden");
   });
 
-  // Pulsante Apply
   $applyButton.click(function () {
-    $spinner.removeClass("d-none");
+    $spinner.removeClass("hidden");
     $label.text("{{ lang._('Applying...') }}");
     $applyButton.prop("disabled", true);
 
     saveFormToEndpoint(setEndpoint, formId, function () {
       ajaxCall(reconfigureEndpoint, {}, function (response) {
-        $spinner.addClass("d-none");
+        $spinner.addClass("hidden");
         $label.text("{{ lang._('Apply') }}");
-        $applyButton.prop("disabled", false).addClass("d-none");
+        $applyButton.prop("disabled", false).addClass("hidden");
 
-        // Messaggio "Apply Changes" stile rules, senza bottone
         if ($("#applyBtnWrapper").length === 0) {
-          const $applyBox = $('<div id="applyBtnWrapper" class="mt-3">').append(
+          const $applyBox = $('<div id="applyBtnWrapper" style="margin-top:1rem;">').append(
             $('<div class="alert alert-info" role="alert">')
               .html('<strong>{{ lang._("Notice") }}:</strong> {{ lang._("The configuration has been applied successfully.") }}')
           );
-
           $(".content-box.__mb").prepend($applyBox);
-          setTimeout(() => {
-            $("#applyBtnWrapper").fadeOut(300, function () {
-              $(this).remove();
-            });
+          setTimeout(function () {
+            $("#applyBtnWrapper").fadeOut(300, function () { $(this).remove(); });
           }, 4000);
         }
       });
