@@ -52,22 +52,26 @@ $(document).ready(function() {
         });
     }
 
-    var opn_std_bootgrid_reload = std_bootgrid_reload;
-    std_bootgrid_reload = function(gridId) {
-        opn_std_bootgrid_reload(gridId);
-        isSubsystemDirty();
-    };
-
-    $('#btnApplyConfig').SimpleActionButton({
-        onAction: function(data, status) {
+    if (typeof std_bootgrid_reload === 'function') {
+        var opn_std_bootgrid_reload = std_bootgrid_reload;
+        std_bootgrid_reload = function(gridId) {
+            opn_std_bootgrid_reload(gridId);
             isSubsystemDirty();
-            if (status === "success") {
-                nzNotify('{{ lang._("Configuration applied successfully") }}', 'success');
-            } else {
-                nzNotify('{{ lang._("Failed to apply configuration") }}', 'error');
+        };
+    }
+
+    try {
+        $('#btnApplyConfig').SimpleActionButton({
+            onAction: function(data, status) {
+                isSubsystemDirty();
+                if (status === "success") {
+                    nzNotify('{{ lang._("Configuration applied successfully") }}', 'success');
+                } else {
+                    nzNotify('{{ lang._("Failed to apply configuration") }}', 'error');
+                }
             }
-        }
-    });
+        });
+    } catch(e) { }
 
     $("#grid-zones").UIBootgrid({
         'search':  '/api/netzones/settings/search_zone/',
@@ -75,7 +79,20 @@ $(document).ready(function() {
         'set':     '/api/netzones/settings/set_zone/',
         'add':     '/api/netzones/settings/add_zone/',
         'del':     '/api/netzones/settings/del_zone/',
-        'toggle':  '/api/netzones/settings/toggleZone/'
+        'toggle':  '/api/netzones/settings/toggle_zone/'
+    });
+
+    $("#grid-zones").on("loaded.rs.jquery.bootgrid", function() {
+        isSubsystemDirty();
+    });
+
+    $('#grid-zones tfoot [data-action="add"]').on('click', function() {
+        ajaxGet('/api/netzones/settings/get_zone/', {}, function(data) {
+            if (data && data.zone) {
+                setFormDialog("DialogEditZone", data.zone);
+            }
+            $('#DialogEditZone').modal({ backdrop: 'static', keyboard: false });
+        });
     });
 
     $("#grid-policies").UIBootgrid({
@@ -85,6 +102,19 @@ $(document).ready(function() {
         'add':     '/api/netzones/settings/add_policy/',
         'del':     '/api/netzones/settings/del_policy/',
         'toggle':  '/api/netzones/settings/toggle_policy/'
+    });
+
+    $("#grid-policies").on("loaded.rs.jquery.bootgrid", function() {
+        isSubsystemDirty();
+    });
+
+    $('#grid-policies tfoot [data-action="add"]').on('click', function() {
+        ajaxGet('/api/netzones/settings/get_policy/', {}, function(data) {
+            if (data && data.inter_zone_policy) {
+                setFormDialog("DialogEditPolicy", data.inter_zone_policy);
+            }
+            $('#DialogEditPolicy').modal({ backdrop: 'static', keyboard: false });
+        });
     });
 
     function showCreateZoneFromTemplate() {
