@@ -39,11 +39,19 @@ mkdir -p "$LOG_DIR"
 # Validate JSON file format
 validate_json() {
     local file="$1"
-    if [ -s "$file" ] && ! grep -q '^{.*}$' "$file" 2>/dev/null; then
-        echo "ERROR: Invalid JSON format in $file"
-        return 1
+    if [ ! -s "$file" ]; then
+        return 0
     fi
-    return 0
+    if command -v jq >/dev/null 2>&1; then
+        jq . "$file" > /dev/null 2>&1
+        return $?
+    fi
+    # Fallback: check that file starts with { and ends with }
+    local first last
+    first=$(head -c 1 "$file" 2>/dev/null)
+    last=$(tail -c 2 "$file" 2>/dev/null | tr -d '\n')
+    [ "$first" = "{" ] && [ "$last" = "}" ]
+    return $?
 }
 
 # Initialize JSON files if they don't exist
@@ -94,11 +102,13 @@ get_timestamp() {
     date '+%Y-%m-%d %H:%M:%S'
 }
 
-# Check if pfctl table exists and create it if missing
+# Ensure the pfctl table exists (best-effort, non-destructive)
 check_pfctl_table() {
-    if ! /sbin/pfctl -s Tables | grep -q "^$PFCTL_TABLE$"; then
-        echo "table <$PFCTL_TABLE> persist" | /sbin/pfctl -f - 2>/dev/null
-        log_action "Created pfctl table $PFCTL_TABLE"
+    if ! /sbin/pfctl -s Tables 2>/dev/null | grep -q "^${PFCTL_TABLE}$"; then
+        # Add a dummy entry to auto-create the table, then remove it
+        /sbin/pfctl -t "$PFCTL_TABLE" -T add 127.0.0.1 2>/dev/null || true
+        /sbin/pfctl -t "$PFCTL_TABLE" -T delete 127.0.0.1 2>/dev/null || true
+        log_action "Attempted to create pfctl table $PFCTL_TABLE"
     fi
 }
 
@@ -230,28 +240,26 @@ case "$1" in
             echo "ERROR: IP address required"
             exit 1
         fi
-        
+
         IP="$2"
         if ! validate_ip "$IP"; then
             echo "ERROR: Invalid IP address format"
             exit 1
         fi
-        
-        # Add to pfctl table
-        check_pfctl_table
-        if /sbin/pfctl -t "$PFCTL_TABLE" -T add "$IP" 2>/dev/null; then
-            log_action "Added IP $IP to pfctl table"
-        else
-            log_action "Failed to add IP $IP to pfctl table"
-            echo "ERROR: Failed to add IP to pfctl"
-            exit 1
-        fi
-        
+
         # Add to blocked IPs JSON file
         if ! ip_exists_in_json "$BLOCKED_IPS_FILE" "$IP" "blocked_ips"; then
             add_ip_to_json "$BLOCKED_IPS_FILE" "$IP" "blocked_ips"
         fi
-        
+
+        # Best-effort pfctl enforcement (non-fatal if table missing)
+        check_pfctl_table
+        if /sbin/pfctl -t "$PFCTL_TABLE" -T add "$IP" 2>/dev/null; then
+            log_action "Added IP $IP to pfctl table"
+        else
+            log_action "pfctl add skipped for $IP (table may not be active yet)"
+        fi
+
         log_action "Blocked IP: $IP"
         echo "OK"
         exit 0
@@ -262,24 +270,18 @@ case "$1" in
             echo "ERROR: IP address required"
             exit 1
         fi
-        
+
         IP="$2"
         if ! validate_ip "$IP"; then
             echo "ERROR: Invalid IP address format"
             exit 1
         fi
-        
-        # Remove from pfctl
-        check_pfctl_table
-        if /sbin/pfctl -t "$PFCTL_TABLE" -T delete "$IP" 2>/dev/null; then
-            log_action "Removed IP $IP from pfctl table"
-        else
-            log_action "Failed to remove IP $IP from pfctl table (may not exist)"
-        fi
-        
+
         # Remove from blocked IPs JSON file
         remove_ip_from_json "$BLOCKED_IPS_FILE" "$IP" "blocked_ips"
-        
+
+        # Best-effort pfctl removal (non-fatal)
+        /sbin/pfctl -t "$PFCTL_TABLE" -T delete "$IP" 2>/dev/null || true
         log_action "Unblocked IP: $IP"
         echo "OK"
         exit 0
@@ -290,30 +292,42 @@ case "$1" in
             echo "ERROR: IP address required"
             exit 1
         fi
-        
+
         IP="$2"
         if ! validate_ip "$IP"; then
             echo "ERROR: Invalid IP address format"
             exit 1
         fi
-        
+
         # Add to whitelist JSON
         if ! ip_exists_in_json "$WHITELIST_IPS_FILE" "$IP" "whitelisted_ips"; then
             add_ip_to_json "$WHITELIST_IPS_FILE" "$IP" "whitelisted_ips"
         fi
-        
-        # Remove from blocked list JSON
+
+        # Remove from blocked list JSON and pfctl (best-effort)
         remove_ip_from_json "$BLOCKED_IPS_FILE" "$IP" "blocked_ips"
-        
-        # Remove from pfctl
-        check_pfctl_table
-        if /sbin/pfctl -t "$PFCTL_TABLE" -T delete "$IP" 2>/dev/null; then
-            log_action "Removed IP $IP from pfctl table (whitelist)"
-        else
-            log_action "Failed to remove IP $IP from pfctl table (may not exist)"
-        fi
-        
+        /sbin/pfctl -t "$PFCTL_TABLE" -T delete "$IP" 2>/dev/null || true
+
         log_action "Whitelisted IP: $IP"
+        echo "OK"
+        exit 0
+        ;;
+
+    unwhitelist_ip)
+        if [ -z "$2" ]; then
+            echo "ERROR: IP address required"
+            exit 1
+        fi
+
+        IP="$2"
+        if ! validate_ip "$IP"; then
+            echo "ERROR: Invalid IP address format"
+            exit 1
+        fi
+
+        remove_ip_from_json "$WHITELIST_IPS_FILE" "$IP" "whitelisted_ips"
+
+        log_action "Removed IP $IP from whitelist"
         echo "OK"
         exit 0
         ;;
