@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/local/bin/bash
 #
 # deepinspector_control.sh - Control Script for DeepInspector DPI Engine
 #
