@@ -1,4 +1,4 @@
-#!/usr/local/bin/bash
+#!/bin/sh
 #
 # deepinspector_control.sh - Control Script for DeepInspector DPI Engine
 #
@@ -85,7 +85,9 @@ validate_ip() {
         if [ "$ip" = "0.0.0.0" ] || [ "$ip" = "255.255.255.255" ]; then
             return 1
         fi
-        IFS='.' read -r a b c d <<< "$ip"
+        IFS='.' read -r a b c d << EOF
+$ip
+EOF
         if [ "$a" -gt 255 ] || [ "$b" -gt 255 ] || [ "$c" -gt 255 ] || [ "$d" -gt 255 ]; then
             return 1
         fi
@@ -137,7 +139,8 @@ add_ip_to_json() {
             else
                 new_ips="$ip"
             fi
-            echo "{\"${key}\": [\"${new_ips//,/\",\"}\"], \"last_updated\": \"$timestamp\"}" > "$temp_file"
+            new_ips_json=$(echo "$new_ips" | sed 's/,/","/g')
+            echo "{\"${key}\": [\"${new_ips_json}\"], \"last_updated\": \"$timestamp\"}" > "$temp_file"
             mv "$temp_file" "$file"
         else
             echo "{\"${key}\": [\"$ip\"], \"last_updated\": \"$timestamp\"}" > "$file"
@@ -168,7 +171,8 @@ remove_ip_from_json() {
         if [ -s "$file" ]; then
             current_ips=$(grep -o '"[^"]*"' "$file" | grep -v "last_updated" | grep -v "^\"$ip\"$" | tr -d '"' | tr '\n' ',' | sed 's/,$//')
             if [ -n "$current_ips" ]; then
-                echo "{\"${key}\": [\"${current_ips//,/\",\"}\"], \"last_updated\": \"$timestamp\"}" > "$temp_file"
+                current_ips_json=$(echo "$current_ips" | sed 's/,/","/g')
+                echo "{\"${key}\": [\"${current_ips_json}\"], \"last_updated\": \"$timestamp\"}" > "$temp_file"
             else
                 echo "{\"${key}\": [], \"last_updated\": \"$timestamp\"}" > "$temp_file"
             fi
