@@ -285,6 +285,8 @@ function loadPolicyActivity() {
         } else {
             $('#policyActivity').html('<span class="text-muted">{{ lang._("No data") }}</span>');
         }
+    }).fail(function() {
+        $('#policyActivity').html('<span class="text-muted">{{ lang._("Unavailable") }}</span>');
     });
 }
 
@@ -307,6 +309,8 @@ function loadSecuritySummary() {
         } else {
             $('#securitySummary').html('<span class="text-muted">{{ lang._("No data") }}</span>');
         }
+    }).fail(function() {
+        $('#securitySummary').html('<span class="text-muted">{{ lang._("Unavailable") }}</span>');
     });
 }
 
@@ -351,6 +355,8 @@ function loadZoneRelationships() {
         } else {
             $('#zoneRelationships').html('<div class="text-muted text-center"><i class="fa fa-info-circle"></i> {{ lang._("No policies configured") }}</div>');
         }
+    }).fail(function() {
+        $('#zoneRelationships').html('<div class="text-muted text-center">{{ lang._("Unavailable") }}</div>');
     });
 }
 
@@ -370,6 +376,8 @@ function loadTrafficFlow() {
         } else {
             $('#trafficFlow').html('<span class="text-muted">{{ lang._("No data") }}</span>');
         }
+    }).fail(function() {
+        $('#trafficFlow').html('<span class="text-muted">{{ lang._("Unavailable") }}</span>');
     });
 }
 
@@ -417,6 +425,8 @@ function loadLiveActivityChart() {
         } else {
             $('#liveActivityChart').html('<div class="text-muted text-center"><i class="fa fa-line-chart"></i><br><small>{{ lang._("No data") }}</small></div>');
         }
+    }).fail(function() {
+        $('#liveActivityChart').html('<div class="text-muted text-center"><small>{{ lang._("Unavailable") }}</small></div>');
     });
 }
 
@@ -439,6 +449,8 @@ function loadProtocolDistribution() {
         } else {
             $('#protocolDistribution').html('<div class="text-muted text-center"><i class="fa fa-pie-chart"></i><br>{{ lang._("No data") }}</div>');
         }
+    }).fail(function() {
+        $('#protocolDistribution').html('<div class="text-muted text-center">{{ lang._("Unavailable") }}</div>');
     });
 }
 
@@ -465,6 +477,8 @@ function loadTopBlockedSources() {
         } else {
             $('#topBlockedSources').html('<span class="text-muted">{{ lang._("No data") }}</span>');
         }
+    }).fail(function() {
+        $('#topBlockedSources').html('<span class="text-muted">{{ lang._("Unavailable") }}</span>');
     });
 }
 

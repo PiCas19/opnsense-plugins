@@ -68,7 +68,7 @@ class DashboardController extends ApiControllerBase
                 'data' => $stats
             ];
             
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return [
                 'status' => 'error',
                 'message' => 'Failed to get stats: ' . $e->getMessage(),
@@ -151,7 +151,7 @@ class DashboardController extends ApiControllerBase
                 'data' => $patterns
             ];
             
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return [
                 'status' => 'error',
                 'message' => 'Failed to get traffic patterns: ' . $e->getMessage(),
@@ -207,7 +207,7 @@ class DashboardController extends ApiControllerBase
                 'total_relationships' => count($relationships)
             ];
             
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return [
                 'status' => 'error',
                 'message' => 'Failed to get zone relationships: ' . $e->getMessage(),
@@ -253,7 +253,7 @@ class DashboardController extends ApiControllerBase
                     $stats = array_merge($stats, $serviceData);
                     $stats['service_running'] = file_exists(self::SOCKET_PATH);
                 }
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 error_log("NetZones: Error loading service stats: " . $e->getMessage());
             }
         }
@@ -388,7 +388,7 @@ class DashboardController extends ApiControllerBase
                     'active' => $activePolicies
                 ]
             ];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return [
                 'zones' => ['total' => 0, 'active' => 0],
                 'policies' => ['total' => 0, 'active' => 0]
@@ -473,7 +473,7 @@ class DashboardController extends ApiControllerBase
                 return $timestamp;
             }
             return date('H:i:s', $time);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return $timestamp;
         }
     }
