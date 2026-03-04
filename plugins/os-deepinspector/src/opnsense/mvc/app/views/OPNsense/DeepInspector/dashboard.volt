@@ -3,7 +3,7 @@
 <script src="/ui/js/chart.min.js"></script>
 <script src="/ui/js/leaflet.js"></script>
 
-<div id="notifications" style="position:fixed;top:20px;right:20px;z-index:9999;min-width:300px;"></div>
+<div id="notifications" style="position:fixed;bottom:24px;right:24px;z-index:9999;min-width:280px;max-width:380px;pointer-events:none;"></div>
 
 <!-- ── Toolbar ──────────────────────────────────────────────────────────────── -->
 <div class="content-box" style="padding:.65rem 1.25rem;margin-bottom:1rem;">
@@ -926,7 +926,6 @@ function viewThreatDetails(threatId) {
 // ── Actions ───────────────────────────────────────────────────────────────────
 function blockSource(ip) {
     if (!ip) return;
-    if (!confirm('{{ lang._("Block IP") }} ' + esc(ip) + '?')) return;
     ajaxCall('/api/deepinspector/service/blockip', { ip: ip }, function(data) {
         if (data.status === 'ok') {
             blockedIPs[ip] = true;
@@ -940,7 +939,6 @@ function blockSource(ip) {
 
 function unblockSource(ip) {
     if (!ip) return;
-    if (!confirm('{{ lang._("Unblock IP") }} ' + esc(ip) + '?')) return;
     ajaxCall('/api/deepinspector/service/unblockip', { ip: ip }, function(data) {
         if (data.status === 'ok') {
             delete blockedIPs[ip];
@@ -1054,12 +1052,17 @@ function esc(s) {
     return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function showNotification(message, type) {
-    var cls = type === 'success' ? 'alert-success' : 'alert-danger';
-    var n = $('<div class="alert '+cls+' alert-dismissible" role="alert" style="margin-bottom:.5rem;">' +
-              '<button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>' +
-              message + '</div>');
-    $('#notifications').append(n);
-    setTimeout(function(){ n.alert('close'); }, 5000);
+    var isSuccess = (type === 'success');
+    var icon = isSuccess ? 'fa-check' : 'fa-exclamation-circle';
+    var cls  = isSuccess ? 'alert-success' : 'alert-danger';
+    var $n = $('<div style="pointer-events:all;margin-top:.4rem;border-radius:3px;box-shadow:0 2px 10px rgba(0,0,0,.28);">' +
+               '<div class="alert ' + cls + ' alert-dismissible" style="margin:0;padding:.6rem .9rem;">' +
+               '<button type="button" class="close" data-dismiss="alert" style="top:0;right:4px;">' +
+               '<span>&times;</span></button>' +
+               '<i class="fa ' + icon + '" style="margin-right:.45rem;"></i>' +
+               message + '</div></div>');
+    $('#notifications').append($n);
+    setTimeout(function () { $n.find('.alert').alert('close'); $n.remove(); }, 4000);
 }
 </script>
 
