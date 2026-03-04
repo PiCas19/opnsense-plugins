@@ -186,8 +186,8 @@ class ServiceController extends ApiMutableServiceControllerBase
             
             if (filter_var($ip, FILTER_VALIDATE_IP)) {
                 $backend = new Backend();
-                $response = $backend->configdpRun("deepinspector", array("block_ip", $ip));
-                
+                $response = $backend->configdpRun("deepinspector block_ip", array($ip));
+
                 return [
                     "status" => trim($response) === "OK" ? "ok" : "failed",
                     "response" => $response,
@@ -211,8 +211,8 @@ class ServiceController extends ApiMutableServiceControllerBase
             
             if (filter_var($ip, FILTER_VALIDATE_IP)) {
                 $backend = new Backend();
-                $response = $backend->configdpRun("deepinspector", array("unblock_ip", $ip));
-                
+                $response = $backend->configdpRun("deepinspector unblock_ip", array($ip));
+
                 return [
                     "status" => trim($response) === "OK" ? "ok" : "failed",
                     "response" => $response,
@@ -236,8 +236,8 @@ class ServiceController extends ApiMutableServiceControllerBase
             
             if (filter_var($ip, FILTER_VALIDATE_IP)) {
                 $backend = new Backend();
-                $response = $backend->configdpRun("deepinspector", array("whitelist_ip", $ip));
-                
+                $response = $backend->configdpRun("deepinspector whitelist_ip", array($ip));
+
                 return [
                     "status" => trim($response) === "OK" ? "ok" : "failed",
                     "response" => $response,
@@ -258,8 +258,8 @@ class ServiceController extends ApiMutableServiceControllerBase
     {
         if ($this->request->isPost()) {
             $backend = new Backend();
-            $response = $backend->configdpRun("deepinspector", array("clear_logs"));
-            
+            $response = $backend->configdRun("deepinspector clear_logs");
+
             return [
                 "status" => trim($response) === "OK" ? "ok" : "failed",
                 "response" => $response,
@@ -276,8 +276,8 @@ class ServiceController extends ApiMutableServiceControllerBase
     public function listBlockedAction()
     {
         $backend = new Backend();
-        $response = $backend->configdpRun("deepinspector", array("list_blocked"));
-        
+        $response = $backend->configdRun("deepinspector list_blocked");
+
         $ips = array_filter(explode("\n", trim($response)));
         
         return [
@@ -295,8 +295,8 @@ class ServiceController extends ApiMutableServiceControllerBase
     public function listWhitelistAction()
     {
         $backend = new Backend();
-        $response = $backend->configdpRun("deepinspector", array("list_whitelist"));
-        
+        $response = $backend->configdRun("deepinspector list_whitelist");
+
         $ips = array_filter(explode("\n", trim($response)));
         
         return [
@@ -320,8 +320,8 @@ class ServiceController extends ApiMutableServiceControllerBase
         }
         
         $backend = new Backend();
-        $response = $backend->configdpRun("deepinspector", array("show_json", $type));
-        
+        $response = $backend->configdpRun("deepinspector show_json", array($type));
+
         // Try to decode JSON response
         $data = json_decode($response, true);
         if (json_last_error() === JSON_ERROR_NONE) {
@@ -355,12 +355,7 @@ class ServiceController extends ApiMutableServiceControllerBase
 
             if (filter_var($ip, FILTER_VALIDATE_IP)) {
                 $backend = new Backend();
-                $response = $backend->configdpRun("deepinspector", array("unwhitelist_ip", $ip));
-
-                // Fallback: if the daemon doesn't support unwhitelist_ip, treat "OK" from unblock as success
-                if (trim($response) !== "OK") {
-                    $response = $backend->configdpRun("deepinspector", array("unblock_ip", $ip));
-                }
+                $response = $backend->configdpRun("deepinspector unwhitelist_ip", array($ip));
 
                 return [
                     "status"   => trim($response) === "OK" ? "ok" : "failed",
@@ -395,9 +390,9 @@ class ServiceController extends ApiMutableServiceControllerBase
         $backend = new Backend();
         
         // Check blocked list
-        $blockedResponse = $backend->configdpRun("deepinspector", array("list_blocked"));
+        $blockedResponse = $backend->configdRun("deepinspector list_blocked");
         $blockedIPs = array_filter(explode("\n", trim($blockedResponse)));
-        
+
         if (in_array($ip, $blockedIPs)) {
             return [
                 "status" => "ok",
@@ -405,9 +400,9 @@ class ServiceController extends ApiMutableServiceControllerBase
                 "message" => "IP is in blocked list"
             ];
         }
-        
+
         // Check whitelist
-        $whitelistResponse = $backend->configdpRun("deepinspector", array("list_whitelist"));
+        $whitelistResponse = $backend->configdRun("deepinspector list_whitelist");
         $whitelistIPs = array_filter(explode("\n", trim($whitelistResponse)));
         
         if (in_array($ip, $whitelistIPs)) {

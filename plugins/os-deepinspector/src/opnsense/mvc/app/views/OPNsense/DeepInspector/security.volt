@@ -1,6 +1,6 @@
 {# security.volt - Deep Packet Inspector Security Management #}
 
-<div id="sec-notifications" style="position:fixed;top:20px;right:20px;z-index:9999;min-width:300px;"></div>
+<div id="sec-notifications" style="position:fixed;bottom:24px;right:24px;z-index:9999;min-width:280px;max-width:380px;pointer-events:none;"></div>
 
 <!-- ── Nav tabs (Bootstrap 3) ───────────────────────────────────────────────── -->
 <ul class="nav nav-tabs" role="tablist" style="margin-bottom:1.25rem;">
@@ -336,7 +336,6 @@ function addToBlocklist() {
 }
 
 function unblockIP(ip) {
-    if (!confirm('{{ lang._("Remove") }} ' + ip + ' {{ lang._("from blocklist?") }}')) return;
     ajaxCall('/api/deepinspector/service/unblockip', { ip: ip }, function(data) {
         if (data.status === 'ok') {
             secNotify('{{ lang._("IP removed from blocklist") }}', 'success');
@@ -406,7 +405,6 @@ function addToWhitelist() {
 }
 
 function removeWhitelistIP(ip) {
-    if (!confirm('{{ lang._("Remove") }} ' + ip + ' {{ lang._("from whitelist?") }}')) return;
     ajaxCall('/api/deepinspector/service/removewhitelistip', { ip: ip }, function(data) {
         if (data.status === 'ok') {
             secNotify('{{ lang._("IP removed from whitelist") }}', 'success');
@@ -489,7 +487,6 @@ function renderFP() {
 
 function removeFP(alertId) {
     if (!alertId) return;
-    if (!confirm('{{ lang._("Remove this false positive entry?") }}')) return;
     ajaxCall('/api/deepinspector/alerts/removefalsepositive', { alert_id: alertId }, function(data) {
         if (data.status === 'ok') {
             secNotify('{{ lang._("False positive removed") }}', 'success');
@@ -514,7 +511,6 @@ function reviewFP(alertId) {
 
 function whitelistFromFP(ip) {
     if (!ip) return;
-    if (!confirm('{{ lang._("Add") }} ' + ip + ' {{ lang._("to whitelist?") }}')) return;
     ajaxCall('/api/deepinspector/service/whitelistip', { ip: ip }, function(data) {
         if (data.status === 'ok') {
             secNotify('{{ lang._("IP whitelisted successfully") }}', 'success');
@@ -551,11 +547,16 @@ function secEsc(s) {
     return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 }
 function secNotify(message, type) {
-    var cls = type === 'success' ? 'alert-success' : 'alert-danger';
-    var n = $('<div class="alert '+cls+' alert-dismissible" role="alert" style="margin-bottom:.5rem;">' +
-              '<button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>' +
-              message+'</div>');
-    $('#sec-notifications').append(n);
-    setTimeout(function(){ n.alert('close'); }, 5000);
+    var isSuccess = (type === 'success');
+    var icon = isSuccess ? 'fa-check' : 'fa-exclamation-circle';
+    var cls  = isSuccess ? 'alert-success' : 'alert-danger';
+    var $n = $('<div role="alert" style="pointer-events:all;margin-top:.4rem;border-radius:3px;box-shadow:0 2px 10px rgba(0,0,0,.28);">' +
+               '<div class="alert ' + cls + ' alert-dismissible" style="margin:0;padding:.6rem .9rem;">' +
+               '<button type="button" class="close" data-dismiss="alert" style="top:0;right:4px;">' +
+               '<span>&times;</span></button>' +
+               '<i class="fa ' + icon + '" style="margin-right:.45rem;"></i>' +
+               message + '</div></div>');
+    $('#sec-notifications').append($n);
+    setTimeout(function () { $n.find('.alert').alert('close'); $n.remove(); }, 4000);
 }
 </script>
