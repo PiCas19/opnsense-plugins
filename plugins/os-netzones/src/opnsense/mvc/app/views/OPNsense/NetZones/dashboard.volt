@@ -7,9 +7,6 @@
 <!-- ── Toolbar ─────────────────────────────────────────────────────────────── -->
 <div class="content-box" style="padding:.65rem 1.25rem;margin-bottom:1rem;">
     <div class="row" style="align-items:center;">
-        <div class="col-md-1">
-            <span id="nzServiceBadge" class="label label-default" style="font-size:.9em;padding:.35em .7em;">{{ lang._('Loading...') }}</span>
-        </div>
         <div class="col-md-2">
             <select id="nzTimeRange" class="form-control input-sm">
                 <option value="last1h">{{ lang._('Last 1 hour') }}</option>
@@ -26,15 +23,6 @@
             </span>
             <button class="btn btn-default btn-sm" id="nzRefresh" style="margin-left:.5rem;">
                 <i class="fa fa-refresh"></i> {{ lang._('Refresh') }}
-            </button>
-            <button class="btn btn-success btn-sm" id="nzStartBtn" style="margin-left:.5rem;">
-                <i class="fa fa-play"></i> {{ lang._('Start') }}
-            </button>
-            <button class="btn btn-warning btn-sm" id="nzRestartBtn" style="margin-left:.3rem;">
-                <i class="fa fa-refresh"></i> {{ lang._('Restart') }}
-            </button>
-            <button class="btn btn-danger btn-sm" id="nzStopBtn" style="margin-left:.3rem;">
-                <i class="fa fa-stop"></i> {{ lang._('Stop') }}
             </button>
         </div>
     </div>
