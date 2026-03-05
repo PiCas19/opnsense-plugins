@@ -168,7 +168,7 @@ def evaluate_policy(source_zone, destination_zone, protocol, port):
                 "Default block for unknown action")
     return "block"
 
-def log_decision(source_zone, destination_zone, protocol, port, decision, reason, extra_data=None):
+def log_decision(source_zone, destination_zone, protocol, port, decision, reason, extra_data=None, src_ip=None, dst_ip=None):
     """
     Log policy decisions to a file for analysis and debugging.
 
@@ -180,15 +180,19 @@ def log_decision(source_zone, destination_zone, protocol, port, decision, reason
         decision (str): Decision taken ("pass" or "block")
         reason (str): Reason for the decision
         extra_data (dict, optional): Additional data to include in the log
+        src_ip (str, optional): Source IP address
+        dst_ip (str, optional): Destination IP address
 
     Returns:
         None
     """
     import time
-    
+
     # Create log entry with relevant details
     entry = {
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "source_ip": src_ip or "",
+        "destination_ip": dst_ip or "",
         "source_zone": source_zone,
         "destination_zone": destination_zone,
         "protocol": protocol,

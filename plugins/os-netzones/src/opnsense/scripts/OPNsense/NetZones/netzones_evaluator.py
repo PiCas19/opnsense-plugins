@@ -355,7 +355,8 @@ def handle_netzones_request(data):
         
         # Log decision with optional metadata from request
         extra_data = data.get("meta", {})
-        log_decision(src_zone, dst_zone, protocol, port, decision, reason, extra_data)
+        log_decision(src_zone, dst_zone, protocol, port, decision, reason, extra_data,
+                     src_ip=src_ip, dst_ip=dst_ip)
         
         # Cache the new decision for future reuse
         decision_cache[cache_key] = {

@@ -76,7 +76,7 @@ class ManagementController extends ApiControllerBase
             if (!is_array($lines)) {
                 return $result;
             }
-            $lines = array_slice($lines, -100);
+            $lines = array_slice($lines, -500);
             $result['total'] = count($lines);
             foreach (array_reverse($lines) as $line) {
                 $e = json_decode($line, true);
@@ -84,15 +84,37 @@ class ManagementController extends ApiControllerBase
                     continue;
                 }
                 $ts = isset($e['timestamp']) ? strtotime($e['timestamp']) : false;
+
+                // Resolve source IP from top-level field or legacy extra dict
+                $sourceIp = '';
+                if (!empty($e['source_ip'])) {
+                    $sourceIp = $e['source_ip'];
+                } elseif (!empty($e['extra']['src_ip'])) {
+                    $sourceIp = $e['extra']['src_ip'];
+                }
+
+                // Resolve destination IP from top-level field or legacy extra dict
+                $destIp = '';
+                if (!empty($e['destination_ip'])) {
+                    $destIp = $e['destination_ip'];
+                } elseif (!empty($e['extra']['dst_ip'])) {
+                    $destIp = $e['extra']['dst_ip'];
+                }
+
+                $sourceZone = isset($e['source_zone']) ? $e['source_zone'] : '';
+                $destZone   = isset($e['destination_zone']) ? $e['destination_zone'] : '';
+
                 $result['data'][] = [
-                    'timestamp'          => ($ts ? date('H:i:s', $ts) : 'N/A'),
-                    'src'                => htmlspecialchars(isset($e['source_zone']) ? $e['source_zone'] : 'UNKNOWN', ENT_QUOTES, 'UTF-8'),
-                    'dst'                => htmlspecialchars(isset($e['destination_zone']) ? $e['destination_zone'] : 'UNKNOWN', ENT_QUOTES, 'UTF-8'),
-                    'protocol'           => htmlspecialchars(strtoupper(isset($e['protocol']) ? $e['protocol'] : 'unknown'), ENT_QUOTES, 'UTF-8'),
-                    'decision'           => htmlspecialchars(strtoupper(isset($e['decision']) ? $e['decision'] : 'unknown'), ENT_QUOTES, 'UTF-8'),
-                    'port'               => htmlspecialchars(isset($e['port']) ? (string)$e['port'] : '-', ENT_QUOTES, 'UTF-8'),
-                    'reason'             => htmlspecialchars(isset($e['reason']) ? $e['reason'] : '', ENT_QUOTES, 'UTF-8'),
-                    'processing_time_ms' => (float)(isset($e['processing_time_ms']) ? $e['processing_time_ms'] : 0)
+                    'ts'               => $ts ?: 0,
+                    'timestamp'        => ($ts ? date('Y-m-d H:i:s', $ts) : 'N/A'),
+                    'source_ip'        => htmlspecialchars($sourceIp, ENT_QUOTES, 'UTF-8'),
+                    'source_zone'      => htmlspecialchars($sourceZone, ENT_QUOTES, 'UTF-8'),
+                    'destination_ip'   => htmlspecialchars($destIp, ENT_QUOTES, 'UTF-8'),
+                    'destination_zone' => htmlspecialchars($destZone, ENT_QUOTES, 'UTF-8'),
+                    'protocol'         => htmlspecialchars(strtolower(isset($e['protocol']) ? $e['protocol'] : ''), ENT_QUOTES, 'UTF-8'),
+                    'decision'         => htmlspecialchars(strtolower(isset($e['decision']) ? $e['decision'] : ''), ENT_QUOTES, 'UTF-8'),
+                    'port'             => htmlspecialchars(isset($e['port']) ? (string)$e['port'] : '', ENT_QUOTES, 'UTF-8'),
+                    'reason'           => htmlspecialchars(isset($e['reason']) ? $e['reason'] : '', ENT_QUOTES, 'UTF-8'),
                 ];
             }
             return $result;

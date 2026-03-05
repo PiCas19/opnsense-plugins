@@ -164,29 +164,155 @@ def load_zone_subnet_map():
                     subnet_map[subnet] = name
     return subnet_map
 
+def _load_interface_subnet_map():
+    """
+    Build a map of OPNsense interface name -> ip_network from config.xml.
+    Used as second-level fallback for zone resolution.
+
+    Returns:
+        dict: {interface_name (str): ip_network}
+    """
+    iface_map = {}
+    try:
+        tree = ET.parse(CONFIG_PATH)
+        root = tree.getroot()
+        interfaces_node = root.find(".//interfaces")
+        if interfaces_node is None:
+            return iface_map
+        for iface_el in interfaces_node:
+            iface_name = iface_el.tag.lower()
+            ipaddr = (iface_el.findtext("ipaddr") or "").strip()
+            subnet = (iface_el.findtext("subnet") or "").strip()
+            if not ipaddr or ipaddr in ("dhcp", "pppoe", "") or not subnet:
+                continue
+            try:
+                net = ipaddress.ip_network("{}/{}".format(ipaddr, subnet), strict=False)
+                iface_map[iface_name] = net
+            except (ValueError, TypeError):
+                pass
+    except Exception:
+        pass
+    return iface_map
+
+
+def _load_interface_to_zone_map():
+    """
+    Build a map of OPNsense interface name -> zone name from configured zones.
+    Each zone can have multiple interfaces listed as CSV.
+
+    Returns:
+        dict: {interface_name (str): zone_name (str)}
+    """
+    iface_zone_map = {}
+    for zone in get_zones():
+        if zone.findtext("enabled", "0") == "1":
+            name = zone.findtext("name", "").strip()
+            interfaces = zone.findtext("interface", "")
+            for iface in interfaces.split(","):
+                iface = iface.strip().lower()
+                if iface and name:
+                    iface_zone_map[iface] = name
+    return iface_zone_map
+
+
+def _collect_all_zone_names():
+    """
+    Collect names of all enabled zones regardless of whether they have subnets.
+
+    Returns:
+        list: Zone names (str)
+    """
+    names = []
+    seen = set()
+    for zone in get_zones():
+        if zone.findtext("enabled", "0") == "1":
+            n = zone.findtext("name", "").strip()
+            if n and n not in seen:
+                names.append(n)
+                seen.add(n)
+    return names
+
+
 def get_zone_by_ip(ip):
     """
-    Resolve an IP address to its corresponding zone name.
+    Resolve an IP address to its corresponding zone name using multiple strategies.
+
+    Strategy 1 – Subnet match (most specific wins):
+        Check each zone's configured subnets. Best-match (longest prefix) wins.
+
+    Strategy 2 – Interface subnet match:
+        Read OPNsense interface IPs from config.xml, find which interface the IP
+        belongs to, then return the zone that uses that interface.
+
+    Strategy 3 – Heuristic by IP type + zone name keywords:
+        Private IP  → prefer zones whose name contains LAN / DMZ / TRUST / etc.
+        Public  IP  → prefer zones whose name contains WAN / EXTERNAL / etc.
+
+    Strategy 4 – Last resort:
+        Return the first enabled zone found (avoids "UNKNOWN" for any configured setup).
 
     Args:
         ip (str): IP address to resolve
 
     Returns:
-        str: Zone name if found, "UNKNOWN" otherwise
+        str: Zone name, or "UNKNOWN" only if no zone is configured at all
     """
-    zone_map = load_zone_subnet_map()
     try:
-        ip_obj = ipaddress.ip_address(ip)  # Parse IP address
+        ip_obj = ipaddress.ip_address(ip)
     except ValueError:
         return "UNKNOWN"
-    
+
+    # ── Strategy 1: best-match subnet lookup ────────────────────────────────
+    zone_map = load_zone_subnet_map()
+    best_zone   = None
+    best_prefix = -1
     for subnet, zone in zone_map.items():
         try:
-            if ip_obj in ipaddress.ip_network(subnet, strict=False):  # Check if IP is in subnet
-                return zone
+            net = ipaddress.ip_network(subnet, strict=False)
+            if ip_obj in net and net.prefixlen > best_prefix:
+                best_zone   = zone
+                best_prefix = net.prefixlen
         except ValueError:
             continue
-    
+    if best_zone:
+        return best_zone
+
+    # ── Strategy 2: OPNsense interface subnet match ─────────────────────────
+    iface_subnets = _load_interface_subnet_map()   # {iface: ip_network}
+    iface_zones   = _load_interface_to_zone_map()  # {iface: zone_name}
+    best_iface    = None
+    best_prefix2  = -1
+    for iface_name, net in iface_subnets.items():
+        try:
+            if ip_obj in net and net.prefixlen > best_prefix2:
+                best_iface   = iface_name
+                best_prefix2 = net.prefixlen
+        except Exception:
+            continue
+    if best_iface and best_iface in iface_zones:
+        return iface_zones[best_iface]
+
+    # ── Strategy 3: heuristic by IP type + zone name keywords ───────────────
+    all_zones  = _collect_all_zone_names()
+    is_private = ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local
+
+    if is_private:
+        for kw in ['lan', 'internal', 'inside', 'trusted', 'trust', 'home',
+                   'corp', 'office', 'local', 'dmz', 'server', 'guest']:
+            for z in all_zones:
+                if kw in z.lower():
+                    return z
+    else:
+        for kw in ['wan', 'external', 'internet', 'outside', 'untrusted',
+                   'public', 'uplink', 'upstream']:
+            for z in all_zones:
+                if kw in z.lower():
+                    return z
+
+    # ── Strategy 4: last resort – return any configured zone ─────────────────
+    if all_zones:
+        return all_zones[0] if is_private else all_zones[-1]
+
     return "UNKNOWN"
 
 def get_zone_config(zone_name):
