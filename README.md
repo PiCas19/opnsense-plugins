@@ -13,26 +13,26 @@ This platform provides two complementary components:
 ┌─────────────────────────────────────────────────────────────┐
 │                OPNsense Security Platform                   │
 ├─────────────────────────────┬───────────────────────────────┤
-│       Management API        │      Security Plugins        │
+│       Management API        │      Security Plugins         │
 │                             │                               │
 │  ┌─────────────────────┐    │  ┌─────────────────────────┐  │
-│  │   Reverse Proxy     │    │  │    AdvInspector        │  │
-│  │  (Auth + SSL + UI)  │    │  │ (Packet Inspection)    │  │
+│  │   Reverse Proxy     │    │  │    AdvInspector         │  │
+│  │  (Auth + SSL + UI)  │    │  │ (Packet Inspection)     │  │
 │  └─────────────────────┘    │  └─────────────────────────┘  │
 │            │                │                               │
 │  ┌─────────────────────┐    │  ┌─────────────────────────┐  │
-│  │  Wrapper Service    │    │  │   DeepInspector        │  │
-│  │  (OPNsense API)     │◄───┼──┤ (Industrial Protocols) │  │
+│  │  Wrapper Service    │    │  │   DeepInspector         │  │
+│  │  (OPNsense API)     │◄───┼──┤ (Industrial Protocols) │   │
 │  └─────────────────────┘    │  └─────────────────────────┘  │
 │                             │                               │
 │                             │  ┌─────────────────────────┐  │
-│                             │  │     NetZones           │  │
-│                             │  │ (Network Segmentation) │  │
+│                             │  │     NetZones            │  │
+│                             │  │ (Network Segmentation)  │  │
 │                             │  └─────────────────────────┘  │
 │                             │                               │
 │                             │  ┌─────────────────────────┐  │
-│                             │  │     WebGuard           │  │
-│                             │  │   (WAF Protection)     │  │
+│                             │  │     WebGuard            │  │
+│                             │  │   (WAF Protection)      │  │
 │                             │  └─────────────────────────┘  │
 └─────────────────────────────┴───────────────────────────────┘
 ```
@@ -490,7 +490,7 @@ pkg install opnsense-code
 - **Wiki**: Additional documentation and tutorials
 
 ### Professional Support
-- **Email**: pierpaolo.casati@student.supsi.ch
+- **Email**: pierpaolo.casati@bluewin.ch
 
 ---
 
