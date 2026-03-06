@@ -22,7 +22,7 @@ This platform provides two complementary components:
 │            │                │                               │
 │  ┌─────────────────────┐    │  ┌─────────────────────────┐  │
 │  │  Wrapper Service    │    │  │   DeepInspector         │  │
-│  │  (OPNsense API)     │◄───┼──┤ (Industrial Protocols) │   │
+│  │  (OPNsense API)     │◄───┼──┤ (Industrial Protocols)  │  │
 │  └─────────────────────┘    │  └─────────────────────────┘  │
 │                             │                               │
 │                             │  ┌─────────────────────────┐  │
